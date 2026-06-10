@@ -9,7 +9,49 @@ código (PWA na próxima fase). UI 100% em **português do Brasil**, moeda **R$*
 
 ---
 
-## Visão e processo de design
+## 🧭 Estado atual (leia primeiro numa sessão nova)
+
+**Última grande entrega (jun/2026):** implementação pixel-fiel do design (handoff do Claude
+Design) + autenticação multiusuário. O app está **funcional de ponta a ponta** em dev:
+login/registro → dashboard com dados reais → CRUD de transações/contas/categorias.
+
+| O quê | Estado |
+|---|---|
+| Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
+| Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
+| Suíte de testes | ✅ 69 testes / 199 asserções verdes |
+| PWA (manifest + service worker) | ⬜ **Próximo passo natural** |
+| Telas Metas/Faturas/Investimentos/Relatórios | ⬜ Placeholders "em breve" (aguardam design) |
+| Deploy (VPS) / domínio | ⬜ Futuro (ver "Visão de infraestrutura") |
+
+**Para subir o ambiente:** seção "Fluxo de trabalho" abaixo. **Login de dev:** o usuário do
+seeder vem das variáveis `SEED_USER_*` no `.env` (e-mail `victor.rosa.system@gmail.com`;
+a senha está **só no `.env`**, nunca no código/git).
+
+**Repositório:** `github.com/Victordemelo/StabilMoney` — **privado**. O `gh` CLI está
+instalado e autenticado na máquina do Victor (conta `Victordemelo`).
+
+---
+
+## 📜 Decisões históricas (por quê as coisas são assim)
+
+- **Nome:** era "MoneyLife"; renomeado para **Stabil Money** em jun/2026 (moneylife.com.br
+  estava ocupado). Domínios `stabilmoney.com.br` e `.com` estavam **livres** em 09/06/2026 —
+  plano: registrar o `.com.br` no registro.br como principal.
+- **Laravel + PWA, não Supabase/Flutter:** avaliados em jun/2026; manter Laravel aproveita o
+  que já existia e evita aprender duas stacks novas de uma vez. App nativo fica para a Fase 2
+  via **TWA** (empacota a PWA sem reescrever). Supabase só entraria se um dia o app fosse
+  nativo puro.
+- **Docker:** a máquina do Victor não tem PHP/Composer — só Node. Tudo PHP roda no container.
+- **Auth:** até a Fase 1 havia um fallback `Auth::id() ?? 1` (single-user). Foi **removido**
+  quando o Breeze entrou — hoje login é obrigatório em tudo.
+- **Perfil do dono (Victor):** nível inicial/intermediário em Laravel; nunca publicou na Play
+  Store; prefere explicações didáticas em PT-BR. Ele desenha o visual no Claude Design e o
+  Claude Code implementa (ver processo abaixo).
+
+---
+
+## 🎨 Visão e processo de design
 
 O visual do app vem de um **handoff do Claude Design** (claude.ai/design), versionado em `design/`:
 
@@ -24,6 +66,14 @@ O visual do app vem de um **handoff do Claude Design** (claude.ai/design), versi
 `request()->routeIs(...)`. **Nunca** copie a lógica de troca de views do protótipo.
 Para novas telas, consulte sempre o HTML/CSS do protótipo como fonte da verdade visual.
 
+**Recebendo um handoff novo:** chega como URL `https://api.anthropic.com/v1/design/h/...` —
+é um `.tar.gz`: baixar com curl, extrair, ler README + chats + arquivos do projeto, e
+atualizar a pasta `design/` do repo com o bundle novo antes de implementar.
+
+**Telas sem design ainda** (metas, faturas, investimentos, relatórios): usam o padrão
+"em breve" (`coming-soon.blade.php`). Formulários/elementos sem protótipo seguem os tokens
+do design system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
+
 ---
 
 ## Stack (implementada)
@@ -31,12 +81,13 @@ Para novas telas, consulte sempre o HTML/CSS do protótipo como fonte da verdade
 | Camada | Escolha | Observações |
 |--------|---------|-------------|
 | Backend | **Laravel 12** (PHP 8.4) | Monolito, resource controllers + Form Requests + Policies + Services. |
-| Banco | **MySQL 8.0** (Docker) | Container `db`, porta 3306. |
+| Banco | **MySQL 8.0** (Docker) | Container `db`, porta 3306 (db `stabilmoney`, user/password no `.env`). |
 | Runtime | **Docker** (php:8.4-apache) | Container `app`, site em http://localhost:8000. Host não precisa de PHP. |
 | Frontend | **Blade + design system próprio** | `resources/css/design-system.css` (portado de `design/project/styles.css`) + `forms.css`. Tailwind 4 carregado como base utilitária via Vite 7. |
 | JS | **Vanilla** em `resources/js/sm/` | SEM Alpine, SEM frameworks. Módulos: `theme.js`, `shell.js`, `charts.js`, `dashboard.js`. |
 | Auth | **Laravel Breeze 2.4** (blade) | Telas reescritas no design system, em PT-BR. |
 | i18n | **laravel-lang/common** | `lang/pt_BR` completo (validation, auth, passwords). `APP_LOCALE=pt_BR`; `Carbon::setLocale` no `AppServiceProvider`. |
+| Fontes | Google Fonts | Sora (títulos/números) + Plus Jakarta Sans (corpo) — link nos layouts. |
 | Mobile | **PWA** (Fase 1, pendente) | Web instalável; sem Android Studio por enquanto. |
 
 ---
@@ -73,7 +124,11 @@ resources/
 design/                     # Handoff do Claude Design (fonte da verdade visual — NÃO editar)
 lang/pt_BR(+.json)          # Traduções PT-BR (laravel-lang)
 routes/web.php              # Rotas do app | routes/auth.php (Breeze)
-database/migrations/        # users/cache/jobs + accounts/categories/transactions
+database/
+├── migrations/             # users/cache/jobs + accounts/categories/transactions
+├── factories/              # User, Account, Category (states income/expense), Transaction
+└── seeders/                # DatabaseSeeder (só roda em APP_ENV=local; credenciais via .env)
+tests/Feature/              # 69 testes: auth, dashboard, CRUD, validação, isolamento multiusuário
 ```
 
 ---
@@ -85,9 +140,12 @@ database/migrations/        # users/cache/jobs + accounts/categories/transaction
   `auth()->id()` / `$request->user()->id` e escope **toda** query pelo dono.
 - Registro dispara o listener `SeedDefaultCategoriesForNewUser` → cria as categorias padrão
   (9 despesas + 5 receitas, cores da paleta) via `App\Support\DefaultCategories::seedFor()`.
-- `DatabaseSeeder` roda **só em ambiente `local`**: usuário demo `victor@stabilmoney.test`
-  (senha de `SEED_USER_PASSWORD`, fallback `password`; `is_admin`) + categorias padrão + conta Carteira.
-- `User` **não** implementa `MustVerifyEmail` (fluxo de verificação pronto em PT-BR, desativado de propósito).
+- `DatabaseSeeder` roda **só em ambiente `local`** e lê as credenciais do `.env`:
+  `SEED_USER_NAME`, `SEED_USER_EMAIL`, `SEED_USER_PASSWORD` (usa `updateOrCreate`, então
+  rodar o seed de novo re-sincroniza nome/senha com o `.env`). **Senha real jamais vai
+  para o código/git** — fica só no `.env` (gitignorado).
+- `User` **não** implementa `MustVerifyEmail` (fluxo de verificação pronto em PT-BR,
+  desativado de propósito — não há mailer configurado; `MAIL_MAILER=log` em dev).
 
 ---
 
@@ -167,7 +225,9 @@ Saldo total = atual de todas as contas, independe do período.
 - Flash de sucesso: `session('status')` ou `session('success')` (partial `partials/flash`);
   erros via `$errors` / banner `.flash-error`.
 - Strings de UI e comentários de código em **PT-BR**.
-- Migrations sempre reversíveis (`down()`).
+- Migrations sempre reversíveis (`down()`); SQL compatível com MySQL **e** sqlite
+  (testes rodam em sqlite `:memory:` — cuidado com funções tipo `MONTH()`, ver
+  `DashboardService` para o padrão por driver).
 - Commits: prefixos `Feat:`, `Fix:`, `style:`.
 
 ---
@@ -187,10 +247,10 @@ docker compose exec app chmod -R 777 storage bootstrap/cache   # evita erro 500
 # 3. .env + chave (já configurado para MySQL)
 docker compose exec app php artisan key:generate
 
-# 4. Tabelas + dados demo (demo só em APP_ENV=local)
+# 4. Tabelas + usuário de dev (seeder só roda em APP_ENV=local; credenciais nas SEED_USER_* do .env)
 docker compose exec app php artisan migrate --seed
 
-# App: http://localhost:8000  (login demo: victor@stabilmoney.test / password)
+# App: http://localhost:8000
 ```
 
 ### Assets (Vite/Tailwind) — rodam no HOST
@@ -202,7 +262,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte de testes (Feature: auth + profile)
+docker compose exec app php artisan test                       # suíte completa (69 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan tinker                     # console interativo
 docker compose exec app php artisan view:cache                 # valida sintaxe de TODAS as views
@@ -216,6 +276,8 @@ docker compose down                                            # derruba contain
 ### Testar no celular (mesma rede Wi-Fi)
 `ipconfig` para descobrir o IP → `http://SEU_IP:8000` no navegador do celular.
 Com a PWA pronta (Fase 1), "Adicionar à tela inicial".
+**PWA exige HTTPS** — para testar instalação no celular antes de ter servidor, usar
+**Cloudflare Tunnel** (`cloudflared tunnel --url http://localhost:8000` dá URL https grátis).
 
 ---
 
@@ -226,7 +288,27 @@ Com a PWA pronta (Fase 1), "Adicionar à tela inicial".
   tema claro/escuro.
 - **Fase 1 — PWA + Login: 🔶 PARCIAL.**
   - ✅ Autenticação multiusuário (Breeze, telas no design system, PT-BR, categorias padrão no registro).
-  - ⬜ PWA: `manifest.json` + service worker (instalável na tela inicial).
-- **Fase 2 — Futuro:** empacotar a PWA como app Android (TWA) para a Play Store **ou** Flutter
-  consumindo API; **bot WhatsApp** para lançar transações por mensagem + **deploy em VPS** como
-  visão de infraestrutura.
+  - ⬜ PWA: `manifest.json` + service worker (instalável na tela inicial). **← próximo passo**
+- **Fase 2 — Futuro:** telas que hoje são "em breve" (metas, faturas, investimentos, relatórios —
+  aguardam design); empacotar a PWA como app Android (**TWA**) para a Play Store; **bot WhatsApp**
+  para consultar/lançar transações por mensagem (ver infra abaixo).
+
+---
+
+## 🏗️ Visão de infraestrutura (decidida em jun/2026, ainda não executada)
+
+- **Hoje (dev):** tudo local (Docker + `npm run dev`). Para demo/PWA no celular: Cloudflare Tunnel.
+- **Domínio:** registrar `stabilmoney.com.br` no **registro.br** (principal; ~R$40/ano) e,
+  se quiser proteger a marca, `stabilmoney.com` no Cloudflare Registrar. Não usar domínio
+  "grátis" de plano de hospedagem (prende o domínio ao provedor).
+- **Servidor (quando publicar):** **VPS** — provável **HostGator "VPS n8n"** (mesmo preço da
+  VPS comum, AlmaLinux, acesso root, já vem com Docker + n8n; infra Oracle Cloud no Brasil).
+  Hospedagem compartilhada foi descartada (não roda Docker/n8n/workers).
+- **Arquitetura na VPS:** proxy reverso **Caddy** (HTTPS automático) na frente, com subdomínios:
+  `stabilmoney.com.br` (landing), `app.` (Laravel), `n8n.` (automações). O mesmo
+  `docker-compose` do dev sobe lá.
+- **Bot WhatsApp (visão):** gateway (Cloud API oficial para valer; Evolution API para hobby)
+  → n8n ou controller Laravel → API do app + **Claude API** para linguagem natural
+  ("quanto gastei esse mês?") → resposta no WhatsApp. Tudo na mesma VPS.
+- **Play Store (Fase 2):** TWA exige domínio com HTTPS + `/.well-known/assetlinks.json`
+  servido pelo site; conta de desenvolvedor Google (US$ 25 única).
