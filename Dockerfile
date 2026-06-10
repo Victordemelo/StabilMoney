@@ -1,4 +1,4 @@
-# Usamos a imagem oficial do PHP 8.2 com Apache
+# Usamos a imagem oficial do PHP 8.4 com Apache
 FROM php:8.4-apache
 
 # Instala as dependências de sistema necessárias para o Laravel

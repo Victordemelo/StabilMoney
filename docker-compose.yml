@@ -1,10 +1,12 @@
+name: stabilmoney
+
 services:
   # Nosso contêiner da aplicação Laravel
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: moneylife_app
+    container_name: stabilmoney_app
     restart: unless-stopped
     ports:
       - "8000:80"
@@ -16,10 +18,10 @@ services:
   # Nosso contêiner do banco de dados MySQL
   db:
     image: mysql:8.0
-    container_name: moneylife_db
+    container_name: stabilmoney_db
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: moneylife
+      MYSQL_DATABASE: stabilmoney
       MYSQL_ROOT_PASSWORD: root
       MYSQL_USER: user
       MYSQL_PASSWORD: password
