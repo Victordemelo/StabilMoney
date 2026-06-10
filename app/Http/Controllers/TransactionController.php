@@ -2,43 +2,65 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreTransactionRequest;
+use App\Http\Requests\UpdateTransactionRequest;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\Transaction;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class TransactionController extends Controller
 {
-    private function userId(): int
-    {
-        // Enquanto não há login, usa o usuário padrão (id 1). Ver CLAUDE.md.
-        return Auth::id() ?? 1;
-    }
+    use AuthorizesRequests;
 
     public function index(Request $request)
     {
-        $transactions = Transaction::with(['account', 'category'])
-            ->where('user_id', $this->userId())
+        $userId = $request->user()->id;
+
+        // Contas do usuário (usadas no select de filtro)
+        $accounts = Account::where('user_id', $userId)->orderBy('name')->get();
+
+        $query = Transaction::with(['account', 'category'])
+            ->where('user_id', $userId);
+
+        // Filtros opcionais via GET — sempre restritos aos dados do próprio usuário
+        $type = $request->query('type');
+        if (in_array($type, ['income', 'expense'], true)) {
+            $query->where('type', $type);
+        }
+
+        $accountId = (int) $request->query('account');
+        if ($accountId && $accounts->contains('id', $accountId)) {
+            $query->where('account_id', $accountId);
+        }
+
+        $transactions = $query
             ->orderByDesc('date')
             ->orderByDesc('id')
-            ->paginate(30);
+            ->paginate(30)
+            ->withQueryString();
 
-        return view('transactions.index', compact('transactions'));
+        return view('transactions.index', compact('transactions', 'accounts'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        $userId = $request->user()->id;
+
         return view('transactions.create', [
-            'accounts' => Account::where('user_id', $this->userId())->get(),
-            'categories' => Category::where('user_id', $this->userId())->get(),
+            'accounts' => Account::where('user_id', $userId)->orderBy('name')->get(),
+            'categories' => Category::where('user_id', $userId)
+                ->orderBy('type')
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreTransactionRequest $request)
     {
-        $data = $this->validateData($request);
-        $data['user_id'] = $this->userId();
+        $data = $request->validated();
+        $data['user_id'] = $request->user()->id;
 
         Transaction::create($data);
 
@@ -46,22 +68,27 @@ class TransactionController extends Controller
             ->with('status', 'Transação registrada com sucesso.');
     }
 
-    public function edit(Transaction $transaction)
+    public function edit(Request $request, Transaction $transaction)
     {
-        $this->authorizeOwner($transaction);
+        $this->authorize('update', $transaction);
+
+        $userId = $request->user()->id;
 
         return view('transactions.edit', [
             'transaction' => $transaction,
-            'accounts' => Account::where('user_id', $this->userId())->get(),
-            'categories' => Category::where('user_id', $this->userId())->get(),
+            'accounts' => Account::where('user_id', $userId)->orderBy('name')->get(),
+            'categories' => Category::where('user_id', $userId)
+                ->orderBy('type')
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 
-    public function update(Request $request, Transaction $transaction)
+    public function update(UpdateTransactionRequest $request, Transaction $transaction)
     {
-        $this->authorizeOwner($transaction);
+        $this->authorize('update', $transaction);
 
-        $transaction->update($this->validateData($request));
+        $transaction->update($request->validated());
 
         return redirect()->route('transactions.index')
             ->with('status', 'Transação atualizada.');
@@ -69,28 +96,11 @@ class TransactionController extends Controller
 
     public function destroy(Transaction $transaction)
     {
-        $this->authorizeOwner($transaction);
+        $this->authorize('delete', $transaction);
 
         $transaction->delete();
 
         return redirect()->route('transactions.index')
             ->with('status', 'Transação removida.');
-    }
-
-    private function validateData(Request $request): array
-    {
-        return $request->validate([
-            'type' => ['required', 'in:income,expense'],
-            'amount' => ['required', 'numeric', 'min:0.01'],
-            'account_id' => ['required', 'exists:accounts,id'],
-            'category_id' => ['nullable', 'exists:categories,id'],
-            'description' => ['nullable', 'string', 'max:255'],
-            'date' => ['required', 'date'],
-        ]);
-    }
-
-    private function authorizeOwner(Transaction $transaction): void
-    {
-        abort_unless($transaction->user_id === $this->userId(), 403);
     }
 }

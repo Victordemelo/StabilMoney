@@ -2,34 +2,47 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreAccountRequest;
+use App\Http\Requests\UpdateAccountRequest;
 use App\Models\Account;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class AccountController extends Controller
 {
-    private function userId(): int
-    {
-        // Enquanto não há login, usa o usuário padrão (id 1). Ver CLAUDE.md.
-        return Auth::id() ?? 1;
-    }
+    use AuthorizesRequests;
 
-    public function index()
-    {
-        $accounts = Account::where('user_id', $this->userId())->get();
+    /** Rótulos PT-BR dos tipos de conta (usados nas views). */
+    public const TYPES = [
+        'wallet' => 'Carteira',
+        'bank' => 'Conta bancária',
+        'credit_card' => 'Cartão de crédito',
+        'savings' => 'Poupança',
+        'investment' => 'Investimento',
+        'other' => 'Outro',
+    ];
 
-        return view('accounts.index', compact('accounts'));
+    public function index(Request $request)
+    {
+        $accounts = Account::where('user_id', $request->user()->id)
+            ->orderBy('name')
+            ->get();
+
+        return view('accounts.index', [
+            'accounts' => $accounts,
+            'types' => self::TYPES,
+        ]);
     }
 
     public function create()
     {
-        return view('accounts.create');
+        return view('accounts.create', ['types' => self::TYPES]);
     }
 
-    public function store(Request $request)
+    public function store(StoreAccountRequest $request)
     {
-        $data = $this->validateData($request);
-        $data['user_id'] = $this->userId();
+        $data = $request->validated();
+        $data['user_id'] = $request->user()->id;
 
         Account::create($data);
 
@@ -39,16 +52,19 @@ class AccountController extends Controller
 
     public function edit(Account $account)
     {
-        $this->authorizeOwner($account);
+        $this->authorize('update', $account);
 
-        return view('accounts.edit', compact('account'));
+        return view('accounts.edit', [
+            'account' => $account,
+            'types' => self::TYPES,
+        ]);
     }
 
-    public function update(Request $request, Account $account)
+    public function update(UpdateAccountRequest $request, Account $account)
     {
-        $this->authorizeOwner($account);
+        $this->authorize('update', $account);
 
-        $account->update($this->validateData($request));
+        $account->update($request->validated());
 
         return redirect()->route('accounts.index')
             ->with('status', 'Conta atualizada.');
@@ -56,27 +72,20 @@ class AccountController extends Controller
 
     public function destroy(Account $account)
     {
-        $this->authorizeOwner($account);
+        $this->authorize('delete', $account);
+
+        // A FK de transactions é cascadeOnDelete: excluir a conta apagaria
+        // todo o histórico junto. Bloqueamos aqui para o usuário não perder
+        // transações sem querer.
+        if ($account->transactions()->exists()) {
+            return back()->withErrors([
+                'account' => 'Esta conta possui transações e não pode ser excluída. Exclua (ou mova) as transações dela primeiro.',
+            ]);
+        }
 
         $account->delete();
 
         return redirect()->route('accounts.index')
             ->with('status', 'Conta removida.');
-    }
-
-    private function validateData(Request $request): array
-    {
-        return $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'in:wallet,bank,credit_card,savings,investment,other'],
-            'initial_balance' => ['required', 'numeric'],
-            'color' => ['nullable', 'string', 'max:30'],
-            'icon' => ['nullable', 'string', 'max:30'],
-        ]);
-    }
-
-    private function authorizeOwner(Account $account): void
-    {
-        abort_unless($account->user_id === $this->userId(), 403);
     }
 }

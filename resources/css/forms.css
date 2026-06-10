@@ -1,0 +1,234 @@
+/* =====================================================================
+   StabilMoney — Formulários e extensões das telas de CRUD
+   ---------------------------------------------------------------------
+   Estilos de inputs, selects, labels, grids de campos, pickers,
+   paginação e detalhes das telas de transações/contas/categorias.
+   Tudo construído sobre os tokens do design system (design-system.css).
+   ===================================================================== */
+
+/* ----- Card de formulário (centralizado, ~640px) ----- */
+.form-card { max-width: 640px; margin: 0 auto; width: 100%; }
+
+/* ----- Campo (label + controle) ----- */
+.field { display: flex; flex-direction: column; margin-bottom: 16px; }
+.field > label {
+  font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+  margin-bottom: 6px; letter-spacing: .01em;
+}
+.field .hint { font-weight: 500; color: var(--ink-3); }
+
+/* ----- Input base (mesma receita visual do .search do design) ----- */
+.input {
+  width: 100%; height: 44px; padding: 0 14px;
+  font-family: inherit; font-size: 14px; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 13px;
+  outline: none; appearance: none;
+  transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+  color-scheme: light;
+}
+[data-theme="dark"] .input { color-scheme: dark; }
+.input::placeholder { color: var(--ink-3); }
+.input:focus { border-color: var(--brand-300); box-shadow: 0 0 0 4px var(--brand-50); }
+[data-theme="dark"] .input:focus { box-shadow: 0 0 0 4px rgba(28,154,112,.15); }
+textarea.input { height: auto; min-height: 92px; padding: 12px 14px; resize: vertical; }
+select.input {
+  cursor: pointer; padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237C8C84' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; background-size: 16px;
+}
+
+/* Estado de erro */
+.input-error, .input-error:focus { border-color: var(--neg); }
+.input-error:focus { box-shadow: 0 0 0 4px rgba(229,96,77,.12); }
+
+/* ----- Linha com 2 colunas ----- */
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+@media (max-width: 560px) { .form-row { grid-template-columns: 1fr; } }
+
+/* ----- Toggle Receita/Despesa (estilo .seg do design) ----- */
+.type-toggle {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  background: var(--surface-3); border: 1px solid var(--line);
+  border-radius: 13px; padding: 4px;
+}
+.type-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.type-toggle label {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  height: 38px; border-radius: 10px; cursor: pointer;
+  font-size: 13.5px; font-weight: 600; color: var(--ink-3);
+  transition: background .2s var(--ease), color .2s var(--ease), box-shadow .2s var(--ease);
+}
+.type-toggle label svg { width: 16px; height: 16px; stroke-width: 2.2; }
+.type-toggle label:hover { color: var(--ink-2); }
+/* Ativo: verde para receita, âmbar para despesa */
+.type-toggle input:checked + label.tt-income { background: var(--surface); color: var(--pos); box-shadow: var(--shadow-sm); }
+.type-toggle input:checked + label.tt-expense { background: var(--surface); color: var(--warn); box-shadow: var(--shadow-sm); }
+
+/* ----- Ações do formulário ----- */
+.form-actions { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+
+/* Ações no section-head (botões à direita do título) */
+.head-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+/* ----- Botão fantasma ----- */
+.btn-ghost {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 42px; padding: 0 18px; border-radius: 13px;
+  background: transparent; border: 1px solid var(--line); color: var(--ink-2);
+  font-family: inherit; font-size: 13.5px; font-weight: 600;
+  text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: all .2s var(--ease);
+}
+.btn-ghost:hover { background: var(--surface-2); color: var(--ink); border-color: var(--brand-200); }
+.btn-ghost svg { width: 17px; height: 17px; stroke-width: 2; flex: none; }
+
+/* ----- Icon picker (emojis) ----- */
+.icon-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.icon-picker input { position: absolute; opacity: 0; pointer-events: none; }
+.icon-picker label {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+  font-size: 19px; line-height: 1; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--line);
+  transition: transform .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease), box-shadow .15s var(--ease);
+}
+.icon-picker label:hover { border-color: var(--brand-300); transform: translateY(-1px); }
+.icon-picker input:checked + label {
+  background: var(--brand-50); border-color: var(--brand-400);
+  box-shadow: 0 0 0 3px var(--brand-50);
+}
+[data-theme="dark"] .icon-picker input:checked + label {
+  background: rgba(28,154,112,.14); box-shadow: 0 0 0 3px rgba(28,154,112,.12);
+}
+
+/* ----- Color picker (círculos com check) ----- */
+.color-picker { display: flex; flex-wrap: wrap; gap: 10px; padding: 4px 0; }
+.color-picker input { position: absolute; opacity: 0; pointer-events: none; }
+.color-picker label {
+  width: 26px; height: 26px; border-radius: 50%; cursor: pointer; position: relative;
+  border: 1px solid rgba(0,0,0,.08);
+  transition: transform .15s var(--ease), box-shadow .15s var(--ease);
+}
+.color-picker label:hover { transform: scale(1.12); }
+.color-picker label::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; opacity: 0;
+  background: center / 13px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7'/%3E%3C/svg%3E");
+  transition: opacity .15s var(--ease);
+}
+.color-picker input:checked + label { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--brand-400); }
+.color-picker input:checked + label::after { opacity: 1; }
+
+/* ----- Banner de erro (validação / ações bloqueadas) ----- */
+.flash-error {
+  background: #FCEDEA; color: #B4422F; border: 1px solid #F4C7BF;
+  border-radius: var(--r-sm); padding: 12px 16px; font-size: 13.5px; font-weight: 600;
+  margin-bottom: 18px; box-shadow: var(--shadow-sm);
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.flash-error svg { width: 18px; height: 18px; flex: none; stroke-width: 2; margin-top: 1px; }
+.flash-error ul { margin: 0; padding: 0; list-style: none; font-weight: 500; display: grid; gap: 3px; }
+[data-theme="dark"] .flash-error {
+  background: rgba(229,96,77,.14); color: #F2A496; border-color: rgba(229,96,77,.3);
+}
+
+/* ----- Paginação (Laravel links() com view própria) ----- */
+.pagination {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 18px; flex-wrap: wrap;
+}
+.pagination .pg, .pagination .pg-gap {
+  min-width: 36px; height: 36px; padding: 0 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 11px; font-size: 13px; font-weight: 600; text-decoration: none;
+}
+.pagination a.pg {
+  color: var(--ink-2); background: var(--surface); border: 1px solid var(--line);
+  transition: all .2s var(--ease);
+}
+.pagination a.pg:hover {
+  color: var(--brand-600); border-color: var(--brand-200);
+  transform: translateY(-1px); box-shadow: var(--shadow-sm);
+}
+.pagination .pg.current {
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
+  color: #fff; border: none;
+}
+.pagination .pg.disabled {
+  color: var(--ink-3); opacity: .45;
+  background: var(--surface); border: 1px solid var(--line);
+}
+.pagination .pg-gap { color: var(--ink-3); }
+.pagination .pg svg { width: 16px; height: 16px; stroke-width: 2.2; }
+
+/* ----- Barra de filtros (índice de transações) ----- */
+.filter-bar { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.filter-bar .field { margin-bottom: 0; flex: 1; min-width: 150px; max-width: 230px; }
+.filter-bar .btn-ghost { height: 44px; }
+@media (max-width: 560px) {
+  .filter-bar .field { max-width: none; min-width: 100%; }
+  .filter-bar .btn-ghost { width: 100%; }
+}
+
+/* ----- Lista de transações: cada .tx é um link ----- */
+a.tx { text-decoration: none; color: inherit; }
+
+/* ----- Cartões (página de contas) ----- */
+.acct-card .cc { min-height: 178px; }
+.cc .cc-emoji { font-size: 24px; line-height: 1; position: relative; z-index: 1; }
+.acct-card-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 12px; }
+.acct-card-actions .mini-btn { margin-left: 0; }
+.mini-btn.danger { color: var(--neg); }
+.mini-btn.danger:hover { background: #FCEDEA; }
+[data-theme="dark"] .mini-btn.danger:hover { background: rgba(229,96,77,.12); }
+
+/* Card pontilhado "adicionar conta" */
+.cc-add {
+  min-height: 188px; border-radius: 20px; border: 2px dashed var(--line);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  color: var(--ink-3); font-size: 13.5px; font-weight: 600; text-decoration: none;
+  transition: all .2s var(--ease);
+}
+.cc-add:hover { border-color: var(--brand-300); color: var(--brand-600); background: var(--brand-50); }
+[data-theme="dark"] .cc-add:hover { background: rgba(28,154,112,.08); color: var(--brand-300); }
+.cc-add .plus {
+  width: 44px; height: 44px; border-radius: 14px; background: var(--surface-3);
+  display: grid; place-items: center; transition: background .2s var(--ease);
+}
+.cc-add:hover .plus { background: var(--brand-100); }
+[data-theme="dark"] .cc-add:hover .plus { background: rgba(28,154,112,.16); }
+.cc-add .plus svg { width: 22px; height: 22px; stroke-width: 2; }
+.cc-add.span4 { grid-column: span 4; }
+@media (max-width: 1180px) { .cc-add.span4 { grid-column: span 6; } }
+@media (max-width: 560px) { .cc-add.span4 { grid-column: span 12; } }
+
+/* span6 não tem regra responsiva no protótipo (não era usado lá) */
+@media (max-width: 920px) { .card.span6 { grid-column: span 12; } }
+
+/* ----- Linhas de categoria (página de categorias) ----- */
+.cat-line {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 4px; border-bottom: 1px solid var(--line-2);
+}
+.cat-line:last-child { border-bottom: none; }
+.cat-line .ci {
+  width: 38px; height: 38px; border-radius: 12px; flex: none;
+  display: grid; place-items: center; font-size: 18px; line-height: 1;
+  background: var(--surface-3);
+}
+.cat-line .cname { font-size: 13.5px; font-weight: 600; }
+.cat-line .cactions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+
+/* Botões de ação discretos em linhas de lista */
+.row-btn {
+  width: 32px; height: 32px; border-radius: 10px; flex: none;
+  display: grid; place-items: center; color: var(--ink-3);
+  background: transparent; border: none; cursor: pointer; text-decoration: none;
+  transition: background .18s var(--ease), color .18s var(--ease);
+}
+.row-btn:hover { background: var(--surface-2); color: var(--brand-600); }
+[data-theme="dark"] .row-btn:hover { color: var(--brand-300); }
+.row-btn.danger:hover { background: #FCEDEA; color: var(--neg); }
+[data-theme="dark"] .row-btn.danger:hover { background: rgba(229,96,77,.12); color: var(--neg); }
+.row-btn svg { width: 16px; height: 16px; stroke-width: 1.9; }
+
+/* ----- Empty state: respiro para o botão de ação ----- */
+.empty-state .btn-primary, .empty-state .btn-ghost { margin-top: 10px; }

@@ -1,1 +1,19 @@
 import './bootstrap';
+
+import { initTheme } from './sm/theme';
+import { initShell } from './sm/shell';
+import { initDashboard } from './sm/dashboard';
+
+// Inicialização única do shell + módulos por página (cada módulo decide se
+// a página atual lhe diz respeito olhando para o DOM).
+function init() {
+    initTheme();
+    initShell();
+    initDashboard();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}

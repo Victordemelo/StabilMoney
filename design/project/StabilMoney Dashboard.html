@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>StabilMoney — Dashboard</title>
+<meta name="theme-color" content="#0C3D2B" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar scroll" id="sidebar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
+        <path class="s-curve" d="M33 18.5 C33 13.5 28.5 11 24 11 C18.5 11 14.5 13.8 14.5 18 C14.5 22.2 18.5 23.5 24 24" />
+        <path class="s-curve" d="M15 29.5 C15 34.5 19.5 37 24 37 C29.5 37 33.5 34.2 33.5 30 C33.5 25.8 29.5 24.5 24 24" />
+        <path class="s-arrow" d="M15.5 33 L32 15.5" />
+        <path class="s-arrow" d="M24 14 L33.5 14 L33.5 23.5" />
+      </svg>
+      <span class="brand-name">Stabil<b>Money</b></span>
+    </div>
+
+    <div class="nav-group-label">Menu</div>
+    <nav class="nav" id="nav">
+      <a class="nav-item active" data-view="dashboard" href="#dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <span class="nav-label">Visão geral</span>
+      </a>
+      <a class="nav-item" data-view="transacoes" href="#transacoes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 8h13M7 8l3-3M7 8l3 3M17 16H4M17 16l-3-3M17 16l-3 3"/></svg>
+        <span class="nav-label">Transações</span>
+      </a>
+      <a class="nav-item" data-view="cartoes" href="#cartoes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg>
+        <span class="nav-label">Cartões</span>
+      </a>
+      <a class="nav-item" data-view="investimentos" href="#investimentos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7M20 16v-3"/></svg>
+        <span class="nav-label">Investimentos</span>
+      </a>
+      <a class="nav-item" data-view="metas" href="#metas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".7" fill="currentColor"/></svg>
+        <span class="nav-label">Metas</span>
+      </a>
+      <a class="nav-item" data-view="faturas" href="#faturas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
+        <span class="nav-label">Faturas</span>
+        <span class="badge">3</span>
+      </a>
+      <a class="nav-item" data-view="relatorios" href="#relatorios">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 3h9l5 5v13a0 0 0 0 1 0 0H5a0 0 0 0 1 0 0V3Z"/><path d="M14 3v5h5M8 13l2.5 2.5L16 10"/></svg>
+        <span class="nav-label">Relatórios</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-spacer"></div>
+
+    <div class="nav-group-label">Preferências</div>
+    <nav class="nav">
+      <a class="nav-item" data-view="config" href="#config">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
+        <span class="nav-label">Configurações</span>
+      </a>
+      <a class="nav-item" data-view="ajuda" href="#ajuda">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.5 1.5c0 1.7-2.5 1.8-2.5 3.5"/><circle cx="12" cy="17.5" r=".7" fill="currentColor"/></svg>
+        <span class="nav-label">Ajuda</span>
+      </a>
+    </nav>
+
+    <div class="upsell">
+      <h4>StabilMoney Plus</h4>
+      <p>Relatórios avançados, categorização automática e metas ilimitadas.</p>
+      <button>Fazer upgrade</button>
+    </div>
+
+    <div class="side-foot">
+      <img class="avatar" alt="" src="https://i.pravatar.cc/80?img=47" />
+      <div class="side-foot-text">
+        <strong>Alison Carter</strong>
+        <span>alison@stabilmoney.com</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+
+    <!-- Mobile top bar -->
+    <header class="mobile-top">
+      <button class="icon-btn" id="mMenu" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true" style="--x:1">
+        <path class="s-curve" d="M33 18.5 C33 13.5 28.5 11 24 11 C18.5 11 14.5 13.8 14.5 18 C14.5 22.2 18.5 23.5 24 24" style="stroke:var(--brand-600)"/>
+        <path class="s-curve" d="M15 29.5 C15 34.5 19.5 37 24 37 C29.5 37 33.5 34.2 33.5 30 C33.5 25.8 29.5 24.5 24 24" style="stroke:var(--brand-600)"/>
+        <path class="s-arrow" d="M15.5 33 L32 15.5" style="stroke:var(--brand-400)"/>
+        <path class="s-arrow" d="M24 14 L33.5 14 L33.5 23.5" style="stroke:var(--brand-400)"/>
+      </svg>
+      <span class="mbrand">Stabil<b>Money</b></span>
+      <button class="icon-btn" id="mTheme" aria-label="Tema" style="margin-left:auto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
+      </button>
+    </header>
+
+    <!-- Desktop topbar -->
+    <header class="topbar">
+      <button class="collapse-btn" id="collapseBtn" aria-label="Recolher menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h11M4 18h16"/></svg>
+      </button>
+      <div class="greeting">
+        <h1>Olá, Alison <span class="wave">👋</span></h1>
+        <p id="todayLine">Aqui está o resumo das suas finanças</p>
+      </div>
+      <label class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="text" placeholder="Buscar transações, metas…" />
+        <kbd>⌘K</kbd>
+      </label>
+      <button class="icon-btn" id="themeBtn" aria-label="Alternar tema">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" id="themeIcon"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
+      </button>
+      <button class="icon-btn" aria-label="Notificações"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="dot"></span></button>
+    </header>
+
+    <!-- ============ CONTENT ============ -->
+    <main class="content scroll" id="content">
+
+      <!-- DASHBOARD VIEW -->
+      <section class="view active" id="view-dashboard">
+        <div class="section-head">
+          <h2>Visão geral</h2>
+          <span class="sub" id="periodSub">Junho de 2026</span>
+          <div class="seg" id="period">
+            <span class="seg-pill" id="segPill"></span>
+            <button data-p="semana"><span>Semana</span></button>
+            <button data-p="mes" class="active"><span>Mês</span></button>
+            <button data-p="ano"><span>Ano</span></button>
+          </div>
+        </div>
+
+        <div class="grid">
+          <!-- Stat cards -->
+          <div class="card stat span3" style="animation-delay:.02s">
+            <div class="stat-top">
+              <div class="ico g1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18v12H3zM3 7l2-3h14l2 3M16 13h2"/></svg></div>
+              <span class="label">Saldo total</span>
+              <span class="trend up" data-trend="saldo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17 17 7M17 7h-7M17 7v7"/></svg>4,2%</span>
+            </div>
+            <div class="value"><span class="cur">R$</span><span class="num" data-count="48250" data-dec="2">0,00</span></div>
+            <svg class="spark" data-spark="saldo" preserveAspectRatio="none" viewBox="0 0 120 34"></svg>
+          </div>
+
+          <div class="card stat span3" style="animation-delay:.08s">
+            <div class="stat-top">
+              <div class="ico g2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M12 5l-6 6M12 5l6 6"/></svg></div>
+              <span class="label">Receitas</span>
+              <span class="trend up" data-trend="receitas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17 17 7M17 7h-7M17 7v7"/></svg>8,1%</span>
+            </div>
+            <div class="value"><span class="cur">R$</span><span class="num" data-count="9840" data-dec="2">0,00</span></div>
+            <svg class="spark" data-spark="receitas" preserveAspectRatio="none" viewBox="0 0 120 34"></svg>
+          </div>
+
+          <div class="card stat span3" style="animation-delay:.14s">
+            <div class="stat-top">
+              <div class="ico g3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M12 19l6-6M12 19l-6-6"/></svg></div>
+              <span class="label">Despesas</span>
+              <span class="trend down" data-trend="despesas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7 17 17M17 17h-7M17 17v-7"/></svg>2,3%</span>
+            </div>
+            <div class="value"><span class="cur">R$</span><span class="num" data-count="6120" data-dec="2">0,00</span></div>
+            <svg class="spark" data-spark="despesas" preserveAspectRatio="none" viewBox="0 0 120 34"></svg>
+          </div>
+
+          <div class="card stat span3" style="animation-delay:.2s">
+            <div class="stat-top">
+              <div class="ico g4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M5 9a7 7 0 1 1 14 0c0 4-3 5-3 8H8c0-3-3-4-3-8Z"/><path d="M9 21h6"/></svg></div>
+              <span class="label">Economizado</span>
+              <span class="trend up" data-trend="economia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17 17 7M17 7h-7M17 7v7"/></svg>12%</span>
+            </div>
+            <div class="value"><span class="cur">R$</span><span class="num" data-count="3720" data-dec="2">0,00</span></div>
+            <svg class="spark" data-spark="economia" preserveAspectRatio="none" viewBox="0 0 120 34"></svg>
+          </div>
+
+          <!-- Cashflow -->
+          <div class="card span8" style="animation-delay:.16s">
+            <div class="card-head">
+              <h3>Fluxo de caixa</h3>
+              <div class="chart-legend">
+                <span class="lg"><span class="dotc" style="background:var(--brand-500)"></span>Receitas</span>
+                <span class="lg"><span class="dotc" style="background:var(--c-saude)"></span>Despesas</span>
+              </div>
+            </div>
+            <div class="cashflow-wrap" id="cfWrap">
+              <svg class="cashflow-svg" id="cfSvg" preserveAspectRatio="none"></svg>
+              <div class="cf-tip" id="cfTip"></div>
+            </div>
+          </div>
+
+          <!-- Donut -->
+          <div class="card donut-card span4" style="animation-delay:.22s">
+            <div class="card-head">
+              <h3>Gastos por categoria</h3>
+              <button class="mini-btn">Detalhes<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></button>
+            </div>
+            <div class="donut-wrap">
+              <svg class="donut-svg" id="donut" viewBox="0 0 120 120"></svg>
+              <div class="cat-legend" id="catLegend"></div>
+            </div>
+          </div>
+
+          <!-- Transactions -->
+          <div class="card span8" style="animation-delay:.26s">
+            <div class="card-head">
+              <h3>Transações recentes</h3>
+              <button class="mini-btn" data-go="transacoes">Ver todas<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></button>
+            </div>
+            <div class="tx-list" id="txList"></div>
+          </div>
+
+          <!-- Right column: card + goals -->
+          <div class="card span4" style="animation-delay:.3s">
+            <div class="card-head">
+              <h3>Meu cartão</h3>
+              <button class="mini-btn" data-go="cartoes">Gerenciar<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></button>
+            </div>
+            <div class="cc">
+              <div class="cc-top">
+                <span class="net">StabilMoney</span>
+                <svg viewBox="0 0 48 48" width="30" height="30" aria-hidden="true">
+                  <path d="M33 18.5 C33 13.5 28.5 11 24 11 C18.5 11 14.5 13.8 14.5 18 C14.5 22.2 18.5 23.5 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="4" stroke-linecap="round"/>
+                  <path d="M15 29.5 C15 34.5 19.5 37 24 37 C29.5 37 33.5 34.2 33.5 30 C33.5 25.8 29.5 24.5 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="4" stroke-linecap="round"/>
+                  <path d="M15.5 33 L32 15.5M24 14 L33.5 14 L33.5 23.5" fill="none" stroke="var(--brand-300)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="cc-chip"></div>
+              <div class="cc-num">•••• •••• •••• 4729</div>
+              <div class="cc-bot">
+                <div>
+                  <div class="lbl">Saldo disponível</div>
+                  <div class="cc-balance">R$ 12.480,00</div>
+                </div>
+                <div style="text-align:right">
+                  <div class="lbl">Validade</div>
+                  <div class="val">09/29</div>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:16px">
+              <div class="acct"><div class="ab" style="background:var(--brand-600)">NU</div><div><div class="an">Conta corrente</div><div class="at">•••• 1204</div></div><div class="av">R$ 8.320,50</div></div>
+              <div class="acct"><div class="ab" style="background:var(--c-lazer)">IT</div><div><div class="an">Poupança</div><div class="at">•••• 8890</div></div><div class="av">R$ 27.449,50</div></div>
+            </div>
+          </div>
+
+          <!-- Goals -->
+          <div class="card span4" style="animation-delay:.34s">
+            <div class="card-head">
+              <h3>Metas de economia</h3>
+              <button class="mini-btn" data-go="metas">Todas<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></button>
+            </div>
+            <div id="goalsList"></div>
+          </div>
+
+          <!-- Bills -->
+          <div class="card span4" style="animation-delay:.38s">
+            <div class="card-head">
+              <h3>Contas a pagar</h3>
+              <button class="mini-btn" data-go="faturas">Ver<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></button>
+            </div>
+            <div id="billsList"></div>
+          </div>
+
+          <!-- Investments -->
+          <div class="card span4" style="animation-delay:.42s">
+            <div class="card-head">
+              <h3>Investimentos</h3>
+              <button class="mini-btn" data-go="investimentos">Carteira<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></button>
+            </div>
+            <div class="inv-head">
+              <span class="inv-total"><span class="cur">R$ </span><span class="num" data-count="84210" data-dec="2">0,00</span></span>
+            </div>
+            <div class="inv-chg">▲ R$ 1.842,30 · +2,24% hoje</div>
+            <svg class="inv-spark" id="invSpark" preserveAspectRatio="none" viewBox="0 0 260 44"></svg>
+            <div class="inv-list" id="invList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TRANSACOES VIEW -->
+      <section class="view" id="view-transacoes">
+        <div class="section-head"><h2>Transações</h2><span class="sub">Todas as movimentações</span></div>
+        <div class="grid"><div class="card span12"><div class="tx-list" id="txListFull"></div></div></div>
+      </section>
+
+      <!-- Generic placeholders -->
+      <section class="view" id="view-generic"></section>
+    </main>
+  </div>
+
+  <!-- Mobile bottom nav -->
+  <nav class="bottom-nav">
+    <button class="bn-item active" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Início</button>
+    <button class="bn-item" data-view="transacoes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 8h13M7 8l3-3M7 8l3 3M17 16H4M17 16l-3-3M17 16l-3 3"/></svg>Extrato</button>
+    <button class="bn-item fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="bn-item" data-view="cartoes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/></svg>Cartões</button>
+    <button class="bn-item" data-view="investimentos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7"/></svg>Investir</button>
+  </nav>
+
+  <div class="scrim" id="scrim"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

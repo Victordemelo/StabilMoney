@@ -2,26 +2,26 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreCategoryRequest;
+use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class CategoryController extends Controller
 {
-    private function userId(): int
-    {
-        // Enquanto não há login, usa o usuário padrão (id 1). Ver CLAUDE.md.
-        return Auth::id() ?? 1;
-    }
+    use AuthorizesRequests;
 
-    public function index()
+    public function index(Request $request)
     {
-        $categories = Category::where('user_id', $this->userId())
-            ->orderBy('type')
+        $categories = Category::where('user_id', $request->user()->id)
             ->orderBy('name')
             ->get();
 
-        return view('categories.index', compact('categories'));
+        return view('categories.index', [
+            'incomeCategories' => $categories->where('type', 'income'),
+            'expenseCategories' => $categories->where('type', 'expense'),
+        ]);
     }
 
     public function create()
@@ -29,10 +29,10 @@ class CategoryController extends Controller
         return view('categories.create');
     }
 
-    public function store(Request $request)
+    public function store(StoreCategoryRequest $request)
     {
-        $data = $this->validateData($request);
-        $data['user_id'] = $this->userId();
+        $data = $request->validated();
+        $data['user_id'] = $request->user()->id;
 
         Category::create($data);
 
@@ -42,16 +42,16 @@ class CategoryController extends Controller
 
     public function edit(Category $category)
     {
-        $this->authorizeOwner($category);
+        $this->authorize('update', $category);
 
         return view('categories.edit', compact('category'));
     }
 
-    public function update(Request $request, Category $category)
+    public function update(UpdateCategoryRequest $request, Category $category)
     {
-        $this->authorizeOwner($category);
+        $this->authorize('update', $category);
 
-        $category->update($this->validateData($request));
+        $category->update($request->validated());
 
         return redirect()->route('categories.index')
             ->with('status', 'Categoria atualizada.');
@@ -59,26 +59,13 @@ class CategoryController extends Controller
 
     public function destroy(Category $category)
     {
-        $this->authorizeOwner($category);
+        $this->authorize('delete', $category);
 
+        // A FK de transactions.category_id é nullOnDelete: as transações
+        // associadas ficam "Sem categoria" — pode excluir sem perder dados.
         $category->delete();
 
         return redirect()->route('categories.index')
-            ->with('status', 'Categoria removida.');
-    }
-
-    private function validateData(Request $request): array
-    {
-        return $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'in:income,expense'],
-            'color' => ['nullable', 'string', 'max:30'],
-            'icon' => ['nullable', 'string', 'max:30'],
-        ]);
-    }
-
-    private function authorizeOwner(Category $category): void
-    {
-        abort_unless($category->user_id === $this->userId(), 403);
+            ->with('status', 'Categoria removida. As transações dela ficaram sem categoria.');
     }
 }
