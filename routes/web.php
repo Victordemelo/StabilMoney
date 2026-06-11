@@ -26,9 +26,8 @@ Route::middleware('auth')->group(function () {
     foreach ([
         'investimentos' => ['Investimentos', 'Acompanhe sua carteira, rentabilidade e novas oportunidades.'],
         'metas' => ['Metas', 'Crie objetivos, acompanhe o progresso e conquiste seus sonhos.'],
-        'faturas' => ['Faturas', 'Todas as suas contas a pagar organizadas por vencimento.'],
-        'relatorios' => ['Relatórios', 'Exporte e visualize relatórios detalhados das suas finanças.'],
-        'ajuda' => ['Ajuda', 'Central de ajuda, tutoriais e suporte StabilMoney.'],
+        'faturas' => ['Faturas / Despesas', 'Faturas por cartão, parcelas e despesas em conta — em breve.'],
+        'dependentes' => ['Dependentes', 'Cadastre dependentes com acesso próprio e acompanhe os gastos de cada um.'],
     ] as $slug => [$title, $description]) {
         Route::view('/' . $slug, 'coming-soon', [
             'title' => $title,

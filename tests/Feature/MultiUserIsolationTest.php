@@ -159,6 +159,20 @@ class MultiUserIsolationTest extends TestCase
         $this->assertSame('Categoria Secreta do B', $this->categoryB->fresh()->name);
     }
 
+    public function test_user_cannot_move_others_category_via_json_patch(): void
+    {
+        // Mesmo fluxo do drag & drop (PATCH JSON trocando o type): 403 + nada muda
+        $response = $this->actingAs($this->userA)->patchJson("/categories/{$this->categoryB->id}", [
+            'name' => $this->categoryB->name,
+            'type' => 'income',
+            'color' => $this->categoryB->color,
+            'icon' => $this->categoryB->icon,
+        ]);
+
+        $response->assertForbidden();
+        $this->assertSame('expense', $this->categoryB->fresh()->type);
+    }
+
     // ----- DELETE em recurso alheio => 403 -----
 
     public function test_user_cannot_delete_others_transaction(): void

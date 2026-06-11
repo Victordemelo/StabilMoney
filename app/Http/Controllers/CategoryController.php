@@ -53,6 +53,12 @@ class CategoryController extends Controller
 
         $category->update($request->validated());
 
+        // O drag & drop da página de categorias envia PATCH via fetch (JSON)
+        // e só precisa do OK — sem redirect (evita o GET extra da página toda).
+        if ($request->wantsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
         return redirect()->route('categories.index')
             ->with('status', 'Categoria atualizada.');
     }

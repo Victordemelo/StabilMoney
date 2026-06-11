@@ -23,6 +23,11 @@ class GuestAccessTest extends TestCase
             'contas' => ['/accounts'],
             'categorias' => ['/categories'],
             'configurações' => ['/configuracoes'],
+            // Placeholders "em breve" (shell v2) também exigem login
+            'faturas / despesas' => ['/faturas'],
+            'metas' => ['/metas'],
+            'investimentos' => ['/investimentos'],
+            'dependentes' => ['/dependentes'],
         ];
     }
 

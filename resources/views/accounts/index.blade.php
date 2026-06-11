@@ -1,11 +1,11 @@
 @extends('layouts.app')
 
-@section('title', 'Cartões — StabilMoney')
+@section('title', 'Métodos de Pagamento — StabilMoney')
 
 @section('content')
     <div class="section-head">
-        <h2>Cartões</h2>
-        <span class="sub">Suas contas e carteiras</span>
+        <h2>Métodos de Pagamento</h2>
+        <span class="sub">Seus cartões, contas e carteiras vivem aqui</span>
         <div class="head-actions">
             <a class="btn-primary" href="{{ route('accounts.create') }}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
@@ -32,8 +32,8 @@
                     <div class="pico">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg>
                     </div>
-                    <h3>Nenhuma conta ainda</h3>
-                    <p>Crie sua primeira conta ou carteira para começar a registrar transações.</p>
+                    <h3>Nenhum método de pagamento ainda</h3>
+                    <p>Cadastre um cartão, conta ou carteira para começar a registrar transações.</p>
                     <a class="btn-primary" href="{{ route('accounts.create') }}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
                         Criar primeira conta

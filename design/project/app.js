@@ -328,20 +328,22 @@
   /* ---------- PERIOD SEGMENTED ---------- */
   function initPeriod() {
     const seg = $('#period'), pill = $('#segPill'), btns = $$('button', seg);
-    function setPill(btn) { pill.style.width = btn.offsetWidth + 'px'; pill.style.transform = `translateX(${btn.offsetLeft - 4}px)`; }
+    function setPill(btn) { if (!btn) return; pill.style.width = btn.offsetWidth + 'px'; pill.style.transform = `translateX(${btn.offsetLeft - 4}px)`; }
     btns.forEach(b => b.addEventListener('click', () => {
       btns.forEach(x => x.classList.remove('active')); b.classList.add('active');
       setPill(b); applyPeriod(b.dataset.p);
     }));
+    // position immediately (layout is ready) + rAF + timeout fallback so it never gets stuck at 0
+    setPill(seg.querySelector('.active'));
     requestAnimationFrame(() => setPill(seg.querySelector('.active')));
+    setTimeout(() => setPill(seg.querySelector('.active')), 120);
     window.addEventListener('resize', () => setPill(seg.querySelector('.active')));
   }
 
   /* ---------- NAVIGATION ---------- */
   const VIEW_META = {
-    cartoes: { t: 'Cartões', d: 'Gerencie seus cartões, limites e faturas em um só lugar.', icon: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/>' },
-    investimentos: { t: 'Investimentos', d: 'Acompanhe sua carteira, rentabilidade e novas oportunidades.', icon: '<path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7"/>' },
-    metas: { t: 'Metas', d: 'Crie objetivos, acompanhe o progresso e conquiste seus sonhos.', icon: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/>' },
+    perfil: { t: 'Meu perfil', d: 'Gerencie seus dados pessoais, foto e informações da conta.', icon: '<circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/>' },
+    cartoes: { t: 'Métodos de Pagamento', d: 'Gerencie seus cartões, contas e formas de pagamento em um só lugar.', icon: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/>' },
     faturas: { t: 'Faturas', d: 'Todas as suas contas a pagar organizadas por vencimento.', icon: '<path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6"/>' },
     relatorios: { t: 'Relatórios', d: 'Exporte e visualize relatórios detalhados das suas finanças.', icon: '<path d="M5 3h9l5 5v13H5V3Z"/><path d="M14 3v5h5M8 13l2.5 2.5L16 10"/>' },
     config: { t: 'Configurações', d: 'Personalize sua conta, segurança e preferências do app.', icon: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5"/>' },
@@ -358,11 +360,14 @@
     }
     $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === view));
     $$('.bn-item[data-view]').forEach(n => n.classList.toggle('active', n.dataset.view === view));
+    const depCard = $('#depCard'); if (depCard) depCard.classList.toggle('active', view === 'dependentes');
     const content = $('#content');
     content.scrollTop = 0;
     content.classList.add('anim-in');
     setTimeout(() => content.classList.remove('anim-in'), 600);
     if (view === 'dashboard') { runCounters($('#view-dashboard')); animateBars(); }
+    if (view === 'dependentes') { renderDepsView(); }
+    document.dispatchEvent(new CustomEvent('sm:viewchange', { detail: view }));
     closeDrawer();
   }
   function initNav() {
@@ -382,7 +387,7 @@
   /* ---------- THEME ---------- */
   function setTheme(t) {
     document.documentElement.setAttribute('data-theme', t);
-    try { localStorage.setItem('sm-theme', t); } catch (e) {}
+    try { localStorage.setItem('sm-theme-v2', t); } catch (e) {}
     const sun = '<circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/>';
     const moon = '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.3 6.3 0 0 0 10.5 10.5Z"/>';
     const ic = t === 'dark' ? moon : sun;
@@ -390,7 +395,7 @@
     const mt = $('#mTheme svg'); if (mt) mt.innerHTML = ic;
   }
   function initTheme() {
-    let saved = 'light'; try { saved = localStorage.getItem('sm-theme') || 'light'; } catch (e) {}
+    let saved = 'light'; try { saved = localStorage.getItem('sm-theme-v2') || 'light'; } catch (e) {}
     setTheme(saved);
     const toggle = () => setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
     $('#themeBtn').addEventListener('click', toggle);
@@ -404,11 +409,112 @@
     $('#todayLine').textContent = fmt.charAt(0).toUpperCase() + fmt.slice(1) + ' · resumo das suas finanças';
   }
 
+  /* ---------- PROFILE + DEPENDENTS ---------- */
+  const DEP_COLORS = ['#1FA06E', '#18B6BE', '#F0A93B', '#0F6B47', '#59C497', '#9078D8'];
+  const DEFAULT_DEPS = [
+    { name: 'Sofia Carter', rel: 'Filha', limit: 'R$ 800,00', spent: 540, color: '#18B6BE' },
+    { name: 'Lucas Carter', rel: 'Filho', limit: 'R$ 500,00', spent: 185, color: '#F0A93B' },
+  ];
+  const initials = (n) => n.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  function parseLimit(s) { if (typeof s === 'number') return s; if (!s) return 0; const m = String(s).replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.'); const v = parseFloat(m); return isNaN(v) ? 0 : v; }
+  function loadDeps() { try { const s = localStorage.getItem('sm-deps-v2'); if (s) return JSON.parse(s); } catch (e) {} return DEFAULT_DEPS.map(d => Object.assign({}, d)); }
+  function saveDeps() { try { localStorage.setItem('sm-deps-v2', JSON.stringify(deps)); } catch (e) {} }
+  let deps = loadDeps();
+
+  function renderDepsSidebar() {
+    const stack = $('#depStack'), count = $('#depCount'); if (!stack) return;
+    if (deps.length === 0) {
+      stack.innerHTML = '<span class="da solo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 2.9-5.6 6.5-5.6 1 0 2 .2 2.8.5M17 8.5v6M14 11.5h6"/></svg></span>';
+      count.textContent = 'Nenhum dependente';
+    } else {
+      const show = deps.slice(0, 3);
+      stack.innerHTML = show.map(d => `<span class="da" style="background:${d.color}">${initials(d.name)}</span>`).join('') + (deps.length > 3 ? `<span class="da more">+${deps.length - 3}</span>` : '');
+      count.textContent = deps.length === 1 ? '1 pessoa vinculada' : `${deps.length} pessoas vinculadas`;
+    }
+  }
+  function renderDepsView() {
+    const grid = $('#depGrid'); if (!grid) return;
+    const totalLimit = deps.reduce((s, d) => s + parseLimit(d.limit), 0);
+    const totalSpent = deps.reduce((s, d) => s + (d.spent || 0), 0);
+    $('#depStatCount').textContent = deps.length;
+    $('#depStatLimit').textContent = BRL(totalLimit);
+    $('#depStatSpent').textContent = BRL(totalSpent);
+    if (deps.length === 0) {
+      grid.innerHTML = '<div class="dep-empty"><div class="de-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 2.9-5.6 6.5-5.6 1 0 2 .2 2.8.5M17 8.5v6M14 11.5h6"/></svg></div><h4>Nenhum dependente ainda</h4><p>Adicione familiares para compartilhar limites e acompanhar gastos juntos.</p></div>';
+      return;
+    }
+    grid.innerHTML = deps.map((d, i) => {
+      const lim = parseLimit(d.limit), spent = d.spent || 0, pct = lim ? Math.min(100, Math.round(spent / lim * 100)) : 0;
+      return `<div class="dep-person"><div class="dp-top"><span class="dp-av" style="background:${d.color}">${initials(d.name)}</span>` +
+        `<div><div class="dp-name">${d.name}</div><div class="dp-rel">${d.rel}</div></div>` +
+        `<button class="dp-rm" data-i="${i}" aria-label="Remover" title="Remover dependente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>` +
+        `<div class="dp-row"><span class="k">Gasto no mês</span><span class="v">R$ ${BRL(spent)}</span></div>` +
+        `<div class="dp-bar"><i data-pct="${pct}"></i></div>` +
+        `<div class="dp-meta"><span>${pct}% do limite</span><span>Limite ${d.limit || '—'}</span></div></div>`;
+    }).join('');
+    $$('.dp-rm', grid).forEach(b => b.addEventListener('click', () => { deps.splice(+b.dataset.i, 1); saveDeps(); renderDeps(); }));
+    setTimeout(() => { $$('.dp-bar i', grid).forEach(i => { i.style.width = i.dataset.pct + '%'; }); }, 60);
+  }
+  function renderDeps() { renderDepsSidebar(); renderDepsView(); }
+
+  function openDepModal() { $('#depScrim').classList.add('open'); setTimeout(() => $('#depName').focus(), 130); }
+  function closeDepModal() { $('#depScrim').classList.remove('open'); $('#depForm').reset(); const t = $('#depPass'); if (t) t.type = 'password'; const tg = $('#depPassToggle'); if (tg) tg.classList.remove('on'); }
+
+  function initProfile() {
+    const btn = $('#profileBtn'), pop = $('#profilePop');
+    let open = false;
+    function position() { const r = btn.getBoundingClientRect(); const w = pop.offsetWidth || 256; const left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12)); pop.style.left = left + 'px'; pop.style.bottom = (window.innerHeight - r.top + 10) + 'px'; }
+    function openPop() { open = true; btn.setAttribute('aria-expanded', 'true'); pop.setAttribute('aria-hidden', 'false'); pop.classList.add('open'); position(); }
+    function closePop() { open = false; btn.setAttribute('aria-expanded', 'false'); pop.setAttribute('aria-hidden', 'true'); pop.classList.remove('open'); }
+
+    btn.addEventListener('click', (e) => { e.stopPropagation(); open ? closePop() : openPop(); });
+    document.addEventListener('click', (e) => { if (open && !pop.contains(e.target) && !btn.contains(e.target)) closePop(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePop(); closeDepModal(); } });
+    window.addEventListener('resize', () => { if (open) position(); });
+    $('#content').addEventListener('scroll', () => { if (open) position(); });
+    $$('.pp-item', pop).forEach(item => item.addEventListener('click', () => {
+      const a = item.dataset.action; closePop();
+      if (a === 'perfil') showView('perfil'); else if (a === 'config') showView('config');
+      else if (a === 'sair') window.location.href = 'StabilMoney Login.html';
+    }));
+
+    // dependents: sidebar card opens the view; buttons open the modal
+    $('#depCard').addEventListener('click', () => showView('dependentes'));
+    $('#depAddBtn').addEventListener('click', openDepModal);
+    $('#depClose').addEventListener('click', closeDepModal);
+    $('#depCancel').addEventListener('click', closeDepModal);
+    $('#depScrim').addEventListener('click', (e) => { if (e.target === $('#depScrim')) closeDepModal(); });
+    // password show/hide
+    const pwToggle = $('#depPassToggle');
+    if (pwToggle) pwToggle.addEventListener('click', () => {
+      const inp = $('#depPass'); const show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password'; pwToggle.classList.toggle('on', show);
+    });
+    $('#depForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = $('#depName').value.trim();
+      const email = $('#depEmail').value.trim();
+      const pass = $('#depPass').value;
+      if (!name || !email) return;
+      if (pass.length < 6) { $('#depPass').focus(); return; }
+      // store the dependent's login credentials so they can sign in
+      let logins = {};
+      try { logins = JSON.parse(localStorage.getItem('sm-dep-logins') || '{}'); } catch (err) {}
+      logins[email.toLowerCase()] = { name, pass, rel: $('#depRel').value };
+      try { localStorage.setItem('sm-dep-logins', JSON.stringify(logins)); } catch (err) {}
+      deps.unshift({ name, email: email.toLowerCase(), rel: $('#depRel').value, limit: $('#depLimit').value.trim() || '—', spent: 0, color: DEP_COLORS[deps.length % DEP_COLORS.length] });
+      saveDeps(); renderDeps(); closeDepModal();
+      if (!$('#view-dependentes').classList.contains('active')) showView('dependentes');
+    });
+
+    renderDeps();
+  }
+
   /* ---------- INIT ---------- */
   function init() {
     initTheme(); initDate(); initShell(); initNav(); initPeriod();
     buildLists(); buildDonut(); applyPeriod('mes'); drawSparks();
-    bindCashflowHover();
+    bindCashflowHover(); initProfile();
     runCounters($('#view-dashboard'));
     setTimeout(animateBars, 150);
     // Entrance flourish: add then remove so the resting state is always clean/visible

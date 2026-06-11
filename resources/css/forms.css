@@ -203,19 +203,38 @@ a.tx { text-decoration: none; color: inherit; }
 /* span6 não tem regra responsiva no protótipo (não era usado lá) */
 @media (max-width: 920px) { .card.span6 { grid-column: span 12; } }
 
-/* ----- Linhas de categoria (página de categorias) ----- */
-.cat-line {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 4px; border-bottom: 1px solid var(--line-2);
+/* ----- Categorias (página com drag & drop entre colunas) -----
+   Base .cat-cols/.cat-col/.cat-drop/.cat-chip vive no design-system.css
+   (portada do protótipo v2). Aqui ficam só as extensões do app real. */
+
+/* O form de exclusão (POST DELETE) entra no flex do chip sem criar caixa */
+.cat-chip form { display: contents; }
+
+/* Nome não estoura o chip em telas estreitas */
+.cat-chip .cc-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Botão "editar" (link) — mesma receita do .cc-del do protótipo, hover brand */
+.cat-chip .cc-act {
+  width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+  color: var(--ink-3); opacity: 0; transition: all .15s; flex: none; text-decoration: none;
 }
-.cat-line:last-child { border-bottom: none; }
-.cat-line .ci {
-  width: 38px; height: 38px; border-radius: 12px; flex: none;
-  display: grid; place-items: center; font-size: 18px; line-height: 1;
-  background: var(--surface-3);
+.cat-chip:hover .cc-act { opacity: 1; }
+.cat-chip .cc-act:hover { background: var(--surface-3); color: var(--brand-600); }
+[data-theme="dark"] .cat-chip .cc-act:hover { background: rgba(28,154,112,.14); color: var(--brand-300); }
+.cat-chip .cc-act svg { width: 14px; height: 14px; stroke-width: 2; }
+
+/* Acessibilidade: ações aparecem ao focar via teclado e ficam sempre
+   visíveis em telas de toque (não existe hover no celular) */
+.cat-chip .cc-act:focus-visible, .cat-chip .cc-del:focus-visible { opacity: 1; }
+@media (hover: none) {
+  .cat-chip .cc-act, .cat-chip .cc-del { opacity: 1; }
 }
-.cat-line .cname { font-size: 13.5px; font-weight: 600; }
-.cat-line .cactions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+
+/* Coluna vazia: convite para criar — some assim que a coluna ganha um chip */
+.cat-drop-empty { text-align: center; font-size: 12.5px; color: var(--ink-3); padding: 24px 10px; }
+.cat-drop-empty a { color: var(--brand-600); font-weight: 600; }
+[data-theme="dark"] .cat-drop-empty a { color: var(--brand-300); }
+.cat-chip ~ .cat-drop-empty { display: none; }
 
 /* Botões de ação discretos em linhas de lista */
 .row-btn {

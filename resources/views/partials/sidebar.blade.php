@@ -1,4 +1,5 @@
-{{-- Sidebar do app (links reais para rotas Laravel; ativo via routeIs) --}}
+{{-- Sidebar do app (shell v2 do handoff; links reais para rotas Laravel, ativo via routeIs) --}}
+{{-- $patrimonio vem do View Composer registrado no AppServiceProvider (SidebarService). --}}
 @php
     $usuario = auth()->user();
     // Iniciais para o avatar: 1ª letra do primeiro e do último nome (ou 2 primeiras letras)
@@ -7,15 +8,15 @@
         ? mb_substr($partesNome[0], 0, 1) . mb_substr(end($partesNome), 0, 1)
         : mb_substr($partesNome[0] ?? 'U', 0, 2);
     $iniciais = mb_strtoupper($iniciais);
+
+    // Formato pt-BR com os centavos separados (o v2 põe ",dd" num <span> menor)
+    [$patInteiro, $patCentavos] = $patrimonio
+        ? explode(',', number_format($patrimonio['saldoTotal'], 2, ',', '.'))
+        : ['0', '00'];
 @endphp
 <aside class="sidebar scroll" id="sidebar">
     <div class="brand">
-        <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
-            <path class="s-curve" d="M33 18.5 C33 13.5 28.5 11 24 11 C18.5 11 14.5 13.8 14.5 18 C14.5 22.2 18.5 23.5 24 24" />
-            <path class="s-curve" d="M15 29.5 C15 34.5 19.5 37 24 37 C29.5 37 33.5 34.2 33.5 30 C33.5 25.8 29.5 24.5 24 24" />
-            <path class="s-arrow" d="M15.5 33 L32 15.5" />
-            <path class="s-arrow" d="M24 14 L33.5 14 L33.5 23.5" />
-        </svg>
+        <span class="brand-badge"><img src="{{ asset('assets/stabilmoney-mark.png') }}" alt="StabilMoney" /></span>
         <span class="brand-name">Stabil<b>Money</b></span>
     </div>
 
@@ -29,63 +30,105 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 8h13M7 8l3-3M7 8l3 3M17 16H4M17 16l-3-3M17 16l-3 3"/></svg>
             <span class="nav-label">Transações</span>
         </a>
-        <a class="nav-item {{ request()->routeIs('accounts.*') ? 'active' : '' }}" href="{{ route('accounts.index') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg>
-            <span class="nav-label">Cartões</span>
-        </a>
-        <a class="nav-item {{ request()->routeIs('investimentos') ? 'active' : '' }}" href="{{ route('investimentos') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7M20 16v-3"/></svg>
-            <span class="nav-label">Investimentos</span>
+        <a class="nav-item {{ request()->routeIs('faturas') ? 'active' : '' }}" href="{{ route('faturas') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
+            <span class="nav-label">Faturas / Despesas</span>
         </a>
         <a class="nav-item {{ request()->routeIs('metas') ? 'active' : '' }}" href="{{ route('metas') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".7" fill="currentColor"/></svg>
             <span class="nav-label">Metas</span>
         </a>
-        <a class="nav-item {{ request()->routeIs('faturas') ? 'active' : '' }}" href="{{ route('faturas') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
-            <span class="nav-label">Faturas</span>
-        </a>
-        <a class="nav-item {{ request()->routeIs('relatorios') ? 'active' : '' }}" href="{{ route('relatorios') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 3h9l5 5v13a0 0 0 0 1 0 0H5a0 0 0 0 1 0 0V3Z"/><path d="M14 3v5h5M8 13l2.5 2.5L16 10"/></svg>
-            <span class="nav-label">Relatórios</span>
+        <a class="nav-item {{ request()->routeIs('investimentos') ? 'active' : '' }}" href="{{ route('investimentos') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7M20 16v-3"/></svg>
+            <span class="nav-label">Investimentos</span>
         </a>
     </nav>
-
-    <div class="sidebar-spacer"></div>
 
     <div class="nav-group-label">Preferências</div>
     <nav class="nav">
+        <a class="nav-item {{ request()->routeIs('accounts.*') ? 'active' : '' }}" href="{{ route('accounts.index') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg>
+            <span class="nav-label">Métodos de Pagamento</span>
+        </a>
         <a class="nav-item {{ request()->routeIs('categories.*') ? 'active' : '' }}" href="{{ route('categories.index') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3.5 13.5V6a2.5 2.5 0 0 1 2.5-2.5h7.5l7.1 7.1a2 2 0 0 1 0 2.8Z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
             <span class="nav-label">Categorias</span>
-        </a>
-        <a class="nav-item {{ request()->routeIs('profile.*') ? 'active' : '' }}" href="{{ route('profile.edit') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
-            <span class="nav-label">Configurações</span>
-        </a>
-        <a class="nav-item {{ request()->routeIs('ajuda') ? 'active' : '' }}" href="{{ route('ajuda') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.5 1.5c0 1.7-2.5 1.8-2.5 3.5"/><circle cx="12" cy="17.5" r=".7" fill="currentColor"/></svg>
-            <span class="nav-label">Ajuda</span>
         </a>
     </nav>
 
-    <div class="upsell">
-        <h4>StabilMoney Plus</h4>
-        <p>Relatórios avançados, categorização automática e metas ilimitadas.</p>
-        <button type="button">Fazer upgrade</button>
-    </div>
+    @if ($patrimonio)
+        <div class="side-balance">
+            <div class="sb-glow"></div>
+            <div class="sb-top">
+                <span class="sb-label">Patrimônio total</span>
+                <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18v12H3zM3 7l2-3h14l2 3M16 13h2"/></svg>
+            </div>
+            <div class="sb-value">R$ {{ $patInteiro }}<span>,{{ $patCentavos }}</span></div>
+            <div class="sb-subline">Em conta: R$ {{ number_format($patrimonio['emConta'], 2, ',', '.') }}</div>
+            <svg class="sb-spark" viewBox="0 0 180 40" preserveAspectRatio="none" aria-hidden="true">
+                <defs><linearGradient id="sbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6FCDA8" stop-opacity=".35"/><stop offset="1" stop-color="#6FCDA8" stop-opacity="0"/></linearGradient></defs>
+                <path d="{{ $patrimonio['sparkArea'] }}" fill="url(#sbg)"/>
+                <path d="{{ $patrimonio['sparkLine'] }}" fill="none" stroke="#9BE0C4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            @if (! is_null($patrimonio['variacao']))
+                <div class="sb-foot">
+                    <span class="sb-chg" @if ($patrimonio['variacao'] < 0) style="color:var(--neg)" @endif>{{ $patrimonio['variacao'] < 0 ? '▼' : '▲' }} {{ number_format(abs($patrimonio['variacao']), 1, ',', '.') }}%</span>
+                    <span class="sb-period">nos últimos 30 dias</span>
+                </div>
+            @endif
+        </div>
+    @endif
 
-    <div class="side-foot">
+    <div class="sidebar-spacer"></div>
+
+    {{-- Dependentes: sem cadastro real ainda — estado vazio previsto no protótipo --}}
+    <a class="dep-card {{ request()->routeIs('dependentes') ? 'active' : '' }}" href="{{ route('dependentes') }}">
+        <div class="dep-avatars">
+            <span class="da solo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 2.9-5.6 6.5-5.6 1 0 2 .2 2.8.5M17 8.5v6M14 11.5h6"/></svg></span>
+        </div>
+        <div class="dep-card-txt">
+            <strong>Dependentes</strong>
+            <span>Nenhum dependente</span>
+        </div>
+        <svg class="dep-card-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+    </a>
+
+    <button class="side-foot" id="profileBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="profilePop">
         <span class="avatar-initials">{{ $iniciais }}</span>
         <div class="side-foot-text">
             <strong>{{ $usuario->name }}</strong>
             <span>{{ $usuario->email }}</span>
         </div>
-        <form class="side-foot-form" method="POST" action="{{ route('logout') }}">
-            @csrf
-            <button class="side-logout" type="submit" title="Sair" aria-label="Sair">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
-            </button>
-        </form>
-    </div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M8 14l4-4 4 4"/></svg>
+    </button>
 </aside>
+
+{{-- Popover do perfil (abre pelo .side-foot; posicionado via JS em shell.js) --}}
+<div class="profile-pop" id="profilePop" role="menu" aria-hidden="true">
+    <div class="pp-head">
+        <span class="avatar-initials">{{ $iniciais }}</span>
+        <div class="pp-head-txt">
+            <strong>{{ $usuario->name }}</strong>
+            <span>{{ $usuario->email }}</span>
+        </div>
+    </div>
+    <div class="pp-sep"></div>
+    <div class="pp-list">
+        <a class="pp-item" href="{{ route('profile.edit') }}" role="menuitem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>
+            <span>Meu perfil</span>
+        </a>
+        <a class="pp-item" href="{{ route('profile.edit') }}" role="menuitem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
+            <span>Configurações</span>
+        </a>
+    </div>
+    <div class="pp-sep"></div>
+    <form method="POST" action="{{ route('logout') }}">
+        @csrf
+        <button class="pp-item danger" type="submit" role="menuitem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 17l5-5-5-5M20 12H9M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3"/></svg>
+            <span>Sair</span>
+        </button>
+    </form>
+</div>

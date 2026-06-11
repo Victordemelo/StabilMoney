@@ -245,7 +245,7 @@ class DashboardService
     }
 
     /** Variação percentual com base anterior; null quando a base é zero. */
-    private function pctChange(float $current, float $previous): ?float
+    public function pctChange(float $current, float $previous): ?float
     {
         if (abs($previous) < 0.005) {
             return null; // divisão por zero => sem comparação
@@ -270,23 +270,47 @@ class DashboardService
 
         $start = $today->subDays(6);
         $daily = $this->dailySums($userId, $start, $today);
-        $balance = round($initialTotal + $this->signedSumUntil($userId, $start->subDay()), 2);
         $saved = 0.0;
+
+        $sparks['saldo'] = $this->saldoSpark($userId, $initialTotal, $today, $daily);
 
         for ($i = 0; $i < 7; $i++) {
             $key = $start->addDays($i)->toDateString();
             $income = $daily[$key]['income'] ?? 0.0;
             $expense = $daily[$key]['expense'] ?? 0.0;
-            $balance = round($balance + $income - $expense, 2);
             $saved = round($saved + $income - $expense, 2);
 
-            $sparks['saldo'][] = $balance;
             $sparks['receitas'][] = $income;
             $sparks['despesas'][] = $expense;
             $sparks['economia'][] = $saved;
         }
 
         return $sparks;
+    }
+
+    /**
+     * Saldo acumulado dia a dia dos últimos 7 dias (hoje incluso).
+     * Compartilhado entre o sparkline "saldo" do dashboard e o card
+     * "Patrimônio total" da sidebar (SidebarService) — uma lógica só.
+     * $daily opcional evita repetir a query quando o chamador já tem dailySums().
+     */
+    public function saldoSpark(int $userId, float $initialTotal, CarbonImmutable $today, ?array $daily = null): array
+    {
+        $start = $today->subDays(6);
+        $daily ??= $this->dailySums($userId, $start, $today);
+        $balance = round($initialTotal + $this->signedSumUntil($userId, $start->subDay()), 2);
+        $points = [];
+
+        for ($i = 0; $i < 7; $i++) {
+            $key = $start->addDays($i)->toDateString();
+            $balance = round(
+                $balance + ($daily[$key]['income'] ?? 0.0) - ($daily[$key]['expense'] ?? 0.0),
+                2,
+            );
+            $points[] = $balance;
+        }
+
+        return $points;
     }
 
     /**
@@ -359,7 +383,7 @@ class DashboardService
     }
 
     /** Soma com sinal (receita +, despesa −) de tudo até a data, inclusive. */
-    private function signedSumUntil(int $userId, CarbonImmutable $until): float
+    public function signedSumUntil(int $userId, CarbonImmutable $until): float
     {
         $value = Transaction::where('user_id', $userId)
             ->where('date', '<=', $until->toDateString())

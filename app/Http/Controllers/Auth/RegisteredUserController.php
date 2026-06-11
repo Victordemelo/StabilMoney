@@ -30,10 +30,16 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // Sem confirmação de senha (decisão do design v2: campo único com
+        // toggle de visibilidade + medidor de força); termos são obrigatórios.
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'password' => ['required', Rules\Password::defaults()],
+            'terms' => ['required', 'accepted'],
+        ], [
+            'terms.required' => 'Você precisa aceitar os Termos de Uso e a Política de Privacidade.',
+            'terms.accepted' => 'Você precisa aceitar os Termos de Uso e a Política de Privacidade.',
         ]);
 
         $user = User::create([

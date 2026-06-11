@@ -11,17 +11,32 @@ código (PWA na próxima fase). UI 100% em **português do Brasil**, moeda **R$*
 
 ## 🧭 Estado atual (leia primeiro numa sessão nova)
 
-**Última grande entrega (jun/2026):** implementação pixel-fiel do design (handoff do Claude
-Design) + autenticação multiusuário. O app está **funcional de ponta a ponta** em dev:
-login/registro → dashboard com dados reais → CRUD de transações/contas/categorias.
+**Última grande entrega (jun/2026):** **design v2** implementado (handoff novo do Claude
+Design) — escopo desta rodada foi **só visual/shell/auth**, sem features financeiras novas:
+
+- **Shell v2:** sidebar com menu reorganizado (grupos "Menu" e "Preferências"), **popover de
+  perfil** (Meu perfil/Configurações/Sair — Configurações saiu do menu lateral), card
+  **"Patrimônio total" com dados reais** (saldo, spark 7 dias em SVG server-rendered, variação
+  30 dias via `SidebarService` + View Composer), card **Dependentes** (estado vazio → rota
+  placeholder), topbar com botão "Lançar", bottom-nav v2, **logo/favicon reais** (`public/assets/`).
+- **Auth v2:** login e cadastro em layout split com **vídeo de fundo** (`layouts/auth.blade.php`
+  + `auth.css` escopado, sempre claro). Cadastro **sem confirmação de senha** e com **aceite de
+  termos obrigatório** (validado no servidor).
+- **Telas:** categorias em 2 colunas com **drag & drop para trocar o tipo** (PATCH AJAX);
+  `/accounts` agora se apresenta como **"Métodos de Pagamento"**; rotas `relatorios`/`ajuda`
+  removidas; rota `dependentes` adicionada (coming-soon).
+
+O app segue **funcional de ponta a ponta** em dev: login/registro → dashboard com dados
+reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 
 | O quê | Estado |
 |---|---|
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
-| Suíte de testes | ✅ 69 testes / 199 asserções verdes |
-| PWA (manifest + service worker) | ⬜ **Próximo passo natural** |
-| Telas Metas/Faturas/Investimentos/Relatórios | ⬜ Placeholders "em breve" (aguardam design) |
+| Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
+| Suíte de testes | ✅ 87 testes / 279 asserções verdes |
+| Features financeiras v2 (faturas, métodos completos, dependentes, investimentos, metas) | ⬜ **Próxima rodada** (ver seção própria — decisões já tomadas) |
+| PWA (manifest + service worker) | ⬜ Pendente (Fase 1) |
 | Deploy (VPS) / domínio | ⬜ Futuro (ver "Visão de infraestrutura") |
 
 **Para subir o ambiente:** seção "Fluxo de trabalho" abaixo. **Login de dev:** o usuário do
@@ -53,11 +68,20 @@ instalado e autenticado na máquina do Victor (conta `Victordemelo`).
 
 ## 🎨 Visão e processo de design
 
-O visual do app vem de um **handoff do Claude Design** (claude.ai/design), versionado em `design/`:
+O visual do app vem de um **handoff do Claude Design** (claude.ai/design), versionado em
+`design/` — atualmente o **bundle v2**:
 
-- `design/project/StabilMoney Dashboard.html` — protótipo completo (app shell + todas as views).
-- `design/project/styles.css` — design system (tokens, temas claro/escuro, componentes, responsivo).
+- `design/project/StabilMoney Dashboard.html` — protótipo completo (app shell v2 + todas as views).
+- `design/project/StabilMoney Login.html` / `StabilMoney Cadastro.html` + `auth.css` — telas
+  de auth split com vídeo de fundo.
+- `design/project/styles.css` — design system v2 (tokens, temas claro/escuro, componentes,
+  popover, modais, cards da sidebar, responsivo).
 - `design/project/app.js` — interações do protótipo (tema, drawer, gráficos SVG, contadores).
+- `design/project/finance.js` — **protótipo das features financeiras FUTURAS** (lançamentos
+  com parcelas, faturas por cartão, métodos de pagamento, dependentes, investimentos, metas)
+  — referência para a próxima rodada, **ainda não implementado**.
+- `design/project/assets/` — logo (`stabilmoney-mark.png`), `favicon.png` e vídeo
+  (`auth-bg.mp4`); **já copiados para `public/assets/`** (é de lá que o app serve).
 - `design/README.md` + `design/chats/chat1.md` — intenção do usuário.
 
 **Processo:** o usuário desenha no Claude Design → exporta o bundle → o Claude Code implementa
@@ -70,9 +94,13 @@ Para novas telas, consulte sempre o HTML/CSS do protótipo como fonte da verdade
 é um `.tar.gz`: baixar com curl, extrair, ler README + chats + arquivos do projeto, e
 atualizar a pasta `design/` do repo com o bundle novo antes de implementar.
 
-**Telas sem design ainda** (metas, faturas, investimentos, relatórios): usam o padrão
-"em breve" (`coming-soon.blade.php`). Formulários/elementos sem protótipo seguem os tokens
-do design system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
+**Telas ainda não implementadas** (metas, faturas/despesas, investimentos, dependentes):
+usam o padrão "em breve" (`coming-soon.blade.php`). O design v2 **já tem protótipo** dessas
+telas (HTML do Dashboard + `finance.js`), mas os estilos exclusivos delas (`.fatura-*`, `.pm-*`,
+`.alloc-*`, `.meta-*`, `.dep-grid`, modal de lançamento `.modal-lg`, toast `.sm-toast`)
+**ficaram de fora do `design-system.css` de propósito** — portar do `styles.css` v2 quando
+cada feature for implementada. Formulários/elementos sem protótipo seguem os tokens do design
+system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 
 ---
 
@@ -83,9 +111,9 @@ do design system (`design-system.css` + `forms.css`) — nunca inventar visual d
 | Backend | **Laravel 12** (PHP 8.4) | Monolito, resource controllers + Form Requests + Policies + Services. |
 | Banco | **MySQL 8.0** (Docker) | Container `db`, porta 3306 (db `stabilmoney`, user/password no `.env`). |
 | Runtime | **Docker** (php:8.4-apache) | Container `app`, site em http://localhost:8000. Host não precisa de PHP. |
-| Frontend | **Blade + design system próprio** | `resources/css/design-system.css` (portado de `design/project/styles.css`) + `forms.css`. Tailwind 4 carregado como base utilitária via Vite 7. |
-| JS | **Vanilla** em `resources/js/sm/` | SEM Alpine, SEM frameworks. Módulos: `theme.js`, `shell.js`, `charts.js`, `dashboard.js`. |
-| Auth | **Laravel Breeze 2.4** (blade) | Telas reescritas no design system, em PT-BR. |
+| Frontend | **Blade + design system próprio** | `resources/css/design-system.css` (portado de `design/project/styles.css` v2) + `forms.css` + `auth.css` (telas de auth, escopado sob `.auth`). Tailwind 4 carregado como base utilitária via Vite 7. |
+| JS | **Vanilla** em `resources/js/sm/` | SEM Alpine, SEM frameworks. Módulos: `theme.js`, `shell.js`, `charts.js`, `dashboard.js`, `auth.js`, `categories.js`. |
+| Auth | **Laravel Breeze 2.4** (blade) | Login/cadastro no layout split v2 com vídeo (`layouts/auth.blade.php`); demais telas no `layouts/guest.blade.php`. Tudo PT-BR. |
 | i18n | **laravel-lang/common** | `lang/pt_BR` completo (validation, auth, passwords). `APP_LOCALE=pt_BR`; `Carbon::setLocale` no `AppServiceProvider`. |
 | Fontes | Google Fonts | Sora (títulos/números) + Plus Jakarta Sans (corpo) — link nos layouts. |
 | Mobile | **PWA** (Fase 1, pendente) | Web instalável; sem Android Studio por enquanto. |
@@ -101,34 +129,36 @@ app/
 │   └── Requests/           # Form Requests com mensagens/attributes PT-BR (Store/Update por recurso)
 ├── Models/                 # User, Account (accessor balance), Category, Transaction
 ├── Policies/               # Account/Category/TransactionPolicy (update+delete = dono); descoberta automática
-├── Services/               # DashboardService (toda a agregação SQL do dashboard, sem N+1)
+├── Services/               # DashboardService (agregação SQL do dashboard) + SidebarService (card patrimônio)
 ├── Support/                # DefaultCategories (categorias padrão; seedFor() idempotente)
 ├── Listeners/              # SeedDefaultCategoriesForNewUser (evento Registered, auto-descoberto)
-└── Providers/              # AppServiceProvider (Carbon::setLocale)
+└── Providers/              # AppServiceProvider (Carbon::setLocale + View Composer da sidebar)
 
 resources/
 ├── css/
-│   ├── app.css             # Orquestra: @import tailwindcss + design-system + forms (+ @source)
-│   ├── design-system.css   # Design system completo portado do protótipo + seção "Extensões"
-│   └── forms.css           # Formulários, pickers, filtros, paginação, flash de erro
-├── js/sm/                  # theme.js, shell.js, charts.js, dashboard.js (vanilla, orientados a dados)
+│   ├── app.css             # Orquestra: @import tailwindcss + design-system + forms + auth (+ @source)
+│   ├── design-system.css   # Design system completo portado do protótipo v2 + seção "Extensões"
+│   ├── forms.css           # Formulários, pickers, filtros, paginação, flash de erro, chips de categoria
+│   └── auth.css            # Telas de auth split com vídeo — TUDO escopado sob .auth (sempre claro)
+├── js/sm/                  # theme, shell (popover do perfil), charts, dashboard, auth, categories (drag)
 └── views/
-    ├── layouts/            # app.blade.php (shell: sidebar/topbar/bottom-nav) e guest.blade.php (auth)
-    ├── partials/           # sidebar, topbar, bottom-nav, flash
+    ├── layouts/            # app.blade.php (shell), auth.blade.php (login/cadastro com vídeo), guest.blade.php (demais telas de auth)
+    ├── partials/           # sidebar (popover, patrimônio, dependentes), topbar, bottom-nav, flash
     ├── dashboard.blade.php
     ├── transactions|accounts|categories/   # index/create/edit + _form por recurso
     ├── auth/               # 6 telas Breeze reescritas (login, register, etc.)
     ├── profile/            # edit + partials (perfil, senha, excluir conta com modal)
     └── coming-soon.blade.php   # placeholder das seções futuras
 
-design/                     # Handoff do Claude Design (fonte da verdade visual — NÃO editar)
+public/assets/              # stabilmoney-mark.png (logo), favicon.png, auth-bg.mp4 (vindos de design/project/assets/)
+design/                     # Handoff do Claude Design v2 (fonte da verdade visual — NÃO editar)
 lang/pt_BR(+.json)          # Traduções PT-BR (laravel-lang)
 routes/web.php              # Rotas do app | routes/auth.php (Breeze)
 database/
 ├── migrations/             # users/cache/jobs + accounts/categories/transactions
 ├── factories/              # User, Account, Category (states income/expense), Transaction
 └── seeders/                # DatabaseSeeder (só roda em APP_ENV=local; credenciais via .env)
-tests/Feature/              # 69 testes: auth, dashboard, CRUD, validação, isolamento multiusuário
+tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, isolamento multiusuário
 ```
 
 ---
@@ -138,6 +168,15 @@ tests/Feature/              # 69 testes: auth, dashboard, CRUD, validação, iso
 - Login obrigatório: **todas** as rotas do app ficam sob `middleware('auth')`.
 - **REGRA: NUNCA usar `Auth::id() ?? 1`** (fallback antigo, já removido). Use
   `auth()->id()` / `$request->user()->id` e escope **toda** query pelo dono.
+- **Registro (design v2):** **sem campo de confirmação de senha** (decisão do design) e com
+  **aceite de Termos de Uso/Política de Privacidade obrigatório** (`terms => required|accepted`,
+  validado no servidor com mensagem PT-BR). Os links dos termos ainda são placeholders (`#`) —
+  criar as páginas reais antes do deploy público. Os fluxos de **redefinir senha** e **alterar
+  senha no perfil** continuam exigindo confirmação.
+- Login/cadastro usam o `layouts/auth.blade.php` (split com vídeo, **sempre claro** — tokens
+  fixos no escopo `.auth`); as demais telas de auth (esqueci/redefinir/confirmar senha,
+  verificar e-mail) seguem no `layouts/guest.blade.php` com suporte a tema (inconsistência
+  visual aceita até ganharem design v2).
 - Registro dispara o listener `SeedDefaultCategoriesForNewUser` → cria as categorias padrão
   (9 despesas + 5 receitas, cores da paleta) via `App\Support\DefaultCategories::seedFor()`.
 - `DatabaseSeeder` roda **só em ambiente `local`** e lê as credenciais do `.env`:
@@ -155,11 +194,19 @@ tests/Feature/              # 69 testes: auth, dashboard, CRUD, validação, iso
 |---|---|---|
 | `GET /` (`dashboard`) | `dashboard.blade.php` | Stats com sparklines, segmented semana/mês/ano, fluxo de caixa, donut por categoria, transações recentes, "Meu cartão" + contas, cards "Em breve". |
 | `/transactions` (resource, sem `show`) | `transactions/*` | Lista com filtros GET (tipo/conta), paginação; form com type-toggle, valor com vírgula, conta, categoria filtrada por tipo. |
-| `/accounts` (resource, sem `show`) | `accounts/*` | **"Cartões"** no menu. Cards `.cc` com saldo (accessor `balance`), gradiente pela cor; form com icon/color picker. |
-| `/categories` (resource, sem `show`) | `categories/*` | Cards Receitas/Despesas com linhas emoji+nome; form com type-toggle e pickers. |
-| `GET/PATCH/DELETE /configuracoes` (`profile.*`) | `profile/edit` | Perfil, senha e exclusão de conta (modal de confirmação com senha). |
-| `/investimentos`, `/metas`, `/faturas`, `/relatorios`, `/ajuda` | `coming-soon` | Placeholders "Em breve" com `$title`/`$description`/`$page`. |
+| `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"** no menu/título (versão inicial — modelo ainda é `accounts`). Cards `.cc` com saldo (accessor `balance`), gradiente pela cor; form com icon/color picker. |
+| `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
+| `GET/PATCH/DELETE /configuracoes` (`profile.*`) | `profile/edit` | Perfil, senha e exclusão de conta (modal de confirmação com senha). **Acesso pelo popover do perfil** (sidebar), não mais pelo menu. |
+| `/investimentos`, `/metas`, `/faturas` ("Faturas / Despesas"), `/dependentes` | `coming-soon` | Placeholders "Em breve" com `$title`/`$description`/`$page`. Rotas `relatorios` e `ajuda` foram **removidas** no design v2. |
 | `routes/auth.php` | `auth/*` | Breeze: login, registro, esqueci/redefinir senha, confirmar senha, verificar e-mail. |
+
+**Menu da sidebar (v2):** grupo **Menu** = Visão geral → `dashboard`, Transações →
+`transactions.index`, Faturas / Despesas → `faturas`, Metas → `metas`, Investimentos →
+`investimentos`; grupo **Preferências** = Métodos de Pagamento → `accounts.index`,
+Categorias → `categories.index`. Sem Relatórios, sem Ajuda, sem Configurações no menu
+(Configurações vive no popover do perfil) e sem card de upsell. A sidebar ainda tem o card
+**Patrimônio total** (dados reais via `SidebarService`/View Composer) e o card **Dependentes**
+(estado vazio → rota `dependentes`).
 
 ---
 
@@ -262,7 +309,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte completa (69 testes)
+docker compose exec app php artisan test                       # suíte completa (87 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan tinker                     # console interativo
 docker compose exec app php artisan view:cache                 # valida sintaxe de TODAS as views
@@ -286,12 +333,46 @@ Com a PWA pronta (Fase 1), "Adicionar à tela inicial".
 - **Fase 0 — Núcleo: ✅ CONCLUÍDA.** Modelo de dados, CRUD completo (transações/contas/categorias),
   dashboard com dados reais (períodos, trends, gráficos SVG), layout mobile-first pixel-fiel ao design,
   tema claro/escuro.
+- **Design v2 (visual/shell/auth): ✅ CONCLUÍDA (jun/2026).** Shell v2 (sidebar com grupos,
+  popover de perfil, card patrimônio real, card dependentes, logo/favicon reais), login/cadastro
+  split com vídeo, categorias com drag & drop, accounts rotulado "Métodos de Pagamento".
 - **Fase 1 — PWA + Login: 🔶 PARCIAL.**
   - ✅ Autenticação multiusuário (Breeze, telas no design system, PT-BR, categorias padrão no registro).
-  - ⬜ PWA: `manifest.json` + service worker (instalável na tela inicial). **← próximo passo**
-- **Fase 2 — Futuro:** telas que hoje são "em breve" (metas, faturas, investimentos, relatórios —
-  aguardam design); empacotar a PWA como app Android (**TWA**) para a Play Store; **bot WhatsApp**
-  para consultar/lançar transações por mensagem (ver infra abaixo).
+  - ⬜ PWA: `manifest.json` + service worker (instalável na tela inicial).
+- **Próxima rodada — features financeiras do design v2** (ver seção abaixo — decisões já
+  tomadas com o usuário; protótipo em `design/project/finance.js`).
+- **Fase 2 — Futuro:** empacotar a PWA como app Android (**TWA**) para a Play Store;
+  **bot WhatsApp** para consultar/lançar transações por mensagem (ver infra abaixo).
+
+---
+
+## 💰 Próxima rodada (features financeiras — decisões já tomadas com o usuário)
+
+Implementar o que o protótipo `design/project/finance.js` + as views do Dashboard.html v2
+demonstram. **Decisões fechadas com o usuário em jun/2026** (não rediscutir do zero):
+
+- **Métodos de pagamento:** cartão de crédito, cartão de débito, contas e Pix — evolução da
+  tela atual de `accounts` (que já se apresenta como "Métodos de Pagamento").
+- **Lançamentos → faturas:** lançamentos geram faturas **parceladas/recorrentes POR CARTÃO**,
+  com **dia de fechamento e dia de vencimento configuráveis por cartão** (decisão do usuário).
+- **Dependentes:** sub-usuários vinculados ao titular, **com login próprio**, que **veem TUDO
+  da família (mesma visão do titular)** — decisão do usuário; não é visão restrita.
+- **Seletor "quem fez a compra"** (titular/dependente) nos lançamentos.
+- **Investimentos:** com indexadores (CDI, Selic, IPCA+, Prefixado), percentual do indexador
+  e prévia de IR/IOF.
+- **Metas:** objetivos com aportes.
+
+**Modelo de dados novo necessário:** `payment_methods`, `invoices`/`installments`,
+sub-usuários vinculados ao titular (dependentes), `goals`, `investments`.
+
+**Apoios já deixados prontos nesta rodada:** estilos de drag de categorias/emoji picker no
+`design-system.css`; estilos exclusivos das telas futuras (`.fatura-*`, `.pm-*`, `.alloc-*`,
+`.meta-*`, `.dep-grid`, `.modal-lg`, `.sm-toast`) ficam no `styles.css` v2 para portar na hora;
+primitivos de modal (`.modal-scrim`/`.modal`) já portados — **dentro de modais, usar o
+`.field`/`.input` do `forms.css`** (as regras `.field` do modal do protótipo conflitam e não
+foram portadas). O card patrimônio mostra "Em conta" = saldo total por enquanto; quando
+investimentos existirem, separar as parcelas no `SidebarService`. O rótulo "Saldo disponível"
+do card "Meu cartão" do dashboard vira "Limite disponível" quando houver limite de cartão.
 
 ---
 

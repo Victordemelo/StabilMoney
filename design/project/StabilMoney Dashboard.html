@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>StabilMoney — Dashboard</title>
 <meta name="theme-color" content="#0C3D2B" />
+<link rel="icon" type="image/png" href="assets/favicon.png" />
+<link rel="apple-touch-icon" href="assets/stabilmoney-mark.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -16,12 +18,7 @@
   <!-- ============ SIDEBAR ============ -->
   <aside class="sidebar scroll" id="sidebar">
     <div class="brand">
-      <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
-        <path class="s-curve" d="M33 18.5 C33 13.5 28.5 11 24 11 C18.5 11 14.5 13.8 14.5 18 C14.5 22.2 18.5 23.5 24 24" />
-        <path class="s-curve" d="M15 29.5 C15 34.5 19.5 37 24 37 C29.5 37 33.5 34.2 33.5 30 C33.5 25.8 29.5 24.5 24 24" />
-        <path class="s-arrow" d="M15.5 33 L32 15.5" />
-        <path class="s-arrow" d="M24 14 L33.5 14 L33.5 23.5" />
-      </svg>
+      <span class="brand-badge"><img src="assets/stabilmoney-mark.png" alt="StabilMoney" /></span>
       <span class="brand-name">Stabil<b>Money</b></span>
     </div>
 
@@ -35,56 +32,68 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 8h13M7 8l3-3M7 8l3 3M17 16H4M17 16l-3-3M17 16l-3 3"/></svg>
         <span class="nav-label">Transações</span>
       </a>
-      <a class="nav-item" data-view="cartoes" href="#cartoes">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg>
-        <span class="nav-label">Cartões</span>
-      </a>
-      <a class="nav-item" data-view="investimentos" href="#investimentos">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7M20 16v-3"/></svg>
-        <span class="nav-label">Investimentos</span>
+      <a class="nav-item" data-view="faturas" href="#faturas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
+        <span class="nav-label">Faturas / Despesas</span>
+        <span class="badge">3</span>
       </a>
       <a class="nav-item" data-view="metas" href="#metas">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".7" fill="currentColor"/></svg>
         <span class="nav-label">Metas</span>
       </a>
-      <a class="nav-item" data-view="faturas" href="#faturas">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
-        <span class="nav-label">Faturas</span>
-        <span class="badge">3</span>
-      </a>
-      <a class="nav-item" data-view="relatorios" href="#relatorios">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 3h9l5 5v13a0 0 0 0 1 0 0H5a0 0 0 0 1 0 0V3Z"/><path d="M14 3v5h5M8 13l2.5 2.5L16 10"/></svg>
-        <span class="nav-label">Relatórios</span>
+      <a class="nav-item" data-view="investimentos" href="#investimentos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7M20 16v-3"/></svg>
+        <span class="nav-label">Investimentos</span>
       </a>
     </nav>
-
-    <div class="sidebar-spacer"></div>
 
     <div class="nav-group-label">Preferências</div>
     <nav class="nav">
-      <a class="nav-item" data-view="config" href="#config">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
-        <span class="nav-label">Configurações</span>
+      <a class="nav-item" data-view="cartoes" href="#cartoes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg>
+        <span class="nav-label">Métodos de Pagamento</span>
       </a>
-      <a class="nav-item" data-view="ajuda" href="#ajuda">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.5 1.5c0 1.7-2.5 1.8-2.5 3.5"/><circle cx="12" cy="17.5" r=".7" fill="currentColor"/></svg>
-        <span class="nav-label">Ajuda</span>
+      <a class="nav-item" data-view="categorias" href="#categorias">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+        <span class="nav-label">Categorias</span>
       </a>
     </nav>
 
-    <div class="upsell">
-      <h4>StabilMoney Plus</h4>
-      <p>Relatórios avançados, categorização automática e metas ilimitadas.</p>
-      <button>Fazer upgrade</button>
+    <div class="side-balance">
+      <div class="sb-glow"></div>
+      <div class="sb-top">
+        <span class="sb-label">Patrimônio total</span>
+        <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18v12H3zM3 7l2-3h14l2 3M16 13h2"/></svg>
+      </div>
+      <div class="sb-value" id="sbValue">R$ 132.460<span>,50</span></div>
+      <div class="sb-subline" id="sbSubline">Em conta: R$ 0,00</div>
+      <svg class="sb-spark" viewBox="0 0 180 40" preserveAspectRatio="none">
+        <defs><linearGradient id="sbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6FCDA8" stop-opacity=".35"/><stop offset="1" stop-color="#6FCDA8" stop-opacity="0"/></linearGradient></defs>
+        <path d="M2 30 L24 26 L46 28 L68 18 L90 22 L112 12 L134 16 L156 8 L178 6 L178 40 L2 40 Z" fill="url(#sbg)"/>
+        <path d="M2 30 L24 26 L46 28 L68 18 L90 22 L112 12 L134 16 L156 8 L178 6" fill="none" stroke="#9BE0C4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="sb-foot"><span class="sb-chg">▲ 6,4%</span><span class="sb-period">nos últimos 30 dias</span></div>
     </div>
 
-    <div class="side-foot">
+    <div class="sidebar-spacer"></div>
+
+    <button class="dep-card" id="depCard">
+      <div class="dep-avatars" id="depStack"></div>
+      <div class="dep-card-txt">
+        <strong>Dependentes</strong>
+        <span id="depCount">Nenhum dependente</span>
+      </div>
+      <svg class="dep-card-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+
+    <button class="side-foot" id="profileBtn" aria-haspopup="true" aria-expanded="false">
       <img class="avatar" alt="" src="https://i.pravatar.cc/80?img=47" />
       <div class="side-foot-text">
         <strong>Alison Carter</strong>
         <span>alison@stabilmoney.com</span>
       </div>
-    </div>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M8 14l4-4 4 4"/></svg>
+    </button>
   </aside>
 
   <!-- ============ MAIN ============ -->
@@ -95,12 +104,7 @@
       <button class="icon-btn" id="mMenu" aria-label="Menu">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
-      <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true" style="--x:1">
-        <path class="s-curve" d="M33 18.5 C33 13.5 28.5 11 24 11 C18.5 11 14.5 13.8 14.5 18 C14.5 22.2 18.5 23.5 24 24" style="stroke:var(--brand-600)"/>
-        <path class="s-curve" d="M15 29.5 C15 34.5 19.5 37 24 37 C29.5 37 33.5 34.2 33.5 30 C33.5 25.8 29.5 24.5 24 24" style="stroke:var(--brand-600)"/>
-        <path class="s-arrow" d="M15.5 33 L32 15.5" style="stroke:var(--brand-400)"/>
-        <path class="s-arrow" d="M24 14 L33.5 14 L33.5 23.5" style="stroke:var(--brand-400)"/>
-      </svg>
+      <img class="mbrand-mark" src="assets/stabilmoney-mark.png" alt="StabilMoney" />
       <span class="mbrand">Stabil<b>Money</b></span>
       <button class="icon-btn" id="mTheme" aria-label="Tema" style="margin-left:auto">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
@@ -121,6 +125,10 @@
         <input type="text" placeholder="Buscar transações, metas…" />
         <kbd>⌘K</kbd>
       </label>
+      <button class="launch-btn" id="launchBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Lançar</span>
+      </button>
       <button class="icon-btn" id="themeBtn" aria-label="Alternar tema">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" id="themeIcon"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
       </button>
@@ -240,8 +248,8 @@
               <div class="cc-num">•••• •••• •••• 4729</div>
               <div class="cc-bot">
                 <div>
-                  <div class="lbl">Saldo disponível</div>
-                  <div class="cc-balance">R$ 12.480,00</div>
+                  <div class="lbl">Limite disponível</div>
+                  <div class="cc-balance" id="ccLimit">R$ 12.480,00</div>
                 </div>
                 <div style="text-align:right">
                   <div class="lbl">Validade</div>
@@ -295,6 +303,99 @@
         <div class="grid"><div class="card span12"><div class="tx-list" id="txListFull"></div></div></div>
       </section>
 
+      <!-- DEPENDENTES VIEW -->
+      <section class="view" id="view-dependentes">
+        <div class="section-head">
+          <h2>Dependentes</h2>
+          <span class="sub">Compartilhe o controle financeiro com a família</span>
+          <button class="btn primary dep-add-btn" id="depAddBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Adicionar dependente
+          </button>
+        </div>
+        <div class="grid">
+          <div class="card stat span4"><div class="stat-top"><div class="ico g1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 2.9-5.6 6.5-5.6 1 0 2 .2 2.8.5M17 8.5v6M14 11.5h6"/></svg></div><span class="label">Dependentes ativos</span></div><div class="value"><span class="num" id="depStatCount">0</span></div></div>
+          <div class="card stat span4"><div class="stat-top"><div class="ico g4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/></svg></div><span class="label">Limite total concedido</span></div><div class="value"><span class="cur">R$</span><span class="num" id="depStatLimit">0,00</span></div></div>
+          <div class="card stat span4"><div class="stat-top"><div class="ico g3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M12 19l6-6M12 19l-6-6"/></svg></div><span class="label">Gasto pelos dependentes</span></div><div class="value"><span class="cur">R$</span><span class="num" id="depStatSpent">0,00</span></div></div>
+          <div class="card span12">
+            <div class="card-head"><h3>Pessoas vinculadas</h3></div>
+            <div class="dep-grid" id="depGrid"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FATURAS VIEW -->
+      <section class="view" id="view-faturas">
+        <div class="section-head">
+          <h2>Faturas / Despesas</h2>
+          <span class="sub">Faturas de cartão e despesas pagas em conta</span>
+          <div class="head-actions">
+            <div class="select-wrap">
+              <svg class="sel-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/></svg>
+              <select id="faturaFilter"></select>
+              <svg class="sel-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <button class="btn primary" id="newDespesaBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Nova despesa
+            </button>
+          </div>
+        </div>
+        <div id="faturasBody"></div>
+      </section>
+
+      <!-- METODOS DE PAGAMENTO VIEW -->
+      <section class="view" id="view-cartoes">
+        <div class="section-head">
+          <h2>Métodos de Pagamento</h2>
+          <span class="sub">Cartões e contas cadastrados</span>
+          <button class="btn primary" id="newCardBtn" style="margin-left:auto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Adicionar cartão
+          </button>
+        </div>
+        <div id="cartoesBody"></div>
+      </section>
+
+      <!-- CATEGORIAS VIEW -->
+      <section class="view" id="view-categorias">
+        <div class="section-head">
+          <h2>Categorias</h2>
+          <span class="sub">Arraste para mover entre Despesas e Receitas</span>
+          <button class="btn primary" id="newCatBtn" style="margin-left:auto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Nova categoria
+          </button>
+        </div>
+        <div id="categoriasBody"></div>
+      </section>
+
+      <!-- INVESTIMENTOS VIEW -->
+      <section class="view" id="view-investimentos">
+        <div class="section-head">
+          <h2>Investimentos</h2>
+          <span class="sub">Sua carteira e aportes</span>
+          <button class="btn primary" id="newInvBtn" style="margin-left:auto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Novo aporte
+          </button>
+        </div>
+        <div id="investimentosBody"></div>
+      </section>
+
+      <!-- METAS VIEW -->
+      <section class="view" id="view-metas">
+        <div class="section-head">
+          <h2>Metas</h2>
+          <span class="sub">Defina objetivos e acompanhe o progresso</span>
+          <button class="btn primary" id="newMetaBtn" style="margin-left:auto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Nova meta
+          </button>
+        </div>
+        <div id="metasBody"></div>
+      </section>
+
       <!-- Generic placeholders -->
       <section class="view" id="view-generic"></section>
     </main>
@@ -305,13 +406,152 @@
     <button class="bn-item active" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Início</button>
     <button class="bn-item" data-view="transacoes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 8h13M7 8l3-3M7 8l3 3M17 16H4M17 16l-3-3M17 16l-3 3"/></svg>Extrato</button>
     <button class="bn-item fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></button>
-    <button class="bn-item" data-view="cartoes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/></svg>Cartões</button>
+    <button class="bn-item" data-view="cartoes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/></svg>Pagamentos</button>
     <button class="bn-item" data-view="investimentos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7"/></svg>Investir</button>
   </nav>
 
   <div class="scrim" id="scrim"></div>
+
+  <!-- ============ PROFILE POPOVER ============ -->
+  <div class="profile-pop" id="profilePop" role="menu" aria-hidden="true">
+    <div class="pp-head">
+      <img alt="" src="https://i.pravatar.cc/80?img=47" />
+      <div class="pp-head-txt">
+        <strong>Alison Carter</strong>
+        <span>alison@stabilmoney.com</span>
+      </div>
+      <span class="pp-plan">Plus</span>
+    </div>
+    <div class="pp-sep"></div>
+    <div class="pp-list">
+      <button class="pp-item" data-action="perfil" role="menuitem">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>
+        <span>Meu perfil</span>
+      </button>
+      <button class="pp-item" data-action="config" role="menuitem">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
+        <span>Configurações</span>
+      </button>
+    </div>
+    <div class="pp-sep"></div>
+    <button class="pp-item danger" data-action="sair" role="menuitem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 17l5-5-5-5M20 12H9M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3"/></svg>
+      <span>Sair</span>
+    </button>
+  </div>
+
+  <!-- ============ ADD DEPENDENT DIALOG ============ -->
+  <div class="modal-scrim" id="depScrim">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="depTitle">
+      <div class="modal-head">
+        <div class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 2.9-5.6 6.5-5.6 1 0 2 .2 2.8.5M17 8.5v6M14 11.5h6"/></svg></div>
+        <div>
+          <h3 id="depTitle">Adicionar dependente</h3>
+          <p>Crie um acesso para um familiar com e-mail e senha.</p>
+        </div>
+        <button class="modal-x" id="depClose" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <form id="depForm" class="modal-body">
+        <label class="field">
+          <span>Nome completo</span>
+          <input type="text" id="depName" placeholder="Ex.: Sofia Carter" required />
+        </label>
+        <label class="field">
+          <span>E-mail de acesso</span>
+          <input type="email" id="depEmail" placeholder="sofia@gmail.com" autocomplete="off" required />
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>Senha de acesso</span>
+            <div class="input-pw">
+              <input type="password" id="depPass" placeholder="Mín. 6 caracteres" autocomplete="new-password" minlength="6" required />
+              <button type="button" class="pw-toggle" id="depPassToggle" aria-label="Mostrar senha"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </label>
+          <label class="field">
+            <span>Parentesco</span>
+            <select id="depRel">
+              <option>Filho(a)</option>
+              <option>Cônjuge</option>
+              <option>Pai / Mãe</option>
+              <option>Outro</option>
+            </select>
+          </label>
+        </div>
+        <label class="field">
+          <span>Limite mensal de gastos</span>
+          <input type="text" id="depLimit" placeholder="R$ 500,00" inputmode="numeric" />
+        </label>
+        <label class="check" style="margin-top:2px"><input type="checkbox" id="depInvite" checked /><span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>Enviar convite de acesso por e-mail</label>
+        <div class="modal-foot">
+          <button type="button" class="btn ghost" id="depCancel">Cancelar</button>
+          <button type="submit" class="btn primary">Criar cadastro</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ LANÇAMENTO DIALOG ============ -->
+  <div class="modal-scrim" id="lancScrim">
+    <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="lancTitle">
+      <div class="modal-head">
+        <div class="modal-ico" id="lancIco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div>
+          <h3 id="lancTitle">Novo lançamento</h3>
+          <p>Registre uma receita ou despesa</p>
+        </div>
+        <button class="modal-x" id="lancClose" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+
+      <div class="lanc-seg" id="lancType">
+        <button type="button" class="active" data-t="receita"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M12 5l-6 6M12 5l6 6"/></svg>Receita</button>
+        <button type="button" data-t="despesa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M12 19l6-6M12 19l-6-6"/></svg>Despesa</button>
+      </div>
+
+      <form id="lancForm" class="modal-body">
+        <label class="field"><span>Descrição</span><input type="text" id="lancDesc" placeholder="Ex.: Salário, Supermercado…" required /></label>
+        <div class="field-row">
+          <label class="field"><span>Valor</span><input type="text" id="lancValor" placeholder="R$ 0,00" inputmode="decimal" required /></label>
+          <label class="field"><span>Data</span><input type="date" id="lancData" /></label>
+        </div>
+        <label class="field"><span>Categoria</span>
+          <div class="select-wrap full"><select id="lancCat"></select><svg class="sel-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg></div>
+        </label>
+
+        <!-- Despesa: forma de pagamento -->
+        <div id="lancPayWrap" hidden>
+          <label class="field" style="margin-bottom:14px"><span>Quem fez essa compra?</span>
+            <div class="who-pick" id="lancWho"></div>
+          </label>
+          <label class="field"><span>Forma de pagamento</span>
+            <div class="select-wrap full"><select id="lancMethod"></select><svg class="sel-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg></div>
+          </label>
+          <div id="lancCardOpts" hidden>
+            <div class="pay-mode" id="payMode">
+              <button type="button" class="active" data-m="avista">À vista</button>
+              <button type="button" data-m="parcelado">Parcelado</button>
+              <button type="button" data-m="recorrente">Recorrente</button>
+            </div>
+            <label class="field" id="parcelasField" hidden><span>Número de parcelas</span>
+              <div class="select-wrap full"><select id="lancParcelas"></select><svg class="sel-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg></div>
+              <small class="field-hint" id="parcelaHint"></small>
+            </label>
+          </div>
+        </div>
+
+        <!-- Receita: recorrência -->
+        <label class="check" id="lancRecorrente" style="margin:2px 0 4px" hidden><input type="checkbox" id="lancRec" /><span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>Receita recorrente (todo mês)</label>
+
+        <div class="modal-foot">
+          <button type="button" class="btn ghost" id="lancCancel">Cancelar</button>
+          <button type="submit" class="btn primary" id="lancSubmit">Lançar receita</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <script src="app.js"></script>
+<script src="finance.js"></script>
 </body>
 </html>

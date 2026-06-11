@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>StabilMoney — Entrar</title>
+<meta name="theme-color" content="#0B3A28" />
+<link rel="icon" type="image/png" href="assets/favicon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="auth.css" />
+</head>
+<body>
+<main class="auth">
+
+  <!-- Visual / video -->
+  <section class="auth-visual">
+    <video class="auth-video" id="bgVideo" autoplay muted loop playsinline preload="auto">
+      <source src="assets/auth-bg.mp4" type="video/mp4" />
+    </video>
+    <div class="auth-veil"></div>
+
+    <div class="av-top">
+      <span class="av-badge"><img src="assets/stabilmoney-mark.png" alt="StabilMoney" /></span>
+      <span class="av-word">Stabil<b>Money</b></span>
+    </div>
+
+    <div class="av-body">
+      <span class="av-eyebrow"><span class="pulse"></span>Sua estabilidade financeira</span>
+      <h2>Seu dinheiro com <em>clareza</em>, controle e crescimento.</h2>
+      <p>Acompanhe gastos, alcance metas e invista com inteligência — tudo num só lugar, do jeito StabilMoney.</p>
+      <div class="av-features">
+        <div class="av-feat"><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></span>Visão completa das suas finanças em tempo real</div>
+        <div class="av-feat"><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M5 9a7 7 0 1 1 14 0c0 4-3 5-3 8H8c0-3-3-4-3-8Z"/><path d="M9 21h6"/></svg></span>Metas inteligentes que você realmente alcança</div>
+        <div class="av-feat"><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18"/></svg></span>Cartões e contas protegidos com segurança total</div>
+      </div>
+    </div>
+
+    <div class="av-foot"></div>
+  </section>
+
+  <!-- Form -->
+  <section class="auth-panel">
+    <div class="auth-card">
+      <div class="ac-brand"><span class="b"><img src="assets/stabilmoney-mark.png" alt="" /></span><span>Stabil<b>Money</b></span></div>
+
+      <div class="ac-head">
+        <h1>Bem-vindo de volta 👋</h1>
+        <p>Novo por aqui? <a href="StabilMoney%20Cadastro.html">Crie sua conta gratuita</a></p>
+      </div>
+
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <label for="email">E-mail</label>
+          <div class="input">
+            <svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg>
+            <input type="email" id="email" placeholder="voce@email.com" autocomplete="email" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="senha">Senha</label>
+          <div class="input">
+            <svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+            <input type="password" id="senha" placeholder="••••••••" autocomplete="current-password" required />
+            <button type="button" class="toggle" data-toggle="senha" aria-label="Mostrar senha">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="row-between">
+          <label class="check"><input type="checkbox" checked /><span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>Lembrar de mim</label>
+          <a class="link" href="#">Esqueceu a senha?</a>
+        </div>
+
+        <button type="submit" class="btn-primary">Entrar
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </form>
+
+      <p class="ac-alt">Não tem uma conta? <a href="StabilMoney%20Cadastro.html">Cadastre-se grátis</a></p>
+    </div>
+  </section>
+</main>
+
+<script>
+  (function () {
+    var v = document.getElementById('bgVideo');
+    if (v) { var show = function () { v.classList.add('ready'); }; if (v.readyState >= 2) show(); v.addEventListener('loadeddata', show); v.play && v.play().catch(function () {}); }
+    document.querySelectorAll('.toggle[data-toggle]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var inp = document.getElementById(b.dataset.toggle);
+        inp.type = inp.type === 'password' ? 'text' : 'password';
+        b.style.color = inp.type === 'text' ? 'var(--brand-600)' : '';
+      });
+    });
+    var go = function () { window.location.href = 'StabilMoney Dashboard.html'; };
+    document.getElementById('loginForm').addEventListener('submit', function (e) { e.preventDefault(); go(); });
+    document.querySelectorAll('[data-go]').forEach(function (b) { b.addEventListener('click', go); });
+  })();
+</script>
+</body>
+</html>

@@ -67,6 +67,44 @@ class CategoryCrudTest extends TestCase
         $this->assertSame('Nome Novo', $category->fresh()->name);
     }
 
+    /**
+     * Drag & drop entre colunas (categories.js): PATCH via fetch com Accept
+     * JSON trocando o type — responde {ok: true} sem redirect.
+     */
+    public function test_category_type_can_be_changed_via_json_patch(): void
+    {
+        $category = Category::factory()->expense()->for($this->user)->create([
+            'name' => 'Freelas',
+            'color' => '#1C9A70',
+            'icon' => '💼',
+        ]);
+
+        $response = $this->actingAs($this->user)->patchJson("/categories/{$category->id}", [
+            'name' => 'Freelas',
+            'type' => 'income',
+            'color' => '#1C9A70',
+            'icon' => '💼',
+        ]);
+
+        $response->assertOk();
+        $response->assertExactJson(['ok' => true]);
+        $this->assertSame('income', $category->fresh()->type);
+    }
+
+    public function test_category_json_patch_with_invalid_type_is_rejected(): void
+    {
+        $category = Category::factory()->expense()->for($this->user)->create();
+
+        $response = $this->actingAs($this->user)->patchJson("/categories/{$category->id}", [
+            'name' => $category->name,
+            'type' => 'invalido',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('type');
+        $this->assertSame('expense', $category->fresh()->type);
+    }
+
     public function test_category_can_be_deleted_and_transactions_become_uncategorized(): void
     {
         $account = Account::factory()->for($this->user)->create();

@@ -8,6 +8,9 @@
 
     <title>@yield('title', 'StabilMoney')</title>
 
+    <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
+    <link rel="apple-touch-icon" href="{{ asset('assets/stabilmoney-mark.png') }}" />
+
     {{-- Anti-flash: aplica o tema salvo ANTES do CSS pintar a página --}}
     <script>
         (function () {
@@ -29,12 +32,7 @@
 <div class="auth-wrap">
     <div class="auth-card">
         <a class="auth-brand" href="{{ url('/') }}">
-            <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
-                <path class="s-curve" d="M33 18.5 C33 13.5 28.5 11 24 11 C18.5 11 14.5 13.8 14.5 18 C14.5 22.2 18.5 23.5 24 24" />
-                <path class="s-curve" d="M15 29.5 C15 34.5 19.5 37 24 37 C29.5 37 33.5 34.2 33.5 30 C33.5 25.8 29.5 24.5 24 24" />
-                <path class="s-arrow" d="M15.5 33 L32 15.5" />
-                <path class="s-arrow" d="M24 14 L33.5 14 L33.5 23.5" />
-            </svg>
+            <span class="ab-badge"><img src="{{ asset('assets/stabilmoney-mark.png') }}" alt="StabilMoney" /></span>
             <span class="brand-name">Stabil<b>Money</b></span>
         </a>
 

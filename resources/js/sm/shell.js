@@ -1,4 +1,4 @@
-/* ============ StabilMoney — Shell (sidebar, drawer, flash) ============ */
+/* ============ StabilMoney — Shell (sidebar, drawer, popover do perfil, flash) ============ */
 // Sem troca de views via JS: cada item do menu é um link real do Laravel.
 
 export function initShell() {
@@ -34,6 +34,54 @@ export function initShell() {
         });
     }
     if (scrim) scrim.addEventListener('click', closeDrawer);
+
+    // --- Popover do perfil (.side-foot abre; fecha com clique fora ou Esc) ---
+    const profileBtn = document.getElementById('profileBtn');
+    const profilePop = document.getElementById('profilePop');
+    if (profileBtn && profilePop) {
+        let aberto = false;
+
+        // Posição fixa ancorada no botão (mesma conta do protótipo v2)
+        const posicionar = () => {
+            const r = profileBtn.getBoundingClientRect();
+            const w = profilePop.offsetWidth || 256;
+            const left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12));
+            profilePop.style.left = left + 'px';
+            profilePop.style.bottom = (window.innerHeight - r.top + 10) + 'px';
+        };
+        const abrirPop = () => {
+            aberto = true;
+            profileBtn.setAttribute('aria-expanded', 'true');
+            profilePop.setAttribute('aria-hidden', 'false');
+            profilePop.classList.add('open');
+            posicionar();
+        };
+        const fecharPop = () => {
+            if (!aberto) return;
+            aberto = false;
+            profileBtn.setAttribute('aria-expanded', 'false');
+            profilePop.setAttribute('aria-hidden', 'true');
+            profilePop.classList.remove('open');
+        };
+
+        profileBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            aberto ? fecharPop() : abrirPop();
+        });
+        document.addEventListener('click', (e) => {
+            if (aberto && !profilePop.contains(e.target) && !profileBtn.contains(e.target)) fecharPop();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') fecharPop();
+        });
+        window.addEventListener('resize', () => {
+            if (aberto) posicionar();
+        });
+        const content = document.getElementById('content');
+        if (content) content.addEventListener('scroll', () => {
+            if (aberto) posicionar();
+        });
+    }
 
     // --- Flash de sessão: some sozinho após 4s ---
     document.querySelectorAll('[data-flash]').forEach((el) => {
