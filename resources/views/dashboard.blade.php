@@ -180,11 +180,7 @@
                 <div class="cc">
                     <div class="cc-top">
                         <span class="net">StabilMoney</span>
-                        <svg viewBox="0 0 48 48" width="30" height="30" aria-hidden="true">
-                            <path d="M33 18.5 C33 13.5 28.5 11 24 11 C18.5 11 14.5 13.8 14.5 18 C14.5 22.2 18.5 23.5 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="4" stroke-linecap="round"/>
-                            <path d="M15 29.5 C15 34.5 19.5 37 24 37 C29.5 37 33.5 34.2 33.5 30 C33.5 25.8 29.5 24.5 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="4" stroke-linecap="round"/>
-                            <path d="M15.5 33 L32 15.5M24 14 L33.5 14 L33.5 23.5" fill="none" stroke="var(--brand-300)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
+                        <img class="cc-mark" src="{{ asset('assets/stabilmoney-mark.png') }}" alt="StabilMoney" />
                     </div>
                     <div class="cc-chip"></div>
                     <div class="cc-num">{{ $firstAccount->name }}</div>

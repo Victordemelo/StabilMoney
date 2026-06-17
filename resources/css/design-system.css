@@ -405,6 +405,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .cc-bot .lbl { font-size: 9.5px; letter-spacing: .12em; opacity: .7; text-transform: uppercase; }
 .cc-bot .val { font-size: 13px; font-weight: 600; margin-top: 2px; }
 .cc-balance { font-family: var(--font-head); font-size: 22px; font-weight: 700; }
+/* Logo da marca no canto do card "Meu cartão": PNG verde renderizado em branco
+   (brightness(0) invert(1)) para contraste no gradiente verde escuro do card. */
+.cc-mark { width: 30px; height: 30px; object-fit: contain; filter: brightness(0) invert(1); opacity: .92; }
 
 .acct { display: flex; align-items: center; gap: 12px; padding: 11px 4px; border-bottom: 1px solid var(--line-2); }
 .acct:last-child { border: none; }

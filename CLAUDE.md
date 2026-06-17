@@ -109,11 +109,11 @@ system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 | Camada | Escolha | Observações |
 |--------|---------|-------------|
 | Backend | **Laravel 12** (PHP 8.4) | Monolito, resource controllers + Form Requests + Policies + Services. |
-| Banco | **MySQL 8.0** (Docker) | Container `db`, porta 3306 (db `stabilmoney`, user/password no `.env`). |
-| Runtime | **Docker** (php:8.4-apache) | Container `app`, site em http://localhost:8000. Host não precisa de PHP. |
+| Banco | **MySQL 8.0** (Docker) | Container `db`; porta **3307 no host → 3306 no container** (db `stabilmoney`, user/password no `.env`). A 3307 no host só serve p/ ferramenta externa (DBeaver/TablePlus); o app fala com `db:3306` pela rede interna, então `DB_PORT=3306` no `.env`. |
+| Runtime | **Docker** (php:8.4-apache) | Container `app`, site em **http://localhost:8001** (porta do host → 80 no container). Host não precisa de PHP. |
 | Frontend | **Blade + design system próprio** | `resources/css/design-system.css` (portado de `design/project/styles.css` v2) + `forms.css` + `auth.css` (telas de auth, escopado sob `.auth`). Tailwind 4 carregado como base utilitária via Vite 7. |
 | JS | **Vanilla** em `resources/js/sm/` | SEM Alpine, SEM frameworks. Módulos: `theme.js`, `shell.js`, `charts.js`, `dashboard.js`, `auth.js`, `categories.js`. |
-| Auth | **Laravel Breeze 2.4** (blade) | Login/cadastro no layout split v2 com vídeo (`layouts/auth.blade.php`); demais telas no `layouts/guest.blade.php`. Tudo PT-BR. |
+| Auth | **Laravel Breeze 2.4** (blade) | Login/cadastro no layout split v2 com vídeo (`layouts/auth.blade.php`); demais telas no `layouts/guest.blade.php`. Tudo PT-BR. Hash de senha em **argon2id** (`config/hashing.php`). |
 | i18n | **laravel-lang/common** | `lang/pt_BR` completo (validation, auth, passwords). `APP_LOCALE=pt_BR`; `Carbon::setLocale` no `AppServiceProvider`. |
 | Fontes | Google Fonts | Sora (títulos/números) + Plus Jakarta Sans (corpo) — link nos layouts. |
 | Mobile | **PWA** (Fase 1, pendente) | Web instalável; sem Android Studio por enquanto. |
@@ -185,6 +185,11 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
   para o código/git** — fica só no `.env` (gitignorado).
 - `User` **não** implementa `MustVerifyEmail` (fluxo de verificação pronto em PT-BR,
   desativado de propósito — não há mailer configurado; `MAIL_MAILER=log` em dev).
+- **Hashing de senha: `argon2id`** (`config/hashing.php`, `driver => 'argon2id'`) — vale para
+  o app inteiro (registro, troca de senha e seeder). O `Hash::check` detecta o algoritmo pelo
+  prefixo do hash, então qualquer hash antigo em bcrypt continua validando. Lembrete conceitual:
+  senha de usuário é **hash** (mão única), nunca "criptografia" reversível; só o hash vai pro
+  banco, o texto puro existe apenas no `.env` local (gitignorado) para o seeder gerar o hash.
 
 ---
 
@@ -297,7 +302,7 @@ docker compose exec app php artisan key:generate
 # 4. Tabelas + usuário de dev (seeder só roda em APP_ENV=local; credenciais nas SEED_USER_* do .env)
 docker compose exec app php artisan migrate --seed
 
-# App: http://localhost:8000
+# App: http://localhost:8001
 ```
 
 ### Assets (Vite/Tailwind) — rodam no HOST
@@ -306,6 +311,18 @@ npm install
 npm run dev      # hot reload (Vite em http://localhost:5173)
 npm run build    # produção (gera public/build — necessário p/ páginas sem `npm run dev`)
 ```
+
+### Portas (host) e troubleshooting
+- **App:** http://localhost:8001 · **MySQL (host):** 3307 · **Vite:** 5173.
+- Portas movidas de **8000→8001** (app) e **3306→3307** (MySQL, só no host) para **não
+  conflitar com o projeto `megatruck`** na mesma máquina (ele ocupa 8000/3306/5173). A porta do
+  **container** do MySQL segue 3306 — por isso `DB_PORT=3306` no `.env` (rede interna do Docker).
+- ⚠️ **Vite/5173 ainda colide com o megatruck:** não rodar os dois `npm run dev` ao mesmo tempo
+  (ou mudar a porta do Vite no `vite.config.js` quando precisar dos dois no ar).
+- **Erro `SQLSTATE[HY000] [2002] ... getaddrinfo for db failed`** (o app não resolve o host
+  `db`): glitch do Docker Desktop/WSL2 em que o container do banco "solta" da rede (aparece sem
+  rede em `docker inspect`). **Fix:** `docker compose down; docker compose up -d` (recria os
+  containers na mesma rede; o volume `db_data` é preservado, nada se perde).
 
 ### Comandos úteis
 ```powershell
@@ -321,10 +338,10 @@ docker compose down                                            # derruba contain
 > Os testes usam `withoutVite()` no `TestCase` base — rodam sem build de assets.
 
 ### Testar no celular (mesma rede Wi-Fi)
-`ipconfig` para descobrir o IP → `http://SEU_IP:8000` no navegador do celular.
+`ipconfig` para descobrir o IP → `http://SEU_IP:8001` no navegador do celular.
 Com a PWA pronta (Fase 1), "Adicionar à tela inicial".
 **PWA exige HTTPS** — para testar instalação no celular antes de ter servidor, usar
-**Cloudflare Tunnel** (`cloudflared tunnel --url http://localhost:8000` dá URL https grátis).
+**Cloudflare Tunnel** (`cloudflared tunnel --url http://localhost:8001` dá URL https grátis).
 
 ---
 
