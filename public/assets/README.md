@@ -7,7 +7,9 @@ vídeo — referencie sempre com `asset('assets/<arquivo>')` nas views.
 |---|---|---|---|
 | `stabilmoney-mark.png` | Logo (símbolo "S" + seta) | PNG transparente | sidebar, topbar, auth, favicon Apple, **card "Meu cartão"** (renderizada em branco via CSS `.cc-mark`) |
 | `favicon.png` | Favicon do navegador | PNG | `<link rel="icon">` em todos os layouts |
-| `auth-bg.mp4` | Vídeo animado da logo (fundo das telas de login/cadastro) | MP4 | `layouts/auth.blade.php` |
+| `video_login.mp4` | Vídeo de fundo das telas de login/cadastro | MP4 | `layouts/auth.blade.php` (substituiu o antigo `auth-bg.mp4`) |
+| `stailmoney_faviicon.jpg` | Favicon alternativo (não otimizado, ~185 KB) | JPG | — **não está em uso** (o favicon ativo é o `favicon.png`) |
+| `logo_dash.jpg` | Variante de logo para o dashboard | JPG | — disponível, **sem uso definido ainda** |
 
 ## Convenções
 - **Tudo em `public/` é servido pela web** — por isso os assets da marca ficam aqui (e não

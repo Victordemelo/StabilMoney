@@ -45,24 +45,57 @@ select.input {
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
 @media (max-width: 560px) { .form-row { grid-template-columns: 1fr; } }
 
-/* ----- Toggle Receita/Despesa (estilo .seg do design) ----- */
+/* ----- Toggle Receita/Despesa: pílula deslizante que troca de cor -----
+   A decisão "entra ou sai?" é a mais importante do lançamento, então ela se
+   move e a cor viaja junto (verde = receita, âmbar = despesa). */
 .type-toggle {
   position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
   background: var(--surface-3); border: 1px solid var(--line);
   border-radius: 13px; padding: 4px;
 }
+/* Pílula que desliza atrás do item ativo; o cubic-bezier dá a "molinha". */
+.tt-pill {
+  position: absolute; top: 4px; bottom: 4px; left: 4px; z-index: 0;
+  width: calc((100% - 12px) / 2); border-radius: 10px;
+  background: var(--surface); box-shadow: var(--shadow-sm);
+  transition: transform .38s cubic-bezier(.4, 1.3, .6, 1), background-color .3s var(--ease);
+}
+/* Posição/cor por tipo via [data-type] no form (server-render + JS) — sem :has(),
+   pra funcionar em WebView antigo (TWA da Fase 2). */
+form[data-type="income"]  .tt-pill { transform: translateX(0); background: color-mix(in srgb, var(--pos) 13%, var(--surface)); }
+form[data-type="expense"] .tt-pill { transform: translateX(calc(100% + 4px)); background: color-mix(in srgb, var(--warn) 16%, var(--surface)); }
 .type-toggle input { position: absolute; opacity: 0; pointer-events: none; }
 .type-toggle label {
+  position: relative; z-index: 1;
   display: flex; align-items: center; justify-content: center; gap: 7px;
   height: 38px; border-radius: 10px; cursor: pointer;
   font-size: 13.5px; font-weight: 600; color: var(--ink-3);
-  transition: background .2s var(--ease), color .2s var(--ease), box-shadow .2s var(--ease);
+  transition: color .25s var(--ease);
 }
-.type-toggle label svg { width: 16px; height: 16px; stroke-width: 2.2; }
+.type-toggle label svg { width: 16px; height: 16px; stroke-width: 2.2; transition: transform .38s cubic-bezier(.4, 1.3, .6, 1); }
 .type-toggle label:hover { color: var(--ink-2); }
-/* Ativo: verde para receita, âmbar para despesa */
-.type-toggle input:checked + label.tt-income { background: var(--surface); color: var(--pos); box-shadow: var(--shadow-sm); }
-.type-toggle input:checked + label.tt-expense { background: var(--surface); color: var(--warn); box-shadow: var(--shadow-sm); }
+/* Ativo: a cor da marca por tipo + leve "pulo" do ícone */
+.type-toggle input:checked + label.tt-income  { color: var(--pos); }
+.type-toggle input:checked + label.tt-expense { color: var(--warn); }
+.type-toggle input:checked + label svg { transform: translateY(-1px) scale(1.08); }
+/* Foco de teclado visível (os radios ficam escondidos) */
+.type-toggle input:focus-visible + label { outline: 2px solid var(--brand-300); outline-offset: 2px; }
+
+/* O campo Valor ecoa o tipo escolhido: anel de foco verde (receita) ou âmbar
+   (despesa). O texto fica em --ink para não perder legibilidade. */
+.form-card form[data-type="income"]  { --tt-accent: var(--pos); }
+.form-card form[data-type="expense"] { --tt-accent: var(--warn); }
+#amount { transition: border-color .2s var(--ease), box-shadow .2s var(--ease); }
+#amount:focus {
+  border-color: var(--tt-accent, var(--brand-300));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tt-accent, var(--brand-500)) 16%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-pill { transition: background-color .25s var(--ease); }
+  .type-toggle label svg { transition: none; }
+  .type-toggle input:checked + label svg { transform: none; }
+}
 
 /* ----- Ações do formulário ----- */
 .form-actions { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 22px; }

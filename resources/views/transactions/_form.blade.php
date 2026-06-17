@@ -20,7 +20,7 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ $editando ? route('transactions.update', $transaction) : route('transactions.store') }}">
+        <form method="POST" action="{{ $editando ? route('transactions.update', $transaction) : route('transactions.store') }}" data-type="{{ $tipoAtual }}">
             @csrf
             @if ($editando)
                 @method('PUT')
@@ -30,6 +30,7 @@
             <div class="field">
                 <label>Tipo</label>
                 <div class="type-toggle">
+                    <span class="tt-pill" aria-hidden="true"></span>
                     <input type="radio" id="tt-income" name="type" value="income" @checked($tipoAtual === 'income')>
                     <label class="tt-income" for="tt-income">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17 17 7M17 7h-7M17 7v7"/></svg>
@@ -120,29 +121,36 @@
 </div>
 
 <script>
-    // Mostra só as categorias do tipo escolhido (Receita/Despesa)
+    // Tom do formulário (pílula/accent) + filtro de categorias pelo tipo escolhido
     (function () {
         var radios = document.querySelectorAll('input[name="type"]');
+        if (!radios.length) return;
+        var form = radios[0].closest('form');
         var select = document.getElementById('category_id');
-        if (!select || !radios.length) return;
 
-        function filtrar() {
+        function aplicar() {
             var marcado = document.querySelector('input[name="type"]:checked');
             var tipo = marcado ? marcado.value : 'expense';
 
-            select.querySelectorAll('optgroup').forEach(function (grupo) {
-                var ativo = grupo.dataset.type === tipo;
-                grupo.hidden = !ativo;
-                grupo.querySelectorAll('option').forEach(function (opt) {
-                    opt.hidden = !ativo;
-                    opt.disabled = !ativo;
-                    // Se a categoria selecionada é do outro tipo, volta para "Sem categoria"
-                    if (!ativo && opt.selected) select.value = '';
+            // Atributo no form (em vez de :has()) dirige a cor da pílula e o accent do Valor
+            if (form) form.dataset.type = tipo;
+
+            // Mostra só as categorias do tipo escolhido (Receita/Despesa)
+            if (select) {
+                select.querySelectorAll('optgroup').forEach(function (grupo) {
+                    var ativo = grupo.dataset.type === tipo;
+                    grupo.hidden = !ativo;
+                    grupo.querySelectorAll('option').forEach(function (opt) {
+                        opt.hidden = !ativo;
+                        opt.disabled = !ativo;
+                        // Se a categoria selecionada é do outro tipo, volta para "Sem categoria"
+                        if (!ativo && opt.selected) select.value = '';
+                    });
                 });
-            });
+            }
         }
 
-        radios.forEach(function (radio) { radio.addEventListener('change', filtrar); });
-        filtrar();
+        radios.forEach(function (radio) { radio.addEventListener('change', aplicar); });
+        aplicar();
     })();
 </script>

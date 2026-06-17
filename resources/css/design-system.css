@@ -214,19 +214,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .greeting h1 .wave { display: inline-block; animation: wave 2.4s var(--ease) infinite; transform-origin: 70% 70%; }
 @keyframes wave { 0%,60%,100%{transform: rotate(0)} 10%{transform: rotate(16deg)} 22%{transform: rotate(-8deg)} 34%{transform: rotate(12deg)} 46%{transform: rotate(-4deg)} }
 
-.search {
-  margin-left: auto; display: flex; align-items: center; gap: 10px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 13px;
-  padding: 0 14px; height: 42px; width: 260px; color: var(--ink-3);
-  transition: all .2s var(--ease);
-}
-.search:focus-within { border-color: var(--brand-300); box-shadow: 0 0 0 4px var(--brand-50); width: 300px; }
-.search svg { width: 18px; height: 18px; flex: none; }
-.search input { border: none; background: none; outline: none; font-family: inherit; font-size: 14px; color: var(--ink); width: 100%; }
-.search kbd {
-  font-family: var(--font-body); font-size: 11px; color: var(--ink-3);
-  border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; background: var(--surface-2);
-}
+/* (busca removida do topbar — decisão do usuário: não será usada) */
 
 /* Content scroll */
 .content { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 24px 28px 40px; scroll-behavior: smooth; }
@@ -501,15 +489,16 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .side-foot[aria-expanded="true"] .chev { transform: rotate(180deg); }
 .collapsed .side-foot .chev { opacity: 0; }
 
-.profile-pop {
-  position: fixed; width: 256px; z-index: 80;
-  background: var(--surface); color: var(--ink);
+/* Base compartilhada com .notif-pop (topbar) — só diferem posição, origem e largura */
+.profile-pop, .notif-pop {
+  z-index: 80; background: var(--surface); color: var(--ink);
   border: 1px solid var(--line); border-radius: var(--r-md);
   box-shadow: var(--shadow-lg); padding: 8px;
-  opacity: 0; transform: translateY(8px) scale(.97); transform-origin: bottom left;
+  opacity: 0; transform: translateY(8px) scale(.97);
   pointer-events: none; transition: opacity .2s var(--ease), transform .22s var(--ease-out);
 }
-.profile-pop.open { opacity: 1; transform: none; pointer-events: auto; }
+.profile-pop.open, .notif-pop.open { opacity: 1; transform: none; pointer-events: auto; }
+.profile-pop { position: fixed; width: 256px; transform-origin: bottom left; }
 .pp-head { display: flex; align-items: center; gap: 11px; padding: 10px; }
 .pp-head img { width: 42px; height: 42px; border-radius: 50%; flex: none; }
 .pp-head-txt { min-width: 0; line-height: 1.3; }
@@ -647,15 +636,37 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .check input:checked + .box svg { opacity: 1; transform: none; }
 
 /* ============ Launch button + head actions ============ */
+/* "Lançar": recolhido é só "+"; no hover/foco a label floresce (mesma molinha do toggle).
+   margin-left:auto empurra o cluster da direita (era papel da busca, agora removida). */
 .launch-btn {
-  display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 18px; flex: none;
-  font-size: 14px; font-weight: 700; color: #fff; border-radius: 13px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0;
+  margin-left: auto; height: 42px; min-width: 42px; padding: 0; flex: none;
+  font-size: 14px; font-weight: 700; color: #fff; border-radius: 13px; overflow: hidden; white-space: nowrap;
   background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
-  box-shadow: 0 6px 16px rgba(17,98,74,.28); transition: transform .18s var(--ease), box-shadow .18s var(--ease);
-  text-decoration: none; /* app real: hoje é um link para nova transação */
+  box-shadow: 0 6px 16px rgba(17,98,74,.28); text-decoration: none;
+  transition: padding .34s cubic-bezier(.4,1.3,.6,1), gap .3s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease);
 }
-.launch-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(17,98,74,.36); }
-.launch-btn svg { width: 18px; height: 18px; }
+.launch-btn svg { width: 18px; height: 18px; flex: none; }
+.launch-btn span { max-width: 0; opacity: 0; overflow: hidden; transition: max-width .34s cubic-bezier(.4,1.3,.6,1), opacity .25s var(--ease); }
+.launch-btn:hover, .launch-btn:focus-visible {
+  gap: 8px; padding: 0 18px; transform: translateY(-1px); box-shadow: 0 10px 22px rgba(17,98,74,.36);
+}
+.launch-btn:hover span, .launch-btn:focus-visible span { max-width: 120px; opacity: 1; }
+.launch-btn:focus-visible { outline: 2px solid var(--brand-300); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .launch-btn, .launch-btn span { transition: opacity .2s var(--ease); }
+}
+
+/* Painel de notificações (sino da topbar): vencimentos próximos */
+.topbar-notif { position: relative; flex: none; }
+/* .notif-pop herda a base de .profile-pop (seção "Profile popover"); só sobrescreve a posição */
+.notif-pop { position: absolute; top: calc(100% + 10px); right: 0; width: 300px; transform-origin: top right; }
+.notif-head { padding: 8px 10px 6px; }
+.notif-head strong { font-size: 13.5px; }
+.notif-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 16px 16px 20px; }
+.notif-empty svg { width: 30px; height: 30px; color: var(--ink-3); stroke-width: 1.6; }
+.notif-empty p { font-size: 13px; font-weight: 600; color: var(--ink); }
+.notif-empty span { font-size: 12px; color: var(--ink-3); line-height: 1.45; }
 .head-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .head-actions .btn.primary { display: inline-flex; align-items: center; gap: 7px; }
 .head-actions .btn.primary svg { width: 17px; height: 17px; }

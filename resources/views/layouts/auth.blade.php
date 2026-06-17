@@ -32,7 +32,7 @@
     {{-- Painel visual: vídeo + marca + mensagem (a classe .ready entra via sm/auth.js) --}}
     <section class="auth-visual">
         <video class="auth-video" id="authVideo" autoplay muted loop playsinline preload="auto">
-            <source src="{{ asset('assets/auth-bg.mp4') }}" type="video/mp4" />
+            <source src="{{ asset('assets/video_login.mp4') }}" type="video/mp4" />
         </video>
         <div class="auth-veil"></div>
 

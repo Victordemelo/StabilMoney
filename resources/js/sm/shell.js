@@ -35,53 +35,67 @@ export function initShell() {
     }
     if (scrim) scrim.addEventListener('click', closeDrawer);
 
-    // --- Popover do perfil (.side-foot abre; fecha com clique fora ou Esc) ---
+    // --- Popovers (perfil na sidebar + notificações na topbar) ---
+    // Um helper só: abrir um fecha os outros; um único clique-fora/Esc para todos.
+    const popovers = [];
+    const makePopover = (btn, pop, onOpen) => {
+        if (!btn || !pop) return null;
+        let aberto = false;
+        const api = {
+            get aberto() { return aberto; },
+            contemAlvo: (t) => pop.contains(t) || btn.contains(t),
+            fechar() {
+                if (!aberto) return;
+                aberto = false;
+                btn.setAttribute('aria-expanded', 'false');
+                pop.setAttribute('aria-hidden', 'true');
+                pop.classList.remove('open');
+            },
+            abrir() {
+                popovers.forEach((p) => { if (p !== api) p.fechar(); }); // só um aberto por vez
+                aberto = true;
+                btn.setAttribute('aria-expanded', 'true');
+                pop.setAttribute('aria-hidden', 'false');
+                pop.classList.add('open');
+                if (onOpen) onOpen();
+            },
+        };
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            aberto ? api.fechar() : api.abrir();
+        });
+        popovers.push(api);
+        return api;
+    };
+
+    // Perfil: posição fixa ancorada no botão (reposiciona em resize/scroll)
     const profileBtn = document.getElementById('profileBtn');
     const profilePop = document.getElementById('profilePop');
-    if (profileBtn && profilePop) {
-        let aberto = false;
-
-        // Posição fixa ancorada no botão (mesma conta do protótipo v2)
-        const posicionar = () => {
-            const r = profileBtn.getBoundingClientRect();
-            const w = profilePop.offsetWidth || 256;
-            const left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12));
-            profilePop.style.left = left + 'px';
-            profilePop.style.bottom = (window.innerHeight - r.top + 10) + 'px';
-        };
-        const abrirPop = () => {
-            aberto = true;
-            profileBtn.setAttribute('aria-expanded', 'true');
-            profilePop.setAttribute('aria-hidden', 'false');
-            profilePop.classList.add('open');
-            posicionar();
-        };
-        const fecharPop = () => {
-            if (!aberto) return;
-            aberto = false;
-            profileBtn.setAttribute('aria-expanded', 'false');
-            profilePop.setAttribute('aria-hidden', 'true');
-            profilePop.classList.remove('open');
-        };
-
-        profileBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            aberto ? fecharPop() : abrirPop();
-        });
-        document.addEventListener('click', (e) => {
-            if (aberto && !profilePop.contains(e.target) && !profileBtn.contains(e.target)) fecharPop();
-        });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') fecharPop();
-        });
-        window.addEventListener('resize', () => {
-            if (aberto) posicionar();
-        });
+    const posicionarPerfil = () => {
+        if (!profileBtn || !profilePop) return;
+        const r = profileBtn.getBoundingClientRect();
+        const w = profilePop.offsetWidth || 256;
+        const left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12));
+        profilePop.style.left = left + 'px';
+        profilePop.style.bottom = (window.innerHeight - r.top + 10) + 'px';
+    };
+    const perfilPop = makePopover(profileBtn, profilePop, posicionarPerfil);
+    if (perfilPop) {
+        window.addEventListener('resize', () => { if (perfilPop.aberto) posicionarPerfil(); });
         const content = document.getElementById('content');
-        if (content) content.addEventListener('scroll', () => {
-            if (aberto) posicionar();
-        });
+        if (content) content.addEventListener('scroll', () => { if (perfilPop.aberto) posicionarPerfil(); });
     }
+
+    // Notificações: posicionado via CSS absoluto (não precisa reposicionar)
+    makePopover(document.getElementById('notifBtn'), document.getElementById('notifPop'));
+
+    // Clique fora fecha o popover aberto; Esc fecha todos
+    document.addEventListener('click', (e) => {
+        popovers.forEach((p) => { if (p.aberto && !p.contemAlvo(e.target)) p.fechar(); });
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') popovers.forEach((p) => p.fechar());
+    });
 
     // --- Flash de sessão: some sozinho após 4s ---
     document.querySelectorAll('[data-flash]').forEach((el) => {

@@ -81,7 +81,8 @@ O visual do app vem de um **handoff do Claude Design** (claude.ai/design), versi
   com parcelas, faturas por cartão, métodos de pagamento, dependentes, investimentos, metas)
   — referência para a próxima rodada, **ainda não implementado**.
 - `design/project/assets/` — logo (`stabilmoney-mark.png`), `favicon.png` e vídeo
-  (`auth-bg.mp4`); **já copiados para `public/assets/`** (é de lá que o app serve).
+  (`auth-bg.mp4`); **copiados para `public/assets/`** — o vídeo é servido lá como
+  `video_login.mp4` (é de `public/assets/` que o app serve; ver `public/assets/README.md`).
 - `design/README.md` + `design/chats/chat1.md` — intenção do usuário.
 
 **Processo:** o usuário desenha no Claude Design → exporta o bundle → o Claude Code implementa
@@ -150,7 +151,7 @@ resources/
     ├── profile/            # edit + partials (perfil, senha, excluir conta com modal)
     └── coming-soon.blade.php   # placeholder das seções futuras
 
-public/assets/              # stabilmoney-mark.png (logo), favicon.png, auth-bg.mp4 (vindos de design/project/assets/)
+public/assets/              # stabilmoney-mark.png (logo), favicon.png, video_login.mp4 (fundo do login) — ver public/assets/README.md
 design/                     # Handoff do Claude Design v2 (fonte da verdade visual — NÃO editar)
 lang/pt_BR(+.json)          # Traduções PT-BR (laravel-lang)
 routes/web.php              # Rotas do app | routes/auth.php (Breeze)
