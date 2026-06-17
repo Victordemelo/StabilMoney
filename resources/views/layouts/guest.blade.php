@@ -6,8 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <meta name="theme-color" content="#0C3D2B" />
 
-    @php($pageTitle = trim($__env->yieldContent('title')))
-    <title>StabilMoney{{ $pageTitle ? ' · '.$pageTitle : '' }}</title>
+    <title>StabilMoney</title>
 
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
     <link rel="apple-touch-icon" href="{{ asset('assets/stabilmoney-mark.png') }}" />
@@ -44,5 +43,7 @@
         @endif
     </div>
 </div>
+
+@include('partials.cookie-consent')
 </body>
 </html>
