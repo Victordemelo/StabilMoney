@@ -16,7 +16,7 @@ class TransactionController extends Controller
 
     public function index(Request $request)
     {
-        $userId = $request->user()->id;
+        $userId = $request->user()->ownerId();
 
         // Contas do usuário (usadas no select de filtro)
         $accounts = Account::where('user_id', $userId)->orderBy('name')->get();
@@ -46,7 +46,7 @@ class TransactionController extends Controller
 
     public function create(Request $request)
     {
-        $userId = $request->user()->id;
+        $userId = $request->user()->ownerId();
 
         return view('transactions.create', [
             'accounts' => Account::where('user_id', $userId)->orderBy('name')->get(),
@@ -60,7 +60,7 @@ class TransactionController extends Controller
     public function store(StoreTransactionRequest $request)
     {
         $data = $request->validated();
-        $data['user_id'] = $request->user()->id;
+        $data['user_id'] = $request->user()->ownerId();
 
         Transaction::create($data);
 
@@ -72,7 +72,7 @@ class TransactionController extends Controller
     {
         $this->authorize('update', $transaction);
 
-        $userId = $request->user()->id;
+        $userId = $request->user()->ownerId();
 
         return view('transactions.edit', [
             'transaction' => $transaction,

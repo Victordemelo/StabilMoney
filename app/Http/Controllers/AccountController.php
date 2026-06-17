@@ -24,7 +24,7 @@ class AccountController extends Controller
 
     public function index(Request $request)
     {
-        $accounts = Account::where('user_id', $request->user()->id)
+        $accounts = Account::where('user_id', $request->user()->ownerId())
             ->orderBy('name')
             ->get();
 
@@ -42,7 +42,7 @@ class AccountController extends Controller
     public function store(StoreAccountRequest $request)
     {
         $data = $request->validated();
-        $data['user_id'] = $request->user()->id;
+        $data['user_id'] = $request->user()->ownerId();
 
         Account::create($data);
 

@@ -45,4 +45,16 @@ class FamilyAccountTest extends TestCase
 
         $this->assertTrue($tx->madeBy->is($titular));
     }
+
+    public function test_dependent_sees_titular_data(): void
+    {
+        $titular = User::factory()->create();
+        Account::factory()->for($titular)->create(['name' => 'Conta da Familia']);
+        Category::factory()->expense()->for($titular)->create(['name' => 'Mercado Familia']);
+        $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
+
+        $this->actingAs($dependent)->get('/accounts')->assertOk()->assertSee('Conta da Familia');
+        $this->actingAs($dependent)->get('/categories')->assertOk()->assertSee('Mercado Familia');
+        $this->actingAs($dependent)->get('/')->assertOk();
+    }
 }
