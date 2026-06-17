@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Account;
 use App\Models\Transaction;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 
@@ -149,7 +150,7 @@ class DashboardService
         $cats = $this->categoryBreakdown($userId, $monthStart, $monthEnd);
 
         // ----- Transações recentes (server-rendered) -----
-        $recent = Transaction::with(['account', 'category'])
+        $recent = Transaction::with(['account', 'category', 'madeBy'])
             ->where('user_id', $userId)
             ->orderByDesc('date')
             ->orderByDesc('id')
@@ -177,6 +178,8 @@ class DashboardService
             'recent' => $recent,
             'accounts' => $accounts,
             'totalBalance' => $totalBalance,
+            // Exibe "quem fez a compra" nas recentes só quando a família tem dependentes.
+            'showAuthor' => User::where('account_owner_id', $userId)->exists(),
         ];
     }
 

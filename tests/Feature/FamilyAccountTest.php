@@ -167,4 +167,30 @@ class FamilyAccountTest extends TestCase
             ->assertOk()
             ->assertDontSee('>Dependentes<', false);
     }
+
+    public function test_dependent_sees_family_patrimonio_in_sidebar(): void
+    {
+        $titular = User::factory()->create();
+        Account::factory()->for($titular)->create(['initial_balance' => 1234]);
+        $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
+
+        // O card "Patrimônio total" da sidebar (View Composer) deve usar ownerId,
+        // mostrando o total da família — não R$ 0,00 do próprio dependente.
+        $this->actingAs($dependent)->get('/accounts')
+            ->assertOk()
+            ->assertSee('1.234');
+    }
+
+    public function test_dashboard_recents_show_author(): void
+    {
+        $titular = User::factory()->create();
+        $account = Account::factory()->for($titular)->create();
+        $dependent = User::factory()->create(['account_owner_id' => $titular->id, 'name' => 'Carlos Filho']);
+        Transaction::factory()->for($titular)->for($account)->expense()->create([
+            'made_by_user_id' => $dependent->id,
+            'date' => now()->toDateString(),
+        ]);
+
+        $this->actingAs($titular)->get('/')->assertOk()->assertSee('Carlos Filho');
+    }
 }

@@ -30,7 +30,8 @@ class AppServiceProvider extends ServiceProvider
         // toda renderização do partial (todas as páginas autenticadas).
         View::composer('partials.sidebar', function (\Illuminate\View\View $view) {
             $user = auth()->user();
-            $view->with('patrimonio', $user ? app(SidebarService::class)->build($user->id) : null);
+            // Escopo por família: o patrimônio é o do titular (ownerId), visível também aos dependentes.
+            $view->with('patrimonio', $user ? app(SidebarService::class)->build($user->ownerId()) : null);
         });
     }
 }
