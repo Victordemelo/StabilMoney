@@ -687,6 +687,31 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .cookie-accept { flex: none; white-space: nowrap; }
 @media (max-width: 700px) { .cookie-bar { bottom: 84px; } }   /* livra a bottom-nav no mobile */
 @media (max-width: 480px) { .cookie-bar { flex-direction: column; align-items: stretch; } .cookie-accept { width: 100%; } }
+
+/* ============ Dependentes (portado do styles.css v2) ============ */
+.dep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+.dep-person { border: 1px solid var(--line); border-radius: var(--r-md); padding: 16px; background: var(--surface-2); transition: box-shadow .2s var(--ease), transform .2s var(--ease); }
+.dep-person:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.dp-top { display: flex; align-items: center; gap: 12px; }
+.dp-av { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 15px; color: #fff; font-family: var(--font-head); flex: none; }
+.dp-name { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.dp-rel { font-size: 12px; color: var(--ink-3); }
+.dp-rel strong { color: var(--brand-600); font-weight: 700; }
+[data-theme="dark"] .dp-rel strong { color: var(--brand-300); }
+.dp-rm { margin-left: auto; width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: var(--ink-3); transition: all .15s; flex: none; background: none; border: none; cursor: pointer; }
+.dp-rm:hover { background: #FCEDEA; color: var(--neg); }
+[data-theme="dark"] .dp-rm:hover { background: rgba(229,96,77,.12); }
+.dp-rm svg { width: 16px; height: 16px; stroke-width: 2; }
+/* Card "adicionar" tracejado */
+.dep-person.pm-add { display: grid; place-items: center; cursor: pointer; border-style: dashed; border-width: 2px; min-height: 110px; background: none; text-align: center; }
+.dep-person.pm-add:hover { border-color: var(--brand-300); background: var(--brand-50); transform: none; box-shadow: none; }
+[data-theme="dark"] .dep-person.pm-add:hover { background: rgba(28,154,112,.08); }
+.pm-add-inner { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.pm-plus { width: 44px; height: 44px; border-radius: 14px; background: var(--brand-50); color: var(--brand-600); display: grid; place-items: center; margin-bottom: 6px; }
+[data-theme="dark"] .pm-plus { background: rgba(28,154,112,.14); color: var(--brand-300); }
+.pm-plus svg { width: 24px; height: 24px; }
+.pm-add-inner strong { font-size: 13.5px; }
+.modal-lg { max-width: 480px; }
 .head-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .head-actions .btn.primary { display: inline-flex; align-items: center; gap: 7px; }
 .head-actions .btn.primary svg { width: 17px; height: 17px; }

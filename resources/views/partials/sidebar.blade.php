@@ -81,17 +81,20 @@
 
     <div class="sidebar-spacer"></div>
 
-    {{-- Dependentes: sem cadastro real ainda — estado vazio previsto no protótipo --}}
-    <a class="dep-card {{ request()->routeIs('dependentes') ? 'active' : '' }}" href="{{ route('dependentes') }}">
-        <div class="dep-avatars">
-            <span class="da solo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 2.9-5.6 6.5-5.6 1 0 2 .2 2.8.5M17 8.5v6M14 11.5h6"/></svg></span>
-        </div>
-        <div class="dep-card-txt">
-            <strong>Dependentes</strong>
-            <span>Nenhum dependente</span>
-        </div>
-        <svg class="dep-card-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-    </a>
+    {{-- Dependentes: só o titular gerencia (card escondido para dependentes) --}}
+    @if ($usuario->isTitular())
+        @php($numDep = $usuario->dependents()->count())
+        <a class="dep-card {{ request()->routeIs('dependentes') ? 'active' : '' }}" href="{{ route('dependentes') }}">
+            <div class="dep-avatars">
+                <span class="da solo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 2.9-5.6 6.5-5.6 1 0 2 .2 2.8.5M17 8.5v6M14 11.5h6"/></svg></span>
+            </div>
+            <div class="dep-card-txt">
+                <strong>Dependentes</strong>
+                <span>{{ $numDep === 0 ? 'Nenhum dependente' : $numDep . ' ' . ($numDep === 1 ? 'pessoa' : 'pessoas') }}</span>
+            </div>
+            <svg class="dep-card-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </a>
+    @endif
 
     <button class="side-foot" id="profileBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="profilePop">
         <span class="avatar-initials">{{ $iniciais }}</span>

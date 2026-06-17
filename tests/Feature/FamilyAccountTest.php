@@ -146,4 +146,25 @@ class FamilyAccountTest extends TestCase
             'made_by_user_id' => $stranger->id,
         ])->assertSessionHasErrors('made_by_user_id');
     }
+
+    public function test_titular_sees_dependents_page_with_member(): void
+    {
+        $titular = User::factory()->create();
+        User::factory()->create(['account_owner_id' => $titular->id, 'name' => 'Maria Dependente']);
+
+        $this->actingAs($titular)->get('/dependentes')
+            ->assertOk()
+            ->assertSee('Maria Dependente')
+            ->assertSee('Adicionar dependente');
+    }
+
+    public function test_dependent_does_not_see_sidebar_dependents_card(): void
+    {
+        $titular = User::factory()->create();
+        $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
+
+        $this->actingAs($dependent)->get('/accounts')
+            ->assertOk()
+            ->assertDontSee('>Dependentes<', false);
+    }
 }
