@@ -57,4 +57,22 @@ class FamilyAccountTest extends TestCase
         $this->actingAs($dependent)->get('/categories')->assertOk()->assertSee('Mercado Familia');
         $this->actingAs($dependent)->get('/')->assertOk();
     }
+
+    public function test_dependent_can_create_with_family_account(): void
+    {
+        $titular = User::factory()->create();
+        $account = Account::factory()->for($titular)->create();
+        $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
+
+        $this->actingAs($dependent)->post('/transactions', [
+            'type' => 'expense', 'amount' => '30,00',
+            'account_id' => $account->id, 'date' => now()->toDateString(),
+            'description' => 'Compra do dependente',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('transactions', [
+            'description' => 'Compra do dependente',
+            'user_id' => $titular->id,
+        ]);
+    }
 }

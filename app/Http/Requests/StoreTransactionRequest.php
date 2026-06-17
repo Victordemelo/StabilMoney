@@ -38,7 +38,8 @@ class StoreTransactionRequest extends FormRequest
 
     public function rules(): array
     {
-        $userId = $this->user()->id;
+        // Escopo por família: conta/categoria precisam pertencer ao titular (ownerId).
+        $userId = $this->user()->ownerId();
 
         return [
             'type' => ['required', 'in:income,expense'],
