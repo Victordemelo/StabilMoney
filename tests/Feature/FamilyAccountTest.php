@@ -85,4 +85,36 @@ class FamilyAccountTest extends TestCase
 
         $this->actingAs($dependent)->get("/transactions/{$tx->id}/edit")->assertOk();
     }
+
+    public function test_titular_adds_dependent_without_seeding_categories(): void
+    {
+        $titular = User::factory()->create();
+
+        $this->actingAs($titular)->post('/dependentes', [
+            'name' => 'Joao', 'email' => 'joao@familia.test', 'password' => 'senha-forte-123',
+        ])->assertRedirect();
+
+        $dependent = User::where('email', 'joao@familia.test')->first();
+        $this->assertNotNull($dependent);
+        $this->assertSame($titular->id, $dependent->account_owner_id);
+        $this->assertFalse((bool) $dependent->is_admin);
+        $this->assertDatabaseMissing('categories', ['user_id' => $dependent->id]);
+    }
+
+    public function test_dependent_cannot_manage_dependents(): void
+    {
+        $titular = User::factory()->create();
+        $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
+
+        $this->actingAs($dependent)->get('/dependentes')->assertForbidden();
+    }
+
+    public function test_titular_removes_dependent(): void
+    {
+        $titular = User::factory()->create();
+        $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
+
+        $this->actingAs($titular)->delete("/dependentes/{$dependent->id}")->assertRedirect();
+        $this->assertDatabaseMissing('users', ['id' => $dependent->id]);
+    }
 }

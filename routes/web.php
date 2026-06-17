@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DependentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
@@ -22,12 +23,16 @@ Route::middleware('auth')->group(function () {
     Route::patch('/configuracoes', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/configuracoes', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    // Dependentes (conta-família) — só o titular gerencia
+    Route::get('/dependentes', [DependentController::class, 'index'])->name('dependentes');
+    Route::post('/dependentes', [DependentController::class, 'store'])->name('dependentes.store');
+    Route::delete('/dependentes/{dependent}', [DependentController::class, 'destroy'])->name('dependentes.destroy');
+
     // Seções do design ainda não implementadas (placeholder "em breve")
     foreach ([
         'investimentos' => ['Investimentos', 'Acompanhe sua carteira, rentabilidade e novas oportunidades.'],
         'metas' => ['Metas', 'Crie objetivos, acompanhe o progresso e conquiste seus sonhos.'],
         'faturas' => ['Faturas / Despesas', 'Faturas por cartão, parcelas e despesas em conta — em breve.'],
-        'dependentes' => ['Dependentes', 'Cadastre dependentes com acesso próprio e acompanhe os gastos de cada um.'],
     ] as $slug => [$title, $description]) {
         Route::view('/' . $slug, 'coming-soon', [
             'title' => $title,
