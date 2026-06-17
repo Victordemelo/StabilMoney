@@ -75,4 +75,14 @@ class FamilyAccountTest extends TestCase
             'user_id' => $titular->id,
         ]);
     }
+
+    public function test_dependent_can_edit_family_transaction(): void
+    {
+        $titular = User::factory()->create();
+        $account = Account::factory()->for($titular)->create();
+        $tx = Transaction::factory()->for($titular)->for($account)->expense()->create();
+        $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
+
+        $this->actingAs($dependent)->get("/transactions/{$tx->id}/edit")->assertOk();
+    }
 }
