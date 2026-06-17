@@ -12,6 +12,7 @@ class Transaction extends Model
 
     protected $fillable = [
         'user_id',
+        'made_by_user_id',
         'account_id',
         'category_id',
         'type',
@@ -41,6 +42,12 @@ class Transaction extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    /** Quem efetivamente lançou (titular ou dependente da família). */
+    public function madeBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'made_by_user_id');
     }
 
     /** Valor com sinal: positivo para receita, negativo para despesa. */

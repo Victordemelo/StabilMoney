@@ -35,4 +35,14 @@ class FamilyAccountTest extends TestCase
         $this->assertTrue($titular->dependents->contains($dependent));
         $this->assertTrue($dependent->titular->is($titular));
     }
+
+    public function test_transaction_records_author(): void
+    {
+        $titular = User::factory()->create();
+        $account = Account::factory()->for($titular)->create();
+        $tx = Transaction::factory()->for($titular)->for($account)->expense()
+            ->create(['made_by_user_id' => $titular->id]);
+
+        $this->assertTrue($tx->madeBy->is($titular));
+    }
 }
