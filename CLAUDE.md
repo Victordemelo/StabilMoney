@@ -203,7 +203,8 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
 | `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"** no menu/título (versão inicial — modelo ainda é `accounts`). Cards `.cc` com saldo (accessor `balance`), gradiente pela cor; form com icon/color picker. |
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
 | `GET/PATCH/DELETE /configuracoes` (`profile.*`) | `profile/edit` | Perfil, senha e exclusão de conta (modal de confirmação com senha). **Acesso pelo popover do perfil** (sidebar), não mais pelo menu. |
-| `/investimentos`, `/metas`, `/faturas` ("Faturas / Despesas"), `/dependentes` | `coming-soon` | Placeholders "Em breve" com `$title`/`$description`/`$page`. Rotas `relatorios` e `ajuda` foram **removidas** no design v2. |
+| `/dependentes` (`DependentController`: index/store/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/remove dependentes (modal); só titular acessa (403 p/ dependente). Card "Dependentes" da sidebar escondido p/ dependente. |
+| `/investimentos`, `/metas`, `/faturas` ("Faturas / Despesas") | `coming-soon` | Placeholders "Em breve" com `$title`/`$description`/`$page`. Rotas `relatorios` e `ajuda` foram **removidas** no design v2. |
 | `routes/auth.php` | `auth/*` | Breeze: login, registro, esqueci/redefinir senha, confirmar senha, verificar e-mail. |
 
 **Menu da sidebar (v2):** grupo **Menu** = Visão geral → `dashboard`, Transações →
@@ -247,18 +248,29 @@ Saldo total = atual de todas as contas, independe do período.
 
 ## Modelo de dados
 
-- **users** — `name`, `email`, `password`, `is_admin` (boolean).
+- **users** — `name`, `email`, `password`, `is_admin` (boolean: titular=true, dependente=false),
+  `account_owner_id` (nullable, auto-ref → `users`, **cascadeOnDelete**): **null = titular;
+  preenchido = dependente** apontando para o titular. Helpers no model: `ownerId()`
+  (= `account_owner_id ?? id`), `isTitular()`, `dependents()`, `titular()`.
 - **accounts** — `user_id`, `name`, `type` (`wallet|bank|credit_card|savings|investment|other`),
   `initial_balance`, `color`, `icon`. Saldo = `initial_balance` + receitas − despesas
   (accessor `balance` no model; o dashboard calcula via SQL agregado).
 - **categories** — `user_id`, `name`, `type` (`income|expense`), `color`, `icon`.
-- **transactions** — `user_id`, `account_id` (FK `cascadeOnDelete`), `category_id`
-  (nullable, FK `nullOnDelete`), `type` (`income|expense`), `amount` (decimal 15,2 **sempre
-  positivo**), `description` (nullable), `date`.
+- **transactions** — `user_id` (dono = **titular** da família), `made_by_user_id` (nullable,
+  FK `nullOnDelete` — **quem lançou**, p/ "quem fez a compra"), `account_id` (FK `cascadeOnDelete`),
+  `category_id` (nullable, FK `nullOnDelete`), `type` (`income|expense`), `amount` (decimal 15,2
+  **sempre positivo**), `description` (nullable), `date`.
 
 > **Dinheiro**: `decimal(15,2)`; o sinal vem do `type`, nunca do valor.
 > Excluir **conta** com transações é bloqueado (apagaria histórico); excluir **categoria** é
 > permitido (transações viram "Sem categoria").
+
+> **Conta-família (escopo por família):** todo dado (accounts/categories/transactions) tem
+> `user_id = id do titular`. As queries e policies escopam por **`$user->ownerId()`** (NÃO por
+> `auth()->id()`) — assim titular e dependentes compartilham a mesma visão. Dependente é criado
+> pelo titular (tela `/dependentes`, titular-only) **sem** disparar `Registered` (usa as
+> categorias da família). Round atual = acesso total na família; permissões granulares por
+> módulo são um subprojeto futuro (ver `docs/superpowers/specs/`).
 
 ---
 

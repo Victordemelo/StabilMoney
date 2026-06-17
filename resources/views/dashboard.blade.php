@@ -150,7 +150,7 @@
                             </div>
                             <div>
                                 <div class="tx-name">{{ $transaction->description ?: ($transaction->category->name ?? ($isIncome ? 'Receita' : 'Despesa')) }}</div>
-                                <div class="tx-meta">{{ $transaction->category->name ?? 'Sem categoria' }} · {{ $transaction->date_human }}</div>
+                                <div class="tx-meta">{{ $transaction->category->name ?? 'Sem categoria' }} · {{ $transaction->date_human }}@if (! empty($showAuthor)) · {{ $transaction->madeBy?->name ?? 'Removido' }}@endif</div>
                             </div>
                             <div class="tx-amt {{ $isIncome ? 'pos' : '' }}">{{ $isIncome ? '+' : '−' }} R$ {{ $money($transaction->amount) }}</div>
                         </div>

@@ -12,6 +12,6 @@ class DashboardController extends Controller
      */
     public function index(DashboardService $dashboard)
     {
-        return view('dashboard', $dashboard->build((int) auth()->id()));
+        return view('dashboard', $dashboard->build(auth()->user()->ownerId()));
     }
 }

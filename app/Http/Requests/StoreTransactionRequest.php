@@ -38,7 +38,8 @@ class StoreTransactionRequest extends FormRequest
 
     public function rules(): array
     {
-        $userId = $this->user()->id;
+        // Escopo por família: conta/categoria precisam pertencer ao titular (ownerId).
+        $userId = $this->user()->ownerId();
 
         return [
             'type' => ['required', 'in:income,expense'],
@@ -69,6 +70,13 @@ class StoreTransactionRequest extends FormRequest
                             : 'A categoria escolhida é de receita — escolha uma categoria de despesa.');
                     }
                 },
+            ],
+            // Quem fez a compra: precisa ser membro da família (titular ou dependente).
+            'made_by_user_id' => [
+                'nullable',
+                Rule::exists('users', 'id')->where(function ($q) use ($userId) {
+                    $q->where('id', $userId)->orWhere('account_owner_id', $userId);
+                }),
             ],
             'description' => ['nullable', 'string', 'max:255'],
             'date' => [

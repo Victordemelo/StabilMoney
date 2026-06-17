@@ -25,7 +25,6 @@
 @section('card')
     <div class="ac-head">
         <h1>Bem-vindo de volta 👋</h1>
-        <p>Novo por aqui? <a href="{{ route('register') }}">Crie sua conta gratuita</a></p>
     </div>
 
     {{-- Status da sessão (ex.: senha redefinida com sucesso) --}}

@@ -23,7 +23,6 @@ class ComingSoonTest extends TestCase
             'investimentos' => ['/investimentos', 'Investimentos'],
             'metas' => ['/metas', 'Metas'],
             'faturas / despesas' => ['/faturas', 'Faturas / Despesas'],
-            'dependentes' => ['/dependentes', 'Dependentes'],
         ];
     }
 

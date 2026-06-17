@@ -42,10 +42,13 @@ class RegisteredUserController extends Controller
             'terms.accepted' => 'Você precisa aceitar os Termos de Uso e a Política de Privacidade.',
         ]);
 
+        // Quem se cadastra pelo formulário é o titular da conta (admin da própria
+        // família). Dependentes (próxima rodada) entrarão com is_admin = false.
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'is_admin' => true,
         ]);
 
         event(new Registered($user));

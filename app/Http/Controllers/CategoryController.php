@@ -14,7 +14,7 @@ class CategoryController extends Controller
 
     public function index(Request $request)
     {
-        $categories = Category::where('user_id', $request->user()->id)
+        $categories = Category::where('user_id', $request->user()->ownerId())
             ->orderBy('name')
             ->get();
 
@@ -32,7 +32,7 @@ class CategoryController extends Controller
     public function store(StoreCategoryRequest $request)
     {
         $data = $request->validated();
-        $data['user_id'] = $request->user()->id;
+        $data['user_id'] = $request->user()->ownerId();
 
         Category::create($data);
 
