@@ -73,7 +73,7 @@
                             </div>
                             <div>
                                 <div class="tx-name">{{ $nome }}</div>
-                                <div class="tx-meta">{{ $transacao->category->name ?? 'Sem categoria' }} · {{ $transacao->account->name }} · {{ $transacao->date->format('d/m/Y') }}</div>
+                                <div class="tx-meta">{{ $transacao->category->name ?? 'Sem categoria' }} · {{ $transacao->account->name }} · {{ $transacao->date->format('d/m/Y') }}@if (! empty($showAuthor)) · {{ $transacao->madeBy?->name ?? 'Removido' }}@endif</div>
                             </div>
                             <div class="tx-amt {{ $receita ? 'pos' : '' }}">
                                 {{ $receita ? '+' : '−' }} R$ {{ number_format($transacao->amount, 2, ',', '.') }}

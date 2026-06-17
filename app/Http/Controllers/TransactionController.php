@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateTransactionRequest;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 
@@ -21,7 +22,7 @@ class TransactionController extends Controller
         // Contas do usuário (usadas no select de filtro)
         $accounts = Account::where('user_id', $userId)->orderBy('name')->get();
 
-        $query = Transaction::with(['account', 'category'])
+        $query = Transaction::with(['account', 'category', 'madeBy'])
             ->where('user_id', $userId);
 
         // Filtros opcionais via GET — sempre restritos aos dados do próprio usuário
@@ -41,7 +42,10 @@ class TransactionController extends Controller
             ->paginate(30)
             ->withQueryString();
 
-        return view('transactions.index', compact('transactions', 'accounts'));
+        // Exibe "quem fez a compra" só quando a família tem dependentes.
+        $showAuthor = User::where('account_owner_id', $userId)->exists();
+
+        return view('transactions.index', compact('transactions', 'accounts', 'showAuthor'));
     }
 
     public function create(Request $request)
@@ -54,6 +58,7 @@ class TransactionController extends Controller
                 ->orderBy('type')
                 ->orderBy('name')
                 ->get(),
+            'familyMembers' => $this->familyMembers($userId),
         ]);
     }
 
@@ -61,6 +66,8 @@ class TransactionController extends Controller
     {
         $data = $request->validated();
         $data['user_id'] = $request->user()->ownerId();
+        // Autor do lançamento: o informado no form, ou o usuário atual por padrão.
+        $data['made_by_user_id'] = $data['made_by_user_id'] ?? $request->user()->id;
 
         Transaction::create($data);
 
@@ -81,6 +88,7 @@ class TransactionController extends Controller
                 ->orderBy('type')
                 ->orderBy('name')
                 ->get(),
+            'familyMembers' => $this->familyMembers($userId),
         ]);
     }
 
@@ -88,7 +96,9 @@ class TransactionController extends Controller
     {
         $this->authorize('update', $transaction);
 
-        $transaction->update($request->validated());
+        $data = $request->validated();
+        $data['made_by_user_id'] = $data['made_by_user_id'] ?? $request->user()->id;
+        $transaction->update($data);
 
         return redirect()->route('transactions.index')
             ->with('status', 'Transação atualizada.');
@@ -102,5 +112,14 @@ class TransactionController extends Controller
 
         return redirect()->route('transactions.index')
             ->with('status', 'Transação removida.');
+    }
+
+    /** Membros da família (titular + dependentes) para o seletor "quem fez a compra". */
+    private function familyMembers(int $ownerId)
+    {
+        return User::where('id', $ownerId)
+            ->orWhere('account_owner_id', $ownerId)
+            ->orderBy('name')
+            ->get();
     }
 }

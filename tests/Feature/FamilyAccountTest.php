@@ -117,4 +117,33 @@ class FamilyAccountTest extends TestCase
         $this->actingAs($titular)->delete("/dependentes/{$dependent->id}")->assertRedirect();
         $this->assertDatabaseMissing('users', ['id' => $dependent->id]);
     }
+
+    public function test_author_defaults_to_current_user(): void
+    {
+        $titular = User::factory()->create();
+        $account = Account::factory()->for($titular)->create();
+        $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
+
+        $this->actingAs($dependent)->post('/transactions', [
+            'type' => 'expense', 'amount' => '10,00',
+            'account_id' => $account->id, 'date' => now()->toDateString(),
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('transactions', [
+            'user_id' => $titular->id, 'made_by_user_id' => $dependent->id,
+        ]);
+    }
+
+    public function test_author_must_be_in_family(): void
+    {
+        $titular = User::factory()->create();
+        $account = Account::factory()->for($titular)->create();
+        $stranger = User::factory()->create();
+
+        $this->actingAs($titular)->post('/transactions', [
+            'type' => 'expense', 'amount' => '10,00',
+            'account_id' => $account->id, 'date' => now()->toDateString(),
+            'made_by_user_id' => $stranger->id,
+        ])->assertSessionHasErrors('made_by_user_id');
+    }
 }

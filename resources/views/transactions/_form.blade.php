@@ -103,6 +103,24 @@
                 </div>
             </div>
 
+            {{-- Quem fez a compra (só quando a família tem mais de uma pessoa) --}}
+            @isset($familyMembers)
+                @if ($familyMembers->count() > 1)
+                    <div class="field">
+                        <label for="made_by_user_id">Quem fez a compra</label>
+                        <select class="input" id="made_by_user_id" name="made_by_user_id">
+                            @foreach ($familyMembers as $membro)
+                                <option value="{{ $membro->id }}"
+                                    @selected((int) old('made_by_user_id', $transaction->made_by_user_id ?? auth()->id()) === $membro->id)>
+                                    {{ $membro->name }}{{ $membro->isTitular() ? ' (titular)' : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('made_by_user_id')<div class="field-error">{{ $message }}</div>@enderror
+                    </div>
+                @endif
+            @endisset
+
             {{-- Descrição --}}
             <div class="field">
                 <label for="description">Descrição <span class="hint">(opcional)</span></label>

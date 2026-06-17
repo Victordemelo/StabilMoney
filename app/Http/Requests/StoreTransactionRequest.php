@@ -71,6 +71,13 @@ class StoreTransactionRequest extends FormRequest
                     }
                 },
             ],
+            // Quem fez a compra: precisa ser membro da família (titular ou dependente).
+            'made_by_user_id' => [
+                'nullable',
+                Rule::exists('users', 'id')->where(function ($q) use ($userId) {
+                    $q->where('id', $userId)->orWhere('account_owner_id', $userId);
+                }),
+            ],
             'description' => ['nullable', 'string', 'max:255'],
             'date' => [
                 'required',
