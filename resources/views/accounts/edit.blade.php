@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Editar conta — StabilMoney')
+@section('title', 'Editar conta')
 
 @section('content')
     <div class="section-head">

@@ -1,6 +1,6 @@
 @extends('layouts.auth')
 
-@section('title', 'Entrar · StabilMoney')
+@section('title', 'Entrar')
 
 {{-- Painel visual (textos do StabilMoney Login.html v2) --}}
 @section('eyebrow')

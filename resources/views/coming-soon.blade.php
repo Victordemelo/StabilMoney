@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $title . ' — StabilMoney')
+@section('title', $title)
 
 @section('content')
     @php

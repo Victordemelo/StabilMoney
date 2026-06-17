@@ -1,6 +1,6 @@
 @extends('layouts.guest')
 
-@section('title', 'Verificar e-mail · StabilMoney')
+@section('title', 'Verificar e-mail')
 
 @section('content')
     {{-- Cabeçalho da tela --}}

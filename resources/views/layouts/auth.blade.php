@@ -14,7 +14,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <meta name="theme-color" content="#0B3A28" />
 
-    <title>@yield('title', 'StabilMoney')</title>
+    @php($pageTitle = trim($__env->yieldContent('title')))
+    <title>StabilMoney{{ $pageTitle ? ' · '.$pageTitle : '' }}</title>
 
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
     <link rel="apple-touch-icon" href="{{ asset('assets/stabilmoney-mark.png') }}" />

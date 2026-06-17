@@ -1,6 +1,6 @@
 @extends('layouts.guest')
 
-@section('title', 'Redefinir senha · StabilMoney')
+@section('title', 'Redefinir senha')
 
 @section('content')
     {{-- Cabeçalho da tela --}}

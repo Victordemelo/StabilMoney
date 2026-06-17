@@ -1,6 +1,6 @@
 @extends('layouts.auth')
 
-@section('title', 'Criar conta · StabilMoney')
+@section('title', 'Criar conta')
 
 {{-- Painel visual (textos do StabilMoney Cadastro.html v2) --}}
 @section('eyebrow')
