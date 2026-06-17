@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -23,6 +24,7 @@ class User extends Authenticatable
         'email',
         'password',
         'is_admin',
+        'account_owner_id',
     ];
 
     /**
@@ -62,5 +64,26 @@ class User extends Authenticatable
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    /** Id do dono da família: o próprio id se titular, ou o do titular se dependente. */
+    public function ownerId(): int
+    {
+        return $this->account_owner_id ?? $this->id;
+    }
+
+    public function isTitular(): bool
+    {
+        return $this->account_owner_id === null;
+    }
+
+    public function dependents(): HasMany
+    {
+        return $this->hasMany(User::class, 'account_owner_id');
+    }
+
+    public function titular(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'account_owner_id');
     }
 }
