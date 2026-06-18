@@ -17,7 +17,7 @@
     <title>StabilMoney</title>
 
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
-    <link rel="apple-touch-icon" href="{{ asset('assets/stabilmoney-mark.png') }}" />
+    @include('partials.pwa-head')
 
     {{-- Fontes do design system (Sora + Plus Jakarta Sans) --}}
     <link rel="preconnect" href="https://fonts.googleapis.com" />

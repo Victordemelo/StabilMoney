@@ -4,11 +4,19 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DependentController;
+use App\Http\Controllers\PwaController;
 use App\Http\Controllers\SecurityController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
+
+// PWA — PÚBLICO de propósito (fora do 'auth'): o navegador lê o manifest
+// para oferecer "Instalar" (inclusive na tela de login) e registra o
+// service worker sem sessão. Nada aqui expõe dado do usuário.
+Route::get('/site.webmanifest', [PwaController::class, 'manifest'])->name('pwa.manifest');
+Route::get('/sw.js', [PwaController::class, 'serviceWorker'])->name('pwa.sw');
+Route::view('/offline', 'pwa.offline')->name('pwa.offline');
 
 // Todas as telas do app exigem login (multiusuário desde a Fase 1).
 Route::middleware('auth')->group(function () {

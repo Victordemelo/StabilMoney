@@ -9,7 +9,7 @@
     <title>StabilMoney</title>
 
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
-    <link rel="apple-touch-icon" href="{{ asset('assets/stabilmoney-mark.png') }}" />
+    @include('partials.pwa-head')
 
     {{-- Anti-flash: aplica o tema salvo ANTES do CSS pintar a página --}}
     <script>
