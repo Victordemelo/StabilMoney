@@ -4,6 +4,11 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DependentController;
+use App\Http\Controllers\FaturaController;
+use App\Http\Controllers\GoalContributionController;
+use App\Http\Controllers\GoalController;
+use App\Http\Controllers\InvestmentContributionController;
+use App\Http\Controllers\InvestmentController;
 use App\Http\Controllers\PwaController;
 use App\Http\Controllers\SecurityController;
 use App\Http\Controllers\SettingsController;
@@ -45,18 +50,30 @@ Route::middleware('auth')->group(function () {
     Route::post('/dependentes', [DependentController::class, 'store'])->name('dependentes.store');
     Route::delete('/dependentes/{dependent}', [DependentController::class, 'destroy'])->name('dependentes.destroy');
 
-    // Seções do design ainda não implementadas (placeholder "em breve")
-    foreach ([
-        'investimentos' => ['Investimentos', 'Acompanhe sua carteira, rentabilidade e novas oportunidades.'],
-        'metas' => ['Metas', 'Crie objetivos, acompanhe o progresso e conquiste seus sonhos.'],
-        'faturas' => ['Faturas / Despesas', 'Faturas por cartão, parcelas e despesas em conta — em breve.'],
-    ] as $slug => [$title, $description]) {
-        Route::view('/' . $slug, 'coming-soon', [
-            'title' => $title,
-            'description' => $description,
-            'page' => $slug,
-        ])->name($slug);
-    }
+    // Metas (objetivos de poupança — modelo "cofrinho"). Compartilhadas na família.
+    Route::get('/metas', [GoalController::class, 'index'])->name('metas.index');
+    Route::post('/metas', [GoalController::class, 'store'])->name('metas.store');
+    Route::patch('/metas/{meta}', [GoalController::class, 'update'])->name('metas.update');
+    Route::delete('/metas/{meta}', [GoalController::class, 'destroy'])->name('metas.destroy');
+    // Movimentações da meta: aporte (reserva) e resgate (devolve à conta).
+    Route::post('/metas/{meta}/aportes', [GoalContributionController::class, 'store'])->name('metas.aportes.store');
+    Route::post('/metas/{meta}/resgates', [GoalContributionController::class, 'withdraw'])->name('metas.resgates.store');
+
+    // Investimentos (modelo "cofrinho" + metadados/projeções). Compartilhados na família.
+    Route::get('/investimentos', [InvestmentController::class, 'index'])->name('investimentos.index');
+    Route::post('/investimentos', [InvestmentController::class, 'store'])->name('investimentos.store');
+    Route::patch('/investimentos/{investimento}', [InvestmentController::class, 'update'])->name('investimentos.update');
+    Route::delete('/investimentos/{investimento}', [InvestmentController::class, 'destroy'])->name('investimentos.destroy');
+    // Movimentações do investimento: aporte (reserva) e resgate (devolve à conta).
+    Route::post('/investimentos/{investimento}/aportes', [InvestmentContributionController::class, 'store'])->name('investimentos.aportes.store');
+    Route::post('/investimentos/{investimento}/resgates', [InvestmentContributionController::class, 'withdraw'])->name('investimentos.resgates.store');
+
+    // Faturas / Despesas — faturas por cartão (parcelas/recorrência) + despesas
+    // avulsas em conta. Compartilhado na família.
+    Route::get('/faturas', [FaturaController::class, 'index'])->name('faturas.index');
+    Route::post('/faturas/lancar', [FaturaController::class, 'store'])->name('faturas.lancar');
+    Route::delete('/faturas/compra/{transaction}', [FaturaController::class, 'destroy'])
+        ->name('faturas.compra.destroy');
 });
 
 require __DIR__ . '/auth.php';

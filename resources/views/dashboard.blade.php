@@ -212,7 +212,7 @@
         <div class="card span4" style="animation-delay:.34s">
             <div class="card-head">
                 <h3>Metas de economia</h3>
-                <a class="mini-btn" href="{{ route('metas') }}">Todas<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></a>
+                <a class="mini-btn" href="{{ route('metas.index') }}">Todas<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></a>
             </div>
             <div class="empty-state">
                 <div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".7" fill="currentColor"/></svg></div>
@@ -225,7 +225,7 @@
         <div class="card span4" style="animation-delay:.38s">
             <div class="card-head">
                 <h3>Contas a pagar</h3>
-                <a class="mini-btn" href="{{ route('faturas') }}">Ver<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></a>
+                <a class="mini-btn" href="{{ route('faturas.index') }}">Ver<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></a>
             </div>
             <div class="empty-state">
                 <div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>
@@ -238,7 +238,7 @@
         <div class="card span4" style="animation-delay:.42s">
             <div class="card-head">
                 <h3>Investimentos</h3>
-                <a class="mini-btn" href="{{ route('investimentos') }}">Carteira<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></a>
+                <a class="mini-btn" href="{{ route('investimentos.index') }}">Carteira<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></a>
             </div>
             <div class="empty-state">
                 <div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7M20 16v-3"/></svg></div>

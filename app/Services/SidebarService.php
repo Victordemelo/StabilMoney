@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Account;
+use App\Models\GoalContribution;
+use App\Models\InvestmentContribution;
 use App\Models\Transaction;
 use Carbon\CarbonImmutable;
 
@@ -27,28 +29,62 @@ class SidebarService
     {
         $today = CarbonImmutable::today();
 
-        // Soma dos saldos iniciais de todas as contas (1 query)
-        $initialTotal = round((float) Account::where('user_id', $userId)->sum('initial_balance'), 2);
+        // Cartão de crédito NÃO é caixa: fica fora do patrimônio/saldo. Tanto os
+        // saldos iniciais quanto as transações de cartões são excluídos das somas.
+        $cardIds = Account::where('user_id', $userId)
+            ->where('type', 'credit_card')
+            ->pluck('id')
+            ->all();
 
-        // Receitas − despesas de todas as transações (1 query)
+        // Soma dos saldos iniciais das contas que são caixa (sem cartões) (1 query)
+        $initialTotal = round((float) Account::where('user_id', $userId)
+            ->whereNotIn('id', $cardIds)
+            ->sum('initial_balance'), 2);
+
+        // Receitas − despesas das transações que NÃO são de cartão (1 query)
         $delta = (float) Transaction::where('user_id', $userId)
+            ->whereNotIn('account_id', $cardIds)
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0) AS signed_total")
             ->value('signed_total');
 
         $saldoTotal = round($initialTotal + $delta, 2);
         $hasData = Transaction::where('user_id', $userId)->exists();
 
+        // Reservado em metas (modelo "cofrinho"): Σ aportes − Σ resgates da família.
+        // = total guardado nas metas; o disponível é o saldo cru menos isso.
+        // O patrimônio total (saldoTotal) NÃO muda: o dinheiro só está "earmarked".
+        $guardado = (float) GoalContribution::query()
+            ->join('goals', 'goals.id', '=', 'goal_contributions.goal_id')
+            ->where('goals.user_id', $userId)
+            ->selectRaw("COALESCE(SUM(CASE WHEN goal_contributions.type = 'aporte' THEN goal_contributions.amount ELSE -goal_contributions.amount END), 0) AS reservado")
+            ->value('reservado');
+        $guardado = round($guardado, 2);
+
+        // Aplicado em investimentos (mesmo modelo "cofrinho"): Σ aportes − Σ resgates
+        // da família. Também é dinheiro "earmarked" — sai do disponível, mas continua
+        // dentro do saldo cru (patrimônio total não muda).
+        $investido = (float) InvestmentContribution::query()
+            ->join('investments', 'investments.id', '=', 'investment_contributions.investment_id')
+            ->where('investments.user_id', $userId)
+            ->selectRaw("COALESCE(SUM(CASE WHEN investment_contributions.type = 'aporte' THEN investment_contributions.amount ELSE -investment_contributions.amount END), 0) AS aplicado")
+            ->value('aplicado');
+        $investido = round($investido, 2);
+
+        // Disponível = saldo cru − guardado em metas − investido (o que sobra para gastar).
+        $disponivel = round($saldoTotal - $guardado - $investido, 2);
+
         // Sparkline: saldo acumulado dos últimos 7 dias (lógica compartilhada
-        // com o dashboard); sem transações => linha flat no nível atual.
+        // com o dashboard, cartões excluídos); sem transações => linha flat no nível atual.
         $spark = $hasData
-            ? $this->dashboard->saldoSpark($userId, $initialTotal, $today)
+            ? $this->dashboard->saldoSpark($userId, $initialTotal, $today, null, $cardIds)
             : array_fill(0, 7, $saldoTotal);
 
-        // Variação % vs saldo de 30 dias atrás (base zero/sem dados => null)
+        // Variação % vs saldo de 30 dias atrás (base zero/sem dados => null).
+        // Cartões ficam fora do cálculo (não são caixa).
         $variacao = null;
         if ($hasData) {
             $saldoAnterior = round(
-                $initialTotal + $this->dashboard->signedSumUntil($userId, $today->subDays(30)),
+                $initialTotal + $this->dashboard->signedSumUntil($userId, $today->subDays(30), $cardIds),
                 2,
             );
             $variacao = $this->dashboard->pctChange($saldoTotal, $saldoAnterior);
@@ -56,9 +92,13 @@ class SidebarService
 
         return [
             'saldoTotal' => $saldoTotal,
-            // "Em conta" = soma das contas (sem investimentos ainda — mesma
-            // semântica do protótipo, onde "em conta" são as contas).
-            'emConta' => $saldoTotal,
+            // "Em conta" = o que está nas contas, fora dos investimentos
+            // (= disponível + guardado em metas). Patrimônio total = isto + investido.
+            'emConta' => round($disponivel + $guardado, 2),
+            // Cofrinho: disponível (saldo cru − reservado), guardado em metas e investido.
+            'disponivel' => $disponivel,
+            'guardado' => $guardado,
+            'investido' => $investido,
             'variacao' => $variacao,
             'spark' => $spark,
             'sparkLine' => $this->sparkPath($spark, false),

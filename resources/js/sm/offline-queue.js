@@ -205,14 +205,26 @@ function attachForm(form) {
     });
 }
 
-// ---- Segurança: ao cair numa tela de login (deslogado), apaga o form em cache
+// ---- Segurança: apaga o /transactions/create em cache quando o DONO muda
+//      (logout OU troca de usuário no mesmo aparelho). Sem isso, o form em cache
+//      de um usuário (com as contas/categorias da família dele e o CSRF) poderia
+//      ser servido offline para outra pessoa no mesmo dispositivo.
 
-function clearCachedFormIfLoggedOut() {
-    if (!document.body.classList.contains('auth-body')) return;
+function purgeCachedFormIfUserChanged() {
     if (!('caches' in window)) return;
+    const current = meta('sm-user'); // null = deslogado
+    let last = null;
+    try { last = localStorage.getItem('sm-form-user'); } catch (_) { /* sem storage */ }
+    if (current === last) return; // mesmo dono → mantém o cache
+
+    // Dono mudou (ou deslogou): o form em cache é de OUTRO usuário → apaga de tudo.
     caches.keys().then((keys) => keys.forEach((k) =>
         caches.open(k).then((c) => c.delete('/transactions/create'))
     )).catch(() => {});
+    try {
+        if (current) localStorage.setItem('sm-form-user', current);
+        else localStorage.removeItem('sm-form-user');
+    } catch (_) { /* sem storage */ }
 }
 
 // ---- Init ------------------------------------------------------------------
@@ -220,7 +232,7 @@ function clearCachedFormIfLoggedOut() {
 export function initOfflineQueue() {
     if (!('indexedDB' in window)) return;
 
-    clearCachedFormIfLoggedOut();
+    purgeCachedFormIfUserChanged();
 
     const form = document.querySelector('form[data-offline-queue]');
     if (form) attachForm(form);

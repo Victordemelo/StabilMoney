@@ -83,6 +83,21 @@ class AccountController extends Controller
             ]);
         }
 
+        // A FK de goal_contributions é restrictOnDelete: há dinheiro reservado/movimentado
+        // em metas a partir desta conta. Bloqueamos para não quebrar o saldo das metas.
+        if ($account->goalContributions()->exists()) {
+            return back()->withErrors([
+                'account' => 'Esta conta possui aportes ou resgates de metas e não pode ser excluída. Resgate o que está guardado por ela primeiro.',
+            ]);
+        }
+
+        // Mesma trava para investimentos (FK também restrictOnDelete).
+        if ($account->investmentContributions()->exists()) {
+            return back()->withErrors([
+                'account' => 'Esta conta possui aportes ou resgates de investimentos e não pode ser excluída. Resgate o que está aplicado por ela primeiro.',
+            ]);
+        }
+
         $account->delete();
 
         return redirect()->route('accounts.index')

@@ -29,4 +29,16 @@ class AccountFactory extends Factory
             'icon' => fake()->randomElement(['💳', '🏦', '👛', '🐷']),
         ];
     }
+
+    /** Cartão de crédito com limite e dias de fechamento/vencimento. */
+    public function creditCard(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => 'credit_card',
+            'initial_balance' => 0,
+            'credit_limit' => 5000,
+            'closing_day' => 10,
+            'due_day' => 20,
+        ]);
+    }
 }

@@ -41,6 +41,7 @@ class DashboardTest extends TestCase
         $user = User::factory()->create();
         $account = Account::factory()->for($user)->create([
             'name' => 'Conta Corrente Principal',
+            'type' => 'bank', // caixa: cartão de crédito ficaria fora do saldo/patrimônio
             'initial_balance' => 1000,
         ]);
         $category = Category::factory()->expense()->for($user)->create(['name' => 'Alimentação']);

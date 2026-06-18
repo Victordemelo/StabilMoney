@@ -20,6 +20,11 @@ class Transaction extends Model
         'amount',
         'description',
         'date',
+        // Parcelamento/recorrência (feature "Faturas / Despesas").
+        'group_id',
+        'installment_no',
+        'installments',
+        'recurring',
     ];
 
     protected function casts(): array
@@ -27,6 +32,9 @@ class Transaction extends Model
         return [
             'amount' => 'decimal:2',
             'date' => 'date',
+            'installment_no' => 'integer',
+            'installments' => 'integer',
+            'recurring' => 'boolean',
         ];
     }
 
@@ -57,5 +65,23 @@ class Transaction extends Model
         return $this->type === 'income'
             ? (float) $this->amount
             : -(float) $this->amount;
+    }
+
+    /**
+     * Selo da despesa para as listas de fatura (mesma regra do protótipo
+     * finance.js): "i/N" para parcela, "Recorrente" para recorrente, senão
+     * "À vista".
+     */
+    public function getBadgeAttribute(): string
+    {
+        if ($this->installments) {
+            return $this->installment_no . '/' . $this->installments;
+        }
+
+        if ($this->recurring) {
+            return 'Recorrente';
+        }
+
+        return 'À vista';
     }
 }

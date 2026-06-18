@@ -15,7 +15,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/></svg>
         Pagamentos
     </a>
-    <a class="bn-item {{ request()->routeIs('investimentos') ? 'active' : '' }}" href="{{ route('investimentos') }}">
+    <a class="bn-item {{ request()->routeIs('investimentos.*') ? 'active' : '' }}" href="{{ route('investimentos.index') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7"/></svg>
         Investir
     </a>

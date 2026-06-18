@@ -1,0 +1,144 @@
+<?php
+
+namespace App\Http\Requests;
+
+use App\Models\Account;
+use App\Models\Investment;
+use Closure;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+/**
+ * Criação de investimento (modelo "cofrinho"). Metadados (classe, indexador,
+ * taxa) + um aporte inicial OPCIONAL: se `valor_inicial` > 0, o controller cria
+ * uma contribution 'aporte' a partir da conta escolhida (que não pode ser cartão
+ * de crédito e precisa ter saldo disponível suficiente).
+ */
+class StoreInvestmentRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        // Dono dos dados é garantido pelo controller (user_id = ownerId)
+        // e pela InvestmentPolicy na edição/exclusão.
+        return true;
+    }
+
+    /** Normaliza valor inicial e taxa digitados no padrão pt-BR para decimal. */
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->valor_inicial)) {
+            $this->merge(['valor_inicial' => $this->normalizeMoney($this->valor_inicial)]);
+        }
+
+        if (is_string($this->taxa)) {
+            $this->merge(['taxa' => $this->normalizeMoney($this->taxa)]);
+        }
+    }
+
+    /** Converte "1.234,56" / "110,00" / "" do padrão pt-BR para decimal ("." ou null). */
+    private function normalizeMoney(string $valor): ?string
+    {
+        $valor = trim(str_replace(['R$', '%', ' '], '', $valor));
+
+        if ($valor === '') {
+            return null;
+        }
+
+        if (str_contains($valor, ',')) {
+            $valor = str_replace('.', '', $valor);  // remove separador de milhar
+            $valor = str_replace(',', '.', $valor); // vírgula decimal -> ponto
+        } elseif (preg_match('/^-?\d{1,3}(\.\d{3})+$/', $valor)) {
+            $valor = str_replace('.', '', $valor);  // só milhares: "1.234" -> "1234"
+        }
+
+        return $valor;
+    }
+
+    public function rules(): array
+    {
+        // Escopo por família: conta/autor precisam pertencer ao titular (ownerId).
+        $userId = $this->user()->ownerId();
+        $temValorInicial = (float) $this->input('valor_inicial') > 0;
+
+        return [
+            'name' => ['required', 'string', 'max:80'],
+            'classe' => ['required', Rule::in(array_keys(Investment::CLASSES))],
+            'indexador' => ['nullable', Rule::in(array_keys(Investment::INDEX_BASE))],
+            'taxa' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+
+            // Aporte inicial opcional.
+            'valor_inicial' => ['nullable', 'numeric', 'min:0', 'max:9999999999999.99'],
+
+            'account_id' => [
+                // Só obrigatória se houver aporte inicial.
+                Rule::requiredIf($temValorInicial),
+                'nullable',
+                // CRÍTICO: a conta precisa pertencer à família e não pode ser cartão de crédito.
+                Rule::exists('accounts', 'id')->where(function ($q) use ($userId) {
+                    $q->where('user_id', $userId)->where('type', '!=', 'credit_card');
+                }),
+                // O aporte inicial não pode passar do saldo disponível da conta.
+                function (string $attribute, mixed $value, Closure $fail) use ($userId, $temValorInicial) {
+                    if (! $temValorInicial || ! $value) {
+                        return;
+                    }
+
+                    $account = Account::where('id', $value)
+                        ->where('user_id', $userId)
+                        ->first();
+
+                    if ($account && (float) $this->input('valor_inicial') > $account->available + 0.001) {
+                        $fail('O valor inicial é maior que o saldo disponível na conta de origem (R$ '
+                            . number_format($account->available, 2, ',', '.') . ').');
+                    }
+                },
+            ],
+            // Quem aportou: precisa ser membro da família (titular ou dependente).
+            'made_by_user_id' => [
+                'nullable',
+                Rule::exists('users', 'id')->where(function ($q) use ($userId) {
+                    $q->where('id', $userId)->orWhere('account_owner_id', $userId);
+                }),
+            ],
+            'date' => [
+                'nullable',
+                'date',
+                'after_or_equal:2000-01-01',
+                'before_or_equal:' . now()->addYears(10)->toDateString(),
+            ],
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return [
+            'name' => 'nome',
+            'classe' => 'classe',
+            'indexador' => 'indexador',
+            'taxa' => 'taxa',
+            'valor_inicial' => 'valor inicial',
+            'account_id' => 'conta',
+            'date' => 'data',
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'Informe o nome do investimento.',
+            'name.max' => 'O nome pode ter no máximo 80 caracteres.',
+            'classe.required' => 'Escolha a classe do investimento.',
+            'classe.in' => 'Classe inválida.',
+            'indexador.in' => 'Indexador inválido.',
+            'taxa.numeric' => 'A taxa deve ser um número. Use vírgula para os decimais, ex.: 110,00.',
+            'taxa.min' => 'A taxa não pode ser negativa.',
+            'valor_inicial.numeric' => 'O valor inicial deve ser um número. Use vírgula para os centavos, ex.: 1.000,00.',
+            'valor_inicial.min' => 'O valor inicial não pode ser negativo.',
+            'valor_inicial.max' => 'O valor inicial informado é alto demais.',
+            'account_id.required' => 'Escolha a conta de origem do valor inicial.',
+            'account_id.exists' => 'A conta escolhida não existe, não pertence a você ou é um cartão de crédito.',
+            'date.date' => 'Data inválida.',
+            'date.before_or_equal' => 'A data está longe demais no futuro.',
+        ];
+    }
+}

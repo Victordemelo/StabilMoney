@@ -6,6 +6,9 @@ código (PWA na próxima fase). UI 100% em **português do Brasil**, moeda **R$*
 
 > Este arquivo é o contexto que o Claude Code carrega a cada sessão. **Mantenha-o atualizado**
 > quando decisões de stack, arquitetura ou convenções mudarem.
+>
+> **Idioma — responda SEMPRE em português do Brasil**: explicações ao usuário, mensagens de
+> commit, descrições de PR e comentários de código. (Preferência do Victor.)
 
 ---
 
@@ -85,7 +88,7 @@ O visual do app vem de um **handoff do Claude Design** (claude.ai/design), versi
   — referência para a próxima rodada, **ainda não implementado**.
 - `design/project/assets/` — logo (`stabilmoney-mark.png`), `favicon.png` e vídeo
   (`auth-bg.mp4`); **copiados para `public/assets/`** — o vídeo é servido lá como
-  `video_login.mp4` (é de `public/assets/` que o app serve; ver `public/assets/README.md`).
+  `video_login.mp4` (é de `public/assets/` que o app serve).
 - `design/README.md` + `design/chats/chat1.md` — intenção do usuário.
 
 **Processo:** o usuário desenha no Claude Design → exporta o bundle → o Claude Code implementa
@@ -154,7 +157,7 @@ resources/
     ├── profile/            # edit + partials (perfil, senha, excluir conta com modal)
     └── coming-soon.blade.php   # placeholder das seções futuras
 
-public/assets/              # stabilmoney-mark.png (logo), favicon.png, video_login.mp4 (fundo do login) — ver public/assets/README.md
+public/assets/              # stabilmoney-mark.png (logo), favicon.png, video_login.mp4 (login), icons/ (ícones do PWA)
 design/                     # Handoff do Claude Design v2 (fonte da verdade visual — NÃO editar)
 lang/pt_BR(+.json)          # Traduções PT-BR (laravel-lang)
 routes/web.php              # Rotas do app | routes/auth.php (Breeze)
@@ -298,8 +301,13 @@ Saldo total = atual de todas as contas, independe do período.
   (testes rodam em sqlite `:memory:` — cuidado com funções tipo `MONTH()`, ver
   `DashboardService` para o padrão por driver).
 - Commits: prefixos `Feat:`, `Fix:`, `style:`.
-- **Fluxo git:** commitar **direto na `main`/`master`** (sem PR/branch de feature) — preferência
-  do Victor (jun/2026). Push para `origin/main` autorizado.
+- **Fluxo git — modelo principal/secundário (jun/2026):** há um **agente principal** (o que
+  conversa com o Victor) e **agentes secundários** (subagentes despachados para implementar
+  partes em paralelo). **SOMENTE o agente principal commita e dá `push`.** Agentes secundários
+  **NUNCA** commitam nem dão push — eles implementam, validam o que conseguem no próprio escopo
+  e reportam; o principal **integra, verifica e commita**. Sempre commitar **direto na `main`**
+  (sem PR/branch de feature) e **dar `push` para `origin/main`** — preferência do Victor.
+  Se você é um subagente lendo isto: não rode `git commit` nem `git push`.
 
 ---
 

@@ -51,8 +51,14 @@ class DashboardService
             $account->type_label = self::ACCOUNT_TYPES[$account->type] ?? Str::ucfirst($account->type);
         }
 
-        $initialTotal = round((float) $accounts->sum(fn ($a) => (float) $a->initial_balance), 2);
-        $totalBalance = round((float) $accounts->sum('current_balance'), 2);
+        // Cartão de crédito NÃO é caixa: fica fora do saldo/patrimônio (stat "saldo",
+        // sua trend e o sparkline). Continua aparecendo na LISTA de contas do card
+        // "Meu cartão" (exibição), só não soma no patrimônio.
+        $cardIds = $accounts->where('type', 'credit_card')->pluck('id')->all();
+        $nonCardAccounts = $accounts->where('type', '!=', 'credit_card');
+
+        $initialTotal = round((float) $nonCardAccounts->sum(fn ($a) => (float) $a->initial_balance), 2);
+        $totalBalance = round((float) $nonCardAccounts->sum('current_balance'), 2);
 
         $hasData = Transaction::where('user_id', $userId)->exists();
 
@@ -123,7 +129,7 @@ class DashboardService
                 $weekIncome,
                 $weekExpense,
                 $weekPrev,
-                $userId, $hasData, $totalBalance, $initialTotal, $weekStart->subDay(),
+                $userId, $hasData, $totalBalance, $initialTotal, $weekStart->subDay(), $cardIds,
             ),
             'mes' => $this->period(
                 Str::ucfirst($today->translatedFormat('F')) . ' de ' . $today->year,
@@ -131,7 +137,7 @@ class DashboardService
                 $monthIncome,
                 $monthExpense,
                 $monthPrev,
-                $userId, $hasData, $totalBalance, $initialTotal, $monthStart->subDay(),
+                $userId, $hasData, $totalBalance, $initialTotal, $monthStart->subDay(), $cardIds,
             ),
             'ano' => $this->period(
                 (string) $today->year,
@@ -139,12 +145,12 @@ class DashboardService
                 $yearIncome,
                 $yearExpense,
                 $yearPrev,
-                $userId, $hasData, $totalBalance, $initialTotal, $yearStart->subDay(),
+                $userId, $hasData, $totalBalance, $initialTotal, $yearStart->subDay(), $cardIds,
             ),
         ];
 
         // ----- Sparklines (últimos 7 dias) -----
-        $sparks = $this->sparks($userId, $hasData, $initialTotal, $today);
+        $sparks = $this->sparks($userId, $hasData, $initialTotal, $today, $cardIds);
 
         // ----- Gastos do mês por categoria (top 5 + "Outros") -----
         $cats = $this->categoryBreakdown($userId, $monthStart, $monthEnd);
@@ -195,6 +201,7 @@ class DashboardService
         float $totalBalance,
         float $initialTotal,
         CarbonImmutable $prevPeriodEnd,
+        array $cardIds = [],
     ): array {
         $incomeTotal = round(array_sum($income), 2);
         $expenseTotal = round(array_sum($expense), 2);
@@ -205,13 +212,13 @@ class DashboardService
             'receitas' => $income,
             'despesas' => $expense,
             'stats' => [
-                // Saldo total é o atual (todas as contas), independe do período
+                // Saldo total é o atual (contas que são caixa, sem cartões), independe do período
                 'saldo' => $totalBalance,
                 'receitas' => $incomeTotal,
                 'despesas' => $expenseTotal,
                 'economia' => round($incomeTotal - $expenseTotal, 2),
             ],
-            'trends' => $this->trends($userId, $hasData, $totalBalance, $initialTotal, $prevPeriodEnd, $incomeTotal, $expenseTotal, $prev),
+            'trends' => $this->trends($userId, $hasData, $totalBalance, $initialTotal, $prevPeriodEnd, $incomeTotal, $expenseTotal, $prev, $cardIds),
         ];
     }
 
@@ -228,13 +235,15 @@ class DashboardService
         float $income,
         float $expense,
         array $prev,
+        array $cardIds = [],
     ): array {
         if (! $hasData) {
             return ['saldo' => null, 'receitas' => null, 'despesas' => null, 'economia' => null];
         }
 
-        // Saldo ao fim do período anterior = saldos iniciais + transações até lá
-        $previousBalance = round($initialTotal + $this->signedSumUntil($userId, $prevPeriodEnd), 2);
+        // Saldo ao fim do período anterior = saldos iniciais (sem cartões) + transações
+        // até lá (também sem cartões — cartão não é caixa).
+        $previousBalance = round($initialTotal + $this->signedSumUntil($userId, $prevPeriodEnd, $cardIds), 2);
 
         return [
             'saldo' => $this->pctChange($totalBalance, $previousBalance),
@@ -264,7 +273,7 @@ class DashboardService
      * - economia: (receitas - despesas) diárias acumuladas na janela.
      * Arrays vazios quando o usuário ainda não tem transações.
      */
-    private function sparks(int $userId, bool $hasData, float $initialTotal, CarbonImmutable $today): array
+    private function sparks(int $userId, bool $hasData, float $initialTotal, CarbonImmutable $today, array $cardIds = []): array
     {
         $sparks = ['saldo' => [], 'receitas' => [], 'despesas' => [], 'economia' => []];
         if (! $hasData) {
@@ -272,10 +281,13 @@ class DashboardService
         }
 
         $start = $today->subDays(6);
+        // Cashflow (receitas/despesas/economia) inclui cartões — é gasto real.
         $daily = $this->dailySums($userId, $start, $today);
         $saved = 0.0;
 
-        $sparks['saldo'] = $this->saldoSpark($userId, $initialTotal, $today, $daily);
+        // Saldo (patrimônio) NÃO inclui cartões: deixa o saldoSpark montar a própria
+        // série filtrada (passando $daily=null e os ids de cartão a excluir).
+        $sparks['saldo'] = $this->saldoSpark($userId, $initialTotal, $today, null, $cardIds);
 
         for ($i = 0; $i < 7; $i++) {
             $key = $start->addDays($i)->toDateString();
@@ -297,11 +309,11 @@ class DashboardService
      * "Patrimônio total" da sidebar (SidebarService) — uma lógica só.
      * $daily opcional evita repetir a query quando o chamador já tem dailySums().
      */
-    public function saldoSpark(int $userId, float $initialTotal, CarbonImmutable $today, ?array $daily = null): array
+    public function saldoSpark(int $userId, float $initialTotal, CarbonImmutable $today, ?array $daily = null, array $excludeAccountIds = []): array
     {
         $start = $today->subDays(6);
-        $daily ??= $this->dailySums($userId, $start, $today);
-        $balance = round($initialTotal + $this->signedSumUntil($userId, $start->subDay()), 2);
+        $daily ??= $this->dailySums($userId, $start, $today, $excludeAccountIds);
+        $balance = round($initialTotal + $this->signedSumUntil($userId, $start->subDay(), $excludeAccountIds), 2);
         $points = [];
 
         for ($i = 0; $i < 7; $i++) {
@@ -351,10 +363,15 @@ class DashboardService
         })->all();
     }
 
-    /** Somas diárias por tipo no intervalo: ['Y-m-d' => ['income' => x, 'expense' => y]]. */
-    private function dailySums(int $userId, CarbonImmutable $from, CarbonImmutable $to): array
+    /**
+     * Somas diárias por tipo no intervalo: ['Y-m-d' => ['income' => x, 'expense' => y]].
+     * $excludeAccountIds permite ignorar contas (ex.: cartões de crédito, que
+     * não entram no cálculo de saldo/patrimônio).
+     */
+    private function dailySums(int $userId, CarbonImmutable $from, CarbonImmutable $to, array $excludeAccountIds = []): array
     {
         $rows = Transaction::where('user_id', $userId)
+            ->when($excludeAccountIds, fn ($q) => $q->whereNotIn('account_id', $excludeAccountIds))
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->selectRaw('date, type, SUM(amount) AS total')
             ->groupBy('date', 'type')
@@ -385,10 +402,15 @@ class DashboardService
         ];
     }
 
-    /** Soma com sinal (receita +, despesa −) de tudo até a data, inclusive. */
-    public function signedSumUntil(int $userId, CarbonImmutable $until): float
+    /**
+     * Soma com sinal (receita +, despesa −) de tudo até a data, inclusive.
+     * $excludeAccountIds ignora contas no cálculo (cartões de crédito ficam
+     * fora do saldo/patrimônio).
+     */
+    public function signedSumUntil(int $userId, CarbonImmutable $until, array $excludeAccountIds = []): float
     {
         $value = Transaction::where('user_id', $userId)
+            ->when($excludeAccountIds, fn ($q) => $q->whereNotIn('account_id', $excludeAccountIds))
             ->where('date', '<=', $until->toDateString())
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0) AS signed_total")
             ->value('signed_total');

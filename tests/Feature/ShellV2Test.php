@@ -21,7 +21,9 @@ class ShellV2Test extends TestCase
     public function test_dashboard_renders_shell_v2_with_patrimonio_and_popover(): void
     {
         $user = User::factory()->create(['name' => 'Maria Silva']);
-        Account::factory()->for($user)->create(['initial_balance' => 1234.56]);
+        // type=bank: cartão de crédito não entra no patrimônio, então fixamos
+        // uma conta que é caixa para o saldo bater 1.234,56.
+        Account::factory()->for($user)->create(['type' => 'bank', 'initial_balance' => 1234.56]);
 
         $response = $this->actingAs($user)->get('/');
 
@@ -42,7 +44,10 @@ class ShellV2Test extends TestCase
         // Card "Patrimônio total" com o saldo real (inteiro + centavos separados)
         $response->assertSee('Patrimônio total');
         $response->assertSee('R$ 1.234');
-        $response->assertSee('Em conta: R$ 1.234,56');
+        // Modelo "cofrinho": sublines de disponível e guardado em metas
+        // (sem aportes => disponível = saldo cru, guardado = 0).
+        $response->assertSee('Disponível: R$ 1.234,56');
+        $response->assertSee('Guardado em metas: R$ 0,00');
 
         // Sem transações não há base de variação => .sb-foot oculto
         $response->assertDontSee('nos últimos 30 dias');
@@ -67,7 +72,8 @@ class ShellV2Test extends TestCase
     public function test_patrimonio_card_shows_variation_when_there_is_a_base(): void
     {
         $user = User::factory()->create();
-        $account = Account::factory()->for($user)->create(['initial_balance' => 1000]);
+        // type=bank: conta que é caixa (cartão de crédito ficaria fora do patrimônio).
+        $account = Account::factory()->for($user)->create(['type' => 'bank', 'initial_balance' => 1000]);
 
         // Receita de hoje: saldo 1.100 vs base de 30 dias atrás 1.000 => +10,0%
         Transaction::factory()->for($user)->for($account)->income()->create([
@@ -85,7 +91,7 @@ class ShellV2Test extends TestCase
     public function test_shell_v2_is_present_on_other_authenticated_pages(): void
     {
         $user = User::factory()->create();
-        Account::factory()->for($user)->create(['initial_balance' => 50]);
+        Account::factory()->for($user)->create(['type' => 'bank', 'initial_balance' => 50]);
 
         foreach (['/transactions', '/categories', '/faturas'] as $uri) {
             $response = $this->actingAs($user)->get($uri);

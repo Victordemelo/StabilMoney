@@ -8,6 +8,12 @@
     $cores = ['#0F6B47', '#15795A', '#1C9A70', '#1FA06E', '#59C497', '#18B6BE', '#F0A93B', '#E5604D', '#9FB0A7', '#0B3A28'];
     $iconeAtual = old('icon', $account->icon ?? '💵');
     $corAtual = old('color', $account->color ?? '');
+    // Campos de cartão de crédito: limite, dia de fechamento e dia de vencimento.
+    $tipoAtual = old('type', $account->type ?? 'wallet');
+    $limiteAtual = old('credit_limit', $account && $account->credit_limit !== null
+        ? number_format((float) $account->credit_limit, 2, ',', '.') : '');
+    $fechamentoAtual = old('closing_day', $account->closing_day ?? '');
+    $vencimentoAtual = old('due_day', $account->due_day ?? '');
 @endphp
 
 <div class="grid">
@@ -60,6 +66,38 @@
                 </div>
             </div>
 
+            {{-- Campos de cartão de crédito (limite + dias) — visíveis só quando o tipo é "credit_card".
+                 O JS no rodapé alterna o atributo hidden conforme o <select> de tipo. --}}
+            <div data-card-fields @if ($tipoAtual !== 'credit_card') hidden @endif>
+                <div class="field">
+                    <label for="credit_limit">Limite do cartão (R$)</label>
+                    <input class="input @error('credit_limit') input-error @enderror" type="text" inputmode="decimal"
+                           id="credit_limit" name="credit_limit" placeholder="Ex.: 5.000,00"
+                           value="{{ $limiteAtual }}">
+                    @error('credit_limit')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="form-row">
+                    {{-- Dia de fechamento --}}
+                    <div class="field">
+                        <label for="closing_day">Dia de fechamento</label>
+                        <input class="input @error('closing_day') input-error @enderror" type="number" min="1" max="31"
+                               id="closing_day" name="closing_day" placeholder="Ex.: 2"
+                               value="{{ $fechamentoAtual }}">
+                        @error('closing_day')<div class="field-error">{{ $message }}</div>@enderror
+                    </div>
+
+                    {{-- Dia de vencimento --}}
+                    <div class="field">
+                        <label for="due_day">Dia de vencimento</label>
+                        <input class="input @error('due_day') input-error @enderror" type="number" min="1" max="31"
+                               id="due_day" name="due_day" placeholder="Ex.: 9"
+                               value="{{ $vencimentoAtual }}">
+                        @error('due_day')<div class="field-error">{{ $message }}</div>@enderror
+                    </div>
+                </div>
+            </div>
+
             {{-- Ícone --}}
             <div class="field">
                 <label>Ícone</label>
@@ -93,3 +131,16 @@
         </form>
     </div>
 </div>
+
+<script>
+    // Mostra os campos de cartão (limite, fechamento, vencimento) só quando o tipo
+    // selecionado é "Cartão de crédito". Mesma abordagem inline do transactions/_form.
+    (function () {
+        var tipo = document.getElementById('type');
+        var bloco = document.querySelector('[data-card-fields]');
+        if (!tipo || !bloco) return;
+        function aplicar() { bloco.hidden = tipo.value !== 'credit_card'; }
+        tipo.addEventListener('change', aplicar);
+        aplicar();
+    })();
+</script>

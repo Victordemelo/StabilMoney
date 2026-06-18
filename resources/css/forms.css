@@ -427,3 +427,174 @@ a.tx { text-decoration: none; color: inherit; }
 .sec-2fa-txt span { font-size: 12px; color: var(--ink-3); }
 .switch { width: 42px; height: 24px; border-radius: 999px; flex: none; position: relative; background: var(--surface-3); border: 1px solid var(--line); opacity: .7; }
 .switch-dot { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--ink-3); }
+
+/* ============================================================
+   Metas (objetivos de poupança) — portado do design v2 (styles.css .meta-*)
+   Cards com anel de progresso SVG + modais de criar/editar/aportar/resgatar.
+   ============================================================ */
+.meta-grid { margin-top: 18px; }
+.meta-card { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 22px 20px; position: relative; }
+
+/* Barra de ações (editar / resgatar / excluir) — aparece no hover do card */
+.meta-actions {
+  position: absolute; top: 12px; right: 12px; display: flex; gap: 4px;
+  opacity: 0; transition: opacity .15s var(--ease);
+}
+.meta-card:hover .meta-actions, .meta-card:focus-within .meta-actions { opacity: 1; }
+.meta-act {
+  width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
+  color: var(--ink-3); cursor: pointer; background: transparent; border: 0;
+  transition: background .15s var(--ease), color .15s var(--ease);
+}
+.meta-act:hover { background: var(--surface-3); color: var(--ink); }
+.meta-act svg { width: 15px; height: 15px; stroke-width: 2; }
+.meta-act-del:hover { background: #FCEDEA; color: var(--neg); }
+[data-theme="dark"] .meta-act-del:hover { background: rgba(229,96,77,.12); }
+
+.meta-emoji { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; font-size: 27px; margin-bottom: 12px; }
+.meta-name { font-family: var(--font-head); font-size: 16px; font-weight: 600; }
+.meta-prazo { font-size: 12px; color: var(--ink-3); margin-top: 3px; }
+.meta-by { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+.meta-ring { width: 112px; height: 112px; margin: 14px 0; }
+.meta-ring svg { width: 100%; height: 100%; }
+.meta-amounts { display: flex; justify-content: space-between; width: 100%; gap: 12px; margin-bottom: 16px; }
+.meta-amounts span { font-size: 11.5px; color: var(--ink-3); display: block; }
+.meta-amounts b { font-family: var(--font-head); font-size: 15px; font-weight: 700; }
+.meta-card .btn.primary { width: 100%; }
+
+/* Card "Nova meta" tracejado (reaproveita .pm-add-inner/.pm-plus do design system) */
+.meta-add {
+  display: grid; place-items: center; cursor: pointer; text-align: center;
+  border-style: dashed; border-width: 2px; min-height: 300px; background: none;
+  transition: border-color .2s var(--ease), background .2s var(--ease);
+}
+.meta-add:hover { border-color: var(--brand-300); background: var(--brand-50); }
+[data-theme="dark"] .meta-add:hover { background: rgba(28,154,112,.08); }
+
+/* Emoji picker dentro do modal: não deixa estourar a altura com muitos ícones */
+.meta-emoji-picker { max-height: 132px; overflow-y: auto; }
+
+/* Resumo "guardado/faltam" nos modais de aporte e resgate
+   (portado de styles.css .inv-preview/.ivp-row) */
+.inv-preview { background: var(--surface-2); border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px; }
+.ivp-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; font-size: 13px; color: var(--ink-2); }
+.ivp-row b { font-family: var(--font-head); font-weight: 700; color: var(--ink); }
+.ivp-row b.pos { color: var(--pos); }
+/* Dica do preview de rentabilidade quando ainda não há valor (portado de styles.css) */
+.ivp-hint { font-size: 12.5px; color: var(--ink-3); text-align: center; padding: 4px; }
+
+/* ============================================================
+   Investimentos — portado do design v2 (styles.css: alloc, al, invr)
+   Donut de alocação + legenda e lista de ativos da carteira.
+   Reaproveita card, grid, card-head, mini-btn, stat e inv-preview do design system.
+   ============================================================ */
+
+/* Donut de alocação (SVG server-rendered) + legenda */
+.alloc-wrap { display: flex; align-items: center; gap: 14px; }
+.alloc-svg { width: 150px; height: 150px; flex: none; }
+.alloc-legend { flex: 1; display: flex; flex-direction: column; gap: 9px; }
+.al-row { display: flex; align-items: center; gap: 10px; }
+.al-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.al-name { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.al-val { margin-left: auto; font-family: var(--font-head); font-weight: 700; font-size: 13px; }
+
+/* Lista de ativos */
+.inv-rows { display: flex; flex-direction: column; }
+.invr { display: flex; align-items: center; gap: 13px; padding: 13px 4px; border-bottom: 1px solid var(--line-2); }
+.invr:last-child { border-bottom: none; }
+.invr-l { width: 42px; height: 42px; border-radius: 12px; flex: none; display: grid; place-items: center; color: #fff; font-family: var(--font-head); font-weight: 800; font-size: 12px; }
+.invr-main { min-width: 0; flex: 1; }
+.invr-main strong { font-size: 14px; font-weight: 600; display: block; }
+.invr-main span { font-size: 12px; color: var(--ink-3); }
+.invr-val { text-align: right; }
+.invr-val b { font-family: var(--font-head); font-weight: 700; font-size: 14px; display: block; }
+.invr-val .pos { font-size: 11.5px; font-weight: 700; color: var(--pos); }
+
+/* Botões de ação da linha (Aportar = brand; Resgatar/Editar = neutros) */
+.invr-btn { font-size: 12.5px; font-weight: 700; color: var(--brand-600); padding: 7px 12px; border-radius: 10px; background: var(--brand-50); border: 0; cursor: pointer; transition: all .15s var(--ease); flex: none; }
+.invr-btn:hover { background: var(--brand-100); transform: translateY(-1px); }
+[data-theme="dark"] .invr-btn { background: rgba(28,154,112,.14); color: var(--brand-300); }
+.invr-btn-out, .invr-btn-edit { color: var(--ink-2); background: var(--surface-3); }
+.invr-btn-out:hover, .invr-btn-edit:hover { background: var(--surface-3); color: var(--ink); transform: translateY(-1px); }
+[data-theme="dark"] .invr-btn-out, [data-theme="dark"] .invr-btn-edit { background: var(--surface-3); color: var(--ink-2); }
+.invr-btn-edit { display: grid; place-items: center; padding: 7px; width: 32px; height: 32px; }
+.invr-btn-edit svg { width: 15px; height: 15px; stroke-width: 2; }
+
+/* Botão excluir (X) da linha */
+.inv-rm { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: var(--ink-3); flex: none; background: transparent; border: 0; cursor: pointer; transition: all .15s var(--ease); }
+.inv-rm:hover { background: #FCEDEA; color: var(--neg); }
+[data-theme="dark"] .inv-rm:hover { background: rgba(229,96,77,.12); }
+.inv-rm svg { width: 15px; height: 15px; stroke-width: 2; }
+
+/* Mobile: ações empilham e ocupam a largura (linha vira coluna) */
+@media (max-width: 640px) {
+  .invr { flex-wrap: wrap; }
+  .invr-val { margin-left: auto; }
+  .invr-btn, .invr-btn-out { flex: 1; text-align: center; }
+}
+
+/* ============================================================
+   Faturas / Despesas — portado do design v2 (styles.css: fatura, fh, fi)
+   Um card por cartão com "cartão" miniatura, fatura atual, barra de uso de
+   limite e lista de itens com badge de parcela/recorrente. Reaproveita card,
+   grid, stat, dp-bar/dp-meta, empty-block, modal-lg, field-row do design system.
+   ============================================================ */
+
+/* Card da fatura */
+.fatura-card { padding: 20px; margin-top: 18px; }
+.fatura-head { display: flex; align-items: center; gap: 14px; }
+.fh-card { width: 50px; height: 50px; border-radius: 13px; flex: none; display: grid; place-items: center; color: #fff; font-family: var(--font-head); font-weight: 800; font-size: 19px; }
+.fh-info { min-width: 0; }
+.fh-info strong { font-family: var(--font-head); font-size: 15.5px; font-weight: 600; display: block; }
+.fh-info span { font-size: 12.5px; color: var(--ink-3); }
+.fh-total { margin-left: auto; text-align: right; }
+.fh-total span { font-size: 12px; color: var(--ink-3); display: block; }
+.fh-total b { font-family: var(--font-head); font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+
+/* Barra de uso de limite (reaproveita .dp-bar/.dp-meta do design system) */
+.fh-limit { margin: 16px 0 6px; }
+.fh-limit .dp-bar { height: 8px; }
+
+/* Lista de itens da fatura */
+.fatura-items { margin-top: 8px; }
+.fatura-item { display: flex; align-items: center; gap: 13px; padding: 12px 4px; border-top: 1px solid var(--line-2); }
+.fatura-item:first-child { border-top: none; }
+.fi-ico { width: 40px; height: 40px; border-radius: 12px; flex: none; display: grid; place-items: center; font-size: 19px; background: var(--surface-3); }
+.fi-txt { min-width: 0; flex: 1; }
+.fi-txt strong { font-size: 14px; font-weight: 600; display: block; }
+.fi-txt span { font-size: 12px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* Badge de modo (à vista / parcelado / recorrente) */
+.fi-badge { font-style: normal; font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--surface-3); color: var(--ink-2); }
+.fi-badge.parcelado { background: var(--brand-50); color: var(--brand-700); }
+.fi-badge.recorrente { background: #DEF3F4; color: #0d8a91; }
+[data-theme="dark"] .fi-badge.parcelado { background: rgba(28,154,112,.16); color: var(--brand-300); }
+[data-theme="dark"] .fi-badge.recorrente { background: rgba(24,182,190,.16); color: #4fd3da; }
+
+/* "Quem fez a compra" inline (avatar com iniciais + primeiro nome) */
+.fi-who { display: inline-flex; align-items: center; gap: 4px; font-style: normal; font-weight: 600; font-size: 11px; color: var(--ink-2); }
+.fi-who .fw-av { width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; font-size: 8px; font-weight: 800; font-family: var(--font-head); }
+
+/* Valor do item + data */
+.fi-val { margin-left: auto; text-align: right; }
+.fi-val b { font-family: var(--font-head); font-weight: 700; font-size: 14.5px; display: block; }
+.fi-val small { font-size: 11px; color: var(--ink-3); }
+
+/* Botão remover compra (form inline DELETE) */
+.fi-rm { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: var(--ink-3); flex: none; background: transparent; border: 0; cursor: pointer; transition: all .15s var(--ease); }
+.fi-rm:hover { background: #FCEDEA; color: var(--neg); }
+[data-theme="dark"] .fi-rm:hover { background: rgba(229,96,77,.12); }
+.fi-rm svg { width: 15px; height: 15px; stroke-width: 2; }
+
+/* Lista vazia do cartão */
+.fi-empty { padding: 18px 4px; font-size: 13px; color: var(--ink-3); text-align: center; }
+
+/* Toggle de modo no modal de lançar (À vista / Parcelado / Recorrente) */
+.pay-mode { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.pay-mode button { padding: 9px; border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--ink-3); background: var(--surface-2); border: 1.5px solid var(--line); cursor: pointer; transition: all .16s var(--ease); }
+.pay-mode button.active { background: var(--brand-50); border-color: var(--brand-300); color: var(--brand-700); }
+[data-theme="dark"] .pay-mode button.active { background: rgba(28,154,112,.14); color: var(--brand-300); }
+.pay-mode button.is-disabled, .pay-mode button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Dica abaixo do toggle / das parcelas (Nx de R$ Y) */
+.field-hint { font-size: 12px; color: var(--ink-3); margin-top: 7px; display: block; }
