@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DependentController;
+use App\Http\Controllers\SecurityController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TransactionController;
@@ -26,6 +27,10 @@ Route::middleware('auth')->group(function () {
 
     // Configurações (subabas: Segurança / Conta)
     Route::get('/configuracoes/{tab?}', [SettingsController::class, 'index'])->name('settings');
+
+    // Segurança: encerrar as demais sessões/dispositivos conectados
+    Route::delete('/configuracoes/sessoes', [SecurityController::class, 'destroyOtherSessions'])
+        ->name('settings.sessions.destroy');
 
     // Dependentes (conta-família) — só o titular gerencia
     Route::get('/dependentes', [DependentController::class, 'index'])->name('dependentes');

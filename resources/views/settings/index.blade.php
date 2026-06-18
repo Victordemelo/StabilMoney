@@ -3,7 +3,7 @@
 @section('title', 'Configurações')
 
 @section('content')
-<section class="view">
+<section class="view settings-view">
     <div class="section-head">
         <h2>Configurações</h2>
         <span class="sub">Segurança e conta</span>
@@ -18,11 +18,14 @@
         @endforeach
     </nav>
 
-    <div class="card form-card">
+    {{-- Conteúdo da aba: cada aba decide seus próprios cards (coluna centrada) --}}
+    <div class="settings-body">
         @if ($tab === 'seguranca')
-            @include('profile.partials.update-password-form')
+            @include('settings.partials.security')
         @elseif ($tab === 'conta')
-            @include('profile.partials.delete-user-form')
+            <div class="card">
+                @include('profile.partials.delete-user-form')
+            </div>
         @endif
     </div>
 </section>

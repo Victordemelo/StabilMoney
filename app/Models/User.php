@@ -25,6 +25,7 @@ class User extends Authenticatable
         'phone',
         'avatar_path',
         'password',
+        'password_changed_at',
         'is_admin',
         'account_owner_id',
     ];
@@ -49,6 +50,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'password_changed_at' => 'datetime',
             'is_admin' => 'boolean',
         ];
     }

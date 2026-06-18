@@ -19,6 +19,9 @@ Design) — escopo desta rodada foi **só visual/shell/auth**, sem features fina
   **"Patrimônio total" com dados reais** (saldo, spark 7 dias em SVG server-rendered, variação
   30 dias via `SidebarService` + View Composer), card **Dependentes** (estado vazio → rota
   placeholder), topbar com botão "Lançar", bottom-nav v2, **logo/favicon reais** (`public/assets/`).
+  Em 18/06/2026 entrou também o **fundo animado "falling"** atrás de todo o app pós-login
+  (estrias de luz verdes caindo, CSS puro em `.sm-falling` no `design-system.css`, incluído no
+  `layouts/app.blade.php`, nos dois temas e respeitando `prefers-reduced-motion`).
 - **Auth v2:** login e cadastro em layout split com **vídeo de fundo** (`layouts/auth.blade.php`
   + `auth.css` escopado, sempre claro). Cadastro **sem confirmação de senha** e com **aceite de
   termos obrigatório** (validado no servidor).
@@ -113,7 +116,7 @@ system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 | Banco | **MySQL 8.0** (Docker) | Container `db`; porta **3307 no host → 3306 no container** (db `stabilmoney`, user/password no `.env`). A 3307 no host só serve p/ ferramenta externa (DBeaver/TablePlus); o app fala com `db:3306` pela rede interna, então `DB_PORT=3306` no `.env`. |
 | Runtime | **Docker** (php:8.4-apache) | Container `app`, site em **http://localhost:8001** (porta do host → 80 no container). Host não precisa de PHP. |
 | Frontend | **Blade + design system próprio** | `resources/css/design-system.css` (portado de `design/project/styles.css` v2) + `forms.css` + `auth.css` (telas de auth, escopado sob `.auth`). Tailwind 4 carregado como base utilitária via Vite 7. |
-| JS | **Vanilla** em `resources/js/sm/` | SEM Alpine, SEM frameworks. Módulos: `theme.js`, `shell.js`, `charts.js`, `dashboard.js`, `auth.js`, `categories.js`. |
+| JS | **Vanilla** em `resources/js/sm/` (padrão atual) | Módulos: `theme.js`, `shell.js`, `charts.js`, `dashboard.js`, `auth.js`, `categories.js`. **Frameworks/bibliotecas JS são liberados** quando a feature se beneficiar (decisão do Victor, jun/2026) — escolher a ferramenta certa caso a caso; "vanilla" deixou de ser obrigatório. |
 | Auth | **Laravel Breeze 2.4** (blade) | Login/cadastro no layout split v2 com vídeo (`layouts/auth.blade.php`); demais telas no `layouts/guest.blade.php`. Tudo PT-BR. Hash de senha em **argon2id** (`config/hashing.php`). |
 | i18n | **laravel-lang/common** | `lang/pt_BR` completo (validation, auth, passwords). `APP_LOCALE=pt_BR`; `Carbon::setLocale` no `AppServiceProvider`. |
 | Fontes | Google Fonts | Sora (títulos/números) + Plus Jakarta Sans (corpo) — link nos layouts. |
@@ -126,12 +129,12 @@ system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 ```
 app/
 ├── Http/
-│   ├── Controllers/        # Dashboard, Transaction, Account, Category, Profile + Auth/ (Breeze)
+│   ├── Controllers/        # Dashboard, Transaction, Account, Category, Profile, Settings, Security, Dependent + Auth/ (Breeze)
 │   └── Requests/           # Form Requests com mensagens/attributes PT-BR (Store/Update por recurso)
 ├── Models/                 # User, Account (accessor balance), Category, Transaction
 ├── Policies/               # Account/Category/TransactionPolicy (update+delete = dono); descoberta automática
 ├── Services/               # DashboardService (agregação SQL do dashboard) + SidebarService (card patrimônio)
-├── Support/                # DefaultCategories (categorias padrão; seedFor() idempotente)
+├── Support/                # DefaultCategories (categorias padrão; seedFor() idempotente) + BrowserSessions (sessões ativas via tabela `sessions`, parse de user-agent sem dependência)
 ├── Listeners/              # SeedDefaultCategoriesForNewUser (evento Registered, auto-descoberto)
 └── Providers/              # AppServiceProvider (Carbon::setLocale + View Composer da sidebar)
 
@@ -141,7 +144,7 @@ resources/
 │   ├── design-system.css   # Design system completo portado do protótipo v2 + seção "Extensões"
 │   ├── forms.css           # Formulários, pickers, filtros, paginação, flash de erro, chips de categoria
 │   └── auth.css            # Telas de auth split com vídeo — TUDO escopado sob .auth (sempre claro)
-├── js/sm/                  # theme, shell (popover do perfil), charts, dashboard, auth, categories (drag)
+├── js/sm/                  # theme, shell (popover do perfil), charts, dashboard, auth, categories (drag), security (medidor de força + mostrar/ocultar senha + revelar "encerrar sessões")
 └── views/
     ├── layouts/            # app.blade.php (shell), auth.blade.php (login/cadastro com vídeo), guest.blade.php (demais telas de auth)
     ├── partials/           # sidebar (popover, patrimônio, dependentes), topbar, bottom-nav, flash
@@ -202,7 +205,8 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
 | `/transactions` (resource, sem `show`) | `transactions/*` | Lista com filtros GET (tipo/conta), paginação; form com type-toggle, valor com vírgula, conta, categoria filtrada por tipo. |
 | `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"** no menu/título (versão inicial — modelo ainda é `accounts`). Cards `.cc` com saldo (accessor `balance`), gradiente pela cor; form com icon/color picker. |
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
-| `GET/PATCH/DELETE /configuracoes` (`profile.*`) | `profile/edit` | Perfil, senha e exclusão de conta (modal de confirmação com senha). **Acesso pelo popover do perfil** (sidebar), não mais pelo menu. |
+| `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais: nome, e-mail, telefone, foto (preview antes de salvar). **Acesso pelo popover do perfil** (sidebar). |
+| `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security`) | Subabas-pílula numa coluna centrada (680px). **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), e **2FA "em breve"**. **Conta** = excluir conta (modal). |
 | `/dependentes` (`DependentController`: index/store/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/remove dependentes (modal); só titular acessa (403 p/ dependente). Card "Dependentes" da sidebar escondido p/ dependente. |
 | `/investimentos`, `/metas`, `/faturas` ("Faturas / Despesas") | `coming-soon` | Placeholders "Em breve" com `$title`/`$description`/`$page`. Rotas `relatorios` e `ajuda` foram **removidas** no design v2. |
 | `routes/auth.php` | `auth/*` | Breeze: login, registro, esqueci/redefinir senha, confirmar senha, verificar e-mail. |

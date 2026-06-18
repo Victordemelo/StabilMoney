@@ -284,3 +284,146 @@ a.tx { text-decoration: none; color: inherit; }
 
 /* ----- Empty state: respiro para o botão de ação ----- */
 .empty-state .btn-primary, .empty-state .btn-ghost { margin-top: 10px; }
+
+/* =====================================================================
+   Formulários em card com mais respiro (lançamentos/contas/categorias)
+   ---------------------------------------------------------------------
+   O form de lançamento estava "tudo muito junto": campos colados e sem
+   separação antes do botão. Mais padding, ritmo vertical maior e um
+   divisor antes das ações resolvem — vale para todos os .form-card. */
+.form-card { padding: clamp(18px, 1.4vw + 12px, 26px); }
+.form-card .field { margin-bottom: 20px; }
+.form-card .form-row { gap: 0 16px; }
+.form-card .form-actions {
+  margin-top: 10px; padding-top: 20px; border-top: 1px solid var(--line-2);
+}
+
+/* =====================================================================
+   Configurações › Segurança
+   ---------------------------------------------------------------------
+   Visão geral (e-mail + idade da senha), card de senha com medidor de
+   força, lista de sessões/dispositivos e card 2FA "em breve".
+   ===================================================================== */
+
+/* ----- Visão geral (dois “stat pills”) ----- */
+.sec-overview { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+@media (max-width: 560px) { .sec-overview { grid-template-columns: 1fr; } }
+.sec-ov-item {
+  display: flex; align-items: center; gap: 12px; min-width: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: 14px 16px; box-shadow: var(--shadow-sm);
+}
+.sec-ov-ico {
+  width: 38px; height: 38px; border-radius: 11px; flex: none; display: grid; place-items: center;
+  background: var(--brand-50); color: var(--brand-600);
+}
+[data-theme="dark"] .sec-ov-ico { background: rgba(28,154,112,.14); color: var(--brand-300); }
+.sec-ov-ico svg { width: 19px; height: 19px; stroke-width: 1.9; }
+.sec-ov-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sec-ov-k { font-size: 11px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; }
+.sec-ov-v { font-size: 13.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ----- Cards de segurança ----- */
+.sec-card .card-head { margin-bottom: 8px; }
+.sec-card-desc { font-size: 13px; color: var(--ink-3); line-height: 1.55; margin: 0 0 16px; max-width: 56ch; }
+.sec-form { margin-top: 2px; }
+.sec-actions { display: flex; justify-content: flex-end; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line-2); }
+.sec-ok {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+  background: var(--brand-50); color: var(--brand-700);
+  border: 1px solid var(--brand-100); border-radius: var(--r-sm);
+  padding: 10px 14px; font-size: 13px; font-weight: 600;
+}
+[data-theme="dark"] .sec-ok { background: rgba(28,154,112,.12); color: var(--brand-300); border-color: rgba(28,154,112,.25); }
+.sec-ok svg { width: 17px; height: 17px; flex: none; stroke-width: 2; }
+
+/* ----- Medidor de força da senha (4 segmentos) ----- */
+.pw-strength { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.pw-strength[hidden] { display: none; }
+.pw-bars { display: flex; gap: 4px; flex: 1; }
+.pw-bars span { height: 5px; flex: 1; border-radius: 3px; background: var(--surface-3); transition: background .25s var(--ease); }
+.pw-strength-label { font-size: 12px; font-weight: 600; color: var(--ink-3); white-space: nowrap; min-width: 92px; text-align: right; }
+.pw-strength[data-score="1"] { color: var(--neg); }
+.pw-strength[data-score="2"] { color: var(--warn); }
+.pw-strength[data-score="3"] { color: var(--brand-500); }
+.pw-strength[data-score="4"] { color: var(--pos); }
+.pw-strength[data-score="1"] .pw-bars span:nth-child(-n+1),
+.pw-strength[data-score="2"] .pw-bars span:nth-child(-n+2),
+.pw-strength[data-score="3"] .pw-bars span:nth-child(-n+3),
+.pw-strength[data-score="4"] .pw-bars span:nth-child(-n+4) { background: currentColor; }
+.pw-strength[data-score="1"] .pw-strength-label,
+.pw-strength[data-score="2"] .pw-strength-label,
+.pw-strength[data-score="3"] .pw-strength-label,
+.pw-strength[data-score="4"] .pw-strength-label { color: currentColor; }
+
+/* ----- Sugestões de senha (marcadas ao vivo) ----- */
+.pw-hints { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+.pw-hints[hidden] { display: none; }
+@media (max-width: 460px) { .pw-hints { grid-template-columns: 1fr; } }
+.pw-hints li { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-3); transition: color .2s var(--ease); }
+.pw-hints li::before {
+  content: ""; width: 14px; height: 14px; border-radius: 50%; flex: none;
+  border: 1.5px solid var(--line-2); background: center / 9px no-repeat; transition: all .2s var(--ease);
+}
+.pw-hints li.ok { color: var(--ink-2); }
+.pw-hints li.ok::before {
+  border-color: var(--pos); background-color: var(--pos);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7'/%3E%3C/svg%3E");
+}
+
+/* ----- Confirmação (senhas conferem?) ----- */
+.pw-match { font-size: 12px; font-weight: 500; color: var(--neg); margin-top: 6px; }
+.pw-match[hidden] { display: none; }
+.pw-match.ok { color: var(--pos); }
+
+/* ----- Lista de sessões/dispositivos ----- */
+.sess-list { list-style: none; margin: 0 0 16px; padding: 0; }
+.sess-item { display: flex; align-items: center; gap: 13px; padding: 12px 2px; border-bottom: 1px solid var(--line-2); }
+.sess-item:last-child { border-bottom: none; }
+.sess-ico { width: 40px; height: 40px; border-radius: 12px; flex: none; display: grid; place-items: center; background: var(--surface-3); color: var(--ink-2); }
+.sess-item.is-current .sess-ico { background: var(--brand-50); color: var(--brand-600); }
+[data-theme="dark"] .sess-item.is-current .sess-ico { background: rgba(28,154,112,.14); color: var(--brand-300); }
+.sess-ico svg { width: 20px; height: 20px; stroke-width: 1.8; }
+.sess-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.sess-info strong { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.sess-info span { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sess-badge {
+  flex: none; font-size: 11px; font-weight: 700; letter-spacing: .02em; padding: 3px 10px; border-radius: 999px;
+  color: var(--brand-700); background: var(--brand-50); border: 1px solid var(--brand-100);
+}
+[data-theme="dark"] .sess-badge { color: var(--brand-300); background: rgba(28,154,112,.14); border-color: rgba(28,154,112,.25); }
+
+/* ----- Encerrar outras sessões (revela campo de senha) ----- */
+.sess-logout { border-top: 1px solid var(--line-2); padding-top: 16px; }
+.sess-logout-trigger {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; width: fit-content;
+  height: 40px; padding: 0 16px; border-radius: 12px; list-style: none;
+  background: transparent; border: 1px solid var(--line); color: var(--neg);
+  font-size: 13px; font-weight: 600; transition: all .2s var(--ease);
+}
+.sess-logout-trigger::-webkit-details-marker { display: none; }
+.sess-logout-trigger::marker { content: ""; }
+.sess-logout-trigger:hover { background: #FCEDEA; border-color: var(--neg); }
+[data-theme="dark"] .sess-logout-trigger:hover { background: rgba(229,96,77,.12); }
+.sess-logout-trigger svg { width: 16px; height: 16px; stroke-width: 2; flex: none; }
+.sess-logout[open] .sess-logout-trigger { margin-bottom: 14px; }
+.sess-logout-form { display: flex; flex-direction: column; gap: 12px; max-width: 360px; animation: secReveal .25s var(--ease-out) both; }
+.sess-logout-form p { font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
+.sess-logout-form .field { margin-bottom: 0; }
+.sess-logout-form .btn-danger { align-self: flex-start; }
+@keyframes secReveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* ----- 2FA (em breve) ----- */
+.card-head .chip.chip-soon {
+  background: var(--surface-3); border: 1px solid var(--line); border-radius: 999px;
+  padding: 3px 10px; color: var(--ink-3); font-size: 11.5px;
+}
+.sec-2fa-row {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+  background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 14px;
+}
+.sec-2fa-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sec-2fa-txt strong { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.sec-2fa-txt span { font-size: 12px; color: var(--ink-3); }
+.switch { width: 42px; height: 24px; border-radius: 999px; flex: none; position: relative; background: var(--surface-3); border: 1px solid var(--line); opacity: .7; }
+.switch-dot { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--ink-3); }

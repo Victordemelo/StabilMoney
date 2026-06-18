@@ -21,6 +21,18 @@ export function initShell() {
         }
     }
 
+    // --- Topbar: transparente no topo, ganha fundo ao rolar (o efeito passa por trás) ---
+    if (app) {
+        const scrollEl = document.getElementById('content'); // desktop rola no .content; mobile rola no window
+        const onScroll = () => {
+            const rolou = (scrollEl && scrollEl.scrollTop > 6) || window.scrollY > 6;
+            app.classList.toggle('scrolled', rolou);
+        };
+        if (scrollEl) scrollEl.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll(); // estado inicial (ex.: recarregar já rolado)
+    }
+
     // --- Drawer mobile (hamburger abre, scrim fecha) ---
     const closeDrawer = () => {
         if (sidebar) sidebar.classList.remove('open');

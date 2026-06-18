@@ -192,9 +192,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .topbar {
   display: flex; align-items: center; gap: 16px;
   padding: 18px 28px; flex: none;
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--line-2); position: relative; z-index: 30;
+  background: transparent;
+  border-bottom: 1px solid transparent; position: relative; z-index: 30;
+  transition: background .25s var(--ease), border-color .25s var(--ease);
+}
+/* Topbar transparente no topo → o fundo "falling" passa por trás da saudação;
+   ao rolar (.app.scrolled, alternado no shell.js) ela ganha vidro fosco p/ legibilidade. */
+.app.scrolled .topbar {
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+          backdrop-filter: blur(14px);
+  border-bottom-color: var(--line-2);
 }
 .collapse-btn, .icon-btn {
   width: 42px; height: 42px; border-radius: 13px; flex: none;
@@ -724,11 +732,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .avatar-edit-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .avatar-edit-actions .btn-ghost { cursor: pointer; }
 
-/* Abas em pílulas (mesma linguagem do .seg do dashboard) + conteúdo no .form-card centrado */
+/* ============ Configurações: coluna centrada (header + abas + cards alinhados) ============
+   Antes o título ficava à esquerda e as abas/cards centravam no viewport — tudo
+   desalinhado. Agora a aba inteira mora numa coluna estreita e todos os elementos
+   compartilham a mesma borda esquerda, então nada fica "um em cima do outro". */
+.settings-view { max-width: 680px; margin-inline: auto; }
+
+/* Abas em pílulas (mesma linguagem do .seg do dashboard), alinhadas à esquerda da coluna */
 .settings-tabs {
-  display: inline-flex; gap: 3px; max-width: 100%; overflow-x: auto;
+  display: flex; width: fit-content; max-width: 100%; gap: 3px; overflow-x: auto;
   background: var(--surface-3); border: 1px solid var(--line); border-radius: 12px;
-  padding: 4px; margin: 0 auto 18px;
+  padding: 4px; margin: 0 0 18px;
 }
 .settings-tab {
   flex: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
@@ -738,8 +752,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .settings-tab:hover { color: var(--ink-2); }
 .settings-tab.active { background: var(--surface); color: var(--brand-700); box-shadow: var(--shadow-sm); }
 [data-theme="dark"] .settings-tab.active { color: var(--brand-300); }
-/* a barra de abas acompanha a largura do form-card centrado */
-.settings-tabs { display: flex; width: fit-content; }
+
+/* Corpo da aba: pilha de cards com respiro consistente */
+.settings-body { display: flex; flex-direction: column; gap: 16px; }
 .head-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .head-actions .btn.primary { display: inline-flex; align-items: center; gap: 7px; }
 .head-actions .btn.primary svg { width: 17px; height: 17px; }
@@ -844,8 +859,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .topbar { display: none; }
   .mobile-top {
     display: flex; align-items: center; gap: 12px; padding: 14px 16px;
-    position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--bg) 88%, transparent);
-    backdrop-filter: blur(12px); border-bottom: 1px solid var(--line-2);
+    position: sticky; top: 0; z-index: 30; background: transparent;
+    border-bottom: 1px solid transparent;
+    transition: background .25s var(--ease), border-color .25s var(--ease);
+  }
+  .app.scrolled .mobile-top {
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    border-bottom-color: var(--line-2);
   }
   .mobile-top .brand-mark { width: 30px; height: 30px; }
   .mobile-top .mbrand { font-family: var(--font-head); font-weight: 700; letter-spacing: .1em; font-size: 15px; }
@@ -994,3 +1015,76 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .auth-brand .ab-badge img { width: 30px; height: 30px; display: block; }
 .auth-brand .brand-name b { color: var(--brand-600); }
 [data-theme="dark"] .auth-brand .brand-name b { color: var(--brand-300); }
+
+/* =====================================================================
+   ============ Fundo animado "falling" (shell pós-login) ============
+   Camada decorativa atrás de TODO o app (incluída uma vez em
+   layouts/app.blade.php). .app/.main/.content são transparentes, então
+   o efeito vaza nas margens/brechas; sidebar/topbar/cards são opacos →
+   legibilidade intacta. Funciona nos dois temas via tokens (--brand-* +
+   --bg). A animação só roda em "no-preference" e a regra global de
+   prefers-reduced-motion (acima) já a congela em "reduce".
+   Porte em CSS puro do componente React "falling-pattern" (framer-motion
+   só animava background-position; aqui usamos transform na GPU). ====== */
+.sm-falling {
+  position: fixed;
+  inset: 0;
+  z-index: -1;                 /* atrás do conteúdo em fluxo do .app */
+  pointer-events: none;
+  overflow: hidden;
+  /* máscara: esvazia o centro (onde mora o conteúdo) e mostra nas bordas */
+  -webkit-mask-image: radial-gradient(ellipse 82% 76% at 50% 42%, transparent 22%, rgba(0,0,0,1) 100%);
+          mask-image: radial-gradient(ellipse 82% 76% at 50% 42%, transparent 22%, rgba(0,0,0,1) 100%);
+  /* tokens do efeito — tema claro (o escuro sobrescreve abaixo) */
+  --fall-color: var(--brand-400);
+  --fall-op: .46;
+  --fall-blur: .6px;
+  --fall-bright: 1;
+  --fall-mesh-op: .36;
+}
+[data-theme="dark"] .sm-falling {
+  --fall-color: var(--brand-300);
+  --fall-op: .58;
+  --fall-blur: .7px;
+  --fall-bright: 1.55;         /* eco do dark:brightness do original — as estrias "brilham" */
+  --fall-mesh-op: .44;
+}
+
+/* Estrias de luz caindo — ladrilho de 320×560 que repete; o translate de
+   exatamente 1 ladrilho faz o loop emendar sem corte. */
+.sm-falling::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 250vh;               /* alto o bastante p/ o translate nunca revelar borda */
+  background-image:
+    radial-gradient(2px 110px at 30px 80px,    var(--fall-color), transparent),
+    radial-gradient(2px 70px  at 95px 300px,   var(--fall-color), transparent),
+    radial-gradient(2px 150px at 150px 180px,  var(--fall-color), transparent),
+    radial-gradient(2px 90px  at 205px 440px,  var(--fall-color), transparent),
+    radial-gradient(2px 120px at 262px 110px,  var(--fall-color), transparent),
+    radial-gradient(2px 80px  at 305px 360px,  var(--fall-color), transparent),
+    radial-gradient(1.6px 1.6px at 70px 200px,  var(--fall-color), transparent),
+    radial-gradient(1.6px 1.6px at 180px 480px, var(--fall-color), transparent),
+    radial-gradient(1.6px 1.6px at 250px 60px,  var(--fall-color), transparent);
+  background-size: 320px 560px;
+  background-repeat: repeat;
+  opacity: var(--fall-op);
+  filter: blur(var(--fall-blur)) brightness(var(--fall-bright));
+  will-change: transform;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sm-falling::before { animation: sm-fall 14s linear infinite; }
+}
+@keyframes sm-fall {
+  to { transform: translateY(-560px); }   /* 1 ladrilho exato → loop sem emenda */
+}
+
+/* Malha de pontos (textura "tela", estática) por cima das estrias */
+.sm-falling::after {
+  content: "";
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle at 50% 50%, transparent 0, transparent 1.6px, var(--bg) 1.7px);
+  background-size: 9px 9px;
+  opacity: var(--fall-mesh-op);
+}

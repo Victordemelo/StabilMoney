@@ -29,6 +29,9 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body>
+{{-- Fundo animado "falling" — camada decorativa atrás de TODO o app (z-index:-1). Ver design-system.css. --}}
+<div class="sm-falling" aria-hidden="true"></div>
+
 <div class="app" id="app">
 
     @include('partials.sidebar')
