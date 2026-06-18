@@ -14,6 +14,8 @@
 /auth.json
 /memory
 /node_modules
+/playwright-report
+/test-results
 /public/build
 /public/hot
 /public/storage
