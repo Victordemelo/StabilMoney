@@ -65,11 +65,44 @@ class TransactionController extends Controller
     public function store(StoreTransactionRequest $request)
     {
         $data = $request->validated();
-        $data['user_id'] = $request->user()->ownerId();
+        $ownerId = $request->user()->ownerId();
+        $data['user_id'] = $ownerId;
         // Autor do lançamento: o informado no form, ou o usuário atual por padrão.
         $data['made_by_user_id'] = $data['made_by_user_id'] ?? $request->user()->id;
 
-        Transaction::create($data);
+        // Idempotência: o replay da fila offline pode reenviar o mesmo lançamento.
+        // Se já existe um com este client_uuid na família, devolve o existente
+        // em vez de duplicar.
+        $clientUuid = $data['client_uuid'] ?? null;
+        if ($clientUuid) {
+            $existing = Transaction::where('user_id', $ownerId)
+                ->where('client_uuid', $clientUuid)
+                ->first();
+
+            if ($existing) {
+                return $this->storeResponse($request, $existing, created: false);
+            }
+        }
+
+        $transaction = Transaction::create($data);
+
+        return $this->storeResponse($request, $transaction, created: true);
+    }
+
+    /**
+     * Resposta do store conforme o cliente: JSON para o replay da fila offline
+     * (Accept: application/json) — 201 criado, 200 se já existia (dedupe) —, e
+     * redirect com flash para o formulário web normal.
+     */
+    private function storeResponse(Request $request, Transaction $transaction, bool $created)
+    {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'id' => $transaction->id,
+                'client_uuid' => $transaction->client_uuid,
+                'created' => $created,
+            ], $created ? 201 : 200);
+        }
 
         return redirect()->route('transactions.index')
             ->with('status', 'Transação registrada com sucesso.');

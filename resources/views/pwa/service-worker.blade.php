@@ -10,7 +10,7 @@
  *  - NUNCA guarda HTML autenticado (saldo sempre fresco; sem dado de um usuário
  *    em cache para outro ver).
  */
-const CACHE = 'sm-cache-v1';
+const CACHE = 'sm-cache-v2';
 
 // Precache mínimo: tudo público, sem dado do usuário.
 const PRECACHE = [
@@ -67,9 +67,26 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navegações (páginas): network-first. Sem rede → página /offline da marca.
-  // Não cacheia a resposta (HTML pode ser autenticado).
+  // Navegações (páginas): network-first.
   if (req.mode === 'navigate') {
+    // Exceção controlada: o formulário de novo lançamento é cacheado para abrir
+    // offline (é o ÚNICO HTML autenticado que guardamos; a página o apaga do
+    // cache no logout). Online sempre busca o fresco; offline serve o cacheado.
+    if (url.pathname === '/transactions/create') {
+      event.respondWith(
+        fetch(req)
+          .then((res) => {
+            const copy = res.clone();
+            caches.open(CACHE).then((cache) => cache.put('/transactions/create', copy));
+            return res;
+          })
+          .catch(() => caches.match('/transactions/create').then((hit) => hit || caches.match('/offline')))
+      );
+      return;
+    }
+
+    // Demais páginas: sem rede → página /offline da marca. Nunca cacheia HTML
+    // autenticado (saldo sempre fresco; sem dado de um usuário para outro ver).
     event.respondWith(
       fetch(req).catch(() => caches.match('/offline'))
     );

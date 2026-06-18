@@ -20,7 +20,7 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ $editando ? route('transactions.update', $transaction) : route('transactions.store') }}" data-type="{{ $tipoAtual }}">
+        <form method="POST" action="{{ $editando ? route('transactions.update', $transaction) : route('transactions.store') }}" data-type="{{ $tipoAtual }}" @if (! $editando) data-offline-queue @endif>
             @csrf
             @if ($editando)
                 @method('PUT')

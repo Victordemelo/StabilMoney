@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
+    {{-- Id do usuário logado: a fila offline marca cada lançamento pendente com
+         ele e só sincroniza os do usuário atual (aparelho compartilhado). --}}
+    <meta name="sm-user" content="{{ auth()->id() }}" />
     <meta name="theme-color" content="#0C3D2B" />
 
     <title>StabilMoney</title>

@@ -42,6 +42,8 @@ class StoreTransactionRequest extends FormRequest
         $userId = $this->user()->ownerId();
 
         return [
+            // Idempotência da fila offline: gerado no cliente, opcional (web normal não usa).
+            'client_uuid' => ['nullable', 'uuid'],
             'type' => ['required', 'in:income,expense'],
             'amount' => ['required', 'numeric', 'min:0.01', 'max:9999999999999.99'],
             'account_id' => [
