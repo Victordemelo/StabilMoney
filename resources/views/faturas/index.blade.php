@@ -223,7 +223,9 @@
 </section>
 
 {{-- ============================ MODAL: LANÇAR DESPESA ============================ --}}
-<div class="modal-scrim" id="lancarModal" data-lancar-modal data-reopen="{{ $errors->any() ? '1' : '' }}">
+{{-- Único form que valida nesta tela é o de lançar despesa → o bag padrão já o identifica. --}}
+@php $reabreLancar = $errors->any(); @endphp
+<div class="modal-scrim" id="lancarModal" data-lancar-modal data-reopen="{{ $reabreLancar ? '1' : '' }}">
     <div class="modal modal-lg">
         <div class="modal-head">
             <span class="modal-ico ico-out" id="lancarIco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7 17 17M17 17h-7M17 17v-7"/></svg></span>
@@ -239,11 +241,17 @@
         <form method="POST" action="{{ route('faturas.lancar') }}" id="lancarForm">
             @csrf
             <div class="modal-body">
+                @if ($reabreLancar)
+                    <div class="flash-error" role="alert">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                        <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
+                    </div>
+                @endif
                 {{-- Descrição --}}
                 <div class="field">
                     <label for="lanc-desc">Descrição</label>
                     <input class="input" type="text" id="lanc-desc" name="description"
-                           value="{{ old('description') }}" placeholder="Ex.: Supermercado, passagem aérea…" required>
+                           value="{{ $reabreLancar ? old('description') : '' }}" placeholder="Ex.: Supermercado, passagem aérea…" required>
                 </div>
 
                 <div class="field-row">
@@ -251,13 +259,13 @@
                     <div class="field">
                         <label for="lanc-valor">Valor</label>
                         <input class="input" type="text" id="lanc-valor" name="amount" inputmode="decimal"
-                               value="{{ old('amount') }}" placeholder="R$ 0,00" required>
+                               value="{{ $reabreLancar ? old('amount') : '' }}" placeholder="R$ 0,00" required>
                     </div>
                     {{-- Data --}}
                     <div class="field">
                         <label for="lanc-data">Data</label>
                         <input class="input" type="date" id="lanc-data" name="date"
-                               value="{{ old('date', now()->format('Y-m-d')) }}" required>
+                               value="{{ $reabreLancar ? old('date', now()->format('Y-m-d')) : now()->format('Y-m-d') }}" required>
                     </div>
                 </div>
 
@@ -268,7 +276,7 @@
                         @foreach ($accounts as $account)
                             <option value="{{ $account->id }}"
                                     data-card="{{ $account->isCard() ? '1' : '0' }}"
-                                    @selected((int) old('account_id') === $account->id)>
+                                    @selected($reabreLancar && (int) old('account_id') === $account->id)>
                                 {{ $account->icon ? $account->icon . '  ' : '' }}{{ $account->name }}
                             </option>
                         @endforeach
@@ -281,7 +289,7 @@
                     <select class="input" id="lanc-cat" name="category_id">
                         <option value="">Sem categoria</option>
                         @foreach ($categories as $categoria)
-                            <option value="{{ $categoria->id }}" @selected((int) old('category_id') === $categoria->id)>
+                            <option value="{{ $categoria->id }}" @selected($reabreLancar && (int) old('category_id') === $categoria->id)>
                                 {{ $categoria->icon ? $categoria->icon . '  ' : '' }}{{ $categoria->name }}
                             </option>
                         @endforeach

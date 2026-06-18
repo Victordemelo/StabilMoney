@@ -5,11 +5,13 @@
 // idempotente (dedupe por client_uuid), então um replay repetido não duplica.
 //
 // Decisões de segurança/robustez (ver spec):
-//  - Replay é DIRIGIDO PELA PÁGINA (não pelo service worker) para usar o token
-//    CSRF fresco do <meta>. O CSRF continua ligado, sem endpoint isento.
-//  - Cada item é marcado com o id do usuário (meta sm-user); só sincronizamos
-//    itens do usuário logado — num aparelho compartilhado, ninguém reenvia
-//    lançamento de outro.
+//  - Dois caminhos de reenvio: (1) DIRIGIDO PELA PÁGINA (token CSRF fresco do
+//    <meta>; fallback universal) e (2) BACKGROUND SYNC no service worker, que
+//    reenvia MESMO com o app fechado (Chromium/Android) usando o token CSRF
+//    guardado com o item. O CSRF continua ligado, sem endpoint isento.
+//  - O token CSRF guardado também é a trava por usuário: item de um usuário só
+//    "passa" na sessão dele (token de outra sessão → 419), então num aparelho
+//    compartilhado ninguém reenvia lançamento de outro.
 //  - Só a CRIAÇÃO entra na fila (form com data-offline-queue), nunca edição.
 
 const DB_NAME = 'sm-offline';
@@ -193,10 +195,12 @@ function attachForm(form) {
         queueAdd({
             client_uuid: payload.client_uuid,
             userId: meta('sm-user'),
+            csrf: meta('csrf-token'), // token p/ o service worker reenviar em background
             payload,
             createdAt: Date.now(),
         }).then(() => {
-            showToast('Sem conexão — lançamento salvo e será enviado quando você voltar a ficar online.');
+            requestBackgroundSync(); // acorda o SW p/ reenviar quando a net voltar
+            showToast('Sem conexão — lançamento salvo; envio sozinho quando a internet voltar.');
             form.reset();
             refreshBadge();
         }).catch(() => {

@@ -228,8 +228,9 @@
 {{-- ============================ MODAIS ============================ --}}
 
 {{-- Modal: Novo investimento (criar) — com preview de rentabilidade líquida/12m via JS --}}
+@php $reabreCreate = $errors->any() && old('_form') === 'create'; @endphp
 <div class="modal-scrim" id="invCreateModal" data-inv-modal
-     data-reopen="{{ $errors->any() && old('_form') === 'create' ? '1' : '' }}"
+     data-reopen="{{ $reabreCreate ? '1' : '' }}"
      data-idx-base='@json($idxBase)'>
     <div class="modal modal-lg">
         <div class="modal-head">
@@ -247,9 +248,15 @@
             @csrf
             <input type="hidden" name="_form" value="create">
             <div class="modal-body">
+                @if ($reabreCreate)
+                    <div class="flash-error" role="alert">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                        <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
+                    </div>
+                @endif
                 <div class="field">
                     <label for="inv-c-name">Nome do ativo</label>
-                    <input class="input" type="text" id="inv-c-name" name="name" value="{{ old('_form') === 'create' ? old('name') : '' }}" placeholder="Ex.: CDB Banco XP" required>
+                    <input class="input" type="text" id="inv-c-name" name="name" value="{{ $reabreCreate ? old('name') : '' }}" placeholder="Ex.: CDB Banco XP" required>
                 </div>
 
                 <div class="field-row">
@@ -257,7 +264,7 @@
                         <label for="inv-c-classe">Classe</label>
                         <select class="input" id="inv-c-classe" name="classe" required>
                             @foreach ($classeLabels as $val => $label)
-                                <option value="{{ $val }}" @selected((old('_form') === 'create' ? old('classe') : 'renda_fixa') === $val)>{{ $label }}</option>
+                                <option value="{{ $val }}" @selected(($reabreCreate ? old('classe') : 'renda_fixa') === $val)>{{ $label }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -266,7 +273,7 @@
                         <select class="input" id="inv-c-indexador" name="indexador" data-inv-idx>
                             <option value="">Não indexado</option>
                             @foreach ($indexadores as $idx)
-                                <option value="{{ $idx }}" @selected((old('_form') === 'create' ? old('indexador') : '') === $idx)>{{ $idx }}</option>
+                                <option value="{{ $idx }}" @selected(($reabreCreate ? old('indexador') : '') === $idx)>{{ $idx }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -275,11 +282,11 @@
                 <div class="field-row">
                     <div class="field">
                         <label for="inv-c-taxa" data-inv-taxa-label>Taxa <span class="hint">(opcional)</span></label>
-                        <input class="input" type="text" id="inv-c-taxa" name="taxa" inputmode="decimal" data-inv-taxa value="{{ old('_form') === 'create' ? old('taxa') : '' }}" placeholder="110">
+                        <input class="input" type="text" id="inv-c-taxa" name="taxa" inputmode="decimal" data-inv-taxa value="{{ $reabreCreate ? old('taxa') : '' }}" placeholder="110">
                     </div>
                     <div class="field">
                         <label for="inv-c-valor">Valor aplicado <span class="hint">(opcional)</span></label>
-                        <input class="input" type="text" id="inv-c-valor" name="valor_inicial" inputmode="decimal" data-inv-valor value="{{ old('_form') === 'create' ? old('valor_inicial') : '' }}" placeholder="R$ 1.000,00">
+                        <input class="input" type="text" id="inv-c-valor" name="valor_inicial" inputmode="decimal" data-inv-valor value="{{ $reabreCreate ? old('valor_inicial') : '' }}" placeholder="R$ 1.000,00">
                     </div>
                 </div>
 
@@ -289,7 +296,7 @@
                     <select class="input" id="inv-c-account" name="account_id">
                         <option value="">Sem aporte inicial</option>
                         @foreach ($accounts as $account)
-                            <option value="{{ $account->id }}" @selected((int) old('account_id') === $account->id)>
+                            <option value="{{ $account->id }}" @selected($reabreCreate && (int) old('account_id') === $account->id)>
                                 {{ $account->icon ? $account->icon . '  ' : '' }}{{ $account->name }} · {{ $brl($account->available) }}
                             </option>
                         @endforeach
@@ -301,7 +308,7 @@
                         <label for="inv-c-who">Quem investiu</label>
                         <select class="input" id="inv-c-who" name="made_by_user_id">
                             @foreach ($familyMembers as $member)
-                                <option value="{{ $member->id }}" @selected((int) old('made_by_user_id') === $member->id)>
+                                <option value="{{ $member->id }}" @selected($reabreCreate && (int) old('made_by_user_id') === $member->id)>
                                     {{ $member->name }}{{ $member->isTitular() ? ' (Titular)' : '' }}
                                 </option>
                             @endforeach
@@ -311,7 +318,7 @@
 
                 <div class="field">
                     <label for="inv-c-date">Data <span class="hint">(opcional)</span></label>
-                    <input class="input" type="date" id="inv-c-date" name="date" value="{{ old('_form') === 'create' ? old('date') : '' }}">
+                    <input class="input" type="date" id="inv-c-date" name="date" value="{{ $reabreCreate ? old('date') : '' }}">
                 </div>
 
                 {{-- Preview de rentabilidade (recalculada em JS conforme indexador/taxa/valor) --}}
@@ -351,6 +358,12 @@
                 @method('PATCH')
                 <input type="hidden" name="_form" value="edit-{{ $inv->id }}">
                 <div class="modal-body">
+                    @if ($reabreEdit)
+                        <div class="flash-error" role="alert">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                            <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
+                        </div>
+                    @endif
                     <div class="field">
                         <label for="inv-e-name-{{ $inv->id }}">Nome do ativo</label>
                         <input class="input" type="text" id="inv-e-name-{{ $inv->id }}" name="name"
@@ -420,9 +433,10 @@
 
 {{-- Modal: Aportar (compartilhado — action e dados preenchidos pelo investimentos.js).
      data-action-base traz a URL com placeholder __ID__ que o JS troca pelo id do ativo. --}}
+@php $reabreAporte = $errors->any() && str_contains((string) old('_action'), '/aportes'); @endphp
 <div class="modal-scrim" id="invAporteModal" data-inv-modal
      data-action-base="{{ route('investimentos.aportes.store', '__ID__') }}"
-     data-reopen="{{ $errors->aporte->isNotEmpty() ? '1' : '' }}"
+     data-reopen="{{ $reabreAporte ? '1' : '' }}"
      data-reopen-action="{{ old('_action') }}">
     <div class="modal">
         <div class="modal-head">
@@ -440,6 +454,12 @@
             @csrf
             <input type="hidden" name="_action" value="" data-action-field>
             <div class="modal-body">
+                @if ($reabreAporte)
+                    <div class="flash-error" role="alert">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                        <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
+                    </div>
+                @endif
                 <div class="inv-preview">
                     <div class="ivp-row"><span>Posição atual</span><b data-aporte-aplicado>—</b></div>
                 </div>
@@ -447,14 +467,14 @@
                 <div class="field">
                     <label for="inv-aporte-amount">Valor do aporte</label>
                     <input class="input" type="text" id="inv-aporte-amount" name="amount" inputmode="decimal"
-                           value="{{ $errors->aporte->isNotEmpty() ? old('amount') : '' }}" placeholder="R$ 500,00" required>
+                           value="{{ $reabreAporte ? old('amount') : '' }}" placeholder="R$ 500,00" required>
                 </div>
 
                 <div class="field">
                     <label for="inv-aporte-account">Conta de origem</label>
                     <select class="input" id="inv-aporte-account" name="account_id" required>
                         @foreach ($accounts as $account)
-                            <option value="{{ $account->id }}" @selected((int) old('account_id') === $account->id)>
+                            <option value="{{ $account->id }}" @selected($reabreAporte && (int) old('account_id') === $account->id)>
                                 {{ $account->icon ? $account->icon . '  ' : '' }}{{ $account->name }} · {{ $brl($account->available) }}
                             </option>
                         @endforeach
@@ -466,7 +486,7 @@
                         <label for="inv-aporte-who">Quem aportou</label>
                         <select class="input" id="inv-aporte-who" name="made_by_user_id">
                             @foreach ($familyMembers as $member)
-                                <option value="{{ $member->id }}" @selected((int) old('made_by_user_id') === $member->id)>
+                                <option value="{{ $member->id }}" @selected($reabreAporte && (int) old('made_by_user_id') === $member->id)>
                                     {{ $member->name }}{{ $member->isTitular() ? ' (Titular)' : '' }}
                                 </option>
                             @endforeach
@@ -476,7 +496,7 @@
 
                 <div class="field">
                     <label for="inv-aporte-date">Data <span class="hint">(opcional)</span></label>
-                    <input class="input" type="date" id="inv-aporte-date" name="date" value="{{ old('date') }}">
+                    <input class="input" type="date" id="inv-aporte-date" name="date" value="{{ $reabreAporte ? old('date') : '' }}">
                 </div>
             </div>
             <div class="modal-foot">
@@ -488,9 +508,10 @@
 </div>
 
 {{-- Modal: Resgatar (compartilhado — action e dados preenchidos pelo investimentos.js) --}}
+@php $reabreResgate = $errors->any() && str_contains((string) old('_action'), '/resgates'); @endphp
 <div class="modal-scrim" id="invResgateModal" data-inv-modal
      data-action-base="{{ route('investimentos.resgates.store', '__ID__') }}"
-     data-reopen="{{ $errors->resgate->isNotEmpty() ? '1' : '' }}"
+     data-reopen="{{ $reabreResgate ? '1' : '' }}"
      data-reopen-action="{{ old('_action') }}">
     <div class="modal">
         <div class="modal-head">
@@ -508,6 +529,12 @@
             @csrf
             <input type="hidden" name="_action" value="" data-action-field>
             <div class="modal-body">
+                @if ($reabreResgate)
+                    <div class="flash-error" role="alert">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                        <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
+                    </div>
+                @endif
                 <div class="inv-preview">
                     <div class="ivp-row"><span>Posição atual</span><b data-resgate-aplicado>—</b></div>
                 </div>
@@ -515,14 +542,14 @@
                 <div class="field">
                     <label for="inv-resgate-amount">Valor</label>
                     <input class="input" type="text" id="inv-resgate-amount" name="amount" inputmode="decimal"
-                           value="{{ $errors->resgate->isNotEmpty() ? old('amount') : '' }}" placeholder="R$ 200,00" required>
+                           value="{{ $reabreResgate ? old('amount') : '' }}" placeholder="R$ 200,00" required>
                 </div>
 
                 <div class="field">
                     <label for="inv-resgate-account">Conta de destino</label>
                     <select class="input" id="inv-resgate-account" name="account_id" required>
                         @foreach ($accounts as $account)
-                            <option value="{{ $account->id }}" @selected((int) old('account_id') === $account->id)>
+                            <option value="{{ $account->id }}" @selected($reabreResgate && (int) old('account_id') === $account->id)>
                                 {{ $account->icon ? $account->icon . '  ' : '' }}{{ $account->name }}
                             </option>
                         @endforeach
@@ -534,7 +561,7 @@
                         <label for="inv-resgate-who">Quem resgatou <span class="hint">(opcional)</span></label>
                         <select class="input" id="inv-resgate-who" name="made_by_user_id">
                             @foreach ($familyMembers as $member)
-                                <option value="{{ $member->id }}" @selected((int) old('made_by_user_id') === $member->id)>
+                                <option value="{{ $member->id }}" @selected($reabreResgate && (int) old('made_by_user_id') === $member->id)>
                                     {{ $member->name }}{{ $member->isTitular() ? ' (Titular)' : '' }}
                                 </option>
                             @endforeach
@@ -544,7 +571,7 @@
 
                 <div class="field">
                     <label for="inv-resgate-date">Data <span class="hint">(opcional)</span></label>
-                    <input class="input" type="date" id="inv-resgate-date" name="date" value="{{ old('date') }}">
+                    <input class="input" type="date" id="inv-resgate-date" name="date" value="{{ $reabreResgate ? old('date') : '' }}">
                 </div>
             </div>
             <div class="modal-foot">

@@ -163,7 +163,8 @@
 {{-- ============================ MODAIS ============================ --}}
 
 {{-- Modal: Nova meta (criar) --}}
-<div class="modal-scrim" id="metaCreateModal" data-meta-modal data-reopen="{{ $errors->meta->isNotEmpty() && old('_form') === 'create' ? '1' : '' }}">
+@php $reabreCreate = $errors->any() && old('_form') === 'create'; @endphp
+<div class="modal-scrim" id="metaCreateModal" data-meta-modal data-reopen="{{ $reabreCreate ? '1' : '' }}">
     <div class="modal modal-lg">
         <div class="modal-head">
             <span class="modal-ico ico-in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></svg></span>
@@ -180,18 +181,24 @@
             @csrf
             <input type="hidden" name="_form" value="create">
             <div class="modal-body">
+                @if ($reabreCreate)
+                    <div class="flash-error" role="alert">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                        <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
+                    </div>
+                @endif
                 <div class="field">
                     <label for="meta-c-name">Nome da meta</label>
-                    <input class="input" type="text" id="meta-c-name" name="name" value="{{ old('_form') === 'create' ? old('name') : '' }}" placeholder="Ex.: Viagem para a Europa" required>
+                    <input class="input" type="text" id="meta-c-name" name="name" value="{{ $reabreCreate ? old('name') : '' }}" placeholder="Ex.: Viagem para a Europa" required>
                 </div>
                 <div class="field-row">
                     <div class="field">
                         <label for="meta-c-target">Valor alvo</label>
-                        <input class="input" type="text" id="meta-c-target" name="target_amount" inputmode="decimal" value="{{ old('_form') === 'create' ? old('target_amount') : '' }}" placeholder="R$ 15.000,00" required>
+                        <input class="input" type="text" id="meta-c-target" name="target_amount" inputmode="decimal" value="{{ $reabreCreate ? old('target_amount') : '' }}" placeholder="R$ 15.000,00" required>
                     </div>
                     <div class="field">
                         <label for="meta-c-date">Prazo <span class="hint">(opcional)</span></label>
-                        <input class="input" type="month" id="meta-c-date" name="target_date" value="{{ old('_form') === 'create' ? old('target_date') : '' }}">
+                        <input class="input" type="month" id="meta-c-date" name="target_date" value="{{ $reabreCreate ? old('target_date') : '' }}">
                     </div>
                 </div>
 
@@ -201,7 +208,7 @@
                     <div class="icon-picker meta-emoji-picker">
                         @foreach ($metaEmojis as $i => $em)
                             <input type="radio" name="emoji" id="meta-c-emoji-{{ $i }}" value="{{ $em }}"
-                                   @checked((old('_form') === 'create' ? old('emoji') : null) === $em || ((old('_form') !== 'create' || !old('emoji')) && $i === 0))>
+                                   @checked(($reabreCreate ? old('emoji') : null) === $em || ((!$reabreCreate || !old('emoji')) && $i === 0))>
                             <label for="meta-c-emoji-{{ $i }}">{{ $em }}</label>
                         @endforeach
                     </div>
@@ -213,7 +220,7 @@
                     <div class="color-picker">
                         @foreach ($metaCores as $i => $cor)
                             <input type="radio" name="color" id="meta-c-color-{{ $i }}" value="{{ $cor }}"
-                                   @checked((old('_form') === 'create' ? old('color') : null) === $cor || ((old('_form') !== 'create' || !old('color')) && $i === 0))>
+                                   @checked(($reabreCreate ? old('color') : null) === $cor || ((!$reabreCreate || !old('color')) && $i === 0))>
                             <label for="meta-c-color-{{ $i }}" style="background:{{ $cor }}"></label>
                         @endforeach
                     </div>
@@ -232,7 +239,7 @@
     @php
         $gCor   = $goal->color ?: '#1FA06E';
         $gEmoji = $goal->emoji ?: '🎯';
-        $reabreEdit = $errors->meta->isNotEmpty() && old('_form') === 'edit-' . $goal->id;
+        $reabreEdit = $errors->any() && old('_form') === 'edit-' . $goal->id;
     @endphp
     <div class="modal-scrim" id="metaEditModal-{{ $goal->id }}" data-meta-modal data-reopen="{{ $reabreEdit ? '1' : '' }}">
         <div class="modal modal-lg">
@@ -252,6 +259,12 @@
                 @method('PATCH')
                 <input type="hidden" name="_form" value="edit-{{ $goal->id }}">
                 <div class="modal-body">
+                    @if ($reabreEdit)
+                        <div class="flash-error" role="alert">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                            <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
+                        </div>
+                    @endif
                     <div class="field">
                         <label for="meta-e-name-{{ $goal->id }}">Nome da meta</label>
                         <input class="input" type="text" id="meta-e-name-{{ $goal->id }}" name="name"
@@ -340,9 +353,10 @@
 
 {{-- Modal: Aportar (compartilhado — action e dados preenchidos pelo metas.js).
      data-action-base traz a URL com placeholder __ID__ que o JS troca pelo id da meta. --}}
+@php $reabreAporte = $errors->any() && str_contains((string) old('_action'), '/aportes'); @endphp
 <div class="modal-scrim" id="metaAporteModal" data-meta-modal
      data-action-base="{{ route('metas.aportes.store', '__ID__') }}"
-     data-reopen="{{ $errors->aporte->isNotEmpty() ? '1' : '' }}"
+     data-reopen="{{ $reabreAporte ? '1' : '' }}"
      data-reopen-action="{{ old('_action') }}">
     <div class="modal">
         <div class="modal-head">
@@ -361,6 +375,12 @@
             {{-- _action: ajuda a reabrir o modal com a URL certa após erro de validação --}}
             <input type="hidden" name="_action" value="" data-action-field>
             <div class="modal-body">
+                @if ($reabreAporte)
+                    <div class="flash-error" role="alert">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                        <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
+                    </div>
+                @endif
                 {{-- Resumo guardado / faltam (preenchido via data-* no clique) --}}
                 <div class="inv-preview">
                     <div class="ivp-row"><span>Guardado</span><b data-aporte-saved>—</b></div>
@@ -370,14 +390,14 @@
                 <div class="field">
                     <label for="meta-aporte-amount">Valor</label>
                     <input class="input" type="text" id="meta-aporte-amount" name="amount" inputmode="decimal"
-                           value="{{ $errors->aporte->isNotEmpty() ? old('amount') : '' }}" placeholder="R$ 500,00" required>
+                           value="{{ $reabreAporte ? old('amount') : '' }}" placeholder="R$ 500,00" required>
                 </div>
 
                 <div class="field">
                     <label for="meta-aporte-account">Conta de origem</label>
                     <select class="input" id="meta-aporte-account" name="account_id" required>
                         @foreach ($accounts as $account)
-                            <option value="{{ $account->id }}" @selected((int) old('account_id') === $account->id)>
+                            <option value="{{ $account->id }}" @selected($reabreAporte && (int) old('account_id') === $account->id)>
                                 {{ $account->icon ? $account->icon . '  ' : '' }}{{ $account->name }} · {{ $brl($account->available) }}
                             </option>
                         @endforeach
@@ -389,7 +409,7 @@
                         <label for="meta-aporte-who">Quem aportou</label>
                         <select class="input" id="meta-aporte-who" name="made_by_user_id">
                             @foreach ($familyMembers as $member)
-                                <option value="{{ $member->id }}" @selected((int) old('made_by_user_id') === $member->id)>
+                                <option value="{{ $member->id }}" @selected($reabreAporte && (int) old('made_by_user_id') === $member->id)>
                                     {{ $member->name }}{{ $member->isTitular() ? ' (Titular)' : '' }}
                                 </option>
                             @endforeach
@@ -399,7 +419,7 @@
 
                 <div class="field">
                     <label for="meta-aporte-date">Data <span class="hint">(opcional)</span></label>
-                    <input class="input" type="date" id="meta-aporte-date" name="date" value="{{ old('date') }}">
+                    <input class="input" type="date" id="meta-aporte-date" name="date" value="{{ $reabreAporte ? old('date') : '' }}">
                 </div>
             </div>
             <div class="modal-foot">
@@ -411,9 +431,10 @@
 </div>
 
 {{-- Modal: Resgatar (compartilhado — action e dados preenchidos pelo metas.js) --}}
+@php $reabreResgate = $errors->any() && str_contains((string) old('_action'), '/resgates'); @endphp
 <div class="modal-scrim" id="metaResgateModal" data-meta-modal
      data-action-base="{{ route('metas.resgates.store', '__ID__') }}"
-     data-reopen="{{ $errors->resgate->isNotEmpty() ? '1' : '' }}"
+     data-reopen="{{ $reabreResgate ? '1' : '' }}"
      data-reopen-action="{{ old('_action') }}">
     <div class="modal">
         <div class="modal-head">
@@ -431,6 +452,12 @@
             @csrf
             <input type="hidden" name="_action" value="" data-action-field>
             <div class="modal-body">
+                @if ($reabreResgate)
+                    <div class="flash-error" role="alert">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                        <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
+                    </div>
+                @endif
                 <div class="inv-preview">
                     <div class="ivp-row"><span>Guardado</span><b data-resgate-saved>—</b></div>
                 </div>
@@ -438,14 +465,14 @@
                 <div class="field">
                     <label for="meta-resgate-amount">Valor</label>
                     <input class="input" type="text" id="meta-resgate-amount" name="amount" inputmode="decimal"
-                           value="{{ $errors->resgate->isNotEmpty() ? old('amount') : '' }}" placeholder="R$ 200,00" required>
+                           value="{{ $reabreResgate ? old('amount') : '' }}" placeholder="R$ 200,00" required>
                 </div>
 
                 <div class="field">
                     <label for="meta-resgate-account">Conta de destino</label>
                     <select class="input" id="meta-resgate-account" name="account_id" required>
                         @foreach ($accounts as $account)
-                            <option value="{{ $account->id }}" @selected((int) old('account_id') === $account->id)>
+                            <option value="{{ $account->id }}" @selected($reabreResgate && (int) old('account_id') === $account->id)>
                                 {{ $account->icon ? $account->icon . '  ' : '' }}{{ $account->name }}
                             </option>
                         @endforeach
@@ -457,7 +484,7 @@
                         <label for="meta-resgate-who">Quem resgatou <span class="hint">(opcional)</span></label>
                         <select class="input" id="meta-resgate-who" name="made_by_user_id">
                             @foreach ($familyMembers as $member)
-                                <option value="{{ $member->id }}" @selected((int) old('made_by_user_id') === $member->id)>
+                                <option value="{{ $member->id }}" @selected($reabreResgate && (int) old('made_by_user_id') === $member->id)>
                                     {{ $member->name }}{{ $member->isTitular() ? ' (Titular)' : '' }}
                                 </option>
                             @endforeach
@@ -467,7 +494,7 @@
 
                 <div class="field">
                     <label for="meta-resgate-date">Data <span class="hint">(opcional)</span></label>
-                    <input class="input" type="date" id="meta-resgate-date" name="date" value="{{ old('date') }}">
+                    <input class="input" type="date" id="meta-resgate-date" name="date" value="{{ $reabreResgate ? old('date') : '' }}">
                 </div>
             </div>
             <div class="modal-foot">
