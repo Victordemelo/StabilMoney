@@ -712,6 +712,32 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .pm-plus svg { width: 24px; height: 24px; }
 .pm-add-inner strong { font-size: 13.5px; }
 .modal-lg { max-width: 480px; }
+
+/* ============ Meu perfil (avatar) + Configurações (subabas) ============ */
+.avatar-edit { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; }
+.avatar-preview {
+  width: 80px; height: 80px; border-radius: 50%; flex: none; overflow: hidden;
+  display: grid; place-items: center; font-family: var(--font-head); font-weight: 800;
+  font-size: 26px; color: #fff; background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
+}
+.avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-edit-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.avatar-edit-actions .btn-ghost { cursor: pointer; }
+
+.settings-layout { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: start; }
+.settings-tabs { display: flex; flex-direction: column; gap: 4px; }
+.settings-tab {
+  display: block; padding: 10px 14px; border-radius: 11px; font-size: 13.5px; font-weight: 600;
+  color: var(--ink-2); text-decoration: none; transition: background .15s var(--ease), color .15s var(--ease);
+}
+.settings-tab:hover { background: var(--surface-2); color: var(--ink); }
+.settings-tab.active { background: var(--brand-50); color: var(--brand-700); }
+[data-theme="dark"] .settings-tab.active { background: rgba(28,154,112,.16); color: var(--brand-300); }
+@media (max-width: 720px) {
+  .settings-layout { grid-template-columns: 1fr; }
+  .settings-tabs { flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 4px; }
+  .settings-tab { white-space: nowrap; }
+}
 .head-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .head-actions .btn.primary { display: inline-flex; align-items: center; gap: 7px; }
 .head-actions .btn.primary svg { width: 17px; height: 17px; }

@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DependentController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
@@ -18,10 +19,13 @@ Route::middleware('auth')->group(function () {
     Route::resource('accounts', AccountController::class)->except('show');
     Route::resource('categories', CategoryController::class)->except('show');
 
-    // Perfil / Configurações (Breeze)
-    Route::get('/configuracoes', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/configuracoes', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/configuracoes', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    // Meu perfil (dados pessoais: nome, e-mail, telefone, foto)
+    Route::get('/meu-perfil', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/meu-perfil', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/meu-perfil', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Configurações (subabas: Segurança / Conta)
+    Route::get('/configuracoes/{tab?}', [SettingsController::class, 'index'])->name('settings');
 
     // Dependentes (conta-família) — só o titular gerencia
     Route::get('/dependentes', [DependentController::class, 'index'])->name('dependentes');

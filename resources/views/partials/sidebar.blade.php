@@ -121,7 +121,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/></svg>
             <span>Meu perfil</span>
         </a>
-        <a class="pp-item" href="{{ route('profile.edit') }}" role="menuitem">
+        <a class="pp-item" href="{{ route('settings') }}" role="menuitem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
             <span>Configurações</span>
         </a>

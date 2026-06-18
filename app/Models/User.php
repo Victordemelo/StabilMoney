@@ -22,6 +22,8 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'phone',
+        'avatar_path',
         'password',
         'is_admin',
         'account_owner_id',
@@ -85,5 +87,11 @@ class User extends Authenticatable
     public function titular(): BelongsTo
     {
         return $this->belongsTo(User::class, 'account_owner_id');
+    }
+
+    /** URL pública da foto de perfil (ou null se não houver — a view cai nas iniciais). */
+    public function avatarUrl(): ?string
+    {
+        return $this->avatar_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($this->avatar_path) : null;
     }
 }

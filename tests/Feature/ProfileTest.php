@@ -4,21 +4,35 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ProfileTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_avatar_can_be_uploaded(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->patch('/meu-perfil', [
+            'name' => $user->name,
+            'email' => $user->email,
+            'avatar' => UploadedFile::fake()->create('foto.jpg', 100, 'image/jpeg'),
+        ])->assertSessionHasNoErrors()->assertRedirect('/meu-perfil');
+
+        $user->refresh();
+        $this->assertNotNull($user->avatar_path);
+        Storage::disk('public')->assertExists($user->avatar_path);
+    }
+
     public function test_profile_page_is_displayed(): void
     {
         $user = User::factory()->create();
 
-        $response = $this
-            ->actingAs($user)
-            ->get('/configuracoes');
-
-        $response->assertOk();
+        $this->actingAs($user)->get('/meu-perfil')->assertOk()->assertSee('Meu perfil');
     }
 
     public function test_profile_information_can_be_updated(): void
@@ -27,19 +41,21 @@ class ProfileTest extends TestCase
 
         $response = $this
             ->actingAs($user)
-            ->patch('/configuracoes', [
+            ->patch('/meu-perfil', [
                 'name' => 'Test User',
                 'email' => 'test@example.com',
+                'phone' => '(11) 98888-7777',
             ]);
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertRedirect('/configuracoes');
+            ->assertRedirect('/meu-perfil');
 
         $user->refresh();
 
         $this->assertSame('Test User', $user->name);
         $this->assertSame('test@example.com', $user->email);
+        $this->assertSame('(11) 98888-7777', $user->phone);
         $this->assertNull($user->email_verified_at);
     }
 
@@ -49,14 +65,14 @@ class ProfileTest extends TestCase
 
         $response = $this
             ->actingAs($user)
-            ->patch('/configuracoes', [
+            ->patch('/meu-perfil', [
                 'name' => 'Test User',
                 'email' => $user->email,
             ]);
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertRedirect('/configuracoes');
+            ->assertRedirect('/meu-perfil');
 
         $this->assertNotNull($user->refresh()->email_verified_at);
     }
@@ -67,7 +83,7 @@ class ProfileTest extends TestCase
 
         $response = $this
             ->actingAs($user)
-            ->delete('/configuracoes', [
+            ->delete('/meu-perfil', [
                 'password' => 'password',
             ]);
 
@@ -85,14 +101,14 @@ class ProfileTest extends TestCase
 
         $response = $this
             ->actingAs($user)
-            ->from('/configuracoes')
-            ->delete('/configuracoes', [
+            ->from('/configuracoes/conta')
+            ->delete('/meu-perfil', [
                 'password' => 'wrong-password',
             ]);
 
         $response
             ->assertSessionHasErrorsIn('userDeletion', 'password')
-            ->assertRedirect('/configuracoes');
+            ->assertRedirect('/configuracoes/conta');
 
         $this->assertNotNull($user->fresh());
     }

@@ -26,6 +26,8 @@ class ProfileUpdateRequest extends FormRequest
                 'max:255',
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'avatar' => ['nullable', 'image', 'max:2048'],
         ];
     }
 
@@ -44,6 +46,8 @@ class ProfileUpdateRequest extends FormRequest
             'email.lowercase' => 'O e-mail deve estar em letras minúsculas.',
             'email.max' => 'O e-mail não pode passar de :max caracteres.',
             'email.unique' => 'Este e-mail já está em uso por outra conta.',
+            'avatar.image' => 'A foto precisa ser uma imagem.',
+            'avatar.max' => 'A foto pode ter no máximo 2 MB.',
         ];
     }
 
