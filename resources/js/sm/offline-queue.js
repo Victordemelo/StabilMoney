@@ -4,6 +4,14 @@
 // um client_uuid e reenviamos sozinho quando a internet volta. O servidor é
 // idempotente (dedupe por client_uuid), então um replay repetido não duplica.
 //
+// O submit do form é interceptado SEMPRE (online e offline). Online, enviamos
+// por AJAX (fetch JSON) em vez de POST de form puro: assim, se o form veio do
+// cache do service worker com _token velho e a resposta for 419, buscamos um
+// token CSRF fresco em /csrf-token e refazemos o POST uma vez — sem cair na
+// página de erro feia. No sucesso (201/200) navegamos para /transactions,
+// reproduzindo o redirect que o servidor faz no fluxo web. Offline, mantemos o
+// comportamento de fila descrito acima.
+//
 // Decisões de segurança/robustez (ver spec):
 //  - Dois caminhos de reenvio: (1) DIRIGIDO PELA PÁGINA (token CSRF fresco do
 //    <meta>; fallback universal) e (2) BACKGROUND SYNC no service worker, que
@@ -155,6 +163,17 @@ async function drain() {
     }
 }
 
+// Pede um "Background Sync": o navegador acorda o service worker e dispara o
+// reenvio assim que a conexão voltar — INCLUSIVE com o app fechado (Chromium/
+// Android). Sem suporte (Firefox/Safari/iOS), o reenvio dirigido pela página
+// (evento 'online' + abertura do app) segue como fallback.
+function requestBackgroundSync() {
+    if (!('serviceWorker' in navigator) || !('SyncManager' in window)) return;
+    navigator.serviceWorker.ready
+        .then((reg) => reg.sync.register('sm-sync-lancamentos'))
+        .catch(() => { /* sem permissão/suporte: o fallback da página cobre */ });
+}
+
 // ---- Toast simples ---------------------------------------------------------
 
 function showToast(msg) {
@@ -182,31 +201,224 @@ function serializeForm(form) {
     return data;
 }
 
+// Salva o lançamento na fila offline e arma o reenvio. Usado tanto no caminho
+// claramente OFFLINE quanto quando o envio online cai na rede no meio (ou a
+// sessão expira de vez) — em todos os casos: nada se perde. `form` serve só
+// para resetar a tela; NÃO entra no que é gravado no IndexedDB.
+function enqueueOffline(payload, toastMsg, form) {
+    return queueAdd({
+        client_uuid: payload.client_uuid,
+        userId: meta('sm-user'),
+        csrf: meta('csrf-token'), // token p/ o service worker reenviar em background
+        payload,
+        createdAt: Date.now(),
+    }).then(() => {
+        requestBackgroundSync(); // acorda o SW p/ reenviar quando a net voltar
+        showToast(toastMsg);
+        if (form && typeof form.reset === 'function') form.reset();
+        refreshBadge();
+    }).catch(() => {
+        showToast('Não foi possível salvar o lançamento offline neste aparelho.');
+    });
+}
+
+// Renderiza/atualiza o bloco .flash-error no topo do .form-card com as mensagens
+// de validação (422). Sem reload em AJAX, então criamos o bloco se não existir.
+function renderFormErrors(form, messages) {
+    const card = form.closest('.form-card') || form.parentElement || form;
+    let box = card.querySelector('.flash-error');
+    if (!box) {
+        box = document.createElement('div');
+        box.className = 'flash-error';
+        box.setAttribute('role', 'alert');
+        // Mesmo ícone do _form.blade.php, para casar com o visual server-rendered.
+        box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor">'
+            + '<circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg><ul></ul>';
+        card.insertBefore(box, card.firstChild);
+    }
+    const list = box.querySelector('ul') || box.appendChild(document.createElement('ul'));
+    list.innerHTML = '';
+    (messages.length ? messages : ['Não foi possível salvar. Confira os dados e tente de novo.'])
+        .forEach((msg) => {
+            const li = document.createElement('li');
+            li.textContent = msg;
+            list.appendChild(li);
+        });
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Achata o objeto { campo: [msg, ...] } que o Laravel devolve em 422 numa lista
+// simples de mensagens (a mesma ordem visual do $errors->all() do Blade).
+function flattenErrors(errors) {
+    const out = [];
+    if (errors && typeof errors === 'object') {
+        Object.values(errors).forEach((msgs) => {
+            (Array.isArray(msgs) ? msgs : [msgs]).forEach((m) => out.push(m));
+        });
+    }
+    return out;
+}
+
+// POST do lançamento via fetch (JSON). Reusado no envio inicial e no retry com
+// token fresco. Devolve a Response (ou lança em erro de rede, tratado por quem chama).
+function postTransaction(action, payload, token) {
+    return fetch(action, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': token,
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+    });
+}
+
+// Pega um token CSRF FRESCO da sessão atual (rota /csrf-token, atrás de auth) e
+// o aplica no <meta> e no input _token do form, para o retro do POST e para os
+// próximos envios. Devolve o token novo, ou null se a sessão expirou (não-200).
+async function refreshCsrfToken(form) {
+    let res;
+    try {
+        res = await fetch('/csrf-token', {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        });
+    } catch (_) {
+        return null; // sem rede: quem chama trata como offline
+    }
+    if (!res.ok) return null; // sessão expirou (redirect p/ login etc.)
+
+    let data;
+    try { data = await res.json(); } catch (_) { return null; }
+    const fresh = data && data.token;
+    if (!fresh) return null;
+
+    const metaEl = document.querySelector('meta[name="csrf-token"]');
+    if (metaEl) metaEl.setAttribute('content', fresh);
+    const hidden = form.querySelector('input[name="_token"]');
+    if (hidden) hidden.value = fresh;
+    return fresh;
+}
+
+function setSubmitting(btn, on) {
+    if (!btn) return;
+    if (on) {
+        btn.dataset.label = btn.dataset.label || btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Salvando…';
+    } else {
+        btn.disabled = false;
+        if (btn.dataset.label) btn.textContent = btn.dataset.label;
+    }
+}
+
 function attachForm(form) {
     form.addEventListener('submit', (e) => {
-        // Só interceptamos quando está claramente OFFLINE. Online segue o fluxo
-        // normal (POST + redirect do servidor), sem mudar nada do comportamento.
-        if (navigator.onLine) return;
-
+        // Interceptamos SEMPRE (online e offline). O POST de form puro com token
+        // velho do cache responderia 419; no AJAX a gente busca um token fresco
+        // e refaz o envio, sem página de erro.
         e.preventDefault();
+
         const payload = serializeForm(form);
         payload.client_uuid = uuid();
+        // client_uuid também no envio ONLINE: se a resposta se perder e houver
+        // retry, o servidor deduplica por esse uuid em vez de duplicar.
 
-        queueAdd({
-            client_uuid: payload.client_uuid,
-            userId: meta('sm-user'),
-            csrf: meta('csrf-token'), // token p/ o service worker reenviar em background
-            payload,
-            createdAt: Date.now(),
-        }).then(() => {
-            requestBackgroundSync(); // acorda o SW p/ reenviar quando a net voltar
-            showToast('Sem conexão — lançamento salvo; envio sozinho quando a internet voltar.');
-            form.reset();
-            refreshBadge();
-        }).catch(() => {
-            showToast('Não foi possível salvar o lançamento offline neste aparelho.');
-        });
+        // ---- Caminho OFFLINE: comportamento original intacto. -------------
+        if (!navigator.onLine) {
+            enqueueOffline(
+                payload,
+                'Sem conexão — lançamento salvo; envio sozinho quando a internet voltar.',
+                form
+            );
+            return;
+        }
+
+        // ---- Caminho ONLINE: envia por AJAX, com retry de CSRF em 419. -----
+        submitOnline(form, payload);
     });
+}
+
+async function submitOnline(form, payload) {
+    const action = form.getAttribute('action') || '/transactions';
+    const btn = form.querySelector('[type="submit"]');
+    setSubmitting(btn, true);
+
+    let res;
+    try {
+        res = await postTransaction(action, payload, meta('csrf-token'));
+    } catch (_) {
+        // Rede caiu no meio do envio: trata como offline (nada se perde).
+        setSubmitting(btn, false);
+        await enqueueOffline(
+            payload,
+            'Sem conexão — lançamento salvo; envio sozinho quando a internet voltar.',
+            form
+        );
+        return;
+    }
+
+    // 419: token velho (form veio do cache). Busca um fresco e refaz UMA vez.
+    if (res.status === 419) {
+        const fresh = await refreshCsrfToken(form);
+        if (!fresh) {
+            // Sessão expirou de vez: guarda offline para sincronizar no login.
+            setSubmitting(btn, false);
+            await enqueueOffline(
+                payload,
+                'Faça login para sincronizar seu lançamento.',
+                form
+            );
+            return;
+        }
+        try {
+            res = await postTransaction(action, payload, fresh);
+        } catch (_) {
+            setSubmitting(btn, false);
+            await enqueueOffline(
+                payload,
+                'Sem conexão — lançamento salvo; envio sozinho quando a internet voltar.',
+                form
+            );
+            return;
+        }
+        // Retry ainda 419 (ou voltou a expirar): guarda offline.
+        if (res.status === 419) {
+            setSubmitting(btn, false);
+            await enqueueOffline(
+                payload,
+                'Faça login para sincronizar seu lançamento.',
+                form
+            );
+            return;
+        }
+    }
+
+    // 201 (criado) ou 200 (dedupe): o servidor redireciona no fluxo web; aqui
+    // reproduzimos navegando para a lista.
+    if (res.status === 201 || res.status === 200) {
+        window.location = '/transactions';
+        return;
+    }
+
+    // 422: validação. Renderiza as mensagens em PT-BR no .flash-error e fica na
+    // tela (não navega).
+    if (res.status === 422) {
+        let errs = [];
+        try {
+            const data = await res.json();
+            errs = flattenErrors(data && data.errors);
+        } catch (_) { /* corpo não-JSON: cai na mensagem genérica do render */ }
+        renderFormErrors(form, errs);
+        setSubmitting(btn, false);
+        return;
+    }
+
+    // 5xx e quaisquer outros: mensagem genérica, reabilita o botão.
+    showToast('Não foi possível registrar agora. Tente de novo.');
+    setSubmitting(btn, false);
 }
 
 // ---- Segurança: apaga o /transactions/create em cache quando o DONO muda
@@ -246,5 +458,6 @@ export function initOfflineQueue() {
     if (meta('sm-user')) {
         refreshBadge();
         if (navigator.onLine) drain();
+        else requestBackgroundSync(); // reabriu offline: re-arma o reenvio em background
     }
 }

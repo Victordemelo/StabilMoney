@@ -25,6 +25,7 @@ class Transaction extends Model
         'installment_no',
         'installments',
         'recurring',
+        'paid_at',
     ];
 
     protected function casts(): array
@@ -35,6 +36,7 @@ class Transaction extends Model
             'installment_no' => 'integer',
             'installments' => 'integer',
             'recurring' => 'boolean',
+            'paid_at' => 'datetime',
         ];
     }
 

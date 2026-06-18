@@ -40,6 +40,80 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// ---- Background Sync: reenvio dos lançamentos offline -----------------------
+// Quando a conexão volta, o navegador dispara este 'sync' — MESMO com o app
+// fechado (Chromium/Android). Lemos a fila do IndexedDB (a mesma do
+// offline-queue.js) e reenviamos cada lançamento. O servidor é idempotente
+// (índice único user_id+client_uuid), então coincidir com o replay da página
+// NÃO duplica. O token CSRF guardado no item trava por sessão: só "passa" na
+// sessão do dono (token de outra sessão → 419), então item de um usuário não
+// entra na conta de outro num aparelho compartilhado.
+const SYNC_TAG = 'sm-sync-lancamentos';
+const ODB_NAME = 'sm-offline';
+const ODB_STORE = 'lancamentos';
+
+function odbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(ODB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(ODB_STORE)) db.createObjectStore(ODB_STORE, { keyPath: 'client_uuid' });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function odbAll() {
+  return odbOpen().then((db) => new Promise((resolve, reject) => {
+    const rq = db.transaction(ODB_STORE, 'readonly').objectStore(ODB_STORE).getAll();
+    rq.onsuccess = () => resolve(rq.result || []);
+    rq.onerror = () => reject(rq.error);
+  }));
+}
+function odbDelete(key) {
+  return odbOpen().then((db) => new Promise((resolve) => {
+    const tx = db.transaction(ODB_STORE, 'readwrite');
+    tx.objectStore(ODB_STORE).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  }));
+}
+
+async function flushLancamentos() {
+  const items = await odbAll();
+  let retry = false; // sobrou item por falha passageira → pede novo sync (backoff do navegador)
+  for (const item of items) {
+    if (item.failed) continue;
+    let res;
+    try {
+      res = await fetch('/transactions', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': item.csrf || '',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(item.payload),
+      });
+    } catch (e) {
+      retry = true; break; // a rede caiu no meio: tenta de novo no próximo sync
+    }
+    if (res.ok) {
+      await odbDelete(item.client_uuid); // 201 criado ou 200 já existia (idempotente)
+    } else if (res.status >= 500) {
+      retry = true; // erro passageiro do servidor
+    }
+    // 401/419 (sessão/CSRF de outra sessão) e 422 (inválido): deixa p/ a página tratar
+  }
+  if (retry) throw new Error('sync incompleto'); // rejeita → navegador reagenda o sync
+}
+
+self.addEventListener('sync', (event) => {
+  if (event.tag === SYNC_TAG) event.waitUntil(flushLancamentos());
+});
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
 

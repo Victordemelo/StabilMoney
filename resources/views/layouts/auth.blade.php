@@ -12,7 +12,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <meta name="theme-color" content="#0B3A28" />
+    <meta name="theme-color" content="#0C3D2B" />
 
     <title>StabilMoney</title>
 

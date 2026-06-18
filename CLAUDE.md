@@ -40,9 +40,9 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ 87 testes / 279 asserções verdes |
-| Features financeiras v2 (faturas, métodos completos, dependentes, investimentos, metas) | ⬜ **Próxima rodada** (ver seção própria — decisões já tomadas) |
-| PWA (manifest + service worker) | ⬜ Pendente (Fase 1) |
+| Suíte de testes | ✅ 184 testes / 610 asserções verdes |
+| Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
+| PWA (manifest + SW + lançamento offline com fila e Background Sync) | ✅ Instalável + offline (Fases 1-2) |
 | Deploy (VPS) / domínio | ⬜ Futuro (ver "Visão de infraestrutura") |
 
 **Para subir o ambiente:** seção "Fluxo de trabalho" abaixo. **Login de dev:** o usuário do
@@ -83,9 +83,9 @@ O visual do app vem de um **handoff do Claude Design** (claude.ai/design), versi
 - `design/project/styles.css` — design system v2 (tokens, temas claro/escuro, componentes,
   popover, modais, cards da sidebar, responsivo).
 - `design/project/app.js` — interações do protótipo (tema, drawer, gráficos SVG, contadores).
-- `design/project/finance.js` — **protótipo das features financeiras FUTURAS** (lançamentos
-  com parcelas, faturas por cartão, métodos de pagamento, dependentes, investimentos, metas)
-  — referência para a próxima rodada, **ainda não implementado**.
+- `design/project/finance.js` — **protótipo das features financeiras** (lançamentos com parcelas,
+  faturas por cartão, métodos de pagamento, dependentes, investimentos, metas) — referência
+  visual; as features **já estão implementadas** (jun/2026).
 - `design/project/assets/` — logo (`stabilmoney-mark.png`), `favicon.png` e vídeo
   (`auth-bg.mp4`); **copiados para `public/assets/`** — o vídeo é servido lá como
   `video_login.mp4` (é de `public/assets/` que o app serve).
@@ -101,12 +101,12 @@ Para novas telas, consulte sempre o HTML/CSS do protótipo como fonte da verdade
 é um `.tar.gz`: baixar com curl, extrair, ler README + chats + arquivos do projeto, e
 atualizar a pasta `design/` do repo com o bundle novo antes de implementar.
 
-**Telas ainda não implementadas** (metas, faturas/despesas, investimentos, dependentes):
-usam o padrão "em breve" (`coming-soon.blade.php`). O design v2 **já tem protótipo** dessas
-telas (HTML do Dashboard + `finance.js`), mas os estilos exclusivos delas (`.fatura-*`, `.pm-*`,
-`.alloc-*`, `.meta-*`, `.dep-grid`, modal de lançamento `.modal-lg`, toast `.sm-toast`)
-**ficaram de fora do `design-system.css` de propósito** — portar do `styles.css` v2 quando
-cada feature for implementada. Formulários/elementos sem protótipo seguem os tokens do design
+**Telas das features financeiras** (metas, faturas/despesas, investimentos) e **dependentes**
+**já estão implementadas** (jun/2026) — não usam mais o `coming-soon.blade.php` (que segue
+disponível como padrão "em breve" para telas futuras). Os estilos exclusivos dessas telas
+(`.fatura-*`, `.pm-*`, `.alloc-*`, `.meta-*`, `.dep-grid`, modal de lançamento `.modal-lg`,
+toast `.sm-toast`) **já foram portados** do `styles.css` v2 para o `design-system.css`/`forms.css`
+conforme cada feature entrou. Formulários/elementos sem protótipo seguem os tokens do design
 system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 
 ---
@@ -211,7 +211,9 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
 | `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais: nome, e-mail, telefone, foto (preview antes de salvar). **Acesso pelo popover do perfil** (sidebar). |
 | `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security`) | Subabas-pílula numa coluna centrada (680px). **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), e **2FA "em breve"**. **Conta** = excluir conta (modal). |
 | `/dependentes` (`DependentController`: index/store/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/remove dependentes (modal); só titular acessa (403 p/ dependente). Card "Dependentes" da sidebar escondido p/ dependente. |
-| `/investimentos`, `/metas`, `/faturas` ("Faturas / Despesas") | `coming-soon` | Placeholders "Em breve" com `$title`/`$description`/`$page`. Rotas `relatorios` e `ajuda` foram **removidas** no design v2. |
+| `/metas` (`GoalController` index/store/update/destroy + aportes/resgates) | `metas/index` | **Metas (implementado).** Objetivos de poupança modelo "cofrinho": aporte reserva, resgate devolve à conta. Compartilhadas na família (`ownerId`). |
+| `/investimentos` (`InvestmentController` index/store/update/destroy + aportes/resgates) | `investimentos/index` | **Investimentos (implementado).** Cofrinho + metadados/projeções (indexador CDI/Selic/IPCA+/Prefixado, % do indexador, prévia de IR/IOF). Compartilhados na família. |
+| `/faturas` ("Faturas / Despesas": `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy`) | `faturas/index` | **Faturas/Despesas (implementado).** Faturas por cartão (parcelas/recorrência, ciclo fechamento/vencimento, limite) via `FaturaService` + despesas avulsas em conta. Rotas `relatorios` e `ajuda` foram **removidas** no design v2. |
 | `routes/auth.php` | `auth/*` | Breeze: login, registro, esqueci/redefinir senha, confirmar senha, verificar e-mail. |
 
 **Menu da sidebar (v2):** grupo **Menu** = Visão geral → `dashboard`, Transações →
@@ -380,11 +382,13 @@ Com a PWA pronta (Fase 1), "Adicionar à tela inicial".
 - **Design v2 (visual/shell/auth): ✅ CONCLUÍDA (jun/2026).** Shell v2 (sidebar com grupos,
   popover de perfil, card patrimônio real, card dependentes, logo/favicon reais), login/cadastro
   split com vídeo, categorias com drag & drop, accounts rotulado "Métodos de Pagamento".
-- **Fase 1 — PWA + Login: 🔶 PARCIAL.**
+- **Fase 1 — PWA + Login: ✅ CONCLUÍDA.**
   - ✅ Autenticação multiusuário (Breeze, telas no design system, PT-BR, categorias padrão no registro).
-  - ⬜ PWA: `manifest.json` + service worker (instalável na tela inicial).
-- **Próxima rodada — features financeiras do design v2** (ver seção abaixo — decisões já
-  tomadas com o usuário; protótipo em `design/project/finance.js`).
+  - ✅ PWA: manifest + service worker (instalável na tela inicial) + **lançamento offline com fila,
+    sincronização dirigida pela página e Background Sync** (reenvia até com o app fechado).
+- **Features financeiras do design v2: ✅ CONCLUÍDA (jun/2026)** — Metas, Investimentos,
+  Faturas/Despesas (cartão com ciclo/limite), seletor "quem fez a compra" e conta-família com
+  dependentes. Decisões e referência do protótipo na seção "Features financeiras" abaixo.
 - **Fase 2 — Futuro:** empacotar a PWA como app Android (**TWA**) para a Play Store;
   **bot WhatsApp** para consultar/lançar transações por mensagem (ver infra abaixo).
 

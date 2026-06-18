@@ -23,7 +23,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h11M4 18h16"/></svg>
     </button>
     <div class="greeting">
-        <h1>Olá, {{ $primeiroNome }} <span class="wave">👋</span></h1>
+        <h1>Bem-vindo de volta, {{ $primeiroNome }} <span class="wave">👋</span></h1>
         <p>{{ $dataHoje }} · resumo das suas finanças</p>
     </div>
     {{-- "Lançar": recolhido vira só "+"; no hover/foco floresce em "+ Lançar" --}}

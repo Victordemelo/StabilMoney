@@ -32,9 +32,25 @@
 
     // Cores que ciclam nas iniciais das contas (mesmas do design)
     $abColors = ['var(--brand-600)', 'var(--c-lazer)', 'var(--c-alimentacao)'];
+
+    // Primeiro nome para a saudação (mesma lógica da topbar)
+    $primeiroNome = \Illuminate\Support\Str::before(trim(auth()->user()->name ?? ''), ' ');
 @endphp
 
+{{-- Saudação "Bem-vindo de volta" no topo do app. A topbar desktop já saúda o
+     usuário, mas some no mobile (≤920px) — então aqui mostramos a saudação só no
+     mobile, para o app (PWA, primeiro o celular) sempre dar as boas-vindas. --}}
+<style>
+    .dash-greeting { display: none; margin-bottom: 18px; }
+    @media (max-width: 920px) { .dash-greeting { display: block; } }
+</style>
+
 <section class="view" id="view-dashboard">
+    <div class="greeting dash-greeting">
+        <h1>Bem-vindo de volta, {{ $primeiroNome }} <span class="wave">👋</span></h1>
+        <p>Aqui está o resumo das suas finanças.</p>
+    </div>
+
     <div class="section-head">
         <h2>Visão geral</h2>
         <span class="sub" id="periodSub">{{ $payload['periods']['mes']['sub'] }}</span>

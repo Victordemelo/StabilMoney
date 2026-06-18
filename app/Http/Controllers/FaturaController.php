@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreFaturaLaunchRequest;
+use App\Models\Account;
 use App\Models\Transaction;
 use App\Services\FaturaService;
 use Carbon\CarbonImmutable;
@@ -26,7 +27,7 @@ class FaturaController extends Controller
 
     /**
      * Cria a despesa: à vista (1 linha), parcelada (N linhas) ou recorrente
-     * (12 linhas). Tudo type=expense, escopado na família.
+     * (1 ocorrência em aberto, datada no vencimento do cartão). type=expense, família.
      */
     public function store(StoreFaturaLaunchRequest $request)
     {
@@ -51,7 +52,8 @@ class FaturaController extends Controller
             $this->createInstallments($common, $total, $base, (int) $data['installments']);
             $status = 'Despesa parcelada lançada na fatura.';
         } elseif ($mode === 'recorrente') {
-            $this->createRecurring($common, $total, $base);
+            $card = Account::find($data['account_id']);
+            $this->createRecurring($common, $total, $base, $card);
             $status = 'Despesa recorrente lançada na fatura.';
         } else {
             Transaction::create($common + [
@@ -110,18 +112,53 @@ class FaturaController extends Controller
         }
     }
 
-    /** Recorrente: 12 lançamentos mensais do valor cheio. */
-    private function createRecurring(array $common, float $total, CarbonImmutable $base): void
+    /**
+     * Recorrente "infinita": cria UMA ocorrência em aberto, datada no próximo
+     * vencimento do cartão. Pagá-la (pay) gera a próxima (+1 mês). Se o cartão
+     * não tiver dia de vencimento, usa a data informada.
+     */
+    private function createRecurring(array $common, float $total, CarbonImmutable $base, Account $card): void
     {
-        $groupId = (string) Str::uuid();
+        $vencimento = $card->dueDate ?? $base;
 
-        for ($i = 0; $i < 12; $i++) {
-            Transaction::create($common + [
-                'amount' => $total,
-                'date' => $base->addMonths($i)->toDateString(),
-                'group_id' => $groupId,
-                'recurring' => true,
-            ]);
+        Transaction::create($common + [
+            'amount' => $total,
+            'date' => $vencimento->toDateString(),
+            'group_id' => (string) Str::uuid(),
+            'recurring' => true,
+        ]);
+    }
+
+    /**
+     * Paga a ocorrência recorrente em aberto: marca como paga e gera a PRÓXIMA
+     * (+1 mês, mantém o dia de vencimento, mesmo grupo, em aberto) — a
+     * recorrência nunca termina. Idempotente: pagar de novo uma ocorrência já
+     * paga (ou uma não-recorrente) não gera nada.
+     */
+    public function pay(Transaction $transaction)
+    {
+        $this->authorize('update', $transaction);
+
+        if (! $transaction->recurring || $transaction->paid_at) {
+            return redirect()->route('faturas.index');
         }
+
+        $transaction->update(['paid_at' => now()]);
+
+        Transaction::create([
+            'user_id' => $transaction->user_id,
+            'made_by_user_id' => $transaction->made_by_user_id,
+            'account_id' => $transaction->account_id,
+            'category_id' => $transaction->category_id,
+            'type' => 'expense',
+            'description' => $transaction->description,
+            'amount' => $transaction->amount,
+            'date' => CarbonImmutable::parse($transaction->date)->addMonth()->toDateString(),
+            'group_id' => $transaction->group_id,
+            'recurring' => true,
+        ]);
+
+        return redirect()->route('faturas.index')
+            ->with('status', 'Recorrência paga — a próxima já foi lançada.');
     }
 }

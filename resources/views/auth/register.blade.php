@@ -79,7 +79,7 @@
         <label class="check terms">
             <input type="checkbox" id="terms" name="terms" value="1" @checked(old('terms')) required />
             <span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
-            <span>Concordo com os <a href="#">Termos de Uso</a> e a <a href="#">Política de Privacidade</a> da StabilMoney.</span>
+            <span>Concordo com os <a href="{{ route('termos') }}" target="_blank" rel="noopener">Termos de Uso</a> e a <a href="{{ route('privacidade') }}" target="_blank" rel="noopener">Política de Privacidade</a> da StabilMoney.</span>
         </label>
         @error('terms')
             <p class="field-error" style="margin: -14px 0 16px;">{{ $message }}</p>

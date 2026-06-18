@@ -91,6 +91,8 @@ test('smoke: telas públicas de auth renderizam', async ({ page }) => {
         ['login', '/login'],
         ['register', '/register'],
         ['forgot-password', '/forgot-password'],
+        ['termos', '/termos'],
+        ['privacidade', '/privacidade'],
     ]) {
         const resp = await page.goto(path, { waitUntil: 'load', timeout: 20_000 });
         await page.waitForTimeout(300);

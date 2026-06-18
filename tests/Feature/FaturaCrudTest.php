@@ -111,28 +111,77 @@ class FaturaCrudTest extends TestCase
         $this->assertSame($base->copy()->addMonths(2)->toDateString(), $parcelas[2]->date->toDateString());
     }
 
-    public function test_recorrente_creates_twelve_monthly_lines(): void
+    public function test_recorrente_creates_single_open_occurrence(): void
     {
-        $base = now()->startOfMonth();
+        // Recorrência "infinita": cria UMA ocorrência em aberto (não 12), datada
+        // no próximo vencimento do cartão. Pagá-la gera a próxima.
+        $this->card->update(['closing_day' => 8, 'due_day' => 15]);
 
         $this->actingAs($this->user)->post('/faturas/lancar', $this->launch([
             'description' => 'Streaming',
             'amount' => '49,90',
-            'date' => $base->toDateString(),
             'mode' => 'recorrente',
         ]))->assertSessionHasNoErrors();
 
-        $linhas = Transaction::orderBy('date')->get();
+        $this->assertDatabaseCount('transactions', 1);
 
-        $this->assertCount(12, $linhas);
-        $this->assertCount(1, $linhas->pluck('group_id')->unique()->filter());
-        // Todas recorrentes, valor cheio, sem installment_no/installments.
-        $this->assertTrue($linhas->every(fn ($l) => (bool) $l->recurring === true));
-        $this->assertTrue($linhas->every(fn ($l) => (string) $l->amount === '49.90'));
-        $this->assertTrue($linhas->every(fn ($l) => $l->installments === null));
+        $tx = Transaction::firstOrFail();
+        $this->assertTrue((bool) $tx->recurring);
+        $this->assertNull($tx->paid_at);                 // em aberto
+        $this->assertNull($tx->installments);
+        $this->assertNotNull($tx->group_id);
+        $this->assertSame('49.90', (string) $tx->amount);
+        // Datada no vencimento do cartão.
+        $this->assertSame($this->card->dueDate->toDateString(), $tx->date->toDateString());
+    }
 
-        // Última linha = base + 11 meses.
-        $this->assertSame($base->copy()->addMonths(11)->toDateString(), $linhas->last()->date->toDateString());
+    public function test_paying_recurrence_marks_paid_and_generates_next(): void
+    {
+        $this->card->update(['closing_day' => 8, 'due_day' => 15]);
+
+        $this->actingAs($this->user)->post('/faturas/lancar', $this->launch([
+            'description' => 'Streaming',
+            'amount' => '49,90',
+            'mode' => 'recorrente',
+        ]))->assertSessionHasNoErrors();
+
+        $atual = Transaction::firstOrFail();
+
+        $this->actingAs($this->user)
+            ->post("/faturas/recorrente/{$atual->id}/pagar")
+            ->assertRedirect(route('faturas.index'));
+
+        // A atual ficou paga; nasceu a próxima (em aberto), +1 mês, mesmo grupo.
+        $atual->refresh();
+        $this->assertNotNull($atual->paid_at);
+
+        $this->assertDatabaseCount('transactions', 2);
+
+        $proxima = Transaction::whereNull('paid_at')->where('recurring', true)->firstOrFail();
+        $this->assertSame($atual->group_id, $proxima->group_id);
+        $this->assertSame('49.90', (string) $proxima->amount);
+        $this->assertSame(
+            \Carbon\CarbonImmutable::parse($atual->date)->addMonth()->toDateString(),
+            $proxima->date->toDateString(),
+        );
+    }
+
+    public function test_paying_already_paid_recurrence_does_not_duplicate(): void
+    {
+        $this->card->update(['closing_day' => 8, 'due_day' => 15]);
+
+        $this->actingAs($this->user)->post('/faturas/lancar', $this->launch([
+            'amount' => '49,90',
+            'mode' => 'recorrente',
+        ]))->assertSessionHasNoErrors();
+
+        $atual = Transaction::firstOrFail();
+
+        // Paga a MESMA ocorrência duas vezes: só gera UMA próxima (idempotente).
+        $this->actingAs($this->user)->post("/faturas/recorrente/{$atual->id}/pagar");
+        $this->actingAs($this->user)->post("/faturas/recorrente/{$atual->id}/pagar");
+
+        $this->assertDatabaseCount('transactions', 2);
     }
 
     // ----- Parcelado/recorrente só em cartão -----

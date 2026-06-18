@@ -1023,12 +1023,25 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    o efeito vaza nas margens/brechas; sidebar/topbar/cards são opacos →
    legibilidade intacta. Dois temas via tokens (--brand-* + --bg); a regra
    global de prefers-reduced-motion (acima) congela a animação em "reduce".
-   Porte FIEL do componente React "falling-pattern": MESMOS gradientes,
-   MESMOS background-size e a MESMA animação de background-position
-   (start→end) que o framer-motion fazia — em CSS puro. Cada estria cai
-   numa velocidade diferente (chuva orgânica, não riscos em bloco). O blur
-   pesado (~10px) derrete os riscos num brilho suave (no original é o
-   backdrop blur(1em) do overlay). ===================================== */
+
+   MESMO visual de antes (estrias verdes caindo + malha de pontos + glow +
+   máscara radial das bordas, sutil), porém REESCRITO para rodar na GPU:
+
+   - A versão antiga animava `background-position` (propriedade NÃO-composta)
+     sob `filter: blur(10px)` em tela cheia → repaint na main thread a cada
+     frame (engasgo/bateria no mobile/PWA), e o loop "pulava" a cada ciclo
+     porque os deslocamentos não eram múltiplos inteiros do tile de cada
+     camada (emenda visível).
+   - Agora as estrias vivem num TILE vertical único (altura --fall-tile) que
+     se repete (`background-repeat: repeat`). A camada animada (::before) tem
+     altura `calc(100% + 1 tile)` e desliza com `translate3d(0, -1 tile, 0)` —
+     exatamente UM tile — então o último quadro do ciclo cai pixel a pixel no
+     primeiro: loop SEM EMENDA. `transform` é composto na GPU (só composição,
+     ZERO repaint da main thread). `will-change: transform` promove a camada.
+   - O blur que "derrete" os riscos num brilho fica no PAI ESTÁTICO
+     (.sm-falling { filter }), que NÃO anima → o blur de tela cheia é
+     calculado UMA vez, não a cada frame. A camada que desliza por baixo dele
+     apenas composita. ===================================== */
 .sm-falling {
   position: fixed;
   inset: 0;
@@ -1039,12 +1052,16 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   /* máscara: esvazia o centro (onde mora o conteúdo) e mostra nas bordas */
   -webkit-mask-image: radial-gradient(ellipse 82% 78% at 50% 42%, transparent 20%, rgba(0,0,0,1) 100%);
           mask-image: radial-gradient(ellipse 82% 78% at 50% 42%, transparent 20%, rgba(0,0,0,1) 100%);
+  /* blur + brightness na camada ESTÁTICA (este pai não anima): derrete as
+     estrias num brilho suave e é calculado uma vez, nunca por frame. */
+  filter: blur(var(--fall-blur)) brightness(var(--fall-bright));
   /* tokens do efeito — tema claro (o escuro sobrescreve abaixo) */
   --fall-color: var(--brand-400);
   --fall-op: .66;
   --fall-blur: 10px;
   --fall-bright: 1;
   --fall-mesh-op: .5;
+  --fall-tile: 600px;          /* altura do tile vertical das estrias */
 }
 [data-theme="dark"] .sm-falling {
   --fall-color: var(--brand-300);
@@ -1054,88 +1071,56 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   --fall-mesh-op: .5;
 }
 
-/* Estrias de luz caindo — gradientes idênticos ao componente. */
+/* Estrias de luz caindo — TILE vertical (--fall-tile) que se repete.
+   Cada estria é um radial-gradient "risco" (4px de largura, ~80–110px de
+   altura) numa coluna/altura diferente DENTRO do tile → ao repetir o tile dá
+   a sensação de chuva orgânica (riscos espalhados, não em bloco). Como tudo
+   vive num só tile e o tile repete verticalmente, deslizar exatamente 1 tile
+   reposiciona o conteúdo de forma idêntica → sem emenda. */
 .sm-falling::before {
   content: "";
-  position: absolute; inset: 0;
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  /* viewport + 1 tile de folga: ao subir 1 tile, a parte de baixo continua
+     coberta (o tile que entra por baixo já está pré-renderado). */
+  height: calc(100% + var(--fall-tile));
   background-repeat: repeat;
   background-image:
-    radial-gradient(4px 100px at 0px 235px,   var(--fall-color), transparent),
-    radial-gradient(4px 100px at 300px 235px, var(--fall-color), transparent),
-    radial-gradient(1.5px 1.5px at 150px 117.5px, var(--fall-color) 100%, transparent 150%),
-    radial-gradient(4px 100px at 0px 252px,   var(--fall-color), transparent),
-    radial-gradient(4px 100px at 300px 252px, var(--fall-color), transparent),
-    radial-gradient(1.5px 1.5px at 150px 126px, var(--fall-color) 100%, transparent 150%),
-    radial-gradient(4px 100px at 0px 150px,   var(--fall-color), transparent),
-    radial-gradient(4px 100px at 300px 150px, var(--fall-color), transparent),
-    radial-gradient(1.5px 1.5px at 150px 75px, var(--fall-color) 100%, transparent 150%),
-    radial-gradient(4px 100px at 0px 253px,   var(--fall-color), transparent),
-    radial-gradient(4px 100px at 300px 253px, var(--fall-color), transparent),
-    radial-gradient(1.5px 1.5px at 150px 126.5px, var(--fall-color) 100%, transparent 150%),
-    radial-gradient(4px 100px at 0px 204px,   var(--fall-color), transparent),
-    radial-gradient(4px 100px at 300px 204px, var(--fall-color), transparent),
-    radial-gradient(1.5px 1.5px at 150px 102px, var(--fall-color) 100%, transparent 150%),
-    radial-gradient(4px 100px at 0px 134px,   var(--fall-color), transparent),
-    radial-gradient(4px 100px at 300px 134px, var(--fall-color), transparent),
-    radial-gradient(1.5px 1.5px at 150px 67px, var(--fall-color) 100%, transparent 150%),
-    radial-gradient(4px 100px at 0px 179px,   var(--fall-color), transparent),
-    radial-gradient(4px 100px at 300px 179px, var(--fall-color), transparent),
-    radial-gradient(1.5px 1.5px at 150px 89.5px, var(--fall-color) 100%, transparent 150%),
-    radial-gradient(4px 100px at 0px 299px,   var(--fall-color), transparent),
-    radial-gradient(4px 100px at 300px 299px, var(--fall-color), transparent),
-    radial-gradient(1.5px 1.5px at 150px 149.5px, var(--fall-color) 100%, transparent 150%),
-    radial-gradient(4px 100px at 0px 215px,   var(--fall-color), transparent),
-    radial-gradient(4px 100px at 300px 215px, var(--fall-color), transparent),
-    radial-gradient(1.5px 1.5px at 150px 107.5px, var(--fall-color) 100%, transparent 150%),
-    radial-gradient(4px 100px at 0px 281px,   var(--fall-color), transparent),
-    radial-gradient(4px 100px at 300px 281px, var(--fall-color), transparent),
-    radial-gradient(1.5px 1.5px at 150px 140.5px, var(--fall-color) 100%, transparent 150%),
-    radial-gradient(4px 100px at 0px 158px,   var(--fall-color), transparent),
-    radial-gradient(4px 100px at 300px 158px, var(--fall-color), transparent),
-    radial-gradient(1.5px 1.5px at 150px 79px, var(--fall-color) 100%, transparent 150%),
-    radial-gradient(4px 100px at 0px 210px,   var(--fall-color), transparent),
-    radial-gradient(4px 100px at 300px 210px, var(--fall-color), transparent),
-    radial-gradient(1.5px 1.5px at 150px 105px, var(--fall-color) 100%, transparent 150%);
-  background-size:
-    300px 235px, 300px 235px, 300px 235px,
-    300px 252px, 300px 252px, 300px 252px,
-    300px 150px, 300px 150px, 300px 150px,
-    300px 253px, 300px 253px, 300px 253px,
-    300px 204px, 300px 204px, 300px 204px,
-    300px 134px, 300px 134px, 300px 134px,
-    300px 179px, 300px 179px, 300px 179px,
-    300px 299px, 300px 299px, 300px 299px,
-    300px 215px, 300px 215px, 300px 215px,
-    300px 281px, 300px 281px, 300px 281px,
-    300px 158px, 300px 158px, 300px 158px,
-    300px 210px, 300px 210px, 300px 210px;
-  background-position:
-    0px 220px, 3px 220px, 151.5px 337.5px, 25px 24px, 28px 24px, 176.5px 150px,
-    50px 16px, 53px 16px, 201.5px 91px, 75px 224px, 78px 224px, 226.5px 230.5px,
-    100px 19px, 103px 19px, 251.5px 121px, 125px 120px, 128px 120px, 276.5px 187px,
-    150px 31px, 153px 31px, 301.5px 120.5px, 175px 235px, 178px 235px, 326.5px 384.5px,
-    200px 121px, 203px 121px, 351.5px 228.5px, 225px 224px, 228px 224px, 376.5px 364.5px,
-    250px 26px, 253px 26px, 401.5px 105px, 275px 75px, 278px 75px, 426.5px 180px;
-  filter: blur(var(--fall-blur)) brightness(var(--fall-bright));
+    radial-gradient(4px 100px at 20px 40px,    var(--fall-color), transparent),
+    radial-gradient(4px 90px  at 90px 380px,   var(--fall-color), transparent),
+    radial-gradient(4px 110px at 150px 180px,  var(--fall-color), transparent),
+    radial-gradient(4px 80px  at 210px 520px,  var(--fall-color), transparent),
+    radial-gradient(4px 100px at 270px 120px,  var(--fall-color), transparent),
+    radial-gradient(4px 95px  at 40px 300px,   var(--fall-color), transparent),
+    radial-gradient(4px 105px at 120px 560px,  var(--fall-color), transparent),
+    radial-gradient(4px 85px  at 190px 260px,  var(--fall-color), transparent),
+    radial-gradient(4px 100px at 250px 440px,  var(--fall-color), transparent),
+    radial-gradient(4px 90px  at 70px 80px,    var(--fall-color), transparent),
+    /* pontinhos de brilho intercalados (eco dos pontos 1.5px do original) */
+    radial-gradient(1.5px 1.5px at 60px 220px,  var(--fall-color) 100%, transparent 150%),
+    radial-gradient(1.5px 1.5px at 170px 60px,  var(--fall-color) 100%, transparent 150%),
+    radial-gradient(1.5px 1.5px at 230px 340px, var(--fall-color) 100%, transparent 150%),
+    radial-gradient(1.5px 1.5px at 110px 470px, var(--fall-color) 100%, transparent 150%);
+  /* MESMO tile (300 x --fall-tile) p/ todas as camadas → casa ao repetir e
+     ao translatar 1 tile. */
+  background-size: 300px var(--fall-tile);
+  transform: translate3d(0, 0, 0);  /* base composta na GPU */
+  will-change: transform;           /* promove a camada (sem repaint por frame) */
 }
 @media (prefers-reduced-motion: no-preference) {
-  .sm-falling::before { animation: sm-fall 150s linear infinite; }
+  .sm-falling::before { animation: sm-fall 90s linear infinite; }
 }
 @keyframes sm-fall {
-  /* 'from' implícito = o background-position estático do ::before acima (início),
-     então não há por que repetir os 36 valores aqui. */
-  to {
-    background-position:
-      0px 6800px, 3px 6800px, 151.5px 6917.5px, 25px 13632px, 28px 13632px, 176.5px 13758px,
-      50px 5416px, 53px 5416px, 201.5px 5491px, 75px 17175px, 78px 17175px, 226.5px 17301.5px,
-      100px 5119px, 103px 5119px, 251.5px 5221px, 125px 8428px, 128px 8428px, 276.5px 8495px,
-      150px 9876px, 153px 9876px, 301.5px 9965.5px, 175px 13391px, 178px 13391px, 326.5px 13540.5px,
-      200px 14741px, 203px 14741px, 351.5px 14848.5px, 225px 18770px, 228px 18770px, 376.5px 18910.5px,
-      250px 5082px, 253px 5082px, 401.5px 5161px, 275px 6375px, 278px 6375px, 426.5px 6480px;
-  }
+  /* desliza para cima exatamente UM tile (--fall-tile, em px). Como o
+     background se repete a cada tile, ao subir 1 tile o quadro final é
+     IDÊNTICO ao inicial pixel a pixel → loop SEM EMENDA (independe da altura
+     do viewport, por isso translatamos px do tile, não % do elemento). Só
+     transform → composto na GPU, sem repaint. */
+  to { transform: translate3d(0, calc(-1 * var(--fall-tile)), 0); }
 }
 
-/* Overlay "tela" (malha de pontos) por cima das estrias — como no original */
+/* Overlay "tela" (malha de pontos) por cima das estrias — como no original.
+   Estático (não anima): só compõe por cima, sem custo por frame. */
 .sm-falling::after {
   content: "";
   position: absolute; inset: 0;

@@ -23,10 +23,24 @@ Route::get('/site.webmanifest', [PwaController::class, 'manifest'])->name('pwa.m
 Route::get('/sw.js', [PwaController::class, 'serviceWorker'])->name('pwa.sw');
 Route::view('/offline', 'pwa.offline')->name('pwa.offline');
 
+// Páginas legais (Termos / Privacidade) — PÚBLICAS: o cadastro e o aviso de
+// cookies linkam para elas, e o aceite obrigatório no registro deixa de ser um
+// link morto (LGPD).
+Route::view('/termos', 'legal.termos')->name('termos');
+Route::view('/privacidade', 'legal.privacidade')->name('privacidade');
+
 // Todas as telas do app exigem login (multiusuário desde a Fase 1).
 Route::middleware('auth')->group(function () {
     // Dashboard (tela inicial)
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Token CSRF fresco da sessão atual. Usado pelo submit AJAX do lançamento
+    // para se recuperar de um 419: quando o form é aberto OFFLINE (servido do
+    // cache do service worker, com _token velho) e enviado depois que a conexão
+    // volta, o token do cache já não bate; o cliente busca um token novo aqui e
+    // refaz o POST. GET não precisa de proteção CSRF; fica atrás de 'auth' e
+    // devolve só o token da própria sessão.
+    Route::get('/csrf-token', fn () => response()->json(['token' => csrf_token()]))->name('csrf.token');
 
     // Recursos principais
     Route::resource('transactions', TransactionController::class)->except('show');
@@ -74,6 +88,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/faturas/lancar', [FaturaController::class, 'store'])->name('faturas.lancar');
     Route::delete('/faturas/compra/{transaction}', [FaturaController::class, 'destroy'])
         ->name('faturas.compra.destroy');
+    // Recorrência "infinita": pagar a ocorrência em aberto gera a próxima (+1 mês).
+    Route::post('/faturas/recorrente/{transaction}/pagar', [FaturaController::class, 'pay'])
+        ->name('faturas.recorrente.pagar');
 });
 
 require __DIR__ . '/auth.php';

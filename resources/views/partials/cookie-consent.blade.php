@@ -4,7 +4,7 @@
     <div class="cookie-txt">
         <strong>Cookies por aqui 🍪</strong>
         <p>Usamos cookies essenciais para manter você conectado e lembrar suas preferências.
-           <a href="#">Saiba mais</a>.</p>
+           <a href="{{ route('privacidade') }}">Saiba mais</a>.</p>
     </div>
     <button type="button" class="btn-primary cookie-accept" id="cookieAccept">Aceitar</button>
 </div>
