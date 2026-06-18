@@ -294,6 +294,8 @@ Saldo total = atual de todas as contas, independe do período.
   (testes rodam em sqlite `:memory:` — cuidado com funções tipo `MONTH()`, ver
   `DashboardService` para o padrão por driver).
 - Commits: prefixos `Feat:`, `Fix:`, `style:`.
+- **Fluxo git:** commitar **direto na `main`/`master`** (sem PR/branch de feature) — preferência
+  do Victor (jun/2026). Push para `origin/main` autorizado.
 
 ---
 
