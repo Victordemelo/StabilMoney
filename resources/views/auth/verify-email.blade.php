@@ -18,7 +18,7 @@
         </div>
     @endif
 
-    <div class="grid gap-3">
+    <div class="flex flex-col gap-3">
         {{-- Reenviar e-mail de verificação --}}
         <form method="POST" action="{{ route('verification.send') }}">
             @csrf

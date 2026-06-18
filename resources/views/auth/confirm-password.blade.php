@@ -9,7 +9,7 @@
         Esta é uma área segura. Confirme sua senha antes de continuar.
     </p>
 
-    <form method="POST" action="{{ route('password.confirm') }}" class="grid gap-4">
+    <form method="POST" action="{{ route('password.confirm') }}" class="flex flex-col gap-4">
         @csrf
 
         {{-- Senha --}}

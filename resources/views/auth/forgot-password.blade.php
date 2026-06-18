@@ -17,7 +17,7 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('password.email') }}" class="grid gap-4">
+    <form method="POST" action="{{ route('password.email') }}" class="flex flex-col gap-4">
         @csrf
 
         {{-- E-mail --}}

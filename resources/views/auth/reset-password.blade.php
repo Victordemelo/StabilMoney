@@ -7,7 +7,7 @@
     <h1 class="text-center text-[20px] font-bold [font-family:var(--font-head)] tracking-[-0.01em]">Redefinir senha</h1>
     <p class="mt-1 mb-6 text-center text-[13px] text-[var(--ink-3)]">Crie uma nova senha para a sua conta.</p>
 
-    <form method="POST" action="{{ route('password.store') }}" class="grid gap-4">
+    <form method="POST" action="{{ route('password.store') }}" class="flex flex-col gap-4">
         @csrf
 
         {{-- Token de redefinição de senha --}}
