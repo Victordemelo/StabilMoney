@@ -140,7 +140,8 @@ class MultiUserIsolationTest extends TestCase
     {
         $response = $this->actingAs($this->userA)->put("/accounts/{$this->accountB->id}", [
             'name' => 'Conta Hackeada',
-            'type' => 'bank',
+            'type' => 'checking',
+            'bank' => 'nubank',
             'initial_balance' => '0,00',
         ]);
 

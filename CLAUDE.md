@@ -206,7 +206,7 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
 |---|---|---|
 | `GET /` (`dashboard`) | `dashboard.blade.php` | Stats com sparklines, segmented semana/mês/ano, fluxo de caixa, donut por categoria, transações recentes, "Meu cartão" + contas, cards "Em breve". |
 | `/transactions` (resource, sem `show`) | `transactions/*` | Lista com filtros GET (tipo/conta), paginação; form com type-toggle, valor com vírgula, conta, categoria filtrada por tipo. |
-| `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"** no menu/título (versão inicial — modelo ainda é `accounts`). Cards `.cc` com saldo (accessor `balance`), gradiente pela cor; form com icon/color picker. |
+| `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"**. 4 tipos (Conta Corrente/Poupança, Cartão de Débito/Crédito) + **banco** com logo (imagem `public/assets/banks/`, preview no form). Form com campos condicionais por tipo (JS): conta = saldo inicial; crédito = limite + fechamento/vencimento; débito = vincula corrente/poupança que ele espelha. **Sem picker de ícone/cor.** O card mostra a imagem do banco; débito mostra corrente/poupança separados + total. |
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
 | `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais: nome, e-mail, telefone, foto (preview antes de salvar). **Acesso pelo popover do perfil** (sidebar). |
 | `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security`) | Subabas-pílula numa coluna centrada (680px). **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), e **2FA "em breve"**. **Conta** = excluir conta (modal). |
@@ -265,9 +265,17 @@ Saldo total = atual de todas as contas, independe do período.
   "quanto já gastou" no card de dependentes), `avatarUrl()`. `relationship` (string nullable):
   parentesco do dependente — valores em `User::RELATIONSHIPS` (conjuge/filho/pai_mae/irmao/outro);
   `relationshipLabel()` devolve o rótulo PT-BR.
-- **accounts** — `user_id`, `name`, `type` (`wallet|bank|credit_card|savings|investment|other`),
-  `initial_balance`, `color`, `icon`. Saldo = `initial_balance` + receitas − despesas
-  (accessor `balance` no model; o dashboard calcula via SQL agregado).
+- **accounts** — `user_id`, `name`, `type` (`Account::TYPES`: `checking`=Conta Corrente,
+  `savings`=Conta Poupança, `debit_card`=Cartão de Débito, `credit_card`=Cartão de Crédito),
+  `bank` (`Account::BANKS`: banco_do_brasil/bradesco/caixa/inter/itau/mercado_pago/nubank/santander
+  — imagem em `public/assets/banks/{bank}.png`), `initial_balance` (**nullable**: só corrente/poupança
+  têm; cartões = null), campos de cartão de crédito (`credit_limit`/`closing_day`/`due_day`),
+  `checking_account_id`/`savings_account_id` (FKs `nullOnDelete` — o **cartão de débito** espelha
+  estas contas), `color`/`icon` (legado, sem picker no form). Saldo: corrente/poupança =
+  `initial_balance` + receitas − despesas; **débito = saldo da corrente + poupança vinculadas**
+  (mostradas separadas + total; `checkingBalance`/`savingsBalance`); crédito não é caixa. Débito e
+  crédito ficam **fora do patrimônio** (Sidebar/DashboardService) p/ não duplicar. Helpers:
+  `isCard()`/`isDebit()`, `typeLabel()`, `bankLabel()`, `bankImageUrl()`, `linkedChecking()`/`linkedSavings()`.
 - **categories** — `user_id`, `name`, `type` (`income|expense`), `color`, `icon`.
 - **transactions** — `user_id` (dono = **titular** da família), `made_by_user_id` (nullable,
   FK `nullOnDelete` — **quem lançou**, p/ "quem fez a compra"), `account_id` (FK `cascadeOnDelete`),

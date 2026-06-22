@@ -51,11 +51,23 @@ class DashboardService
             $account->type_label = self::ACCOUNT_TYPES[$account->type] ?? Str::ucfirst($account->type);
         }
 
-        // Cartão de crédito NÃO é caixa: fica fora do saldo/patrimônio (stat "saldo",
-        // sua trend e o sparkline). Continua aparecendo na LISTA de contas do card
-        // "Meu cartão" (exibição), só não soma no patrimônio.
-        $cardIds = $accounts->where('type', 'credit_card')->pluck('id')->all();
-        $nonCardAccounts = $accounts->where('type', '!=', 'credit_card');
+        // Cartão de débito ESPELHA as contas vinculadas (corrente + poupança) só
+        // para exibição — não tem saldo próprio. (Fica fora do patrimônio abaixo,
+        // senão somaria duas vezes o mesmo dinheiro.)
+        $byId = $accounts->keyBy('id');
+        foreach ($accounts as $account) {
+            if ($account->type === 'debit_card') {
+                $c = $account->checking_account_id ? (float) ($byId[$account->checking_account_id]->current_balance ?? 0) : 0;
+                $s = $account->savings_account_id ? (float) ($byId[$account->savings_account_id]->current_balance ?? 0) : 0;
+                $account->current_balance = round($c + $s, 2);
+            }
+        }
+
+        // Crédito e débito NÃO são caixa próprio: ficam fora do saldo/patrimônio
+        // (stat "saldo", trend, sparkline). Continuam na LISTA de contas (exibição).
+        $excludedTypes = ['credit_card', 'debit_card'];
+        $cardIds = $accounts->whereIn('type', $excludedTypes)->pluck('id')->all();
+        $nonCardAccounts = $accounts->whereNotIn('type', $excludedTypes);
 
         $initialTotal = round((float) $nonCardAccounts->sum(fn ($a) => (float) $a->initial_balance), 2);
         $totalBalance = round((float) $nonCardAccounts->sum('current_balance'), 2);

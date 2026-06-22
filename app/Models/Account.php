@@ -16,6 +16,10 @@ class Account extends Model
         'user_id',
         'name',
         'type',
+        'bank',
+        // Cartão de débito: contas que ele espelha (saldo = soma das vinculadas).
+        'checking_account_id',
+        'savings_account_id',
         'initial_balance',
         // Campos exclusivos de cartão de crédito (nullable nas demais contas).
         'credit_limit',
@@ -23,6 +27,26 @@ class Account extends Model
         'due_day',
         'color',
         'icon',
+    ];
+
+    /** Tipos oferecidos no cadastro (valor no banco => rótulo PT-BR). */
+    public const TYPES = [
+        'checking' => 'Conta Corrente',
+        'savings' => 'Conta Poupança',
+        'debit_card' => 'Cartão de Débito',
+        'credit_card' => 'Cartão de Crédito',
+    ];
+
+    /** Bancos suportados (valor => rótulo). A imagem é `public/assets/banks/{valor}.png`. */
+    public const BANKS = [
+        'banco_do_brasil' => 'Banco do Brasil',
+        'bradesco' => 'Bradesco',
+        'caixa' => 'Caixa',
+        'inter' => 'Inter',
+        'itau' => 'Itaú',
+        'mercado_pago' => 'Mercado Pago',
+        'nubank' => 'Nubank',
+        'santander' => 'Santander',
     ];
 
     protected function casts(): array
@@ -41,9 +65,45 @@ class Account extends Model
         return $this->type === 'credit_card';
     }
 
+    /** É um cartão de débito? (Espelha o saldo das contas vinculadas.) */
+    public function isDebit(): bool
+    {
+        return $this->type === 'debit_card';
+    }
+
+    /** Rótulo PT-BR do tipo (ex.: "Conta Corrente"). */
+    public function typeLabel(): string
+    {
+        return self::TYPES[$this->type] ?? $this->type;
+    }
+
+    /** Rótulo PT-BR do banco, ou null se não houver. */
+    public function bankLabel(): ?string
+    {
+        return self::BANKS[$this->bank] ?? null;
+    }
+
+    /** URL pública da imagem do cartão do banco, ou null se sem banco. */
+    public function bankImageUrl(): ?string
+    {
+        return isset(self::BANKS[$this->bank]) ? asset("assets/banks/{$this->bank}.png") : null;
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Conta corrente vinculada (cartão de débito). */
+    public function linkedChecking(): BelongsTo
+    {
+        return $this->belongsTo(Account::class, 'checking_account_id');
+    }
+
+    /** Conta poupança vinculada (cartão de débito). */
+    public function linkedSavings(): BelongsTo
+    {
+        return $this->belongsTo(Account::class, 'savings_account_id');
     }
 
     public function transactions(): HasMany
@@ -74,16 +134,33 @@ class Account extends Model
     private ?float $committedCache = null;
 
     /**
-     * Saldo atual = saldo inicial + receitas - despesas.
+     * Saldo atual. Cartão de débito ESPELHA as contas vinculadas (corrente +
+     * poupança) — não tem saldo próprio. As demais: saldo inicial + receitas − despesas.
      */
     public function getBalanceAttribute(): float
     {
         return $this->balanceCache ??= (function (): float {
+            if ($this->isDebit()) {
+                return round($this->checkingBalance + $this->savingsBalance, 2);
+            }
+
             $income = $this->transactions()->where('type', 'income')->sum('amount');
             $expense = $this->transactions()->where('type', 'expense')->sum('amount');
 
             return round((float) $this->initial_balance + (float) $income - (float) $expense, 2);
         })();
+    }
+
+    /** Saldo da conta corrente vinculada (0 se não houver) — para o cartão de débito. */
+    public function getCheckingBalanceAttribute(): float
+    {
+        return $this->linkedChecking ? $this->linkedChecking->balance : 0.0;
+    }
+
+    /** Saldo da conta poupança vinculada (0 se não houver) — para o cartão de débito. */
+    public function getSavingsBalanceAttribute(): float
+    {
+        return $this->linkedSavings ? $this->linkedSavings->balance : 0.0;
     }
 
     /**

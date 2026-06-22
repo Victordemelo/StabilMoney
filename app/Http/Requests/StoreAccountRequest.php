@@ -3,7 +3,9 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\NormalizesMoneyInput;
+use App\Models\Account;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreAccountRequest extends FormRequest
 {
@@ -15,46 +17,73 @@ class StoreAccountRequest extends FormRequest
     }
 
     /**
-     * Normaliza os valores monetários digitados no padrão pt-BR (vírgula
-     * decimal, ponto de milhar) para o formato decimal aceito pelo banco.
+     * Normaliza os valores monetários (pt-BR -> decimal) e zera os campos que
+     * não pertencem ao tipo escolhido, para não persistir lixo nem disparar
+     * validação à toa.
      */
     protected function prepareForValidation(): void
     {
         $this->normalizeMoneyField('initial_balance');
         $this->normalizeMoneyField('credit_limit');
 
-        // Campos de cartão só fazem sentido para credit_card: nas demais contas
-        // os zeramos para não persistir lixo (e não disparar validação à toa).
-        if ($this->input('type') !== 'credit_card') {
-            $this->merge([
-                'credit_limit' => null,
-                'closing_day' => null,
-                'due_day' => null,
-            ]);
+        $type = $this->input('type');
+
+        // Saldo inicial só existe para conta corrente/poupança.
+        if (! in_array($type, ['checking', 'savings'], true)) {
+            $this->merge(['initial_balance' => null]);
+        }
+        // Campos de cartão de crédito.
+        if ($type !== 'credit_card') {
+            $this->merge(['credit_limit' => null, 'closing_day' => null, 'due_day' => null]);
+        }
+        // Vínculos só existem para cartão de débito.
+        if ($type !== 'debit_card') {
+            $this->merge(['checking_account_id' => null, 'savings_account_id' => null]);
         }
     }
 
     public function rules(): array
     {
-        $isCard = $this->input('type') === 'credit_card';
+        $type = $this->input('type');
+        $isAccount = in_array($type, ['checking', 'savings'], true); // tem saldo próprio
+        $isCredit = $type === 'credit_card';
+        $isDebit = $type === 'debit_card';
+        $ownerId = $this->user()->ownerId();
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'in:wallet,bank,credit_card,savings,investment,other'],
-            'initial_balance' => ['required', 'numeric', 'min:0', 'max:9999999999999.99'],
-            // Campos de cartão: obrigatórios SÓ para credit_card; nullable nas demais.
-            'credit_limit' => $isCard
+            'type' => ['required', Rule::in(array_keys(Account::TYPES))],
+            'bank' => ['required', Rule::in(array_keys(Account::BANKS))],
+
+            // Saldo inicial: obrigatório p/ conta corrente/poupança; ausente nos cartões.
+            'initial_balance' => $isAccount
+                ? ['required', 'numeric', 'min:0', 'max:9999999999999.99']
+                : ['nullable'],
+
+            // Cartão de crédito: limite + dias.
+            'credit_limit' => $isCredit
                 ? ['required', 'numeric', 'min:0.01', 'max:9999999999999.99']
                 : ['nullable'],
-            'closing_day' => $isCard
-                ? ['required', 'integer', 'between:1,28']
+            'closing_day' => $isCredit ? ['required', 'integer', 'between:1,28'] : ['nullable'],
+            'due_day' => $isCredit ? ['required', 'integer', 'between:1,28'] : ['nullable'],
+
+            // Cartão de débito: espelha uma conta corrente e/ou poupança da família.
+            // Pelo menos uma é obrigatória (required_without) e precisa ser do tipo certo.
+            'checking_account_id' => $isDebit
+                ? ['nullable', 'required_without:savings_account_id', $this->linkRule($ownerId, 'checking')]
                 : ['nullable'],
-            'due_day' => $isCard
-                ? ['required', 'integer', 'between:1,28']
+            'savings_account_id' => $isDebit
+                ? ['nullable', 'required_without:checking_account_id', $this->linkRule($ownerId, 'savings')]
                 : ['nullable'],
-            'color' => ['nullable', 'string', 'max:30', 'regex:/^#[0-9A-Fa-f]{6}$/'],
-            'icon' => ['nullable', 'string', 'max:30'],
         ];
+    }
+
+    /** Regra de existência da conta vinculada: precisa ser da família e do tipo certo. */
+    private function linkRule(int $ownerId, string $type): \Illuminate\Validation\Rules\Exists
+    {
+        return Rule::exists('accounts', 'id')->where(function ($q) use ($ownerId, $type) {
+            $q->where('user_id', $ownerId)->where('type', $type);
+        });
     }
 
     public function attributes(): array
@@ -62,12 +91,13 @@ class StoreAccountRequest extends FormRequest
         return [
             'name' => 'nome',
             'type' => 'tipo',
+            'bank' => 'banco',
             'initial_balance' => 'saldo inicial',
             'credit_limit' => 'limite do cartão',
             'closing_day' => 'dia de fechamento',
             'due_day' => 'dia de vencimento',
-            'color' => 'cor',
-            'icon' => 'ícone',
+            'checking_account_id' => 'conta corrente vinculada',
+            'savings_account_id' => 'conta poupança vinculada',
         ];
     }
 
@@ -78,6 +108,8 @@ class StoreAccountRequest extends FormRequest
             'name.max' => 'O nome pode ter no máximo 255 caracteres.',
             'type.required' => 'Escolha o tipo da conta.',
             'type.in' => 'Tipo de conta inválido.',
+            'bank.required' => 'Escolha o banco.',
+            'bank.in' => 'Banco inválido.',
             'initial_balance.required' => 'Informe o saldo inicial (pode ser 0,00).',
             'initial_balance.numeric' => 'O saldo inicial deve ser um número. Use vírgula para os centavos, ex.: 150,00.',
             'initial_balance.min' => 'O saldo inicial não pode ser negativo.',
@@ -87,14 +119,12 @@ class StoreAccountRequest extends FormRequest
             'credit_limit.min' => 'O limite do cartão deve ser maior que zero.',
             'credit_limit.max' => 'O limite informado é alto demais.',
             'closing_day.required' => 'Informe o dia de fechamento da fatura.',
-            'closing_day.integer' => 'O dia de fechamento deve ser um número.',
             'closing_day.between' => 'O dia de fechamento deve ser entre 1 e 28.',
             'due_day.required' => 'Informe o dia de vencimento da fatura.',
-            'due_day.integer' => 'O dia de vencimento deve ser um número.',
             'due_day.between' => 'O dia de vencimento deve ser entre 1 e 28.',
-            'color.regex' => 'A cor deve ser um código hexadecimal, ex.: #1C9A70.',
-            'color.max' => 'Cor inválida.',
-            'icon.max' => 'Ícone inválido.',
+            'checking_account_id.required_without' => 'Vincule pelo menos uma conta (corrente ou poupança) ao cartão de débito.',
+            'checking_account_id.exists' => 'A conta corrente escolhida não existe ou não é sua.',
+            'savings_account_id.exists' => 'A conta poupança escolhida não existe ou não é sua.',
         ];
     }
 }

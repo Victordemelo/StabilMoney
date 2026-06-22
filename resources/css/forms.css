@@ -207,6 +207,26 @@ a.tx { text-decoration: none; color: inherit; }
 /* ----- Cartões (página de contas) ----- */
 .acct-card .cc { min-height: 178px; }
 .cc .cc-emoji { font-size: 24px; line-height: 1; position: relative; z-index: 1; }
+
+/* Imagem do cartão do banco (proporção de cartão real) */
+.bankcard { border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-md); aspect-ratio: 1.586; background: var(--surface-3); }
+.bankcard img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Bloco de informações abaixo do cartão */
+.acct-info { margin-top: 12px; }
+.acct-info-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.acct-name { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.acct-type { font-size: 11.5px; color: var(--ink-3); font-weight: 600; text-align: right; }
+.acct-sub { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 12.5px; color: var(--ink-3); }
+.acct-sub b { color: var(--ink); font-weight: 700; }
+.acct-balance { margin-top: 8px; font-family: var(--font-head); font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+.acct-balance-lbl { font-family: var(--font-body); font-size: 11.5px; font-weight: 600; color: var(--ink-3); margin-left: 4px; }
+
+/* Preview do cartão no formulário */
+.bank-preview { max-width: 280px; margin: 0 auto 20px; }
+.bank-preview img { width: 100%; border-radius: 14px; box-shadow: var(--shadow-md); display: block; }
+.form-hint { font-size: 12.5px; color: var(--ink-3); margin-bottom: 12px; line-height: 1.45; }
+
 .acct-card-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 12px; }
 .acct-card-actions .mini-btn { margin-left: 0; }
 .mini-btn.danger { color: var(--neg); }

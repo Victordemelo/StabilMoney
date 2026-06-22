@@ -208,7 +208,7 @@ class CreditCardTest extends TestCase
         $this->actingAs($user)->post('/accounts', [
             'name' => 'Cartão Black',
             'type' => 'credit_card',
-            'initial_balance' => '0,00',
+            'bank' => 'nubank',
             'credit_limit' => '5.000,00',
             'closing_day' => 10,
             'due_day' => 20,
@@ -231,7 +231,7 @@ class CreditCardTest extends TestCase
         $this->actingAs($user)->post('/accounts', [
             'name' => 'Cartão',
             'type' => 'credit_card',
-            'initial_balance' => '0,00',
+            'bank' => 'nubank',
             'credit_limit' => '1.000,00',
             'closing_day' => 31, // fora de 1..28
             'due_day' => 20,
@@ -245,7 +245,8 @@ class CreditCardTest extends TestCase
         // Mesmo enviando campos de cartão, uma conta normal os ignora (vira null).
         $this->actingAs($user)->post('/accounts', [
             'name' => 'Conta Comum',
-            'type' => 'bank',
+            'type' => 'checking',
+            'bank' => 'itau',
             'initial_balance' => '100,00',
             'credit_limit' => '9.999,00',
             'closing_day' => 5,
@@ -254,7 +255,7 @@ class CreditCardTest extends TestCase
 
         $this->assertDatabaseHas('accounts', [
             'name' => 'Conta Comum',
-            'type' => 'bank',
+            'type' => 'checking',
             'credit_limit' => null,
             'closing_day' => null,
             'due_day' => null,

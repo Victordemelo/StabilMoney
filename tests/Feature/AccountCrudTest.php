@@ -29,10 +29,9 @@ class AccountCrudTest extends TestCase
     {
         $response = $this->actingAs($this->user)->post('/accounts', [
             'name' => 'Banco Azul',
-            'type' => 'bank',
+            'type' => 'checking',
+            'bank' => 'nubank',
             'initial_balance' => '1.500,00', // vírgula pt-BR também é aceita aqui
-            'color' => '#1FA06E',
-            'icon' => '🏦',
         ]);
 
         $response->assertSessionHasNoErrors();
@@ -40,7 +39,8 @@ class AccountCrudTest extends TestCase
 
         $account = Account::where('user_id', $this->user->id)->firstOrFail();
         $this->assertSame('Banco Azul', $account->name);
-        $this->assertSame('bank', $account->type);
+        $this->assertSame('checking', $account->type);
+        $this->assertSame('nubank', $account->bank);
         $this->assertSame('1500.00', (string) $account->initial_balance);
     }
 
@@ -48,7 +48,8 @@ class AccountCrudTest extends TestCase
     {
         $this->actingAs($this->user)->post('/accounts', [
             'name' => 'Conta Negativa',
-            'type' => 'bank',
+            'type' => 'checking',
+            'bank' => 'nubank',
             'initial_balance' => '-100,00',
         ])->assertSessionHasErrors('initial_balance');
 
@@ -69,7 +70,8 @@ class AccountCrudTest extends TestCase
 
         $response = $this->actingAs($this->user)->put("/accounts/{$account->id}", [
             'name' => 'Nome Novo',
-            'type' => 'wallet',
+            'type' => 'checking',
+            'bank' => 'itau',
             'initial_balance' => '200,00',
         ]);
 

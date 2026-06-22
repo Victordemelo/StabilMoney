@@ -12,31 +12,21 @@ class AccountController extends Controller
 {
     use AuthorizesRequests;
 
-    /** Rótulos PT-BR dos tipos de conta (usados nas views). */
-    public const TYPES = [
-        'wallet' => 'Carteira',
-        'bank' => 'Conta bancária',
-        'credit_card' => 'Cartão de crédito',
-        'savings' => 'Poupança',
-        'investment' => 'Investimento',
-        'other' => 'Outro',
-    ];
-
     public function index(Request $request)
     {
-        $accounts = Account::where('user_id', $request->user()->ownerId())
+        $accounts = Account::with(['linkedChecking', 'linkedSavings'])
+            ->where('user_id', $request->user()->ownerId())
             ->orderBy('name')
             ->get();
 
         return view('accounts.index', [
             'accounts' => $accounts,
-            'types' => self::TYPES,
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        return view('accounts.create', ['types' => self::TYPES]);
+        return view('accounts.create', $this->formData($request->user()->ownerId()));
     }
 
     public function store(StoreAccountRequest $request)
@@ -54,10 +44,23 @@ class AccountController extends Controller
     {
         $this->authorize('update', $account);
 
-        return view('accounts.edit', [
+        return view('accounts.edit', $this->formData($account->user_id) + [
             'account' => $account,
-            'types' => self::TYPES,
         ]);
+    }
+
+    /**
+     * Dados comuns dos formulários: tipos, bancos e as contas corrente/poupança
+     * da família (opções de vínculo do cartão de débito).
+     */
+    private function formData(int $ownerId): array
+    {
+        return [
+            'types' => Account::TYPES,
+            'banks' => Account::BANKS,
+            'checkingAccounts' => Account::where('user_id', $ownerId)->where('type', 'checking')->orderBy('name')->get(),
+            'savingsAccounts' => Account::where('user_id', $ownerId)->where('type', 'savings')->orderBy('name')->get(),
+        ];
     }
 
     public function update(UpdateAccountRequest $request, Account $account)

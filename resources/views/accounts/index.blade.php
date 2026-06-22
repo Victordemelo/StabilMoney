@@ -45,26 +45,41 @@
         <div class="grid">
             @foreach ($accounts as $conta)
                 <div class="card span4 acct-card">
-                    <div class="cc"
-                         @if ($conta->color)
-                             style="background: linear-gradient(135deg, {{ $conta->color }} 0%, color-mix(in srgb, {{ $conta->color }} 55%, #07140E) 60%, color-mix(in srgb, {{ $conta->color }} 38%, #07140E) 100%)"
-                         @endif>
-                        <div class="cc-top">
-                            <span class="net">{{ $conta->name }}</span>
-                            <span class="cc-emoji">{{ $conta->icon ?? '💳' }}</span>
-                        </div>
-                        <div class="cc-chip"></div>
-                        <div class="cc-bot">
-                            <div>
-                                <div class="lbl">Saldo atual</div>
-                                <div class="cc-balance">R$ {{ number_format($conta->balance, 2, ',', '.') }}</div>
-                            </div>
-                            <div style="text-align:right">
-                                <div class="lbl">Tipo</div>
-                                <div class="val">{{ $types[$conta->type] ?? $conta->type }}</div>
+                    {{-- Visual do cartão: imagem do banco, ou gradiente padrão p/ contas antigas sem banco --}}
+                    @if ($conta->bankImageUrl())
+                        <div class="bankcard"><img src="{{ $conta->bankImageUrl() }}" alt="{{ $conta->bankLabel() }}" loading="lazy"></div>
+                    @else
+                        <div class="cc"
+                             @if ($conta->color)
+                                 style="background: linear-gradient(135deg, {{ $conta->color }} 0%, color-mix(in srgb, {{ $conta->color }} 55%, #07140E) 60%, color-mix(in srgb, {{ $conta->color }} 38%, #07140E) 100%)"
+                             @endif>
+                            <div class="cc-top"><span class="net">{{ $conta->name }}</span></div>
+                            <div class="cc-chip"></div>
+                            <div class="cc-bot">
+                                <div><div class="lbl">Saldo atual</div><div class="cc-balance">R$ {{ number_format($conta->balance, 2, ',', '.') }}</div></div>
                             </div>
                         </div>
+                    @endif
+
+                    <div class="acct-info">
+                        <div class="acct-info-top">
+                            <span class="acct-name">{{ $conta->name }}</span>
+                            <span class="acct-type">{{ $conta->typeLabel() }}{{ $conta->bankLabel() ? ' · ' . $conta->bankLabel() : '' }}</span>
+                        </div>
+
+                        @if ($conta->isDebit())
+                            <div class="acct-sub">
+                                <span>Corrente <b>R$ {{ number_format($conta->checkingBalance, 2, ',', '.') }}</b></span>
+                                <span>Poupança <b>R$ {{ number_format($conta->savingsBalance, 2, ',', '.') }}</b></span>
+                            </div>
+                            <div class="acct-balance">R$ {{ number_format($conta->balance, 2, ',', '.') }} <span class="acct-balance-lbl">total</span></div>
+                        @elseif ($conta->isCard())
+                            <div class="acct-balance">R$ {{ number_format($conta->availableLimit, 2, ',', '.') }} <span class="acct-balance-lbl">limite disponível</span></div>
+                        @else
+                            <div class="acct-balance">R$ {{ number_format($conta->balance, 2, ',', '.') }} <span class="acct-balance-lbl">saldo atual</span></div>
+                        @endif
                     </div>
+
                     <div class="acct-card-actions">
                         <a class="mini-btn" href="{{ route('accounts.edit', $conta) }}">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/></svg>
