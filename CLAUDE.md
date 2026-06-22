@@ -335,6 +335,10 @@ docker compose exec app php artisan key:generate
 # 4. Tabelas + usuário de dev (seeder só roda em APP_ENV=local; credenciais nas SEED_USER_* do .env)
 docker compose exec app php artisan migrate --seed
 
+# 5. Symlink p/ servir uploads (fotos de perfil/dependentes via disco public).
+#    Recriar após migrate:fresh / ambiente novo — sem ele as fotos não aparecem.
+docker compose exec app php artisan storage:link
+
 # App: http://localhost:8001
 ```
 
