@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HandlesContributions;
 use App\Http\Requests\StoreGoalContributionRequest;
 use App\Http\Requests\WithdrawGoalContributionRequest;
 use App\Models\Goal;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class GoalContributionController extends Controller
 {
     use AuthorizesRequests;
+    use HandlesContributions;
 
     /**
      * Aporte (modelo "cofrinho"): reserva dinheiro de uma conta na meta.
@@ -38,18 +41,16 @@ class GoalContributionController extends Controller
             ->with('status', 'Resgate realizado com sucesso.');
     }
 
-    /** Cria a movimentação da meta, com autor/data padrão e o tipo informado. */
-    private function record($request, Goal $meta, string $type): void
+    /** Valor guardado na meta (limite de resgate). */
+    protected function parentBalance(Model $parent): float
     {
-        $data = $request->validated();
+        /** @var Goal $parent */
+        return $parent->saved;
+    }
 
-        $meta->contributions()->create([
-            'account_id' => $data['account_id'],
-            // Autor: o informado no form, ou o usuário atual por padrão.
-            'made_by_user_id' => $data['made_by_user_id'] ?? $request->user()->id,
-            'type' => $type,
-            'amount' => $data['amount'],
-            'date' => $data['date'] ?? now()->toDateString(),
-        ]);
+    protected function withdrawOverflowMessage(float $available): string
+    {
+        return 'O valor do resgate é maior que o valor guardado na meta (R$ '
+            . number_format($available, 2, ',', '.') . ').';
     }
 }

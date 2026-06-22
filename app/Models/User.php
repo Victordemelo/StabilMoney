@@ -86,6 +86,18 @@ class User extends Authenticatable
         return $this->hasMany(User::class, 'account_owner_id');
     }
 
+    /**
+     * Membros da família (titular + dependentes), ordenados por nome.
+     * $ownerId = id do titular. O wrapper em closure preserva o agrupamento
+     * do OR caso outras cláusulas where sejam encadeadas depois.
+     */
+    public function scopeFamilyOf($query, int $ownerId)
+    {
+        return $query->where(function ($q) use ($ownerId) {
+            $q->where('id', $ownerId)->orWhere('account_owner_id', $ownerId);
+        })->orderBy('name');
+    }
+
     public function titular(): BelongsTo
     {
         return $this->belongsTo(User::class, 'account_owner_id');

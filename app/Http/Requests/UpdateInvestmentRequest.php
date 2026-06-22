@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\NormalizesMoneyInput;
 use App\Models\Investment;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -13,28 +14,17 @@ use Illuminate\Validation\Rule;
  */
 class UpdateInvestmentRequest extends FormRequest
 {
+    use NormalizesMoneyInput;
+
     public function authorize(): bool
     {
         return true;
     }
 
-    /** Normaliza a taxa digitada no padrão pt-BR ("110,00") para decimal. */
+    /** Normaliza a taxa digitada no padrão pt-BR ("110,00") para decimal (remove "%", vazio vira null). */
     protected function prepareForValidation(): void
     {
-        if (is_string($this->taxa)) {
-            $valor = trim(str_replace(['R$', '%', ' '], '', $this->taxa));
-
-            if ($valor === '') {
-                $valor = null;
-            } elseif (str_contains($valor, ',')) {
-                $valor = str_replace('.', '', $valor);  // remove separador de milhar
-                $valor = str_replace(',', '.', $valor); // vírgula decimal -> ponto
-            } elseif (preg_match('/^-?\d{1,3}(\.\d{3})+$/', $valor)) {
-                $valor = str_replace('.', '', $valor);  // só milhares
-            }
-
-            $this->merge(['taxa' => $valor]);
-        }
+        $this->normalizePercentField('taxa');
     }
 
     public function rules(): array

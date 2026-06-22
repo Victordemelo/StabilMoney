@@ -140,9 +140,6 @@ class FaturaService
     /** Membros da família (titular + dependentes) para o seletor "quem fez a compra". */
     private function familyMembers(int $userId): Collection
     {
-        return User::where('id', $userId)
-            ->orWhere('account_owner_id', $userId)
-            ->orderBy('name')
-            ->get();
+        return User::familyOf($userId)->get();
     }
 }

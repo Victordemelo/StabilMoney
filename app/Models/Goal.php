@@ -50,13 +50,20 @@ class Goal extends Model
         return $this->hasMany(GoalContribution::class);
     }
 
+    // Cache por-instância do guardado (dispara query). Memoiza na 1ª chamada —
+    // os derivados (progress/remaining) reusam o valor sem N+1. Cada instância
+    // recém-consultada nasce com null, então não há valor velho entre requests.
+    private ?float $savedCache = null;
+
     /** Guardado = Σ aportes − Σ resgates desta meta. */
     public function getSavedAttribute(): float
     {
-        $aportes = $this->contributions()->where('type', 'aporte')->sum('amount');
-        $resgates = $this->contributions()->where('type', 'resgate')->sum('amount');
+        return $this->savedCache ??= (function (): float {
+            $aportes = $this->contributions()->where('type', 'aporte')->sum('amount');
+            $resgates = $this->contributions()->where('type', 'resgate')->sum('amount');
 
-        return round((float) $aportes - (float) $resgates, 2);
+            return round((float) $aportes - (float) $resgates, 2);
+        })();
     }
 
     /** Quanto ainda falta para bater o alvo (nunca negativo). */

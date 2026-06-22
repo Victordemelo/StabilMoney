@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\NormalizesMoneyInput;
 use App\Models\Account;
 use App\Models\Investment;
 use Closure;
@@ -16,6 +17,8 @@ use Illuminate\Validation\Rule;
  */
 class StoreInvestmentRequest extends FormRequest
 {
+    use NormalizesMoneyInput;
+
     public function authorize(): bool
     {
         // Dono dos dados é garantido pelo controller (user_id = ownerId)
@@ -23,35 +26,14 @@ class StoreInvestmentRequest extends FormRequest
         return true;
     }
 
-    /** Normaliza valor inicial e taxa digitados no padrão pt-BR para decimal. */
+    /**
+     * Normaliza valor inicial e taxa digitados no padrão pt-BR para decimal.
+     * Ambos removem "%" e tratam vazio como null (campos opcionais).
+     */
     protected function prepareForValidation(): void
     {
-        if (is_string($this->valor_inicial)) {
-            $this->merge(['valor_inicial' => $this->normalizeMoney($this->valor_inicial)]);
-        }
-
-        if (is_string($this->taxa)) {
-            $this->merge(['taxa' => $this->normalizeMoney($this->taxa)]);
-        }
-    }
-
-    /** Converte "1.234,56" / "110,00" / "" do padrão pt-BR para decimal ("." ou null). */
-    private function normalizeMoney(string $valor): ?string
-    {
-        $valor = trim(str_replace(['R$', '%', ' '], '', $valor));
-
-        if ($valor === '') {
-            return null;
-        }
-
-        if (str_contains($valor, ',')) {
-            $valor = str_replace('.', '', $valor);  // remove separador de milhar
-            $valor = str_replace(',', '.', $valor); // vírgula decimal -> ponto
-        } elseif (preg_match('/^-?\d{1,3}(\.\d{3})+$/', $valor)) {
-            $valor = str_replace('.', '', $valor);  // só milhares: "1.234" -> "1234"
-        }
-
-        return $valor;
+        $this->normalizeMoneyField('valor_inicial', emptyToNull: true, stripPercent: true);
+        $this->normalizeMoneyField('taxa', emptyToNull: true, stripPercent: true);
     }
 
     public function rules(): array

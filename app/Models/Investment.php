@@ -77,13 +77,20 @@ class Investment extends Model
         return $this->hasMany(InvestmentContribution::class);
     }
 
+    // Cache por-instância do aplicado (dispara query). Memoiza na 1ª chamada —
+    // evita N+1 quando a view o consulta várias vezes. Cada instância recém-
+    // consultada nasce com null, então não há valor velho entre requests.
+    private ?float $aplicadoCache = null;
+
     /** Aplicado = Σ aportes − Σ resgates deste investimento (principal, sem juros). */
     public function getAplicadoAttribute(): float
     {
-        $aportes = $this->contributions()->where('type', 'aporte')->sum('amount');
-        $resgates = $this->contributions()->where('type', 'resgate')->sum('amount');
+        return $this->aplicadoCache ??= (function (): float {
+            $aportes = $this->contributions()->where('type', 'aporte')->sum('amount');
+            $resgates = $this->contributions()->where('type', 'resgate')->sum('amount');
 
-        return round((float) $aportes - (float) $resgates, 2);
+            return round((float) $aportes - (float) $resgates, 2);
+        })();
     }
 
     /**

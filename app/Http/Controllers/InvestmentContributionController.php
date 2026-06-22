@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HandlesContributions;
 use App\Http\Requests\StoreInvestmentContributionRequest;
 use App\Http\Requests\WithdrawInvestmentContributionRequest;
 use App\Models\Investment;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class InvestmentContributionController extends Controller
 {
     use AuthorizesRequests;
+    use HandlesContributions;
 
     /**
      * Aporte (modelo "cofrinho"): reserva dinheiro de uma conta no investimento.
@@ -38,18 +41,16 @@ class InvestmentContributionController extends Controller
             ->with('status', 'Resgate realizado com sucesso.');
     }
 
-    /** Cria a movimentação do investimento, com autor/data padrão e o tipo informado. */
-    private function record($request, Investment $investimento, string $type): void
+    /** Valor aplicado no investimento (limite de resgate). */
+    protected function parentBalance(Model $parent): float
     {
-        $data = $request->validated();
+        /** @var Investment $parent */
+        return $parent->aplicado;
+    }
 
-        $investimento->contributions()->create([
-            'account_id' => $data['account_id'],
-            // Autor: o informado no form, ou o usuário atual por padrão.
-            'made_by_user_id' => $data['made_by_user_id'] ?? $request->user()->id,
-            'type' => $type,
-            'amount' => $data['amount'],
-            'date' => $data['date'] ?? now()->toDateString(),
-        ]);
+    protected function withdrawOverflowMessage(float $available): string
+    {
+        return 'O valor do resgate é maior que o valor aplicado no investimento (R$ '
+            . number_format($available, 2, ',', '.') . ').';
     }
 }

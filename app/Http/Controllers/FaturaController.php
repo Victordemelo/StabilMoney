@@ -9,6 +9,7 @@ use App\Services\FaturaService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -97,19 +98,22 @@ class FaturaController extends Controller
         $groupId = (string) Str::uuid();
         $parcela = round($total / $n, 2);
 
-        for ($i = 1; $i <= $n; $i++) {
-            $amount = $i < $n
-                ? $parcela
-                : round($total - $parcela * ($n - 1), 2); // última absorve o resto
+        // Atômico: as N parcelas entram juntas ou nenhuma — sem fatura "pela metade".
+        DB::transaction(function () use ($common, $total, $base, $n, $groupId, $parcela) {
+            for ($i = 1; $i <= $n; $i++) {
+                $amount = $i < $n
+                    ? $parcela
+                    : round($total - $parcela * ($n - 1), 2); // última absorve o resto
 
-            Transaction::create($common + [
-                'amount' => $amount,
-                'date' => $base->addMonths($i - 1)->toDateString(),
-                'group_id' => $groupId,
-                'installment_no' => $i,
-                'installments' => $n,
-            ]);
-        }
+                Transaction::create($common + [
+                    'amount' => $amount,
+                    'date' => $base->addMonths($i - 1)->toDateString(),
+                    'group_id' => $groupId,
+                    'installment_no' => $i,
+                    'installments' => $n,
+                ]);
+            }
+        });
     }
 
     /**
@@ -139,24 +143,38 @@ class FaturaController extends Controller
     {
         $this->authorize('update', $transaction);
 
-        if (! $transaction->recurring || $transaction->paid_at) {
+        // Não-recorrente: nada a fazer.
+        if (! $transaction->recurring) {
             return redirect()->route('faturas.index');
         }
 
-        $transaction->update(['paid_at' => now()]);
+        DB::transaction(function () use ($transaction) {
+            // Update condicional ATÔMICO: marca como paga só se ainda estava em
+            // aberto. Duas requisições simultâneas: só uma afeta a linha; a outra
+            // recebe 0 e sai sem gerar uma 2ª próxima ocorrência (idempotente).
+            $affected = Transaction::whereKey($transaction->id)
+                ->whereNull('paid_at')
+                ->where('recurring', true)
+                ->update(['paid_at' => now()]);
 
-        Transaction::create([
-            'user_id' => $transaction->user_id,
-            'made_by_user_id' => $transaction->made_by_user_id,
-            'account_id' => $transaction->account_id,
-            'category_id' => $transaction->category_id,
-            'type' => 'expense',
-            'description' => $transaction->description,
-            'amount' => $transaction->amount,
-            'date' => CarbonImmutable::parse($transaction->date)->addMonth()->toDateString(),
-            'group_id' => $transaction->group_id,
-            'recurring' => true,
-        ]);
+            if ($affected === 0) {
+                return; // já estava paga (ou outra requisição venceu a corrida).
+            }
+
+            // Gera a PRÓXIMA ocorrência (+1 mês, mesmo grupo, em aberto).
+            Transaction::create([
+                'user_id' => $transaction->user_id,
+                'made_by_user_id' => $transaction->made_by_user_id,
+                'account_id' => $transaction->account_id,
+                'category_id' => $transaction->category_id,
+                'type' => 'expense',
+                'description' => $transaction->description,
+                'amount' => $transaction->amount,
+                'date' => CarbonImmutable::parse($transaction->date)->addMonth()->toDateString(),
+                'group_id' => $transaction->group_id,
+                'recurring' => true,
+            ]);
+        });
 
         return redirect()->route('faturas.index')
             ->with('status', 'Recorrência paga — a próxima já foi lançada.');

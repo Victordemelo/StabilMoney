@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\NormalizesMoneyInput;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreGoalRequest extends FormRequest
 {
+    use NormalizesMoneyInput;
+
     public function authorize(): bool
     {
         // Dono dos dados é garantido pelo controller (user_id = ownerId)
@@ -19,18 +22,7 @@ class StoreGoalRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        if (is_string($this->target_amount)) {
-            $valor = trim(str_replace(['R$', ' '], '', $this->target_amount));
-
-            if (str_contains($valor, ',')) {
-                $valor = str_replace('.', '', $valor);  // remove separador de milhar
-                $valor = str_replace(',', '.', $valor); // vírgula decimal -> ponto
-            } elseif (preg_match('/^-?\d{1,3}(\.\d{3})+$/', $valor)) {
-                $valor = str_replace('.', '', $valor);  // só milhares: "1.234" -> "1234"
-            }
-
-            $this->merge(['target_amount' => $valor]);
-        }
+        $this->normalizeMoneyField('target_amount');
 
         // Prazo vem de <input type="month"> como "AAAA-MM" → normaliza para o
         // primeiro dia do mês (a coluna é `date`); vazio vira null.

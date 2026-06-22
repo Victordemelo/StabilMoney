@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\NormalizesMoneyInput;
 use App\Models\Account;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -14,6 +15,8 @@ use Illuminate\Validation\Rule;
  */
 class StoreInvestmentContributionRequest extends FormRequest
 {
+    use NormalizesMoneyInput;
+
     public function authorize(): bool
     {
         // A posse do investimento é verificada pela InvestmentPolicy no controller.
@@ -23,18 +26,7 @@ class StoreInvestmentContributionRequest extends FormRequest
     /** Normaliza o valor digitado no padrão pt-BR para decimal. */
     protected function prepareForValidation(): void
     {
-        if (is_string($this->amount)) {
-            $valor = trim(str_replace(['R$', ' '], '', $this->amount));
-
-            if (str_contains($valor, ',')) {
-                $valor = str_replace('.', '', $valor);  // remove separador de milhar
-                $valor = str_replace(',', '.', $valor); // vírgula decimal -> ponto
-            } elseif (preg_match('/^-?\d{1,3}(\.\d{3})+$/', $valor)) {
-                $valor = str_replace('.', '', $valor);  // só milhares: "1.234" -> "1234"
-            }
-
-            $this->merge(['amount' => $valor]);
-        }
+        $this->normalizeMoneyField('amount');
     }
 
     public function rules(): array

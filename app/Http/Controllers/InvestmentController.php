@@ -9,6 +9,7 @@ use App\Models\Investment;
 use App\Models\User;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InvestmentController extends Controller
 {
@@ -46,7 +47,8 @@ class InvestmentController extends Controller
         return view('investimentos.index', [
             'investments' => $investments,
             'accounts' => $accounts,
-            'familyMembers' => $this->familyMembers($userId),
+            // Membros da família (titular + dependentes) para o seletor "quem aportou".
+            'familyMembers' => User::familyOf($userId)->get(),
             'stats' => $stats,
             'allocation' => $this->allocation($investments, $totalInvestido),
         ]);
@@ -56,27 +58,30 @@ class InvestmentController extends Controller
     {
         $data = $request->validated();
 
-        $investment = Investment::create([
-            'user_id' => $request->user()->ownerId(),
-            // Autor do investimento: o usuário atual (titular ou dependente que criou).
-            'made_by_user_id' => $request->user()->id,
-            'name' => $data['name'],
-            'classe' => $data['classe'],
-            'indexador' => $data['indexador'] ?? null,
-            'taxa' => $data['taxa'] ?? null,
-        ]);
-
-        // Aporte inicial opcional: se informado (> 0), reserva já o principal
-        // da conta escolhida (modelo "cofrinho"; não cria transação).
-        if (! empty($data['valor_inicial']) && (float) $data['valor_inicial'] > 0) {
-            $investment->contributions()->create([
-                'account_id' => $data['account_id'],
-                'made_by_user_id' => $data['made_by_user_id'] ?? $request->user()->id,
-                'type' => 'aporte',
-                'amount' => $data['valor_inicial'],
-                'date' => $data['date'] ?? now()->toDateString(),
+        // Atômico: ou cria o investimento E o aporte inicial, ou nenhum dos dois.
+        DB::transaction(function () use ($request, $data) {
+            $investment = Investment::create([
+                'user_id' => $request->user()->ownerId(),
+                // Autor do investimento: o usuário atual (titular ou dependente que criou).
+                'made_by_user_id' => $request->user()->id,
+                'name' => $data['name'],
+                'classe' => $data['classe'],
+                'indexador' => $data['indexador'] ?? null,
+                'taxa' => $data['taxa'] ?? null,
             ]);
-        }
+
+            // Aporte inicial opcional: se informado (> 0), reserva já o principal
+            // da conta escolhida (modelo "cofrinho"; não cria transação).
+            if (! empty($data['valor_inicial']) && (float) $data['valor_inicial'] > 0) {
+                $investment->contributions()->create([
+                    'account_id' => $data['account_id'],
+                    'made_by_user_id' => $data['made_by_user_id'] ?? $request->user()->id,
+                    'type' => 'aporte',
+                    'amount' => $data['valor_inicial'],
+                    'date' => $data['date'] ?? now()->toDateString(),
+                ]);
+            }
+        });
 
         return redirect()->route('investimentos.index')
             ->with('status', 'Investimento criado com sucesso.');
@@ -102,15 +107,6 @@ class InvestmentController extends Controller
 
         return redirect()->route('investimentos.index')
             ->with('status', 'Investimento removido.');
-    }
-
-    /** Membros da família (titular + dependentes) para o seletor "quem aportou". */
-    private function familyMembers(int $ownerId)
-    {
-        return User::where('id', $ownerId)
-            ->orWhere('account_owner_id', $ownerId)
-            ->orderBy('name')
-            ->get();
     }
 
     /**

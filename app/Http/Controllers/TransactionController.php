@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RespondsToAjax;
 use App\Http\Requests\StoreTransactionRequest;
 use App\Http\Requests\UpdateTransactionRequest;
 use App\Models\Account;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 class TransactionController extends Controller
 {
     use AuthorizesRequests;
+    use RespondsToAjax;
 
     public function index(Request $request)
     {
@@ -96,7 +98,7 @@ class TransactionController extends Controller
      */
     private function storeResponse(Request $request, Transaction $transaction, bool $created)
     {
-        if ($request->expectsJson()) {
+        if ($this->wantsJsonResponse($request)) {
             return response()->json([
                 'id' => $transaction->id,
                 'client_uuid' => $transaction->client_uuid,

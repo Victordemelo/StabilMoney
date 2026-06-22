@@ -61,15 +61,29 @@ class Account extends Model
         return $this->hasMany(InvestmentContribution::class);
     }
 
+    // Caches por-instância dos accessors que disparam queries (sum). Memoizam
+    // o resultado na 1ª chamada — evita N+1 quando a view chama o mesmo accessor
+    // várias vezes. Como cada instância recém-consultada nasce com null, não há
+    // risco de valor velho entre requests.
+    private ?float $balanceCache = null;
+
+    private ?float $reservedCache = null;
+
+    private ?float $currentInvoiceCache = null;
+
+    private ?float $committedCache = null;
+
     /**
      * Saldo atual = saldo inicial + receitas - despesas.
      */
     public function getBalanceAttribute(): float
     {
-        $income = $this->transactions()->where('type', 'income')->sum('amount');
-        $expense = $this->transactions()->where('type', 'expense')->sum('amount');
+        return $this->balanceCache ??= (function (): float {
+            $income = $this->transactions()->where('type', 'income')->sum('amount');
+            $expense = $this->transactions()->where('type', 'expense')->sum('amount');
 
-        return (float) $this->initial_balance + (float) $income - (float) $expense;
+            return round((float) $this->initial_balance + (float) $income - (float) $expense, 2);
+        })();
     }
 
     /**
@@ -79,17 +93,19 @@ class Account extends Model
      */
     public function getReservedAttribute(): float
     {
-        $metasAportes = $this->goalContributions()->where('type', 'aporte')->sum('amount');
-        $metasResgates = $this->goalContributions()->where('type', 'resgate')->sum('amount');
+        return $this->reservedCache ??= (function (): float {
+            $metasAportes = $this->goalContributions()->where('type', 'aporte')->sum('amount');
+            $metasResgates = $this->goalContributions()->where('type', 'resgate')->sum('amount');
 
-        $investAportes = $this->investmentContributions()->where('type', 'aporte')->sum('amount');
-        $investResgates = $this->investmentContributions()->where('type', 'resgate')->sum('amount');
+            $investAportes = $this->investmentContributions()->where('type', 'aporte')->sum('amount');
+            $investResgates = $this->investmentContributions()->where('type', 'resgate')->sum('amount');
 
-        return round(
-            ((float) $metasAportes - (float) $metasResgates)
-            + ((float) $investAportes - (float) $investResgates),
-            2,
-        );
+            return round(
+                ((float) $metasAportes - (float) $metasResgates)
+                + ((float) $investAportes - (float) $investResgates),
+                2,
+            );
+        })();
     }
 
     /** Disponível = saldo cru − reservado (metas + investimentos): o que sobra para gastar. */
@@ -99,6 +115,19 @@ class Account extends Model
     }
 
     // ======================= Cartão de crédito =======================
+
+    /**
+     * Retorna a data do dia `$day` no mês de `$monthAnchor`, clampando ao último
+     * dia do mês (ex.: dia 31 em fevereiro vira 28/29). Evita o estouro do Carbon
+     * ao posicionar um dia inexistente num mês curto.
+     */
+    private function dayInMonth(CarbonImmutable $monthAnchor, int $day): CarbonImmutable
+    {
+        $start = $monthAnchor->startOfMonth();
+        $d = max(1, min($day, $start->daysInMonth));
+
+        return $start->day($d);
+    }
 
     /**
      * Janela do ciclo de fatura ABERTO, baseada no dia de fechamento
@@ -118,19 +147,22 @@ class Account extends Model
         }
 
         $today ??= CarbonImmutable::today();
-        $day = max(1, min(28, (int) $this->closing_day)); // garante 1..28
+        $day = max(1, (int) $this->closing_day);
 
-        // Fechamento deste mês (sempre válido por limitar o dia a 1..28).
-        $thisMonthClose = $today->startOfMonth()->day($day);
+        // Fechamento deste mês, clampado ao último dia do mês quando o dia não existe
+        // (ex.: dia 31 em fevereiro). Cada borda é calculada a partir do startOfMonth
+        // do mês-alvo — nunca via addMonth()/subMonth() sobre uma data já no dia X,
+        // pois isso estouraria o mês curto.
+        $thisMonthClose = $this->dayInMonth($today, $day);
 
         if ($today->lessThanOrEqualTo($thisMonthClose)) {
             // Ainda não fechou neste mês: ciclo aberto = (fechamento anterior, este fechamento].
-            $start = $thisMonthClose->subMonth();
+            $start = $this->dayInMonth($today->startOfMonth()->subMonth(), $day);
             $end = $thisMonthClose;
         } else {
             // Já fechou neste mês: ciclo aberto = (este fechamento, próximo fechamento].
             $start = $thisMonthClose;
-            $end = $thisMonthClose->addMonth();
+            $end = $this->dayInMonth($today->startOfMonth()->addMonth(), $day);
         }
 
         return [$start, $end];
@@ -142,20 +174,22 @@ class Account extends Model
      */
     public function getCurrentInvoiceAttribute(): float
     {
-        $cycle = $this->billingCycle();
-        if (! $cycle) {
-            return 0.0;
-        }
+        return $this->currentInvoiceCache ??= (function (): float {
+            $cycle = $this->billingCycle();
+            if (! $cycle) {
+                return 0.0;
+            }
 
-        [$start, $end] = $cycle;
+            [$start, $end] = $cycle;
 
-        $total = $this->transactions()
-            ->where('type', 'expense')
-            ->whereDate('date', '>', $start->toDateString())
-            ->whereDate('date', '<=', $end->toDateString())
-            ->sum('amount');
+            $total = $this->transactions()
+                ->where('type', 'expense')
+                ->whereDate('date', '>', $start->toDateString())
+                ->whereDate('date', '<=', $end->toDateString())
+                ->sum('amount');
 
-        return round((float) $total, 2);
+            return round((float) $total, 2);
+        })();
     }
 
     /**
@@ -165,25 +199,27 @@ class Account extends Model
      */
     public function getCommittedAttribute(): float
     {
-        $cycle = $this->billingCycle();
-        if (! $cycle) {
-            return 0.0;
-        }
+        return $this->committedCache ??= (function (): float {
+            $cycle = $this->billingCycle();
+            if (! $cycle) {
+                return 0.0;
+            }
 
-        [$start] = $cycle;
+            [$start] = $cycle;
 
-        $total = $this->transactions()
-            ->where('type', 'expense')
-            ->whereDate('date', '>=', $start->toDateString())
-            ->sum('amount');
+            $total = $this->transactions()
+                ->where('type', 'expense')
+                ->whereDate('date', '>=', $start->toDateString())
+                ->sum('amount');
 
-        return round((float) $total, 2);
+            return round((float) $total, 2);
+        })();
     }
 
     /** Limite disponível = limite total − comprometido (nunca abaixo de zero na exibição). */
     public function getAvailableLimitAttribute(): float
     {
-        return round((float) $this->credit_limit - $this->committed, 2);
+        return round(max(0.0, (float) $this->credit_limit - $this->committed), 2);
     }
 
     /**
@@ -197,11 +233,15 @@ class Account extends Model
         }
 
         $today = CarbonImmutable::today();
-        $day = max(1, min(28, (int) $this->due_day));
-        $thisMonthDue = $today->startOfMonth()->day($day);
+        $day = max(1, (int) $this->due_day);
+
+        // Vencimento deste mês, clampado ao último dia do mês quando o dia não existe
+        // (ex.: dia 31 em fevereiro). O ramo do próximo mês parte do startOfMonth,
+        // nunca de uma data já no dia X (evita estouro de mês curto).
+        $thisMonthDue = $this->dayInMonth($today, $day);
 
         return $today->lessThanOrEqualTo($thisMonthDue)
             ? $thisMonthDue
-            : $thisMonthDue->addMonth();
+            : $this->dayInMonth($today->startOfMonth()->addMonth(), $day);
     }
 }

@@ -43,7 +43,8 @@ class GoalController extends Controller
         return view('metas.index', [
             'goals' => $goals,
             'accounts' => $accounts,
-            'familyMembers' => $this->familyMembers($userId),
+            // Membros da família (titular + dependentes) para o seletor "quem aportou".
+            'familyMembers' => User::familyOf($userId)->get(),
             'stats' => $stats,
         ]);
     }
@@ -81,14 +82,5 @@ class GoalController extends Controller
 
         return redirect()->route('metas.index')
             ->with('status', 'Meta removida.');
-    }
-
-    /** Membros da família (titular + dependentes) para o seletor "quem aportou". */
-    private function familyMembers(int $ownerId)
-    {
-        return User::where('id', $ownerId)
-            ->orWhere('account_owner_id', $ownerId)
-            ->orderBy('name')
-            ->get();
     }
 }

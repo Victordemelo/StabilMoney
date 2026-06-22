@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\NormalizesMoneyInput;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreAccountRequest extends FormRequest
 {
+    use NormalizesMoneyInput;
+
     public function authorize(): bool
     {
         return true;
@@ -17,11 +20,8 @@ class StoreAccountRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        foreach (['initial_balance', 'credit_limit'] as $campo) {
-            if (is_string($this->{$campo})) {
-                $this->merge([$campo => $this->normalizeMoney($this->{$campo})]);
-            }
-        }
+        $this->normalizeMoneyField('initial_balance');
+        $this->normalizeMoneyField('credit_limit');
 
         // Campos de cartão só fazem sentido para credit_card: nas demais contas
         // os zeramos para não persistir lixo (e não disparar validação à toa).
@@ -32,21 +32,6 @@ class StoreAccountRequest extends FormRequest
                 'due_day' => null,
             ]);
         }
-    }
-
-    /** Converte "1.234,56" / "R$ 1.234" para "1234.56" / "1234". */
-    private function normalizeMoney(string $valor): string
-    {
-        $valor = trim(str_replace(['R$', ' '], '', $valor));
-
-        if (str_contains($valor, ',')) {
-            $valor = str_replace('.', '', $valor);  // remove separador de milhar
-            $valor = str_replace(',', '.', $valor); // vírgula decimal -> ponto
-        } elseif (preg_match('/^-?\d{1,3}(\.\d{3})+$/', $valor)) {
-            $valor = str_replace('.', '', $valor);  // só milhares: "1.234" -> "1234"
-        }
-
-        return $valor;
     }
 
     public function rules(): array
