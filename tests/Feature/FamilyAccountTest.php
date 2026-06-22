@@ -7,6 +7,9 @@ use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -179,6 +182,120 @@ class FamilyAccountTest extends TestCase
         $this->actingAs($dependent)->get('/accounts')
             ->assertOk()
             ->assertSee('1.234');
+    }
+
+    public function test_titular_adds_dependent_with_spending_limit_and_photo(): void
+    {
+        Storage::fake('public');
+        $titular = User::factory()->create();
+
+        $this->actingAs($titular)->post('/dependentes', [
+            '_form' => 'store',
+            'name' => 'Bia', 'email' => 'bia@familia.test', 'password' => 'senha-forte-123',
+            'spending_limit' => '1.200,50',
+            'avatar' => UploadedFile::fake()->create('bia.jpg', 100, 'image/jpeg'),
+        ])->assertRedirect();
+
+        $dependent = User::where('email', 'bia@familia.test')->first();
+        $this->assertNotNull($dependent);
+        $this->assertSame('1200.50', $dependent->spending_limit); // vírgula pt-BR normalizada
+        $this->assertNotNull($dependent->avatar_path);
+        Storage::disk('public')->assertExists($dependent->avatar_path);
+    }
+
+    public function test_spending_limit_is_optional(): void
+    {
+        $titular = User::factory()->create();
+
+        $this->actingAs($titular)->post('/dependentes', [
+            'name' => 'SemLimite', 'email' => 'semlimite@familia.test', 'password' => 'senha-forte-123',
+        ])->assertRedirect();
+
+        $this->assertNull(User::where('email', 'semlimite@familia.test')->first()->spending_limit);
+    }
+
+    public function test_titular_updates_dependent_without_changing_password(): void
+    {
+        $titular = User::factory()->create();
+        $dependent = User::factory()->create([
+            'account_owner_id' => $titular->id,
+            'name' => 'Antigo', 'email' => 'antigo@familia.test',
+            'password' => Hash::make('senha-original-123'),
+            'spending_limit' => 100,
+        ]);
+        $hashOriginal = $dependent->password;
+
+        $this->actingAs($titular)->patch("/dependentes/{$dependent->id}", [
+            '_form' => 'edit-' . $dependent->id,
+            'name' => 'Novo Nome', 'email' => 'novo@familia.test',
+            'spending_limit' => '300,00',
+        ])->assertRedirect();
+
+        $dependent->refresh();
+        $this->assertSame('Novo Nome', $dependent->name);
+        $this->assertSame('novo@familia.test', $dependent->email);
+        $this->assertSame('300.00', $dependent->spending_limit);
+        $this->assertSame($hashOriginal, $dependent->password); // senha intacta
+    }
+
+    public function test_titular_updates_dependent_password_when_provided(): void
+    {
+        $titular = User::factory()->create();
+        $dependent = User::factory()->create([
+            'account_owner_id' => $titular->id,
+            'password' => Hash::make('senha-original-123'),
+        ]);
+
+        $this->actingAs($titular)->patch("/dependentes/{$dependent->id}", [
+            '_form' => 'edit-' . $dependent->id,
+            'name' => $dependent->name, 'email' => $dependent->email,
+            'password' => 'nova-senha-forte-456',
+        ])->assertRedirect();
+
+        $this->assertTrue(Hash::check('nova-senha-forte-456', $dependent->refresh()->password));
+    }
+
+    public function test_titular_cannot_update_another_familys_dependent(): void
+    {
+        $titularA = User::factory()->create();
+        $titularB = User::factory()->create();
+        $depDeB = User::factory()->create(['account_owner_id' => $titularB->id]);
+
+        $this->actingAs($titularA)->patch("/dependentes/{$depDeB->id}", [
+            '_form' => 'edit-' . $depDeB->id,
+            'name' => 'Invadido', 'email' => 'invadido@x.test',
+        ])->assertForbidden();
+    }
+
+    public function test_dependent_cannot_update_dependent(): void
+    {
+        $titular = User::factory()->create();
+        $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
+
+        $this->actingAs($dependent)->patch("/dependentes/{$dependent->id}", [
+            '_form' => 'edit-' . $dependent->id,
+            'name' => 'X', 'email' => 'x@familia.test',
+        ])->assertForbidden();
+    }
+
+    public function test_dependents_page_shows_remaining_balance(): void
+    {
+        $titular = User::factory()->create();
+        $account = Account::factory()->for($titular)->create();
+        $dependent = User::factory()->create([
+            'account_owner_id' => $titular->id, 'name' => 'Gastador',
+            'spending_limit' => 200,
+        ]);
+        // Despesa de R$ 50 lançada pelo dependente desconta do saldo.
+        Transaction::factory()->for($titular)->for($account)->expense()->create([
+            'made_by_user_id' => $dependent->id, 'amount' => 50,
+        ]);
+
+        $this->actingAs($titular)->get('/dependentes')
+            ->assertOk()
+            ->assertSee('Pode gastar')
+            ->assertSee('150,00')  // 200 - 50
+            ->assertSee('200,00'); // limite
     }
 
     public function test_dashboard_recents_show_author(): void

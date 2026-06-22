@@ -62,6 +62,7 @@ Route::middleware('auth')->group(function () {
     // Dependentes (conta-família) — só o titular gerencia
     Route::get('/dependentes', [DependentController::class, 'index'])->name('dependentes');
     Route::post('/dependentes', [DependentController::class, 'store'])->name('dependentes.store');
+    Route::patch('/dependentes/{dependent}', [DependentController::class, 'update'])->name('dependentes.update');
     Route::delete('/dependentes/{dependent}', [DependentController::class, 'destroy'])->name('dependentes.destroy');
 
     // Metas (objetivos de poupança — modelo "cofrinho"). Compartilhadas na família.

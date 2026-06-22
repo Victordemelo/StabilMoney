@@ -210,7 +210,7 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
 | `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais: nome, e-mail, telefone, foto (preview antes de salvar). **Acesso pelo popover do perfil** (sidebar). |
 | `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security`) | Subabas-pílula numa coluna centrada (680px). **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), e **2FA "em breve"**. **Conta** = excluir conta (modal). |
-| `/dependentes` (`DependentController`: index/store/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/remove dependentes (modal); só titular acessa (403 p/ dependente). Card "Dependentes" da sidebar escondido p/ dependente. |
+| `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais); cada card tem **foto** (avatar), botão **editar** e o **saldo para gastar** (limite + restante com barra). No cadastro/edição define-se **foto** e **`spending_limit`** (Store/UpdateDependentRequest; senha opcional na edição). Só titular acessa (403 p/ dependente). Card "Dependentes" da sidebar escondido p/ dependente. |
 | `/metas` (`GoalController` index/store/update/destroy + aportes/resgates) | `metas/index` | **Metas (implementado).** Objetivos de poupança modelo "cofrinho": aporte reserva, resgate devolve à conta. Compartilhadas na família (`ownerId`). |
 | `/investimentos` (`InvestmentController` index/store/update/destroy + aportes/resgates) | `investimentos/index` | **Investimentos (implementado).** Cofrinho + metadados/projeções (indexador CDI/Selic/IPCA+/Prefixado, % do indexador, prévia de IR/IOF). Compartilhados na família. |
 | `/faturas` ("Faturas / Despesas": `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy`) | `faturas/index` | **Faturas/Despesas (implementado).** Faturas por cartão (parcelas/recorrência, ciclo fechamento/vencimento, limite) via `FaturaService` + despesas avulsas em conta. Rotas `relatorios` e `ajuda` foram **removidas** no design v2. |
@@ -257,10 +257,14 @@ Saldo total = atual de todas as contas, independe do período.
 
 ## Modelo de dados
 
-- **users** — `name`, `email`, `password`, `is_admin` (boolean: titular=true, dependente=false),
-  `account_owner_id` (nullable, auto-ref → `users`, **cascadeOnDelete**): **null = titular;
-  preenchido = dependente** apontando para o titular. Helpers no model: `ownerId()`
-  (= `account_owner_id ?? id`), `isTitular()`, `dependents()`, `titular()`.
+- **users** — `name`, `email`, `password`, `phone`, `avatar_path` (foto, disco `public`),
+  `is_admin` (boolean: titular=true, dependente=false), `account_owner_id` (nullable, auto-ref →
+  `users`, **cascadeOnDelete**): **null = titular; preenchido = dependente** apontando para o
+  titular. `spending_limit` (decimal nullable): **saldo/limite de gasto do dependente** — as
+  despesas que ele lança (`made_by_user_id`) descontam desse valor; o card de dependentes mostra
+  o restante (`spending_limit − Σ despesas dele`). Helpers no model: `ownerId()`
+  (= `account_owner_id ?? id`), `isTitular()`, `dependents()`, `titular()`, `madeTransactions()`,
+  `avatarUrl()`.
 - **accounts** — `user_id`, `name`, `type` (`wallet|bank|credit_card|savings|investment|other`),
   `initial_balance`, `color`, `icon`. Saldo = `initial_balance` + receitas − despesas
   (accessor `balance` no model; o dashboard calcula via SQL agregado).

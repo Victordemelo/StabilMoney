@@ -2,15 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreDependentRequest;
+use App\Http\Requests\UpdateDependentRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Gerenciamento de dependentes — apenas o titular (account_owner_id null) acessa.
  * Dependente é um User com account_owner_id apontando para o titular; compartilha
- * a visão financeira da família.
+ * a visão financeira da família. Cada dependente pode ter um saldo/limite de
+ * gasto: as despesas que ELE lança (made_by_user_id) descontam desse valor.
  */
 class DependentController extends Controller
 {
@@ -19,40 +22,75 @@ class DependentController extends Controller
         $titular = $request->user();
         abort_unless($titular->isTitular(), 403);
 
-        $dependents = $titular->dependents()->orderBy('name')->get();
+        // `gasto` = soma das DESPESAS lançadas pelo dependente (made_by_user_id),
+        // pré-agregada para evitar N+1 ao montar os cards.
+        $dependents = $titular->dependents()
+            ->withSum(['madeTransactions as gasto' => fn ($q) => $q->where('type', 'expense')], 'amount')
+            ->orderBy('name')
+            ->get();
 
         return view('dependents.index', compact('dependents'));
     }
 
-    public function store(Request $request)
+    public function store(StoreDependentRequest $request)
     {
         $titular = $request->user();
-        abort_unless($titular->isTitular(), 403);
-
-        $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', Rules\Password::defaults()],
-        ], [
-            'email.unique' => 'Este e-mail já está em uso.',
-        ]);
+        $data = $request->validated();
 
         // Não dispara Registered: o dependente compartilha as categorias da família.
-        User::create([
+        $dependent = new User([
             'name' => $data['name'],
             'email' => $data['email'],
-            'password' => Hash::make($data['password']),
             'is_admin' => false,
             'account_owner_id' => $titular->id,
+            'spending_limit' => $data['spending_limit'] ?? null,
         ]);
+        $dependent->password = Hash::make($data['password']);
+
+        if ($request->hasFile('avatar')) {
+            $dependent->avatar_path = $request->file('avatar')->store('avatars', 'public');
+        }
+
+        $dependent->save();
 
         return redirect()->route('dependentes')->with('status', 'Dependente adicionado.');
+    }
+
+    public function update(UpdateDependentRequest $request, User $dependent)
+    {
+        $data = $request->validated();
+
+        $dependent->fill([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'spending_limit' => $data['spending_limit'] ?? null,
+        ]);
+
+        // Senha só muda se preenchida.
+        if (! empty($data['password'])) {
+            $dependent->password = Hash::make($data['password']);
+        }
+
+        if ($request->hasFile('avatar')) {
+            if ($dependent->avatar_path) {
+                Storage::disk('public')->delete($dependent->avatar_path);
+            }
+            $dependent->avatar_path = $request->file('avatar')->store('avatars', 'public');
+        }
+
+        $dependent->save();
+
+        return redirect()->route('dependentes')->with('status', 'Dependente atualizado.');
     }
 
     public function destroy(Request $request, User $dependent)
     {
         $titular = $request->user();
         abort_unless($titular->isTitular() && $dependent->account_owner_id === $titular->id, 403);
+
+        if ($dependent->avatar_path) {
+            Storage::disk('public')->delete($dependent->avatar_path);
+        }
 
         $dependent->delete();
 

@@ -28,6 +28,7 @@ class User extends Authenticatable
         'password_changed_at',
         'is_admin',
         'account_owner_id',
+        'spending_limit',
     ];
 
     /**
@@ -52,12 +53,19 @@ class User extends Authenticatable
             'password' => 'hashed',
             'password_changed_at' => 'datetime',
             'is_admin' => 'boolean',
+            'spending_limit' => 'decimal:2',
         ];
     }
 
     public function accounts(): HasMany
     {
         return $this->hasMany(Account::class);
+    }
+
+    /** Transações LANÇADAS por este usuário (made_by_user_id) — base do gasto do dependente. */
+    public function madeTransactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class, 'made_by_user_id');
     }
 
     public function categories(): HasMany
