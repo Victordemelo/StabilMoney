@@ -56,15 +56,7 @@
 
                 {{-- Dependentes --}}
                 @foreach ($dependents as $dep)
-                    @php
-                        $temLimite = ! is_null($dep->spending_limit);
-                        $limite = (float) $dep->spending_limit;
-                        $gasto = (float) ($dep->gasto ?? 0);
-                        $restante = round($limite - $gasto, 2);
-                        $usoPct = $limite > 0 ? min(100, max(0, $gasto / $limite * 100)) : ($gasto > 0 ? 100 : 0);
-                        $estourou = $restante < 0;
-                        $primeiroNome = \Illuminate\Support\Str::before($dep->name, ' ') ?: $dep->name;
-                    @endphp
+                    @php($gasto = (float) ($dep->gasto ?? 0))
                     <div class="dep-person">
                         <div class="dp-top">
                             <div class="dp-av" style="background: {{ $cores[$loop->index % count($cores)] }}">
@@ -93,27 +85,11 @@
                             </div>
                         </div>
 
-                        {{-- Quanto já gastou (com o limite como contexto, se houver) --}}
+                        {{-- Quanto já gastou (despesas lançadas por ele) --}}
                         <div class="dp-spent">
                             <span class="dp-spent-label">Já gastou</span>
                             <span class="dp-spent-val">R$ {{ number_format($gasto, 2, ',', '.') }}</span>
                         </div>
-                        @if ($temLimite)
-                            <div class="dp-bar"><div class="dp-bar-fill {{ $estourou ? 'over' : '' }}" style="width: {{ $usoPct }}%"></div></div>
-                            <div class="dp-spent-sub">
-                                de R$ {{ number_format($limite, 2, ',', '.') }} ·
-                                @if ($estourou)
-                                    <span class="neg">estourou R$ {{ number_format(abs($restante), 2, ',', '.') }}</span>
-                                @else
-                                    resta R$ {{ number_format($restante, 2, ',', '.') }}
-                                @endif
-                            </div>
-                        @endif
-
-                        <a class="dp-launch" href="{{ route('transactions.create', ['autor' => $dep->id]) }}">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
-                            Lançar em nome de {{ $primeiroNome }}
-                        </a>
                     </div>
                 @endforeach
 
@@ -180,11 +156,6 @@
                     <input class="input" type="email" id="dep-email" name="email" value="{{ old('_form') === 'store' ? old('email') : '' }}" required>
                 </div>
                 <div class="field">
-                    <label for="dep-limit">Saldo para gastar <span class="hint">(opcional)</span></label>
-                    <input class="input" type="text" inputmode="decimal" id="dep-limit" name="spending_limit" value="{{ old('_form') === 'store' ? old('spending_limit') : '' }}" placeholder="R$ 200,00">
-                    <span class="hint">As despesas que ele lançar descontam deste valor.</span>
-                </div>
-                <div class="field">
                     <label for="dep-password">Senha</label>
                     <input class="input" type="password" id="dep-password" name="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" required>
                 </div>
@@ -248,13 +219,6 @@
                     <div class="field">
                         <label for="dep-edit-email-{{ $dep->id }}">E-mail</label>
                         <input class="input" type="email" id="dep-edit-email-{{ $dep->id }}" name="email" value="{{ old('_form') === 'edit-' . $dep->id ? old('email', $dep->email) : $dep->email }}" required>
-                    </div>
-                    <div class="field">
-                        <label for="dep-edit-limit-{{ $dep->id }}">Saldo para gastar <span class="hint">(opcional)</span></label>
-                        <input class="input" type="text" inputmode="decimal" id="dep-edit-limit-{{ $dep->id }}" name="spending_limit"
-                               value="{{ old('_form') === 'edit-' . $dep->id ? old('spending_limit') : ($dep->spending_limit !== null ? number_format($dep->spending_limit, 2, ',', '.') : '') }}"
-                               placeholder="R$ 200,00">
-                        <span class="hint">As despesas que ele lançar descontam deste valor.</span>
                     </div>
                     <div class="field">
                         <label for="dep-edit-password-{{ $dep->id }}">Nova senha <span class="hint">(opcional)</span></label>

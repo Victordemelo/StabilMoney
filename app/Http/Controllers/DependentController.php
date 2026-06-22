@@ -46,7 +46,6 @@ class DependentController extends Controller
             'email' => $data['email'],
             'is_admin' => false,
             'account_owner_id' => $titular->id,
-            'spending_limit' => $data['spending_limit'] ?? null,
         ]);
         $dependent->password = Hash::make($data['password']);
 
@@ -66,7 +65,6 @@ class DependentController extends Controller
         $dependent->fill([
             'name' => $data['name'],
             'email' => $data['email'],
-            'spending_limit' => $data['spending_limit'] ?? null,
         ]);
 
         // Senha só muda se preenchida.
