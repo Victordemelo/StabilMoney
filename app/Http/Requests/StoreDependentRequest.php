@@ -2,11 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 /**
- * Cadastro de dependente — só o titular pode. Inclui foto (opcional).
+ * Cadastro de dependente — só o titular pode. Inclui foto e parentesco (opcionais).
  */
 class StoreDependentRequest extends FormRequest
 {
@@ -22,6 +24,7 @@ class StoreDependentRequest extends FormRequest
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', Password::defaults()],
             'avatar' => ['nullable', 'image', 'max:2048'],
+            'relationship' => ['nullable', Rule::in(array_keys(User::RELATIONSHIPS))],
         ];
     }
 
@@ -32,6 +35,7 @@ class StoreDependentRequest extends FormRequest
             'email' => 'e-mail',
             'password' => 'senha',
             'avatar' => 'foto',
+            'relationship' => 'parentesco',
         ];
     }
 
@@ -42,6 +46,7 @@ class StoreDependentRequest extends FormRequest
             'email.lowercase' => 'O e-mail deve ser informado em minúsculas.',
             'avatar.image' => 'A foto precisa ser uma imagem.',
             'avatar.max' => 'A foto pode ter no máximo 2 MB.',
+            'relationship.in' => 'Parentesco inválido.',
         ];
     }
 }

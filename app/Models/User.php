@@ -28,6 +28,16 @@ class User extends Authenticatable
         'password_changed_at',
         'is_admin',
         'account_owner_id',
+        'relationship',
+    ];
+
+    /** Graus de parentesco de um dependente (valor no banco => rótulo PT-BR). */
+    public const RELATIONSHIPS = [
+        'conjuge' => 'Cônjuge',
+        'filho' => 'Filho(a)',
+        'pai_mae' => 'Pai/Mãe',
+        'irmao' => 'Irmão(ã)',
+        'outro' => 'Outro',
     ];
 
     /**
@@ -107,6 +117,12 @@ class User extends Authenticatable
     public function titular(): BelongsTo
     {
         return $this->belongsTo(User::class, 'account_owner_id');
+    }
+
+    /** Rótulo PT-BR do parentesco do dependente (ou null se não informado). */
+    public function relationshipLabel(): ?string
+    {
+        return self::RELATIONSHIPS[$this->relationship] ?? null;
     }
 
     /** URL pública da foto de perfil (ou null se não houver — a view cai nas iniciais). */

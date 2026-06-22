@@ -9,6 +9,7 @@ import { initSecurity } from './sm/security';
 import { initMetas } from './sm/metas';
 import { initInvestimentos } from './sm/investimentos';
 import { initFaturas } from './sm/faturas';
+import { initMoney } from './sm/money';
 import { initPwa } from './sm/pwa';
 import { initOfflineQueue } from './sm/offline-queue';
 
@@ -24,6 +25,7 @@ function init() {
     initMetas();
     initInvestimentos();
     initFaturas();
+    initMoney();
     initPwa();
     initOfflineQueue();
 }

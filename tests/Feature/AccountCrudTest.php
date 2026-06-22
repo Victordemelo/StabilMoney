@@ -44,6 +44,17 @@ class AccountCrudTest extends TestCase
         $this->assertSame('1500.00', (string) $account->initial_balance);
     }
 
+    public function test_negative_initial_balance_is_rejected(): void
+    {
+        $this->actingAs($this->user)->post('/accounts', [
+            'name' => 'Conta Negativa',
+            'type' => 'bank',
+            'initial_balance' => '-100,00',
+        ])->assertSessionHasErrors('initial_balance');
+
+        $this->assertDatabaseMissing('accounts', ['name' => 'Conta Negativa']);
+    }
+
     public function test_account_create_and_edit_pages_render(): void
     {
         $account = Account::factory()->for($this->user)->create();

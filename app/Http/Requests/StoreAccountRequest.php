@@ -41,7 +41,7 @@ class StoreAccountRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'in:wallet,bank,credit_card,savings,investment,other'],
-            'initial_balance' => ['required', 'numeric', 'between:-9999999999999.99,9999999999999.99'],
+            'initial_balance' => ['required', 'numeric', 'min:0', 'max:9999999999999.99'],
             // Campos de cartão: obrigatórios SÓ para credit_card; nullable nas demais.
             'credit_limit' => $isCard
                 ? ['required', 'numeric', 'min:0.01', 'max:9999999999999.99']
@@ -80,7 +80,8 @@ class StoreAccountRequest extends FormRequest
             'type.in' => 'Tipo de conta inválido.',
             'initial_balance.required' => 'Informe o saldo inicial (pode ser 0,00).',
             'initial_balance.numeric' => 'O saldo inicial deve ser um número. Use vírgula para os centavos, ex.: 150,00.',
-            'initial_balance.between' => 'O saldo inicial está fora do intervalo permitido.',
+            'initial_balance.min' => 'O saldo inicial não pode ser negativo.',
+            'initial_balance.max' => 'O saldo inicial informado é alto demais.',
             'credit_limit.required' => 'Informe o limite do cartão.',
             'credit_limit.numeric' => 'O limite deve ser um número. Use vírgula para os centavos, ex.: 5.000,00.',
             'credit_limit.min' => 'O limite do cartão deve ser maior que zero.',

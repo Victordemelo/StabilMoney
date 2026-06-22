@@ -201,6 +201,35 @@ class FamilyAccountTest extends TestCase
         Storage::disk('public')->assertExists($dependent->avatar_path);
     }
 
+    public function test_dependent_relationship_is_saved_and_shown(): void
+    {
+        $titular = User::factory()->create();
+
+        $this->actingAs($titular)->post('/dependentes', [
+            '_form' => 'store',
+            'name' => 'Ana', 'email' => 'ana@familia.test', 'password' => 'senha-forte-123',
+            'relationship' => 'filho',
+        ])->assertRedirect();
+
+        $dep = User::where('email', 'ana@familia.test')->first();
+        $this->assertSame('filho', $dep->relationship);
+        $this->assertSame('Filho(a)', $dep->relationshipLabel());
+
+        // O card mostra o parentesco no lugar de "Dependente".
+        $this->actingAs($titular)->get('/dependentes')->assertOk()->assertSee('Filho(a)');
+    }
+
+    public function test_dependent_relationship_must_be_valid(): void
+    {
+        $titular = User::factory()->create();
+
+        $this->actingAs($titular)->post('/dependentes', [
+            '_form' => 'store',
+            'name' => 'Zé', 'email' => 'ze@familia.test', 'password' => 'senha-forte-123',
+            'relationship' => 'sogro-invalido',
+        ])->assertSessionHasErrors('relationship');
+    }
+
     public function test_titular_updates_dependent_without_changing_password(): void
     {
         $titular = User::factory()->create();

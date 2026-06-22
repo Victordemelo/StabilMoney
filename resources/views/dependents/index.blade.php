@@ -68,7 +68,7 @@
                             </div>
                             <div class="dp-id">
                                 <div class="dp-name">{{ $dep->name }}</div>
-                                <div class="dp-rel">Dependente · {{ $dep->email }}</div>
+                                <div class="dp-rel">{{ $dep->relationshipLabel() ?? 'Dependente' }} · {{ $dep->email }}</div>
                             </div>
                             <div class="dp-actions">
                                 <button class="dp-edit" type="button" data-edit="{{ $dep->id }}" aria-label="Editar dependente">
@@ -134,19 +134,17 @@
             @csrf
             <input type="hidden" name="_form" value="store">
             <div class="modal-body">
-                <div class="avatar-edit">
-                    <span class="avatar-preview" data-avatar-preview>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:22px;height:22px;color:var(--ink-3)"><circle cx="12" cy="9" r="3.4"/><path d="M5 20c0-3.4 3-5.6 7-5.6s7 2.2 7 5.6"/></svg>
+                <label class="avatar-pick" for="dep-avatar">
+                    <span class="avatar-pick-img">
+                        <span data-avatar-preview>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:30px;height:30px"><circle cx="12" cy="9" r="3.4"/><path d="M5 20c0-3.4 3-5.6 7-5.6s7 2.2 7 5.6"/></svg>
+                        </span>
+                        <span class="avatar-pick-cam"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h3l1.5-2h7L18 7h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
                     </span>
-                    <div class="avatar-edit-actions">
-                        <label class="btn-ghost" for="dep-avatar">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h3l1.5-2h7L18 7h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg>
-                            Escolher foto <span class="hint">(opcional)</span>
-                        </label>
-                        <input type="file" id="dep-avatar" name="avatar" accept="image/*" data-avatar-input hidden>
-                        <span class="hint">JPG ou PNG, até 2 MB</span>
-                    </div>
-                </div>
+                    <span class="avatar-pick-hint">Clique para adicionar uma foto</span>
+                    <input type="file" id="dep-avatar" name="avatar" accept="image/*" data-avatar-input hidden>
+                    <span class="hint">Opcional · JPG ou PNG até 2 MB</span>
+                </label>
                 <div class="field">
                     <label for="dep-name">Nome</label>
                     <input class="input" type="text" id="dep-name" name="name" value="{{ old('_form') === 'store' ? old('name') : '' }}" required>
@@ -154,6 +152,15 @@
                 <div class="field">
                     <label for="dep-email">E-mail</label>
                     <input class="input" type="email" id="dep-email" name="email" value="{{ old('_form') === 'store' ? old('email') : '' }}" required>
+                </div>
+                <div class="field">
+                    <label for="dep-relationship">Parentesco <span class="hint">(opcional)</span></label>
+                    <select class="input" id="dep-relationship" name="relationship">
+                        <option value="">Selecione…</option>
+                        @foreach (\App\Models\User::RELATIONSHIPS as $val => $label)
+                            <option value="{{ $val }}" @selected(old('_form') === 'store' && old('relationship') === $val)>{{ $label }}</option>
+                        @endforeach
+                    </select>
                 </div>
                 <div class="field">
                     <label for="dep-password">Senha</label>
@@ -176,7 +183,7 @@
                 <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg></span>
                 <div>
                     <h3>Editar {{ $dep->name }}</h3>
-                    <p>Atualize os dados, a foto e o saldo que ele pode gastar.</p>
+                    <p>Atualize os dados, o parentesco e a foto.</p>
                 </div>
                 <button class="modal-x" type="button" data-close-btn aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -195,23 +202,21 @@
                 @method('PATCH')
                 <input type="hidden" name="_form" value="edit-{{ $dep->id }}">
                 <div class="modal-body">
-                    <div class="avatar-edit">
-                        <span class="avatar-preview" data-avatar-preview>
-                            @if ($dep->avatarUrl())
-                                <img src="{{ $dep->avatarUrl() }}" alt="{{ $dep->name }}">
-                            @else
-                                {{ $iniciais($dep->name) }}
-                            @endif
+                    <label class="avatar-pick" for="dep-edit-avatar-{{ $dep->id }}">
+                        <span class="avatar-pick-img">
+                            <span data-avatar-preview>
+                                @if ($dep->avatarUrl())
+                                    <img src="{{ $dep->avatarUrl() }}" alt="{{ $dep->name }}">
+                                @else
+                                    {{ $iniciais($dep->name) }}
+                                @endif
+                            </span>
+                            <span class="avatar-pick-cam"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h3l1.5-2h7L18 7h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
                         </span>
-                        <div class="avatar-edit-actions">
-                            <label class="btn-ghost" for="dep-edit-avatar-{{ $dep->id }}">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h3l1.5-2h7L18 7h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg>
-                                Trocar foto
-                            </label>
-                            <input type="file" id="dep-edit-avatar-{{ $dep->id }}" name="avatar" accept="image/*" data-avatar-input hidden>
-                            <span class="hint">JPG ou PNG, até 2 MB</span>
-                        </div>
-                    </div>
+                        <span class="avatar-pick-hint">Clique para trocar a foto</span>
+                        <input type="file" id="dep-edit-avatar-{{ $dep->id }}" name="avatar" accept="image/*" data-avatar-input hidden>
+                        <span class="hint">JPG ou PNG até 2 MB</span>
+                    </label>
                     <div class="field">
                         <label for="dep-edit-name-{{ $dep->id }}">Nome</label>
                         <input class="input" type="text" id="dep-edit-name-{{ $dep->id }}" name="name" value="{{ old('_form') === 'edit-' . $dep->id ? old('name', $dep->name) : $dep->name }}" required>
@@ -219,6 +224,15 @@
                     <div class="field">
                         <label for="dep-edit-email-{{ $dep->id }}">E-mail</label>
                         <input class="input" type="email" id="dep-edit-email-{{ $dep->id }}" name="email" value="{{ old('_form') === 'edit-' . $dep->id ? old('email', $dep->email) : $dep->email }}" required>
+                    </div>
+                    <div class="field">
+                        <label for="dep-edit-relationship-{{ $dep->id }}">Parentesco <span class="hint">(opcional)</span></label>
+                        <select class="input" id="dep-edit-relationship-{{ $dep->id }}" name="relationship">
+                            <option value="">Selecione…</option>
+                            @foreach (\App\Models\User::RELATIONSHIPS as $val => $label)
+                                <option value="{{ $val }}" @selected((old('_form') === 'edit-' . $dep->id ? old('relationship') : $dep->relationship) === $val)>{{ $label }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="field">
                         <label for="dep-edit-password-{{ $dep->id }}">Nova senha <span class="hint">(opcional)</span></label>
@@ -269,7 +283,7 @@
             input.addEventListener('change', function () {
                 var file = input.files && input.files[0];
                 if (!file) return;
-                var preview = input.closest('.avatar-edit').querySelector('[data-avatar-preview]');
+                var preview = input.closest('.avatar-pick').querySelector('[data-avatar-preview]');
                 if (preview) preview.innerHTML = '<img src="' + URL.createObjectURL(file) + '" alt="Pré-visualização">';
             });
         });

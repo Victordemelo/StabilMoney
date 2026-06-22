@@ -210,7 +210,7 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
 | `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais: nome, e-mail, telefone, foto (preview antes de salvar). **Acesso pelo popover do perfil** (sidebar). |
 | `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security`) | Subabas-pílula numa coluna centrada (680px). **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), e **2FA "em breve"**. **Conta** = excluir conta (modal). |
-| `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais **fora da `.card`** — ela tem `overflow:hidden`+animação `transform`, que prendia o `position:fixed`). Cada card mostra **foto** (avatar), nome/e-mail e **quanto já gastou** (`Σ` despesas com `made_by_user_id` da pessoa; titular incluso), com botões **editar** e **excluir**. No cadastro/edição define-se nome, e-mail, **foto** e senha (Store/UpdateDependentRequest; senha opcional na edição). **Lançar em nome de um dependente** é feito no formulário de transação, pelo seletor "quem fez a compra" (suporta deep-link `transactions.create?autor=ID`). Só titular acessa (403 p/ dependente). |
+| `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais **fora da `.card`** — ela tem `overflow:hidden`+animação `transform`, que prendia o `position:fixed`). Cada card mostra **foto** (avatar), nome/e-mail e **quanto já gastou** (`Σ` despesas com `made_by_user_id` da pessoa; titular incluso), com botões **editar** e **excluir**. No cadastro/edição define-se nome, e-mail, **foto** (avatar central clicável — a bolinha É o botão de upload, classe `.avatar-pick`), **parentesco** (select `User::RELATIONSHIPS`) e senha (Store/UpdateDependentRequest; senha opcional na edição). **Lançar em nome de um dependente** é feito no formulário de transação, pelo seletor "quem fez a compra" (suporta deep-link `transactions.create?autor=ID`). Só titular acessa (403 p/ dependente). |
 | `/metas` (`GoalController` index/store/update/destroy + aportes/resgates) | `metas/index` | **Metas (implementado).** Objetivos de poupança modelo "cofrinho": aporte reserva, resgate devolve à conta. Compartilhadas na família (`ownerId`). |
 | `/investimentos` (`InvestmentController` index/store/update/destroy + aportes/resgates) | `investimentos/index` | **Investimentos (implementado).** Cofrinho + metadados/projeções (indexador CDI/Selic/IPCA+/Prefixado, % do indexador, prévia de IR/IOF). Compartilhados na família. |
 | `/faturas` ("Faturas / Despesas": `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy`) | `faturas/index` | **Faturas/Despesas (implementado).** Faturas por cartão (parcelas/recorrência, ciclo fechamento/vencimento, limite) via `FaturaService` + despesas avulsas em conta. Rotas `relatorios` e `ajuda` foram **removidas** no design v2. |
@@ -262,7 +262,9 @@ Saldo total = atual de todas as contas, independe do período.
   `users`, **cascadeOnDelete**): **null = titular; preenchido = dependente** apontando para o
   titular. Helpers no model: `ownerId()` (= `account_owner_id ?? id`), `isTitular()`,
   `dependents()`, `titular()`, `madeTransactions()` (despesas lançadas pela pessoa, base do
-  "quanto já gastou" no card de dependentes), `avatarUrl()`.
+  "quanto já gastou" no card de dependentes), `avatarUrl()`. `relationship` (string nullable):
+  parentesco do dependente — valores em `User::RELATIONSHIPS` (conjuge/filho/pai_mae/irmao/outro);
+  `relationshipLabel()` devolve o rótulo PT-BR.
 - **accounts** — `user_id`, `name`, `type` (`wallet|bank|credit_card|savings|investment|other`),
   `initial_balance`, `color`, `icon`. Saldo = `initial_balance` + receitas − despesas
   (accessor `balance` no model; o dashboard calcula via SQL agregado).
@@ -288,7 +290,12 @@ Saldo total = atual de todas as contas, independe do período.
 ## Convenções
 
 - **Validação em Form Requests** com `messages()`/`attributes()` PT-BR. Valores aceitam vírgula
-  pt-BR ("1.234,56") normalizada em `prepareForValidation`.
+  pt-BR ("1.234,56") normalizada em `prepareForValidation` (trait `NormalizesMoneyInput`).
+- **Dinheiro nunca é negativo.** O sinal vem do `type`, então todo campo de valor valida `min:0`
+  (ou `min:0.01` para os obrigatórios > 0); `initial_balance` é `min:0`. No cliente, `sm/money.js`
+  formata todo `input[inputmode="decimal"]` para BRL ("1.234,56") **ao sair do campo (blur)** e
+  **descarta o sinal de menos** — entrada negativa vira positiva. Ao adicionar um novo campo de
+  valor, use `inputmode="decimal"` para herdar esse comportamento.
 - **Ownership sempre**: queries escopadas por `auth()->id()`; `account_id`/`category_id` validados
   com `Rule::exists()->where('user_id', ...)`; categoria deve casar com o `type` da transação.
 - **Policies** para `update`/`delete` (dono); controllers usam `$this->authorize()`

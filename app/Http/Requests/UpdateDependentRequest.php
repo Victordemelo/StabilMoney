@@ -35,6 +35,7 @@ class UpdateDependentRequest extends FormRequest
             // Opcional: em branco mantém a senha atual.
             'password' => ['nullable', Password::defaults()],
             'avatar' => ['nullable', 'image', 'max:2048'],
+            'relationship' => ['nullable', Rule::in(array_keys(User::RELATIONSHIPS))],
         ];
     }
 
@@ -45,6 +46,7 @@ class UpdateDependentRequest extends FormRequest
             'email' => 'e-mail',
             'password' => 'senha',
             'avatar' => 'foto',
+            'relationship' => 'parentesco',
         ];
     }
 
@@ -55,6 +57,7 @@ class UpdateDependentRequest extends FormRequest
             'email.lowercase' => 'O e-mail deve ser informado em minúsculas.',
             'avatar.image' => 'A foto precisa ser uma imagem.',
             'avatar.max' => 'A foto pode ter no máximo 2 MB.',
+            'relationship.in' => 'Parentesco inválido.',
         ];
     }
 }
