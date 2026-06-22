@@ -916,6 +916,17 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .profile-pop { width: calc(100vw - 28px); }
 }
 
+/* Viewport baixa: a sidebar é um flex column de altura fixa (overflow:hidden);
+   o card "Patrimônio total" é alto (valor + 3 sublinhas + sparkline) e era
+   espremido/cortado pelo flex, bugando o layout. Aqui ele simplesmente sai
+   (display:none libera o espaço). O 2º seletor vence a regra do drawer mobile
+   (.collapsed .side-balance), que tem especificidade maior. O patrimônio segue
+   visível no dashboard. */
+@media (max-height: 800px) {
+  .side-balance,
+  .collapsed .side-balance { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
