@@ -111,7 +111,7 @@
                         <select class="input" id="made_by_user_id" name="made_by_user_id">
                             @foreach ($familyMembers as $membro)
                                 <option value="{{ $membro->id }}"
-                                    @selected((int) old('made_by_user_id', $transaction->made_by_user_id ?? auth()->id()) === $membro->id)>
+                                    @selected((int) old('made_by_user_id', $editando ? $transaction->made_by_user_id : request('autor', auth()->id())) === $membro->id)>
                                     {{ $membro->name }}{{ $membro->isTitular() ? ' (titular)' : '' }}
                                 </option>
                             @endforeach

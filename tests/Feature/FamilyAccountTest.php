@@ -278,7 +278,7 @@ class FamilyAccountTest extends TestCase
         ])->assertForbidden();
     }
 
-    public function test_dependents_page_shows_remaining_balance(): void
+    public function test_dependents_page_shows_spent_and_remaining(): void
     {
         $titular = User::factory()->create();
         $account = Account::factory()->for($titular)->create();
@@ -286,16 +286,33 @@ class FamilyAccountTest extends TestCase
             'account_owner_id' => $titular->id, 'name' => 'Gastador',
             'spending_limit' => 200,
         ]);
-        // Despesa de R$ 50 lançada pelo dependente desconta do saldo.
+        // Despesa de R$ 50 lançada pelo dependente: o card mostra o gasto e o resto.
         Transaction::factory()->for($titular)->for($account)->expense()->create([
             'made_by_user_id' => $dependent->id, 'amount' => 50,
         ]);
 
         $this->actingAs($titular)->get('/dependentes')
             ->assertOk()
-            ->assertSee('Pode gastar')
-            ->assertSee('150,00')  // 200 - 50
-            ->assertSee('200,00'); // limite
+            ->assertSee('Já gastou')
+            ->assertSee('50,00')        // quanto já gastou
+            ->assertSee('resta R$ 150,00') // 200 - 50
+            ->assertSee('200,00');      // limite (contexto)
+    }
+
+    public function test_launch_form_preselects_dependent_author(): void
+    {
+        $titular = User::factory()->create();
+        Account::factory()->for($titular)->create();
+        $dependent = User::factory()->create(['account_owner_id' => $titular->id, 'name' => 'Filho']);
+
+        // O card linka para o lançamento já com ?autor=ID; o select deve vir marcado.
+        $content = $this->actingAs($titular)->get(route('transactions.create', ['autor' => $dependent->id]))
+            ->assertOk()
+            ->assertSee('Quem fez a compra')
+            ->getContent();
+
+        // O <option> do dependente vem com "selected" (espaços/quebras de linha variam).
+        $this->assertMatchesRegularExpression('/value="' . $dependent->id . '"\s*selected/', $content);
     }
 
     public function test_dashboard_recents_show_author(): void

@@ -48,6 +48,10 @@
                             <div class="dp-rel"><strong>Titular</strong> · {{ $titular->email }}</div>
                         </div>
                     </div>
+                    <div class="dp-spent">
+                        <span class="dp-spent-label">Já gastou</span>
+                        <span class="dp-spent-val">R$ {{ number_format($gastoTitular, 2, ',', '.') }}</span>
+                    </div>
                 </div>
 
                 {{-- Dependentes --}}
@@ -59,6 +63,7 @@
                         $restante = round($limite - $gasto, 2);
                         $usoPct = $limite > 0 ? min(100, max(0, $gasto / $limite * 100)) : ($gasto > 0 ? 100 : 0);
                         $estourou = $restante < 0;
+                        $primeiroNome = \Illuminate\Support\Str::before($dep->name, ' ') ?: $dep->name;
                     @endphp
                     <div class="dep-person">
                         <div class="dp-top">
@@ -88,90 +93,27 @@
                             </div>
                         </div>
 
-                        {{-- Saldo para gastar --}}
-                        @if ($temLimite)
-                            <div class="dp-allow">
-                                <div class="dp-allow-head">
-                                    <span class="dp-allow-label">Pode gastar</span>
-                                    <span class="dp-allow-val {{ $estourou ? 'neg' : '' }}">R$ {{ number_format($restante, 2, ',', '.') }}</span>
-                                </div>
-                                <div class="dp-bar"><div class="dp-bar-fill {{ $estourou ? 'over' : '' }}" style="width: {{ $usoPct }}%"></div></div>
-                                <div class="dp-allow-sub">Gastou R$ {{ number_format($gasto, 2, ',', '.') }} de R$ {{ number_format($limite, 2, ',', '.') }}</div>
-                            </div>
-                        @else
-                            <div class="dp-allow empty">Sem limite de gasto definido</div>
-                        @endif
-                    </div>
-
-                    {{-- Modal: editar este dependente --}}
-                    <div class="modal-scrim" id="depEditModal-{{ $dep->id }}" data-close>
-                        <div class="modal modal-lg">
-                            <div class="modal-head">
-                                <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg></span>
-                                <div>
-                                    <h3>Editar {{ $dep->name }}</h3>
-                                    <p>Atualize os dados, a foto e o saldo que ele pode gastar.</p>
-                                </div>
-                                <button class="modal-x" type="button" data-close-btn aria-label="Fechar">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                                </button>
-                            </div>
-
-                            @if ($formComErro === 'edit-' . $dep->id && $errors->any())
-                                <div class="flash-error" role="alert">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
-                                    <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
-                                </div>
-                            @endif
-
-                            <form method="POST" action="{{ route('dependentes.update', $dep) }}" enctype="multipart/form-data">
-                                @csrf
-                                @method('PATCH')
-                                <input type="hidden" name="_form" value="edit-{{ $dep->id }}">
-                                <div class="modal-body">
-                                    <div class="avatar-edit">
-                                        <span class="avatar-preview" data-avatar-preview>
-                                            @if ($dep->avatarUrl())
-                                                <img src="{{ $dep->avatarUrl() }}" alt="{{ $dep->name }}">
-                                            @else
-                                                {{ $iniciais($dep->name) }}
-                                            @endif
-                                        </span>
-                                        <div class="avatar-edit-actions">
-                                            <label class="btn-ghost" for="dep-edit-avatar-{{ $dep->id }}">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h3l1.5-2h7L18 7h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg>
-                                                Trocar foto
-                                            </label>
-                                            <input type="file" id="dep-edit-avatar-{{ $dep->id }}" name="avatar" accept="image/*" data-avatar-input hidden>
-                                            <span class="hint">JPG ou PNG, até 2 MB</span>
-                                        </div>
-                                    </div>
-                                    <div class="field">
-                                        <label for="dep-edit-name-{{ $dep->id }}">Nome</label>
-                                        <input class="input" type="text" id="dep-edit-name-{{ $dep->id }}" name="name" value="{{ old('_form') === 'edit-' . $dep->id ? old('name', $dep->name) : $dep->name }}" required>
-                                    </div>
-                                    <div class="field">
-                                        <label for="dep-edit-email-{{ $dep->id }}">E-mail</label>
-                                        <input class="input" type="email" id="dep-edit-email-{{ $dep->id }}" name="email" value="{{ old('_form') === 'edit-' . $dep->id ? old('email', $dep->email) : $dep->email }}" required>
-                                    </div>
-                                    <div class="field">
-                                        <label for="dep-edit-limit-{{ $dep->id }}">Saldo para gastar <span class="hint">(opcional)</span></label>
-                                        <input class="input" type="text" inputmode="decimal" id="dep-edit-limit-{{ $dep->id }}" name="spending_limit"
-                                               value="{{ old('_form') === 'edit-' . $dep->id ? old('spending_limit') : ($dep->spending_limit !== null ? number_format($dep->spending_limit, 2, ',', '.') : '') }}"
-                                               placeholder="R$ 200,00">
-                                        <span class="hint">As despesas que ele lançar descontam deste valor.</span>
-                                    </div>
-                                    <div class="field">
-                                        <label for="dep-edit-password-{{ $dep->id }}">Nova senha <span class="hint">(opcional)</span></label>
-                                        <input class="input" type="password" id="dep-edit-password-{{ $dep->id }}" name="password" placeholder="Deixe em branco para manter a atual" autocomplete="new-password">
-                                    </div>
-                                </div>
-                                <div class="modal-foot">
-                                    <button class="btn ghost" type="button" data-close-btn>Cancelar</button>
-                                    <button class="btn primary" type="submit">Salvar alterações</button>
-                                </div>
-                            </form>
+                        {{-- Quanto já gastou (com o limite como contexto, se houver) --}}
+                        <div class="dp-spent">
+                            <span class="dp-spent-label">Já gastou</span>
+                            <span class="dp-spent-val">R$ {{ number_format($gasto, 2, ',', '.') }}</span>
                         </div>
+                        @if ($temLimite)
+                            <div class="dp-bar"><div class="dp-bar-fill {{ $estourou ? 'over' : '' }}" style="width: {{ $usoPct }}%"></div></div>
+                            <div class="dp-spent-sub">
+                                de R$ {{ number_format($limite, 2, ',', '.') }} ·
+                                @if ($estourou)
+                                    <span class="neg">estourou R$ {{ number_format(abs($restante), 2, ',', '.') }}</span>
+                                @else
+                                    resta R$ {{ number_format($restante, 2, ',', '.') }}
+                                @endif
+                            </div>
+                        @endif
+
+                        <a class="dp-launch" href="{{ route('transactions.create', ['autor' => $dep->id]) }}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+                            Lançar em nome de {{ $primeiroNome }}
+                        </a>
                     </div>
                 @endforeach
 
@@ -187,6 +129,9 @@
         </div>
     </div>
 </section>
+
+{{-- Modais ficam FORA da section/.card: o .card tem overflow:hidden + animação
+     com transform, que prendia/recortava o position:fixed dos modais. --}}
 
 {{-- Modal: adicionar dependente --}}
 <div class="modal-scrim" id="depModal" data-close>
@@ -251,6 +196,79 @@
         </form>
     </div>
 </div>
+
+{{-- Modais: editar cada dependente (um por pessoa) --}}
+@foreach ($dependents as $dep)
+    <div class="modal-scrim" id="depEditModal-{{ $dep->id }}" data-close>
+        <div class="modal modal-lg">
+            <div class="modal-head">
+                <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg></span>
+                <div>
+                    <h3>Editar {{ $dep->name }}</h3>
+                    <p>Atualize os dados, a foto e o saldo que ele pode gastar.</p>
+                </div>
+                <button class="modal-x" type="button" data-close-btn aria-label="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                </button>
+            </div>
+
+            @if ($formComErro === 'edit-' . $dep->id && $errors->any())
+                <div class="flash-error" role="alert">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                    <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
+                </div>
+            @endif
+
+            <form method="POST" action="{{ route('dependentes.update', $dep) }}" enctype="multipart/form-data">
+                @csrf
+                @method('PATCH')
+                <input type="hidden" name="_form" value="edit-{{ $dep->id }}">
+                <div class="modal-body">
+                    <div class="avatar-edit">
+                        <span class="avatar-preview" data-avatar-preview>
+                            @if ($dep->avatarUrl())
+                                <img src="{{ $dep->avatarUrl() }}" alt="{{ $dep->name }}">
+                            @else
+                                {{ $iniciais($dep->name) }}
+                            @endif
+                        </span>
+                        <div class="avatar-edit-actions">
+                            <label class="btn-ghost" for="dep-edit-avatar-{{ $dep->id }}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h3l1.5-2h7L18 7h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                                Trocar foto
+                            </label>
+                            <input type="file" id="dep-edit-avatar-{{ $dep->id }}" name="avatar" accept="image/*" data-avatar-input hidden>
+                            <span class="hint">JPG ou PNG, até 2 MB</span>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="dep-edit-name-{{ $dep->id }}">Nome</label>
+                        <input class="input" type="text" id="dep-edit-name-{{ $dep->id }}" name="name" value="{{ old('_form') === 'edit-' . $dep->id ? old('name', $dep->name) : $dep->name }}" required>
+                    </div>
+                    <div class="field">
+                        <label for="dep-edit-email-{{ $dep->id }}">E-mail</label>
+                        <input class="input" type="email" id="dep-edit-email-{{ $dep->id }}" name="email" value="{{ old('_form') === 'edit-' . $dep->id ? old('email', $dep->email) : $dep->email }}" required>
+                    </div>
+                    <div class="field">
+                        <label for="dep-edit-limit-{{ $dep->id }}">Saldo para gastar <span class="hint">(opcional)</span></label>
+                        <input class="input" type="text" inputmode="decimal" id="dep-edit-limit-{{ $dep->id }}" name="spending_limit"
+                               value="{{ old('_form') === 'edit-' . $dep->id ? old('spending_limit') : ($dep->spending_limit !== null ? number_format($dep->spending_limit, 2, ',', '.') : '') }}"
+                               placeholder="R$ 200,00">
+                        <span class="hint">As despesas que ele lançar descontam deste valor.</span>
+                    </div>
+                    <div class="field">
+                        <label for="dep-edit-password-{{ $dep->id }}">Nova senha <span class="hint">(opcional)</span></label>
+                        <input class="input" type="password" id="dep-edit-password-{{ $dep->id }}" name="password" placeholder="Deixe em branco para manter a atual" autocomplete="new-password">
+                    </div>
+                </div>
+                <div class="modal-foot">
+                    <button class="btn ghost" type="button" data-close-btn>Cancelar</button>
+                    <button class="btn primary" type="submit">Salvar alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+@endforeach
 
 <script>
     (function () {

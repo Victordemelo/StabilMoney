@@ -22,14 +22,17 @@ class DependentController extends Controller
         $titular = $request->user();
         abort_unless($titular->isTitular(), 403);
 
-        // `gasto` = soma das DESPESAS lançadas pelo dependente (made_by_user_id),
+        // `gasto` = soma das DESPESAS lançadas por cada pessoa (made_by_user_id),
         // pré-agregada para evitar N+1 ao montar os cards.
         $dependents = $titular->dependents()
             ->withSum(['madeTransactions as gasto' => fn ($q) => $q->where('type', 'expense')], 'amount')
             ->orderBy('name')
             ->get();
 
-        return view('dependents.index', compact('dependents'));
+        // Quanto o próprio titular já gastou (mesma base dos cards).
+        $gastoTitular = (float) $titular->madeTransactions()->where('type', 'expense')->sum('amount');
+
+        return view('dependents.index', compact('dependents', 'gastoTitular'));
     }
 
     public function store(StoreDependentRequest $request)
