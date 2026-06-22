@@ -558,6 +558,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   width: 100%; max-width: 440px; background: var(--surface); color: var(--ink);
   border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--shadow-lg);
   padding: 22px; transform: translateY(14px) scale(.97); transition: transform .28s var(--ease-out);
+  /* Em telas baixas o conteúdo (ex.: modal de investimento, com muitos campos)
+     passa da viewport. Sem isto o modal transbordava e o botão de enviar ficava
+     inacessível (o scrim é fixed e não rola). Limita a altura ao espaço visível
+     e deixa o próprio modal rolar. vh = fallback; dvh respeita a barra do mobile. */
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .modal-scrim.open .modal { transform: none; }
 .modal-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px; }
