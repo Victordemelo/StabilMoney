@@ -282,7 +282,7 @@
                 <div class="field-row">
                     <div class="field">
                         <label for="inv-c-taxa" data-inv-taxa-label>Taxa <span class="hint">(opcional)</span></label>
-                        <input class="input" type="text" id="inv-c-taxa" name="taxa" inputmode="decimal" data-inv-taxa value="{{ $reabreCreate ? old('taxa') : '' }}" placeholder="110">
+                        <input class="input" type="text" id="inv-c-taxa" name="taxa" inputmode="decimal" data-no-money data-inv-taxa value="{{ $reabreCreate ? old('taxa') : '' }}" placeholder="110">
                     </div>
                     <div class="field">
                         <label for="inv-c-valor">Valor aplicado <span class="hint">(opcional)</span></label>
@@ -392,7 +392,7 @@
                     </div>
                     <div class="field">
                         <label for="inv-e-taxa-{{ $inv->id }}">Taxa <span class="hint">(opcional)</span></label>
-                        <input class="input" type="text" id="inv-e-taxa-{{ $inv->id }}" name="taxa" inputmode="decimal"
+                        <input class="input" type="text" id="inv-e-taxa-{{ $inv->id }}" name="taxa" inputmode="decimal" data-no-money
                                value="{{ $reabreEdit ? old('taxa') : $taxaEdit }}" placeholder="110">
                     </div>
                 </div>

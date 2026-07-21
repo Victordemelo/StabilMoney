@@ -291,22 +291,27 @@ class FamilyAccountTest extends TestCase
         ])->assertForbidden();
     }
 
-    public function test_dependents_page_shows_amount_spent(): void
+    public function test_dependents_page_shows_amount_spent_this_month(): void
     {
         $titular = User::factory()->create();
         $account = Account::factory()->for($titular)->create();
         $dependent = User::factory()->create([
             'account_owner_id' => $titular->id, 'name' => 'Gastador',
         ]);
-        // Despesa de R$ 50 lançada pelo dependente: o card mostra quanto ele gastou.
+        // Despesa de R$ 50 no mês corrente lançada pelo dependente.
         Transaction::factory()->for($titular)->for($account)->expense()->create([
-            'made_by_user_id' => $dependent->id, 'amount' => 50,
+            'made_by_user_id' => $dependent->id, 'amount' => 50, 'date' => now()->toDateString(),
+        ]);
+        // Despesa do mês passado NÃO deve entrar na conta do mês.
+        Transaction::factory()->for($titular)->for($account)->expense()->create([
+            'made_by_user_id' => $dependent->id, 'amount' => 999, 'date' => now()->subMonthNoOverflow()->startOfMonth()->toDateString(),
         ]);
 
         $this->actingAs($titular)->get('/dependentes')
             ->assertOk()
-            ->assertSee('Já gastou')
-            ->assertSee('50,00');
+            ->assertSee('Gastou no mês')
+            ->assertSee('50,00')
+            ->assertDontSee('999,00');
     }
 
     public function test_launch_form_preselects_dependent_author(): void

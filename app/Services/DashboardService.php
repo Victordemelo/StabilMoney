@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Account;
+use App\Models\Goal;
+use App\Models\Investment;
 use App\Models\Transaction;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -198,6 +200,52 @@ class DashboardService
             'totalBalance' => $totalBalance,
             // Exibe "quem fez a compra" nas recentes só quando a família tem dependentes.
             'showAuthor' => User::where('account_owner_id', $userId)->exists(),
+            // Resumos das features (metas, faturas a pagar, investimentos) p/ os cards.
+            ...$this->featureResumos($userId, $accounts),
+        ];
+    }
+
+    /**
+     * Resumos compactos p/ os cards do dashboard: total guardado em metas, total
+     * a pagar nas faturas de cartão (ciclo atual) e total investido — cada um com
+     * contagem e os 3 principais itens.
+     */
+    private function featureResumos(int $userId, $accounts): array
+    {
+        $goals = Goal::where('user_id', $userId)->orderByDesc('id')->get();
+        $investments = Investment::where('user_id', $userId)->orderByDesc('id')->get();
+        $cards = $accounts->where('type', 'credit_card');
+
+        $faturasTop = $cards
+            ->map(fn ($c) => ['name' => $c->name, 'invoice' => $c->currentInvoice, 'due' => $c->dueDate?->format('d/m')])
+            ->filter(fn ($f) => $f['invoice'] > 0)
+            ->sortByDesc('invoice')
+            ->take(3)->values()->all();
+
+        return [
+            'metasResumo' => [
+                'total' => round((float) $goals->sum(fn (Goal $g) => $g->saved), 2),
+                'count' => $goals->count(),
+                'top' => $goals->sortByDesc(fn (Goal $g) => $g->saved)->take(3)->map(fn (Goal $g) => [
+                    'name' => $g->name,
+                    'saved' => $g->saved,
+                    'progress' => $g->progress,
+                ])->values()->all(),
+            ],
+            'faturasResumo' => [
+                'total' => round((float) $cards->sum(fn ($c) => $c->currentInvoice), 2),
+                'count' => count($faturasTop),
+                'top' => $faturasTop,
+            ],
+            'investimentosResumo' => [
+                'total' => round((float) $investments->sum(fn (Investment $i) => $i->aplicado), 2),
+                'count' => $investments->count(),
+                'top' => $investments->sortByDesc(fn (Investment $i) => $i->aplicado)->take(3)->map(fn (Investment $i) => [
+                    'name' => $i->name,
+                    'aplicado' => $i->aplicado,
+                    'classe' => Investment::CLASSES[$i->classe] ?? $i->classe,
+                ])->values()->all(),
+            ],
         ];
     }
 

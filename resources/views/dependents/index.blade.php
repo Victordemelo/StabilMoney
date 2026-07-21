@@ -49,7 +49,7 @@
                         </div>
                     </div>
                     <div class="dp-spent">
-                        <span class="dp-spent-label">Já gastou</span>
+                        <span class="dp-spent-label">Gastou no mês</span>
                         <span class="dp-spent-val">R$ {{ number_format($gastoTitular, 2, ',', '.') }}</span>
                     </div>
                 </div>
@@ -87,7 +87,7 @@
 
                         {{-- Quanto já gastou (despesas lançadas por ele) --}}
                         <div class="dp-spent">
-                            <span class="dp-spent-label">Já gastou</span>
+                            <span class="dp-spent-label">Gastou no mês</span>
                             <span class="dp-spent-val">R$ {{ number_format($gasto, 2, ',', '.') }}</span>
                         </div>
                     </div>

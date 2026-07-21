@@ -310,6 +310,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 [data-theme="dark"] .trend.up { background: rgba(28,154,112,.14); }
 [data-theme="dark"] .trend.down { background: rgba(229,96,77,.14); }
 .trend svg { width: 13px; height: 13px; stroke-width: 2.4; }
+/* KPI compacto dos cards do dashboard (metas, faturas, investimentos) */
+.dash-kpi-val { font-family: var(--font-head); font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin-top: 3px; }
+.dash-kpi-val span { font-family: var(--font-body); font-size: 12.5px; font-weight: 600; color: var(--ink-3); letter-spacing: 0; }
+
 .stat .value { font-family: var(--font-head); font-size: 23px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
 .stat .value .cur { font-size: 14px; color: var(--ink-3); font-weight: 600; margin-right: 3px; }
 .stat .spark { height: 34px; margin-top: 12px; }

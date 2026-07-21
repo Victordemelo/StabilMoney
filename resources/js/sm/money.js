@@ -7,9 +7,11 @@
  *    trabalha com valores negativos; o sinal vem do tipo, não do valor).
  *  - Campo vazio continua vazio (não vira "0,00").
  *  - Entende tanto "1.234,56" quanto "1234.56" / "1234" digitados pelo usuário.
+ *  - Campos marcados com `data-no-money` são ignorados (ex.: taxa em %, que não
+ *    é moeda e não deve ganhar separador de milhar nem forçar 2 casas).
  */
 export function initMoney() {
-    document.querySelectorAll('input[inputmode="decimal"]').forEach((input) => {
+    document.querySelectorAll('input[inputmode="decimal"]:not([data-no-money])').forEach((input) => {
         if (input.dataset.moneyBound) return; // evita duplicar listener
         input.dataset.moneyBound = '1';
         input.addEventListener('blur', () => {

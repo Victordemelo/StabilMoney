@@ -22,15 +22,20 @@ class DependentController extends Controller
         $titular = $request->user();
         abort_unless($titular->isTitular(), 403);
 
-        // `gasto` = soma das DESPESAS lançadas por cada pessoa (made_by_user_id),
-        // pré-agregada para evitar N+1 ao montar os cards.
+        // `gasto` = soma das DESPESAS do MÊS CORRENTE lançadas por cada pessoa
+        // (made_by_user_id), pré-agregada para evitar N+1 ao montar os cards.
+        $mesInicio = now()->startOfMonth()->toDateString();
+        $mesFim = now()->endOfMonth()->toDateString();
+
         $dependents = $titular->dependents()
-            ->withSum(['madeTransactions as gasto' => fn ($q) => $q->where('type', 'expense')], 'amount')
+            ->withSum(['madeTransactions as gasto' => fn ($q) => $q
+                ->where('type', 'expense')->whereBetween('date', [$mesInicio, $mesFim])], 'amount')
             ->orderBy('name')
             ->get();
 
-        // Quanto o próprio titular já gastou (mesma base dos cards).
-        $gastoTitular = (float) $titular->madeTransactions()->where('type', 'expense')->sum('amount');
+        // Quanto o próprio titular gastou no mês (mesma base dos cards).
+        $gastoTitular = (float) $titular->madeTransactions()
+            ->where('type', 'expense')->whereBetween('date', [$mesInicio, $mesFim])->sum('amount');
 
         return view('dependents.index', compact('dependents', 'gastoTitular'));
     }

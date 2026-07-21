@@ -202,8 +202,8 @@
                     <div class="cc-num">{{ $firstAccount->name }}</div>
                     <div class="cc-bot">
                         <div>
-                            <div class="lbl">Saldo disponível</div>
-                            <div class="cc-balance">R$ {{ $money($firstAccount->current_balance) }}</div>
+                            <div class="lbl">{{ $firstAccount->isCard() ? 'Limite disponível' : 'Saldo disponível' }}</div>
+                            <div class="cc-balance">R$ {{ $money($firstAccount->isCard() ? $firstAccount->availableLimit : $firstAccount->current_balance) }}</div>
                         </div>
                     </div>
                 </div>
@@ -216,7 +216,7 @@
                                     <div class="an">{{ $account->name }}</div>
                                     <div class="at">{{ $account->type_label }}</div>
                                 </div>
-                                <div class="av">R$ {{ $money($account->current_balance) }}</div>
+                                <div class="av">R$ {{ $money($account->isCard() ? $account->availableLimit : $account->current_balance) }}</div>
                             </div>
                         @endforeach
                     </div>
@@ -224,43 +224,93 @@
             @endif
         </div>
 
-        {{-- Metas de economia (em breve) --}}
+        {{-- Metas de economia --}}
         <div class="card span4" style="animation-delay:.34s">
             <div class="card-head">
                 <h3>Metas de economia</h3>
                 <a class="mini-btn" href="{{ route('metas.index') }}">Todas<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></a>
             </div>
-            <div class="empty-state">
-                <div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".7" fill="currentColor"/></svg></div>
-                <h3>Em breve</h3>
-                <p>Metas de economia chegam em uma versão futura.</p>
-            </div>
+            @if ($metasResumo['count'] > 0)
+                <div class="dash-kpi">
+                    <div class="lbl">Guardado</div>
+                    <div class="dash-kpi-val">R$ {{ $money($metasResumo['total']) }} <span>· {{ $metasResumo['count'] }} {{ $metasResumo['count'] == 1 ? 'meta' : 'metas' }}</span></div>
+                </div>
+                <div style="margin-top:14px">
+                    @foreach ($metasResumo['top'] as $m)
+                        <div class="acct">
+                            <div class="ab" style="background:var(--brand-500)">{{ $initials($m['name']) }}</div>
+                            <div><div class="an">{{ $m['name'] }}</div><div class="at">{{ $m['progress'] }}% da meta</div></div>
+                            <div class="av">R$ {{ $money($m['saved']) }}</div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <div class="empty-state">
+                    <div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".7" fill="currentColor"/></svg></div>
+                    <h3>Nenhuma meta ainda</h3>
+                    <p>Crie um cofrinho e comece a guardar.</p>
+                    <a class="btn-ghost" href="{{ route('metas.index') }}">Criar meta</a>
+                </div>
+            @endif
         </div>
 
-        {{-- Contas a pagar (em breve) --}}
+        {{-- Contas a pagar (faturas de cartão em aberto) --}}
         <div class="card span4" style="animation-delay:.38s">
             <div class="card-head">
                 <h3>Contas a pagar</h3>
                 <a class="mini-btn" href="{{ route('faturas.index') }}">Ver<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></a>
             </div>
-            <div class="empty-state">
-                <div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>
-                <h3>Em breve</h3>
-                <p>Controle de contas a pagar chega em uma versão futura.</p>
-            </div>
+            @if ($faturasResumo['count'] > 0)
+                <div class="dash-kpi">
+                    <div class="lbl">A pagar nas faturas</div>
+                    <div class="dash-kpi-val">R$ {{ $money($faturasResumo['total']) }}</div>
+                </div>
+                <div style="margin-top:14px">
+                    @foreach ($faturasResumo['top'] as $f)
+                        <div class="acct">
+                            <div class="ab" style="background:var(--c-lazer)">{{ $initials($f['name']) }}</div>
+                            <div><div class="an">{{ $f['name'] }}</div><div class="at">{{ $f['due'] ? 'Vence ' . $f['due'] : 'Fatura atual' }}</div></div>
+                            <div class="av">R$ {{ $money($f['invoice']) }}</div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <div class="empty-state">
+                    <div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>
+                    <h3>Nada a pagar 🎉</h3>
+                    <p>Nenhuma fatura de cartão em aberto.</p>
+                </div>
+            @endif
         </div>
 
-        {{-- Investimentos (em breve) --}}
+        {{-- Investimentos --}}
         <div class="card span4" style="animation-delay:.42s">
             <div class="card-head">
                 <h3>Investimentos</h3>
                 <a class="mini-btn" href="{{ route('investimentos.index') }}">Carteira<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></a>
             </div>
-            <div class="empty-state">
-                <div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7M20 16v-3"/></svg></div>
-                <h3>Em breve</h3>
-                <p>Acompanhamento de investimentos chega em uma versão futura.</p>
-            </div>
+            @if ($investimentosResumo['count'] > 0)
+                <div class="dash-kpi">
+                    <div class="lbl">Investido</div>
+                    <div class="dash-kpi-val">R$ {{ $money($investimentosResumo['total']) }} <span>· {{ $investimentosResumo['count'] }} {{ $investimentosResumo['count'] == 1 ? 'ativo' : 'ativos' }}</span></div>
+                </div>
+                <div style="margin-top:14px">
+                    @foreach ($investimentosResumo['top'] as $i)
+                        <div class="acct">
+                            <div class="ab" style="background:var(--c-saude)">{{ $initials($i['name']) }}</div>
+                            <div><div class="an">{{ $i['name'] }}</div><div class="at">{{ $i['classe'] }}</div></div>
+                            <div class="av">R$ {{ $money($i['aplicado']) }}</div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <div class="empty-state">
+                    <div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7M20 16v-3"/></svg></div>
+                    <h3>Nenhum investimento ainda</h3>
+                    <p>Comece a acompanhar sua carteira.</p>
+                    <a class="btn-ghost" href="{{ route('investimentos.index') }}">Adicionar investimento</a>
+                </div>
+            @endif
         </div>
     </div>
 </section>

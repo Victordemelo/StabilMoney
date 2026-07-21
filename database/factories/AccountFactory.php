@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Account;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,13 +21,14 @@ class AccountFactory extends Factory
      */
     public function definition(): array
     {
+        // Padrão: Conta Corrente (tem saldo próprio, comportamento previsível nos
+        // testes) com um banco. Cartões usam os states abaixo.
         return [
             'user_id' => User::factory(),
-            'name' => fake()->randomElement(['Carteira', 'Banco Azul', 'Banco Roxo', 'Poupança', 'Cartão Principal']) . ' ' . fake()->unique()->numberBetween(1, 9999),
-            'type' => fake()->randomElement(['wallet', 'bank', 'credit_card', 'savings', 'investment', 'other']),
+            'name' => fake()->randomElement(['Conta Corrente', 'Banco Azul', 'Banco Roxo', 'Poupança']) . ' ' . fake()->unique()->numberBetween(1, 9999),
+            'type' => 'checking',
+            'bank' => fake()->randomElement(array_keys(Account::BANKS)),
             'initial_balance' => fake()->randomFloat(2, 0, 5000),
-            'color' => fake()->randomElement(['#0F6B47', '#1FA06E', '#59C497', '#18B6BE', '#F0A93B']),
-            'icon' => fake()->randomElement(['💳', '🏦', '👛', '🐷']),
         ];
     }
 
@@ -35,7 +37,7 @@ class AccountFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'type' => 'credit_card',
-            'initial_balance' => 0,
+            'initial_balance' => null,
             'credit_limit' => 5000,
             'closing_day' => 10,
             'due_day' => 20,

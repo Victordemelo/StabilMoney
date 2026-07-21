@@ -48,10 +48,10 @@ class DatabaseSeeder extends Seeder
         // Mesmas categorias padrão que um usuário novo recebe ao se cadastrar.
         DefaultCategories::seedFor($user);
 
-        // Conta inicial
+        // Conta inicial (Conta Corrente com banco — tipos novos do modelo).
         Account::firstOrCreate(
-            ['user_id' => $user->id, 'name' => 'Carteira'],
-            ['type' => 'wallet', 'initial_balance' => 0, 'icon' => '💵'],
+            ['user_id' => $user->id, 'name' => 'Conta Corrente'],
+            ['type' => 'checking', 'bank' => 'nubank', 'initial_balance' => 0],
         );
     }
 }

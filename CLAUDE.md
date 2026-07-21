@@ -177,9 +177,11 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
   `auth()->id()` / `$request->user()->id` e escope **toda** query pelo dono.
 - **Registro (design v2):** **sem campo de confirmação de senha** (decisão do design) e com
   **aceite de Termos de Uso/Política de Privacidade obrigatório** (`terms => required|accepted`,
-  validado no servidor com mensagem PT-BR). Os links dos termos ainda são placeholders (`#`) —
-  criar as páginas reais antes do deploy público. Os fluxos de **redefinir senha** e **alterar
-  senha no perfil** continuam exigindo confirmação.
+  validado no servidor com mensagem PT-BR). As páginas de Termos/Privacidade **já existem**
+  (rotas públicas `/termos` e `/privacidade` → views em `resources/views/legal/`, cobertas por
+  `LegalPagesTest`); o cadastro linka para elas. O **conteúdo** é simplificado ("fase de testes")
+  e precisa de revisão jurídica antes do lançamento público amplo. Os fluxos de **redefinir senha**
+  e **alterar senha no perfil** continuam exigindo confirmação.
 - Login/cadastro usam o `layouts/auth.blade.php` (split com vídeo, **sempre claro** — tokens
   fixos no escopo `.auth`); as demais telas de auth (esqueci/redefinir/confirmar senha,
   verificar e-mail) seguem no `layouts/guest.blade.php` com suporte a tema (inconsistência
@@ -204,13 +206,13 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
 
 | Rota (name) | View | O que mostra |
 |---|---|---|
-| `GET /` (`dashboard`) | `dashboard.blade.php` | Stats com sparklines, segmented semana/mês/ano, fluxo de caixa, donut por categoria, transações recentes, "Meu cartão" + contas, cards "Em breve". |
+| `GET /` (`dashboard`) | `dashboard.blade.php` | Stats com sparklines, segmented semana/mês/ano, fluxo de caixa, donut por categoria, transações recentes, "Meu cartão" (rótulo "Limite disponível" p/ crédito) + contas, e cards **com dados reais** de Metas / Contas a pagar (faturas de cartão em aberto) / Investimentos — resumos via `DashboardService::featureResumos`. |
 | `/transactions` (resource, sem `show`) | `transactions/*` | Lista com filtros GET (tipo/conta), paginação; form com type-toggle, valor com vírgula, conta, categoria filtrada por tipo. |
 | `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"**. 4 tipos (Conta Corrente/Poupança, Cartão de Débito/Crédito) + **banco** com logo (imagem `public/assets/banks/`, preview no form). Form com campos condicionais por tipo (JS): conta = saldo inicial; crédito = limite + fechamento/vencimento; débito = vincula corrente/poupança que ele espelha. **Sem picker de ícone/cor.** O card mostra a imagem do banco; débito mostra corrente/poupança separados + total. |
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
 | `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais: nome, e-mail, telefone, foto (preview antes de salvar). **Acesso pelo popover do perfil** (sidebar). |
 | `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security`) | Subabas-pílula numa coluna centrada (680px). **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), e **2FA "em breve"**. **Conta** = excluir conta (modal). |
-| `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais **fora da `.card`** — ela tem `overflow:hidden`+animação `transform`, que prendia o `position:fixed`). Cada card mostra **foto** (avatar), nome/e-mail e **quanto já gastou** (`Σ` despesas com `made_by_user_id` da pessoa; titular incluso), com botões **editar** e **excluir**. No cadastro/edição define-se nome, e-mail, **foto** (avatar central clicável — a bolinha É o botão de upload, classe `.avatar-pick`), **parentesco** (select `User::RELATIONSHIPS`) e senha (Store/UpdateDependentRequest; senha opcional na edição). **Lançar em nome de um dependente** é feito no formulário de transação, pelo seletor "quem fez a compra" (suporta deep-link `transactions.create?autor=ID`). Só titular acessa (403 p/ dependente). |
+| `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais **fora da `.card`** — ela tem `overflow:hidden`+animação `transform`, que prendia o `position:fixed`). Cada card mostra **foto** (avatar), nome/e-mail e **quanto gastou no mês** (`Σ` despesas do mês corrente com `made_by_user_id` da pessoa; titular incluso), com botões **editar** e **excluir**. No cadastro/edição define-se nome, e-mail, **foto** (avatar central clicável — a bolinha É o botão de upload, classe `.avatar-pick`), **parentesco** (select `User::RELATIONSHIPS`) e senha (Store/UpdateDependentRequest; senha opcional na edição). **Lançar em nome de um dependente** é feito no formulário de transação, pelo seletor "quem fez a compra" (suporta deep-link `transactions.create?autor=ID`). Só titular acessa (403 p/ dependente). |
 | `/metas` (`GoalController` index/store/update/destroy + aportes/resgates) | `metas/index` | **Metas (implementado).** Objetivos de poupança modelo "cofrinho": aporte reserva, resgate devolve à conta. Compartilhadas na família (`ownerId`). |
 | `/investimentos` (`InvestmentController` index/store/update/destroy + aportes/resgates) | `investimentos/index` | **Investimentos (implementado).** Cofrinho + metadados/projeções (indexador CDI/Selic/IPCA+/Prefixado, % do indexador, prévia de IR/IOF). Compartilhados na família. |
 | `/faturas` ("Faturas / Despesas": `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy`) | `faturas/index` | **Faturas/Despesas (implementado).** Faturas por cartão (parcelas/recorrência, ciclo fechamento/vencimento, limite) via `FaturaService` + despesas avulsas em conta. Rotas `relatorios` e `ajuda` foram **removidas** no design v2. |
@@ -262,7 +264,7 @@ Saldo total = atual de todas as contas, independe do período.
   `users`, **cascadeOnDelete**): **null = titular; preenchido = dependente** apontando para o
   titular. Helpers no model: `ownerId()` (= `account_owner_id ?? id`), `isTitular()`,
   `dependents()`, `titular()`, `madeTransactions()` (despesas lançadas pela pessoa, base do
-  "quanto já gastou" no card de dependentes), `avatarUrl()`. `relationship` (string nullable):
+  "quanto gastou no mês" no card de dependentes), `avatarUrl()`. `relationship` (string nullable):
   parentesco do dependente — valores em `User::RELATIONSHIPS` (conjuge/filho/pai_mae/irmao/outro);
   `relationshipLabel()` devolve o rótulo PT-BR.
 - **accounts** — `user_id`, `name`, `type` (`Account::TYPES`: `checking`=Conta Corrente,
@@ -303,7 +305,8 @@ Saldo total = atual de todas as contas, independe do período.
   (ou `min:0.01` para os obrigatórios > 0); `initial_balance` é `min:0`. No cliente, `sm/money.js`
   formata todo `input[inputmode="decimal"]` para BRL ("1.234,56") **ao sair do campo (blur)** e
   **descarta o sinal de menos** — entrada negativa vira positiva. Ao adicionar um novo campo de
-  valor, use `inputmode="decimal"` para herdar esse comportamento.
+  valor, use `inputmode="decimal"` para herdar esse comportamento. Campos que NÃO são moeda
+  (ex.: taxa em %) marcam `data-no-money` para o `money.js` ignorá-los.
 - **Ownership sempre**: queries escopadas por `auth()->id()`; `account_id`/`category_id` validados
   com `Rule::exists()->where('user_id', ...)`; categoria deve casar com o `type` da transação.
 - **Policies** para `update`/`delete` (dono); controllers usam `$this->authorize()`
@@ -439,9 +442,9 @@ sub-usuários vinculados ao titular (dependentes), `goals`, `investments`.
 `.meta-*`, `.dep-grid`, `.modal-lg`, `.sm-toast`) ficam no `styles.css` v2 para portar na hora;
 primitivos de modal (`.modal-scrim`/`.modal`) já portados — **dentro de modais, usar o
 `.field`/`.input` do `forms.css`** (as regras `.field` do modal do protótipo conflitam e não
-foram portadas). O card patrimônio mostra "Em conta" = saldo total por enquanto; quando
-investimentos existirem, separar as parcelas no `SidebarService`. O rótulo "Saldo disponível"
-do card "Meu cartão" do dashboard vira "Limite disponível" quando houver limite de cartão.
+foram portadas). **Feito:** o card patrimônio já separa "Disponível / Guardado em metas /
+Investido" (`SidebarService`); e o rótulo "Saldo disponível" do card "Meu cartão" do dashboard
+já vira "Limite disponível" quando a primeira conta é cartão de crédito.
 
 ---
 
