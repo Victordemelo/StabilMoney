@@ -69,6 +69,22 @@ class ShellV2Test extends TestCase
         $response->assertSee(route('transactions.create'));
     }
 
+    public function test_launch_modal_is_present_on_authenticated_pages(): void
+    {
+        $user = User::factory()->create();
+        Account::factory()->for($user)->create(['name' => 'Conta Teste']);
+
+        $response = $this->actingAs($user)->get('/');
+
+        $response->assertOk();
+        $response->assertSee('id="launchModal"', false);
+        $response->assertSee('Nova transação');
+        $response->assertSee('data-launch-form', false);
+        $response->assertSee('action="' . route('transactions.store') . '"', false);
+        // A conta da família aparece no select do modal.
+        $response->assertSee('Conta Teste');
+    }
+
     public function test_patrimonio_card_shows_variation_when_there_is_a_base(): void
     {
         $user = User::factory()->create();

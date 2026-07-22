@@ -58,6 +58,10 @@
     <div class="scrim" id="scrim"></div>
 </div>
 
+@auth
+    @include('partials.launch-modal')
+@endauth
+
 @include('partials.cookie-consent')
 </body>
 </html>

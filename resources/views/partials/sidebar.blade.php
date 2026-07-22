@@ -22,23 +22,23 @@
 
     <div class="nav-group-label">Menu</div>
     <nav class="nav">
-        <a class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">
+        <a data-pjax class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
             <span class="nav-label">Visão geral</span>
         </a>
-        <a class="nav-item {{ request()->routeIs('transactions.*') ? 'active' : '' }}" href="{{ route('transactions.index') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 8h13M7 8l3-3M7 8l3 3M17 16H4M17 16l-3-3M17 16l-3 3"/></svg>
-            <span class="nav-label">Transações</span>
+        <a data-pjax class="nav-item {{ request()->routeIs('transactions.*') ? 'active' : '' }}" href="{{ route('transactions.index') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 2M21 12a9 9 0 1 1-9-9c2.5 0 4.8 1 6.4 2.7M21 4v4h-4"/></svg>
+            <span class="nav-label">Histórico</span>
         </a>
-        <a class="nav-item {{ request()->routeIs('faturas.*') ? 'active' : '' }}" href="{{ route('faturas.index') }}">
+        <a data-pjax class="nav-item {{ request()->routeIs('faturas.*') ? 'active' : '' }}" href="{{ route('faturas.index') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
             <span class="nav-label">Faturas / Despesas</span>
         </a>
-        <a class="nav-item {{ request()->routeIs('metas.*') ? 'active' : '' }}" href="{{ route('metas.index') }}">
+        <a data-pjax class="nav-item {{ request()->routeIs('metas.*') ? 'active' : '' }}" href="{{ route('metas.index') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".7" fill="currentColor"/></svg>
             <span class="nav-label">Metas</span>
         </a>
-        <a class="nav-item {{ request()->routeIs('investimentos.*') ? 'active' : '' }}" href="{{ route('investimentos.index') }}">
+        <a data-pjax class="nav-item {{ request()->routeIs('investimentos.*') ? 'active' : '' }}" href="{{ route('investimentos.index') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7M20 16v-3"/></svg>
             <span class="nav-label">Investimentos</span>
         </a>
@@ -46,11 +46,11 @@
 
     <div class="nav-group-label">Preferências</div>
     <nav class="nav">
-        <a class="nav-item {{ request()->routeIs('accounts.*') ? 'active' : '' }}" href="{{ route('accounts.index') }}">
+        <a data-pjax class="nav-item {{ request()->routeIs('accounts.*') ? 'active' : '' }}" href="{{ route('accounts.index') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg>
             <span class="nav-label">Métodos de Pagamento</span>
         </a>
-        <a class="nav-item {{ request()->routeIs('categories.*') ? 'active' : '' }}" href="{{ route('categories.index') }}">
+        <a data-pjax class="nav-item {{ request()->routeIs('categories.*') ? 'active' : '' }}" href="{{ route('categories.index') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
             <span class="nav-label">Categorias</span>
         </a>
@@ -86,7 +86,7 @@
     {{-- Dependentes: só o titular gerencia (card escondido para dependentes) --}}
     @if ($usuario->isTitular())
         @php($numDep = $usuario->dependents()->count())
-        <a class="dep-card {{ request()->routeIs('dependentes') ? 'active' : '' }}" href="{{ route('dependentes') }}">
+        <a data-pjax class="dep-card {{ request()->routeIs('dependentes') ? 'active' : '' }}" href="{{ route('dependentes') }}">
             <div class="dep-avatars">
                 <span class="da solo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 2.9-5.6 6.5-5.6 1 0 2 .2 2.8.5M17 8.5v6M14 11.5h6"/></svg></span>
             </div>

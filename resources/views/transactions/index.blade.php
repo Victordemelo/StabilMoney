@@ -1,10 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Transações')
+@section('title', 'Histórico')
 
 @section('content')
     <div class="section-head">
-        <h2>Transações</h2>
+        <h2>Histórico</h2>
         <span class="sub">Todas as movimentações</span>
         <div class="head-actions">
             <a class="btn-primary" href="{{ route('transactions.create') }}">

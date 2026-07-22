@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\Account;
+use App\Models\Category;
+use App\Models\User;
 use App\Services\SidebarService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\View;
@@ -32,6 +35,23 @@ class AppServiceProvider extends ServiceProvider
             $user = auth()->user();
             // Escopo por família: o patrimônio é o do titular (ownerId), visível também aos dependentes.
             $view->with('patrimonio', $user ? app(SidebarService::class)->build($user->ownerId()) : null);
+        });
+
+        // Modal global de "Lançar" (nova transação), presente no shell de todas as
+        // páginas autenticadas. Escopo por família (ownerId).
+        View::composer('partials.launch-modal', function (\Illuminate\View\View $view) {
+            $user = auth()->user();
+            $ownerId = $user?->ownerId();
+
+            $view->with([
+                'lmAccounts' => $ownerId
+                    ? Account::where('user_id', $ownerId)->orderBy('name')->get()
+                    : collect(),
+                'lmCategories' => $ownerId
+                    ? Category::where('user_id', $ownerId)->orderBy('type')->orderBy('name')->get()
+                    : collect(),
+                'lmFamily' => $ownerId ? User::familyOf($ownerId)->get() : collect(),
+            ]);
         });
     }
 }

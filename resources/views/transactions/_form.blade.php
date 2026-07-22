@@ -20,7 +20,7 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ $editando ? route('transactions.update', $transaction) : route('transactions.store') }}" data-type="{{ $tipoAtual }}" @if (! $editando) data-offline-queue @endif>
+        <form method="POST" action="{{ $editando ? route('transactions.update', $transaction) : route('transactions.store') }}" data-type="{{ $tipoAtual }}" data-tx-form @if (! $editando) data-offline-queue @endif>
             @csrf
             @if ($editando)
                 @method('PUT')
@@ -139,12 +139,14 @@
 </div>
 
 <script>
-    // Tom do formulário (pílula/accent) + filtro de categorias pelo tipo escolhido
+    // Tom do formulário (pílula/accent) + filtro de categorias pelo tipo escolhido.
+    // Escopado ao PRÓPRIO form (data-tx-form) p/ não colidir com o modal global "Lançar".
     (function () {
-        var radios = document.querySelectorAll('input[name="type"]');
+        var form = document.querySelector('form[data-tx-form]');
+        if (!form) return;
+        var radios = form.querySelectorAll('input[name="type"]');
         if (!radios.length) return;
-        var form = radios[0].closest('form');
-        var select = document.getElementById('category_id');
+        var select = form.querySelector('#category_id');
 
         function aplicar() {
             var marcado = document.querySelector('input[name="type"]:checked');

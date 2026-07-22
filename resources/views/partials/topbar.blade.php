@@ -27,7 +27,7 @@
         <p>{{ $dataHoje }} · resumo das suas finanças</p>
     </div>
     {{-- "Lançar": recolhido vira só "+"; no hover/foco floresce em "+ Lançar" --}}
-    <a class="launch-btn" href="{{ route('transactions.create') }}" aria-label="Lançar nova transação">
+    <a class="launch-btn" href="{{ route('transactions.create') }}" data-launch-open aria-label="Lançar nova transação">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
         <span>Lançar</span>
     </a>

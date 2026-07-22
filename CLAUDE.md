@@ -218,13 +218,27 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
 | `/faturas` ("Faturas / Despesas": `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy`) | `faturas/index` | **Faturas/Despesas (implementado).** Faturas por cartão (parcelas/recorrência, ciclo fechamento/vencimento, limite) via `FaturaService` + despesas avulsas em conta. Rotas `relatorios` e `ajuda` foram **removidas** no design v2. |
 | `routes/auth.php` | `auth/*` | Breeze: login, registro, esqueci/redefinir senha, confirmar senha, verificar e-mail. |
 
-**Menu da sidebar (v2):** grupo **Menu** = Visão geral → `dashboard`, Transações →
+**Menu da sidebar (v2):** grupo **Menu** = Visão geral → `dashboard`, **Histórico** →
 `transactions.index`, Faturas / Despesas → `faturas`, Metas → `metas`, Investimentos →
 `investimentos`; grupo **Preferências** = Métodos de Pagamento → `accounts.index`,
 Categorias → `categories.index`. Sem Relatórios, sem Ajuda, sem Configurações no menu
 (Configurações vive no popover do perfil) e sem card de upsell. A sidebar ainda tem o card
 **Patrimônio total** (dados reais via `SidebarService`/View Composer) e o card **Dependentes**
 (estado vazio → rota `dependentes`).
+
+**Navegação por AJAX (pjax):** os itens de menu (sidebar + bottom-nav, marcados `data-pjax`)
+navegam **sem reload** via `resources/js/sm/nav.js` — troca só o `#content` (shell persiste),
+re-executa scripts inline, reinicia os módulos de conteúdo (`initContent` no `app.js`), atualiza
+título/histórico/estado-ativo. Fallback para navegação normal em qualquer erro. `window.smPjaxReload()`
+recarrega a página atual sem reload (usado após salvar no modal de lançar).
+
+**Modal "Lançar" (global):** o botão da topbar e o FAB (`data-launch-open`) abrem um modal de
+**nova transação** (`partials/launch-modal.blade.php`, dados via View Composer em `AppServiceProvider`
+= contas/categorias/família da família), em vez de navegar para `transactions.create` (que segue
+de fallback no `href` e como página cheia). Abre/fecha com a animação do `.modal-scrim`; envia por
+AJAX (`sm/launch.js` → `transactions.store` com `Accept: json`), spinner no "Salvar", erro treme +
+banner, sucesso recarrega via `smPjaxReload`. **Nuance:** o modal usa `fetch` direto (não passa pela
+fila offline do `offline-queue.js`); lançar **offline** ainda funciona pela página cheia `transactions.create`.
 
 ---
 

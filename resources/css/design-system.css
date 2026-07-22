@@ -754,6 +754,25 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .pm-plus svg { width: 24px; height: 24px; }
 .pm-add-inner strong { font-size: 13.5px; }
 .modal-lg { max-width: 480px; }
+/* Modal amplo (ex.: "Lançar" nova transação): mais largo p/ 2 colunas respirarem */
+.modal-wide { max-width: 560px; }
+
+/* Botão .btn.primary com spinner de carregamento (modais) */
+.btn.primary { position: relative; }
+.btn.primary .btn-spin { display: none; }
+.btn.primary.is-loading .btn-label { visibility: hidden; }
+.btn.primary.is-loading .btn-spin {
+  display: block; position: absolute; left: 50%; top: 50%; margin: -9px 0 0 -9px;
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2.5px solid rgba(255,255,255,.45); border-top-color: #fff;
+  animation: sm-spin .7s linear infinite;
+}
+/* "Tremida" na negação do modal (reusa o keyframe sm-shake do auth.css) */
+.modal.shake { animation: sm-shake .5s cubic-bezier(.36,.07,.19,.97) both; }
+
+/* pjax: leve escurecida do conteúdo enquanto troca de página (sem reload) */
+#content { transition: opacity .18s var(--ease); }
+body.pjax-loading #content { opacity: .5; }
 
 /* ============ Meu perfil (avatar) + Configurações (subabas) ============ */
 .avatar-edit { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; }
