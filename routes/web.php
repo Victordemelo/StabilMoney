@@ -92,6 +92,9 @@ Route::middleware('auth')->group(function () {
     // Recorrência "infinita": pagar a ocorrência em aberto gera a próxima (+1 mês).
     Route::post('/faturas/recorrente/{transaction}/pagar', [FaturaController::class, 'pay'])
         ->name('faturas.recorrente.pagar');
+    // Marcar a fatura de um cartão de crédito como paga (desconta do caixa escolhido).
+    Route::post('/faturas/cartao/{account}/pagar', [FaturaController::class, 'payInvoice'])
+        ->name('faturas.fatura.pagar');
 });
 
 require __DIR__ . '/auth.php';

@@ -299,6 +299,34 @@ class Account extends Model
         return round(max(0.0, (float) $this->credit_limit - $this->committed), 2);
     }
 
+    private ?float $openInvoiceDueCache = null;
+
+    /**
+     * Fatura EM ABERTO (a pagar) do ciclo atual: soma das despesas do ciclo que
+     * ainda NÃO foram pagas (paid_at null). Só cartão de crédito. Ao "pagar a
+     * fatura", essas despesas ganham paid_at e este valor zera.
+     */
+    public function getOpenInvoiceDueAttribute(): float
+    {
+        return $this->openInvoiceDueCache ??= (function (): float {
+            $cycle = $this->billingCycle();
+            if (! $cycle) {
+                return 0.0;
+            }
+
+            [$start, $end] = $cycle;
+
+            $total = $this->transactions()
+                ->where('type', 'expense')
+                ->whereNull('paid_at')
+                ->whereDate('date', '>', $start->toDateString())
+                ->whereDate('date', '<=', $end->toDateString())
+                ->sum('amount');
+
+            return round((float) $total, 2);
+        })();
+    }
+
     /**
      * Próximo vencimento da fatura, a partir do due_day. Retorna a próxima
      * data com esse dia ≥ hoje, ou null se não for cartão / sem due_day.

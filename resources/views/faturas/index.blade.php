@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Faturas / Despesas')
+@section('title', 'Pagar despesas')
 
 @section('content')
 @php
@@ -26,8 +26,8 @@
 
 <section class="view">
     <div class="section-head">
-        <h2>Faturas / Despesas</h2>
-        <span class="sub">Faturas de cartão e despesas pagas em conta</span>
+        <h2>Pagar despesas</h2>
+        <span class="sub">Marque a fatura do cartão como paga; débito, Pix e conta já descontam na hora</span>
         <div class="head-actions">
             <button class="btn-primary" type="button" id="lancarBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
@@ -107,6 +107,25 @@
                         <span>Fatura atual</span>
                         <b>{{ $brl($card->currentInvoice) }}</b>
                     </div>
+                </div>
+
+                {{-- Pagar / status da fatura (só cartão de crédito) --}}
+                <div class="fatura-pay">
+                    @if ($card->isPaid)
+                        <span class="fatura-paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg> Fatura paga</span>
+                    @elseif ($card->canPay)
+                        <span class="fatura-due">A pagar: <b>{{ $brl($card->invoiceDue) }}</b></span>
+                        @if ($cashAccounts->isEmpty())
+                            <span class="field-hint">Cadastre uma conta corrente/poupança para pagar.</span>
+                        @else
+                            <button class="btn primary" type="button" data-pay-open
+                                    data-action="{{ route('faturas.fatura.pagar', $card->account) }}"
+                                    data-name="{{ $card->account->name }}"
+                                    data-amount="{{ $brl($card->invoiceDue) }}">
+                                Marcar como paga
+                            </button>
+                        @endif
+                    @endif
                 </div>
 
                 @if ($limite > 0)
@@ -343,4 +362,40 @@
         </form>
     </div>
 </div>
+
+{{-- ============================ MODAL: PAGAR FATURA ============================ --}}
+@if ($cashAccounts->isNotEmpty())
+<div class="modal-scrim" id="payInvoiceModal" data-pay-scrim>
+    <div class="modal">
+        <div class="modal-head">
+            <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg></span>
+            <div>
+                <h3>Pagar fatura</h3>
+                <p>O valor é debitado da conta escolhida (desconta do seu saldo).</p>
+            </div>
+            <button class="modal-x" type="button" data-pay-close aria-label="Fechar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+        </div>
+        <form method="POST" action="" data-pay-form>
+            @csrf
+            <div class="modal-body">
+                <p class="pay-summary">Fatura de <b data-pay-name></b> — <b data-pay-amount></b></p>
+                <div class="field">
+                    <label for="pay-account">Debitar de</label>
+                    <select class="input" id="pay-account" name="pay_account_id" required>
+                        @foreach ($cashAccounts as $acc)
+                            <option value="{{ $acc->id }}">{{ $acc->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn ghost" type="button" data-pay-close>Cancelar</button>
+                <button class="btn primary" type="submit">Confirmar pagamento</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
 @endsection

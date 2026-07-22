@@ -688,6 +688,39 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .notif-empty p { font-size: 13px; font-weight: 600; color: var(--ink); }
 .notif-empty span { font-size: 12px; color: var(--ink-3); line-height: 1.45; }
 
+/* Saldo total negativo (patrimônio na sidebar) → vermelho */
+.sb-value.neg, .sb-value.neg span { color: #FF8A75; }
+
+/* Sino com badge + itens de vencimento */
+.icon-btn.has-notif { position: relative; }
+.notif-badge {
+  position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 9px; background: var(--neg); color: #fff; font-size: 10px; font-weight: 800;
+  display: grid; place-items: center; line-height: 1; border: 2px solid var(--surface);
+}
+.notif-sub { font-size: 11px; color: var(--ink-3); font-weight: 600; }
+.notif-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-top: 1px solid var(--line); }
+.ni-ico { width: 34px; height: 34px; border-radius: 10px; flex: none; display: grid; place-items: center; background: var(--surface-2); color: var(--ink-2); }
+.ni-ico svg { width: 18px; height: 18px; stroke-width: 1.9; }
+.ni-ico.ni-fatura { background: var(--brand-50); color: var(--brand-600); }
+[data-theme="dark"] .ni-ico.ni-fatura { background: rgba(28,154,112,.14); color: var(--brand-300); }
+.ni-txt { min-width: 0; flex: 1; }
+.ni-txt strong { display: block; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ni-txt span { font-size: 11.5px; color: var(--ink-3); }
+.ni-late { color: var(--neg); font-weight: 700; font-style: normal; }
+.ni-val { font-family: var(--font-head); font-size: 13px; font-weight: 800; flex: none; }
+
+/* Pagar fatura (tela "Pagar despesas") */
+.fatura-pay { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 2px 0 14px; }
+.fatura-due { font-size: 13px; color: var(--ink-2); }
+.fatura-due b { color: var(--ink); font-family: var(--font-head); }
+.fatura-pay .btn.primary { margin-left: auto; }
+.fatura-paid { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--brand-600); font-weight: 700; font-size: 13px; }
+[data-theme="dark"] .fatura-paid { color: var(--brand-300); }
+.fatura-paid svg { width: 18px; height: 18px; stroke-width: 2; }
+.pay-summary { font-size: 14px; color: var(--ink-2); margin-bottom: 6px; }
+.pay-summary b { color: var(--ink); }
+
 /* ============ Consentimento de cookies (LGPD) ============ */
 .cookie-bar {
   position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 90;

@@ -116,6 +116,26 @@ export function initFaturas() {
     // Estado inicial (respeita old() após erro de validação).
     syncMethod();
 
+    // ---- Modal "Pagar fatura" (marcar fatura do cartão como paga) ----
+    const payModal = document.getElementById('payInvoiceModal');
+    if (payModal) {
+        const payForm = payModal.querySelector('[data-pay-form]');
+        const payName = payModal.querySelector('[data-pay-name]');
+        const payAmount = payModal.querySelector('[data-pay-amount]');
+        const abrirPay = () => payModal.classList.add('open');
+        const fecharPay = () => payModal.classList.remove('open');
+
+        $$('[data-pay-open]').forEach((btn) => btn.addEventListener('click', () => {
+            if (payForm) payForm.setAttribute('action', btn.dataset.action || '');
+            if (payName) payName.textContent = btn.dataset.name || '';
+            if (payAmount) payAmount.textContent = btn.dataset.amount || '';
+            abrirPay();
+        }));
+        payModal.addEventListener('click', (e) => { if (e.target === payModal) fecharPay(); });
+        $$('[data-pay-close]', payModal).forEach((b) => b.addEventListener('click', fecharPay));
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharPay(); });
+    }
+
     // ---- Reabrir o modal após erro de validação do servidor ----
     if (modal.dataset.reopen === '1') abrir();
 }

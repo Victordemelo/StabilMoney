@@ -32,7 +32,7 @@
         </a>
         <a data-pjax class="nav-item {{ request()->routeIs('faturas.*') ? 'active' : '' }}" href="{{ route('faturas.index') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
-            <span class="nav-label">Faturas / Despesas</span>
+            <span class="nav-label">Pagar despesas</span>
         </a>
         <a data-pjax class="nav-item {{ request()->routeIs('metas.*') ? 'active' : '' }}" href="{{ route('metas.index') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".7" fill="currentColor"/></svg>
@@ -63,7 +63,7 @@
                 <span class="sb-label">Patrimônio total</span>
                 <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18v12H3zM3 7l2-3h14l2 3M16 13h2"/></svg>
             </div>
-            <div class="sb-value">R$ {{ $patInteiro }}<span>,{{ $patCentavos }}</span></div>
+            <div class="sb-value {{ ($patrimonio['saldoTotal'] ?? 0) < 0 ? 'neg' : '' }}">R$ {{ $patInteiro }}<span>,{{ $patCentavos }}</span></div>
             <div class="sb-subline">Disponível: R$ {{ number_format($patrimonio['disponivel'], 2, ',', '.') }}</div>
             <div class="sb-subline">Guardado em metas: R$ {{ number_format($patrimonio['guardado'], 2, ',', '.') }}</div>
             <div class="sb-subline">Investido: R$ {{ number_format($patrimonio['investido'], 2, ',', '.') }}</div>

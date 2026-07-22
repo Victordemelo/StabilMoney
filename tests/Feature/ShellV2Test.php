@@ -31,7 +31,7 @@ class ShellV2Test extends TestCase
 
         // Menu novo da sidebar (grupos Menu + Preferências)
         $response->assertSee('Visão geral');
-        $response->assertSee('Faturas / Despesas');
+        $response->assertSee('Pagar despesas');
         $response->assertSee('Metas');
         $response->assertSee('Investimentos');
         $response->assertSee('Métodos de Pagamento');

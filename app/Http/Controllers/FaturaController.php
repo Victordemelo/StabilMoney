@@ -11,6 +11,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 /**
  * Feature "Faturas / Despesas": faturas por cartão (com parcelas/recorrência)
@@ -87,6 +88,72 @@ class FaturaController extends Controller
         }
 
         return redirect()->route('faturas.index')->with('status', $status);
+    }
+
+    /**
+     * Marca a fatura EM ABERTO de um cartão de crédito como paga: as despesas
+     * não pagas do ciclo ganham `paid_at`, e uma despesa do valor total é criada
+     * na conta de caixa escolhida (corrente/poupança) — é o que DESCONTA do saldo.
+     *
+     * Só cartão de crédito: débito/Pix/conta já descontam no ato da compra.
+     */
+    public function payInvoice(Request $request, Account $account)
+    {
+        $this->authorize('update', $account); // escopo de família (AccountPolicy)
+        abort_unless($account->isCard(), 403, 'Só cartão de crédito tem fatura para marcar como paga.');
+
+        $ownerId = $account->user_id;
+
+        $data = $request->validate([
+            'pay_account_id' => [
+                'required',
+                // Precisa ser uma conta de CAIXA (corrente/poupança) da mesma família.
+                Rule::exists('accounts', 'id')->where(fn ($q) => $q
+                    ->where('user_id', $ownerId)
+                    ->whereIn('type', ['checking', 'savings'])),
+            ],
+        ], [
+            'pay_account_id.required' => 'Escolha a conta que vai pagar a fatura.',
+            'pay_account_id.exists' => 'A conta de pagamento precisa ser uma conta corrente ou poupança sua.',
+        ]);
+
+        DB::transaction(function () use ($account, $data, $request, $ownerId) {
+            $cycle = $account->billingCycle();
+            if (! $cycle) {
+                return;
+            }
+            [$start, $end] = $cycle;
+
+            // Despesas EM ABERTO do ciclo (trava para evitar corrida/duplo pagamento).
+            $abertas = Transaction::where('account_id', $account->id)
+                ->where('type', 'expense')
+                ->whereNull('paid_at')
+                ->whereDate('date', '>', $start->toDateString())
+                ->whereDate('date', '<=', $end->toDateString())
+                ->lockForUpdate()
+                ->get();
+
+            $total = round((float) $abertas->sum('amount'), 2);
+            if ($total <= 0) {
+                return; // nada a pagar (fatura já quitada)
+            }
+
+            // Marca as despesas do cartão como pagas.
+            Transaction::whereIn('id', $abertas->pluck('id'))->update(['paid_at' => now()]);
+
+            // Cria a saída de caixa que paga a fatura — DESCONTA do saldo.
+            Transaction::create([
+                'user_id' => $ownerId,
+                'made_by_user_id' => $request->user()->id,
+                'account_id' => $data['pay_account_id'],
+                'type' => 'expense',
+                'amount' => $total,
+                'date' => now()->toDateString(),
+                'description' => 'Pagamento da fatura — ' . $account->name,
+            ]);
+        });
+
+        return redirect()->route('faturas.index')->with('status', 'Fatura marcada como paga.');
     }
 
     /**

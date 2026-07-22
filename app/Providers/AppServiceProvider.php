@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\User;
+use App\Services\FaturaService;
 use App\Services\SidebarService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\View;
@@ -35,6 +36,15 @@ class AppServiceProvider extends ServiceProvider
             $user = auth()->user();
             // Escopo por família: o patrimônio é o do titular (ownerId), visível também aos dependentes.
             $view->with('patrimonio', $user ? app(SidebarService::class)->build($user->ownerId()) : null);
+        });
+
+        // Notificações da topbar: contas a vencer nos próximos 7 dias (faturas de
+        // cartão em aberto + recorrências não pagas). Escopo por família.
+        View::composer('partials.topbar', function (\Illuminate\View\View $view) {
+            $user = auth()->user();
+            $view->with('vencimentos', $user
+                ? app(FaturaService::class)->upcomingDue($user->ownerId(), 7)
+                : collect());
         });
 
         // Modal global de "Lançar" (nova transação), presente no shell de todas as

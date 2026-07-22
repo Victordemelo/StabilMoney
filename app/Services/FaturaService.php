@@ -44,7 +44,61 @@ class FaturaService
             'categories' => $this->categories($userId),
             // Titular + dependentes (seletor "quem fez a compra").
             'familyMembers' => $this->familyMembers($userId),
+            // Contas de caixa (corrente/poupança) que podem PAGAR uma fatura.
+            'cashAccounts' => Account::where('user_id', $userId)
+                ->whereIn('type', ['checking', 'savings'])
+                ->orderBy('name')
+                ->get(['id', 'name', 'type', 'bank']),
         ];
+    }
+
+    /**
+     * Contas a vencer nos próximos $days dias (default 7) — para as notificações
+     * da topbar: faturas de cartão em aberto (com vencimento) + recorrências não
+     * pagas. Ordenadas por data de vencimento (mais perto primeiro).
+     */
+    public function upcomingDue(int $userId, int $days = 7): Collection
+    {
+        $today = CarbonImmutable::today();
+        $limit = $today->addDays($days);
+        $itens = collect();
+
+        // Faturas de cartão: vencimento em <= $days dias e com valor EM ABERTO.
+        $cards = Account::where('user_id', $userId)->where('type', 'credit_card')->get();
+        foreach ($cards as $card) {
+            $due = $card->dueDate;
+            $devido = $card->openInvoiceDue;
+            if (! $due || $devido <= 0.001 || $due->greaterThan($limit)) {
+                continue;
+            }
+            $itens->push(new Fluent([
+                'tipo' => 'fatura',
+                'nome' => 'Fatura ' . $card->name,
+                'valor' => $devido,
+                'due' => $due,
+                'diasRestantes' => $today->diffInDays($due, false),
+            ]));
+        }
+
+        // Recorrências em aberto (recurring, paid_at null) com data <= limite.
+        $rec = Transaction::with('account')
+            ->where('user_id', $userId)
+            ->where('recurring', true)
+            ->whereNull('paid_at')
+            ->whereDate('date', '<=', $limit->toDateString())
+            ->get();
+        foreach ($rec as $t) {
+            $due = CarbonImmutable::parse($t->date);
+            $itens->push(new Fluent([
+                'tipo' => 'recorrente',
+                'nome' => $t->description ?: 'Recorrência',
+                'valor' => (float) $t->amount,
+                'due' => $due,
+                'diasRestantes' => $today->diffInDays($due, false),
+            ]));
+        }
+
+        return $itens->sortBy(fn ($i) => $i['due']->timestamp)->values();
     }
 
     /** Um objeto por cartão de crédito, com a fatura do ciclo aberto e seus itens. */
@@ -63,11 +117,18 @@ class FaturaService
                 $used = round($limit - $available, 2);
                 $usedPct = $limit > 0 ? (int) min(100, round($used / $limit * 100)) : 0;
 
+                // Valor EM ABERTO (a pagar) e estado da fatura do ciclo.
+                $devido = $card->openInvoiceDue;
+                $temFatura = $card->currentInvoice > 0.001;
+
                 // Fluent: a view acessa por -> (objeto) e os testes por []
                 // (array) — Fluent suporta ambos (ArrayAccess + __get).
                 return new Fluent([
                     'account' => $card,
                     'currentInvoice' => $card->currentInvoice,
+                    'invoiceDue' => $devido,          // o que falta pagar do ciclo
+                    'isPaid' => $temFatura && $devido <= 0.001,
+                    'canPay' => $devido > 0.001,
                     'committed' => $card->committed,
                     'availableLimit' => $available,
                     'limitUsedPct' => $usedPct,

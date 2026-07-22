@@ -329,4 +329,73 @@ class FaturaCrudTest extends TestCase
 
         $this->actingAs($this->user)->get('/faturas')->assertOk();
     }
+
+    // ----- Pagar fatura (marcar como paga → desconta do caixa) -----
+
+    public function test_pay_invoice_marks_paid_and_debits_cash_account(): void
+    {
+        // Despesa à vista no cartão, no ciclo atual → fatura em aberto de R$ 200.
+        $this->actingAs($this->user)->post('/faturas/lancar', $this->launch(['amount' => '200,00']))
+            ->assertRedirect();
+        $this->assertGreaterThan(0, $this->card->fresh()->openInvoiceDue);
+
+        $cash = Account::factory()->for($this->user)->create(['type' => 'checking', 'initial_balance' => 1000]);
+
+        $this->actingAs($this->user)->post(route('faturas.fatura.pagar', $this->card), [
+            'pay_account_id' => $cash->id,
+        ])->assertRedirect(route('faturas.index'));
+
+        // Fatura zerada e saldo do caixa descontado (1000 - 200 = 800).
+        $this->assertSame(0.0, $this->card->fresh()->openInvoiceDue);
+        $this->assertSame(800.0, $cash->fresh()->balance);
+        $this->assertDatabaseHas('transactions', [
+            'account_id' => $cash->id,
+            'type' => 'expense',
+            'amount' => '200.00',
+            'description' => 'Pagamento da fatura — ' . $this->card->name,
+        ]);
+    }
+
+    public function test_cannot_pay_invoice_of_non_credit_card(): void
+    {
+        $checking = Account::factory()->for($this->user)->create(['type' => 'checking']);
+        $cash = Account::factory()->for($this->user)->create(['type' => 'savings', 'initial_balance' => 500]);
+
+        $this->actingAs($this->user)->post(route('faturas.fatura.pagar', $checking), [
+            'pay_account_id' => $cash->id,
+        ])->assertForbidden();
+    }
+
+    public function test_pay_account_must_be_a_cash_account_of_the_family(): void
+    {
+        $this->actingAs($this->user)->post('/faturas/lancar', $this->launch())->assertRedirect();
+
+        // Debitar de OUTRO cartão (não é caixa) deve falhar na validação.
+        $anotherCard = Account::factory()->for($this->user)->creditCard()->create();
+
+        $this->actingAs($this->user)->post(route('faturas.fatura.pagar', $this->card), [
+            'pay_account_id' => $anotherCard->id,
+        ])->assertSessionHasErrors('pay_account_id');
+    }
+
+    public function test_upcoming_card_invoice_shows_in_notifications(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow('2026-07-15');
+
+        $card = Account::factory()->for($this->user)->create([
+            'type' => 'credit_card', 'credit_limit' => 5000, 'closing_day' => 10, 'due_day' => 20,
+        ]);
+        // Despesa no ciclo aberto (após fechamento 10/07) → fatura em aberto que vence 20/07 (5 dias).
+        Transaction::factory()->for($this->user)->for($card)->expense()->create([
+            'amount' => 300, 'date' => '2026-07-14',
+        ]);
+
+        $due = app(\App\Services\FaturaService::class)->upcomingDue($this->user->id, 7);
+
+        $this->assertCount(1, $due);
+        $this->assertSame('Fatura ' . $card->name, $due->first()['nome']);
+        $this->assertSame(300.0, $due->first()['valor']);
+
+        \Illuminate\Support\Carbon::setTestNow();
+    }
 }

@@ -215,11 +215,11 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
 | `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais **fora da `.card`** — ela tem `overflow:hidden`+animação `transform`, que prendia o `position:fixed`). Cada card mostra **foto** (avatar), nome/e-mail e **quanto gastou no mês** (`Σ` despesas do mês corrente com `made_by_user_id` da pessoa; titular incluso), com botões **editar** e **excluir**. No cadastro/edição define-se nome, e-mail, **foto** (avatar central clicável — a bolinha É o botão de upload, classe `.avatar-pick`), **parentesco** (select `User::RELATIONSHIPS`) e senha (Store/UpdateDependentRequest; senha opcional na edição). **Lançar em nome de um dependente** é feito no formulário de transação, pelo seletor "quem fez a compra" (suporta deep-link `transactions.create?autor=ID`). Só titular acessa (403 p/ dependente). |
 | `/metas` (`GoalController` index/store/update/destroy + aportes/resgates) | `metas/index` | **Metas (implementado).** Objetivos de poupança modelo "cofrinho": aporte reserva, resgate devolve à conta. Compartilhadas na família (`ownerId`). |
 | `/investimentos` (`InvestmentController` index/store/update/destroy + aportes/resgates) | `investimentos/index` | **Investimentos (implementado).** Cofrinho + metadados/projeções (indexador CDI/Selic/IPCA+/Prefixado, % do indexador, prévia de IR/IOF). Compartilhados na família. |
-| `/faturas` ("Faturas / Despesas": `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy`) | `faturas/index` | **Faturas/Despesas (implementado).** Faturas por cartão (parcelas/recorrência, ciclo fechamento/vencimento, limite) via `FaturaService` + despesas avulsas em conta. Rotas `relatorios` e `ajuda` foram **removidas** no design v2. |
+| `/faturas` (**"Pagar despesas"**: `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy` + **`faturas.fatura.pagar`** + `faturas.recorrente.pagar`) | `faturas/index` | **Pagar despesas (implementado).** Faturas por cartão (parcelas/recorrência, ciclo, limite) via `FaturaService` + despesas avulsas. **Marcar fatura como paga** (só cartão de crédito): `payInvoice` marca as despesas EM ABERTO do ciclo (`paid_at`) e cria a saída no **caixa escolhido** (corrente/poupança) — é o que **desconta do saldo**; débito/Pix/conta já descontam no ato. `Account::openInvoiceDue` = fatura não paga do ciclo; `FaturaService` expõe `isPaid`/`canPay`/`invoiceDue` por cartão. |
 | `routes/auth.php` | `auth/*` | Breeze: login, registro, esqueci/redefinir senha, confirmar senha, verificar e-mail. |
 
 **Menu da sidebar (v2):** grupo **Menu** = Visão geral → `dashboard`, **Histórico** →
-`transactions.index`, Faturas / Despesas → `faturas`, Metas → `metas`, Investimentos →
+`transactions.index`, Pagar despesas → `faturas`, Metas → `metas`, Investimentos →
 `investimentos`; grupo **Preferências** = Métodos de Pagamento → `accounts.index`,
 Categorias → `categories.index`. Sem Relatórios, sem Ajuda, sem Configurações no menu
 (Configurações vive no popover do perfil) e sem card de upsell. A sidebar ainda tem o card
@@ -231,6 +231,11 @@ navegam **sem reload** via `resources/js/sm/nav.js` — troca só o `#content` (
 re-executa scripts inline, reinicia os módulos de conteúdo (`initContent` no `app.js`), atualiza
 título/histórico/estado-ativo. Fallback para navegação normal em qualquer erro. `window.smPjaxReload()`
 recarrega a página atual sem reload (usado após salvar no modal de lançar).
+
+**Notificações (topbar):** o sino mostra as **contas a vencer nos próximos 7 dias** (faturas de
+cartão em aberto + recorrências não pagas), via `FaturaService::upcomingDue` num View Composer de
+`partials.topbar`; badge com a contagem no sino. **Saldo negativo:** o card "Patrimônio total" da
+sidebar fica **vermelho** (`.sb-value.neg`) quando `saldoTotal < 0`.
 
 **Modal "Lançar" (global):** o botão da topbar e o FAB (`data-launch-open`) abrem um modal de
 **nova transação** (`partials/launch-modal.blade.php`, dados via View Composer em `AppServiceProvider`
