@@ -42,6 +42,32 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
+    public function test_ajax_login_success_returns_redirect_json(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->postJson('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticated();
+        $response->assertOk()->assertJsonStructure(['redirect']);
+    }
+
+    public function test_ajax_login_failure_returns_422_with_error(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->postJson('/login', [
+            'email' => $user->email,
+            'password' => 'wrong-password',
+        ]);
+
+        $this->assertGuest();
+        $response->assertStatus(422)->assertJsonValidationErrors('email');
+    }
+
     public function test_users_can_logout(): void
     {
         $user = User::factory()->create();

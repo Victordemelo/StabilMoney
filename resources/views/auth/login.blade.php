@@ -35,7 +35,13 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('login') }}">
+    {{-- Banner de erro do login por AJAX (credenciais/throttle) --}}
+    <div class="auth-error" data-login-error role="alert" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+        <span data-login-error-msg></span>
+    </div>
+
+    <form method="POST" action="{{ route('login') }}" data-ajax-login>
         @csrf
 
         {{-- E-mail --}}
@@ -81,8 +87,10 @@
             @endif
         </div>
 
-        <button type="submit" class="btn-primary">Entrar
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        <button type="submit" class="btn-primary" data-login-btn>
+            <span class="btn-label">Entrar</span>
+            <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            <span class="btn-spin" aria-hidden="true"></span>
         </button>
     </form>
 

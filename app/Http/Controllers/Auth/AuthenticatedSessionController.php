@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,13 +23,22 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request): RedirectResponse|JsonResponse
     {
+        // Credenciais erradas / throttle: authenticate() lança ValidationException,
+        // que para requisições AJAX (expectsJson) já volta como 422 JSON com os erros.
         $request->authenticate();
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $redirect = redirect()->intended(route('dashboard', absolute: false));
+
+        // Login por AJAX (tela v2): devolve o destino p/ o JS redirecionar sem reload.
+        if ($request->expectsJson()) {
+            return response()->json(['redirect' => $redirect->getTargetUrl()]);
+        }
+
+        return $redirect;
     }
 
     /**

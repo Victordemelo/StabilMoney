@@ -164,9 +164,42 @@
   background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
   box-shadow: 0 10px 24px rgba(17,98,74,.3); transition: transform .18s var(--ease), box-shadow .18s var(--ease);
 }
+.auth .btn-primary { position: relative; }
 .auth .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(17,98,74,.38); }
 .auth .btn-primary:active { transform: translateY(0); }
 .auth .btn-primary svg { width: 18px; height: 18px; }
+
+/* Estado de carregamento do botão "Entrar" (login por AJAX) */
+.auth .btn-primary:disabled { cursor: default; }
+.auth .btn-primary.is-loading:hover { transform: none; }
+.auth .btn-primary.is-loading .btn-label,
+.auth .btn-primary.is-loading .btn-arrow { visibility: hidden; }
+.auth .btn-spin { display: none; }
+.auth .btn-primary.is-loading .btn-spin {
+  display: block; position: absolute; left: 50%; top: 50%; margin: -10px 0 0 -10px;
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 2.5px solid rgba(255,255,255,.45); border-top-color: #fff;
+  animation: sm-spin .7s linear infinite;
+}
+@keyframes sm-spin { to { transform: rotate(360deg); } }
+
+/* Banner de erro do login (credenciais/throttle) — sem reload */
+.auth .auth-error {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
+  padding: 12px 14px; border-radius: 12px;
+  background: #FCEDEA; color: var(--neg); border: 1px solid rgba(229,96,77,.28);
+  font-size: 13.5px; font-weight: 500; line-height: 1.4;
+}
+.auth .auth-error svg { width: 18px; height: 18px; flex: none; stroke-width: 2; }
+
+/* "Tremida" na negação */
+@keyframes sm-shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-8px); }
+  40%, 60% { transform: translateX(8px); }
+}
+.auth .auth-card.shake { animation: sm-shake .5s cubic-bezier(.36,.07,.19,.97) both; }
 
 .auth .ac-alt { text-align: center; font-size: 14px; color: var(--ink-3); margin-top: 26px; }
 .auth .ac-alt a { color: var(--brand-600); font-weight: 700; text-decoration: none; }

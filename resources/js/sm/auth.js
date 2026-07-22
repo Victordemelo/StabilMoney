@@ -17,6 +17,81 @@ function strengthScore(p) {
     return s;
 }
 
+/**
+ * Login por AJAX (tela v2): sem reload. Ao enviar, o botão entra em estado de
+ * carregamento; se as credenciais forem aceitas, redireciona para o destino que
+ * o servidor devolve; se forem negadas (ou throttle), o card "treme" e o erro
+ * aparece num banner. O servidor devolve JSON: 200 {redirect} no sucesso, 422
+ * {errors} na falha (ValidationException do LoginRequest).
+ */
+function initAjaxLogin(root) {
+    const form = root.querySelector('form[data-ajax-login]');
+    if (!form) return;
+
+    const btn = form.querySelector('[data-login-btn]');
+    const card = form.closest('.auth-card');
+    const errorBox = root.querySelector('[data-login-error]');
+    const errorMsg = root.querySelector('[data-login-error-msg]');
+
+    const setLoading = (on) => {
+        if (!btn) return;
+        btn.classList.toggle('is-loading', on);
+        btn.disabled = on;
+    };
+
+    const hideError = () => { if (errorBox) errorBox.hidden = true; };
+
+    const showError = (msg) => {
+        if (errorMsg) errorMsg.textContent = msg;
+        if (errorBox) errorBox.hidden = false;
+        if (card) {
+            card.classList.remove('shake');
+            void card.offsetWidth; // força reflow p/ reiniciar a animação
+            card.classList.add('shake');
+        }
+    };
+
+    if (card) {
+        card.addEventListener('animationend', (e) => {
+            if (e.animationName === 'sm-shake') card.classList.remove('shake');
+        });
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideError();
+        setLoading(true);
+
+        let resp;
+        try {
+            resp = await fetch(form.action, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: new FormData(form),
+            });
+        } catch (_) {
+            setLoading(false);
+            showError('Sem conexão. Verifique sua internet e tente de novo.');
+            return;
+        }
+
+        if (resp.ok) {
+            // Credenciais aceitas: segue com o botão carregando até a navegação.
+            const data = await resp.json().catch(() => ({}));
+            window.location.assign(data.redirect || '/');
+            return;
+        }
+
+        setLoading(false);
+        let msg = 'Não foi possível entrar. Tente novamente.';
+        if (resp.status === 422) {
+            const data = await resp.json().catch(() => ({}));
+            msg = data?.errors?.email?.[0] || data?.errors?.password?.[0] || data?.message || msg;
+        }
+        showError(msg);
+    });
+}
+
 export function initAuth() {
     const root = document.querySelector('main.auth');
     if (!root) return;
@@ -41,6 +116,9 @@ export function initAuth() {
             btn.setAttribute('aria-label', visivel ? 'Ocultar senha' : 'Mostrar senha');
         });
     });
+
+    // Login por AJAX: spinner no botão; sucesso redireciona; erro treme + mostra.
+    initAjaxLogin(root);
 
     // Medidor de força (só existe na tela de cadastro)
     const bar = document.getElementById('strength');
