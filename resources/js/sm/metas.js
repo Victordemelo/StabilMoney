@@ -12,6 +12,81 @@
 
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
+// "1.234,56" / "R$ 80" → 1234.56 (mesma régua do resto do app)
+function parseMoney(str) {
+    if (str == null) return 0;
+    const limpo = String(str).replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
+    const n = parseFloat(limpo);
+    return Number.isFinite(n) ? Math.abs(n) : 0;
+}
+
+function brl(v) {
+    return (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/**
+ * Quantos meses até o prazo (input type="month", "AAAA-MM"), contando o mês
+ * atual como um aporte possível — quem tem prazo em dezembro e está em julho
+ * consegue guardar em jul, ago, set, out, nov e dez = 6 vezes.
+ * Devolve 0 quando não há prazo, e null se o prazo já passou.
+ */
+function mesesAte(valorMonth) {
+    if (!valorMonth) return 0;
+    const [ano, mes] = valorMonth.split('-').map(Number);
+    if (!ano || !mes) return 0;
+    const hoje = new Date();
+    const diff = (ano - hoje.getFullYear()) * 12 + (mes - (hoje.getMonth() + 1)) + 1;
+    return diff > 0 ? diff : null;
+}
+
+/**
+ * Mostra, ao vivo, quanto guardar por mês para bater a meta no prazo:
+ * (valor alvo − o que já está guardado) ÷ meses restantes.
+ * Sem prazo ou sem valor, o texto some.
+ */
+function planoDeAporte(scope) {
+    const valor = scope.querySelector('[name="target_amount"]');
+    const prazo = scope.querySelector('[name="target_date"]');
+    const saida = scope.querySelector('[data-meta-plan]');
+    if (!valor || !prazo || !saida) return;
+
+    const jaGuardado = parseFloat(saida.dataset.saved || '0') || 0;
+
+    const atualizar = () => {
+        const alvo = parseMoney(valor.value);
+        const meses = mesesAte(prazo.value);
+
+        if (!alvo) { saida.hidden = true; return; }
+
+        if (meses === null) {
+            saida.hidden = false;
+            saida.className = 'meta-plan is-late';
+            saida.textContent = 'O prazo escolhido já passou — escolha um mês futuro.';
+            return;
+        }
+        if (!meses) { saida.hidden = true; return; } // sem prazo: nada a calcular
+
+        const falta = Math.max(0, alvo - jaGuardado);
+        saida.hidden = false;
+        saida.className = 'meta-plan';
+
+        if (falta <= 0) {
+            saida.innerHTML = '🎉 Você já guardou o valor todo desta meta.';
+            return;
+        }
+
+        saida.innerHTML =
+            `Guardando <b>R$ ${brl(falta / meses)}</b> por mês você chega lá em ` +
+            `<b>${meses} ${meses === 1 ? 'mês' : 'meses'}</b>` +
+            (jaGuardado > 0 ? ` (faltam R$ ${brl(falta)}).` : '.');
+    };
+
+    valor.addEventListener('input', atualizar);
+    prazo.addEventListener('change', atualizar);
+    prazo.addEventListener('input', atualizar);
+    atualizar();
+}
+
 export function initMetas() {
     // A view de metas tem sempre o modal de criação; sem ele, não é esta tela.
     const createModal = document.getElementById('metaCreateModal');
@@ -42,6 +117,12 @@ export function initMetas() {
     // Esc fecha qualquer modal aberto.
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') fecharTodos();
+    });
+
+    // ---- "Quanto guardar por mês" nos formulários de criar/editar ----
+    $$('[data-meta-plan]').forEach((el) => {
+        const form = el.closest('form');
+        if (form) planoDeAporte(form);
     });
 
     // ---- Abrir "Nova meta" (botão do topo, botão do estado vazio e card tracejado) ----

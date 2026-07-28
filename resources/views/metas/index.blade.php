@@ -202,6 +202,10 @@
                     </div>
                 </div>
 
+                {{-- Quanto guardar por mês: calculado ao vivo a partir do valor
+                     alvo e do prazo (ver initMetas → planoDeAporte). --}}
+                <p class="meta-plan" data-meta-plan data-saved="0" hidden></p>
+
                 {{-- Emoji picker (radios nativos → acessível sem JS) --}}
                 <div class="field">
                     <label>Ícone</label>
@@ -282,6 +286,9 @@
                                    value="{{ $reabreEdit ? old('target_date') : optional($goal->target_date)->format('Y-m') }}">
                         </div>
                     </div>
+
+                    {{-- Aqui o cálculo desconta o que já está guardado (data-saved). --}}
+                    <p class="meta-plan" data-meta-plan data-saved="{{ $goal->saved }}" hidden></p>
 
                     <div class="field">
                         <label>Ícone</label>

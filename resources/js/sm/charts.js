@@ -146,12 +146,23 @@ export function bindCashflowHover(wrap, svg, tip, getState) {
             `<div class="tt">${st.p.labels[i]}</div>` +
             `<div class="row"><span class="d" style="background:#1C9A70"></span><span class="n">Receitas</span><span class="v">R$ ${BRL(st.p.receitas[i])}</span></div>` +
             `<div class="row"><span class="d" style="background:#F0A93B"></span><span class="n">Despesas</span><span class="v">R$ ${BRL(st.p.despesas[i])}</span></div>`;
-        const px = st.centerAt(i) / W * rect.width;
+        // Posição: o tooltip fica DENTRO do gráfico e se ajusta para nunca ser
+        // cortado. Horizontalmente segue o grupo, mas é "empurrado" de volta ao
+        // encostar numa borda. Verticalmente fica no alto da área de plotagem,
+        // onde as barras (que crescem de baixo) não chegam.
+        //
+        // O clamp é feito nas coordenadas do WRAP, que é o offsetParent do
+        // tooltip — medir pelo SVG deixava o primeiro ponto 2px para fora.
+        const wrapRect = wrap.getBoundingClientRect();
+        const deslocaSvg = rect.left - wrapRect.left; // svg pode ter recuo dentro do wrap
+        const meio = (tip.offsetWidth || 160) / 2;
+        const margem = 8;
+
+        let px = deslocaSvg + (st.centerAt(i) / W) * rect.width;
+        px = Math.max(meio + margem, Math.min(wrapRect.width - meio - margem, px));
+
         tip.style.left = px + 'px';
-        // SEMPRE abaixo do eixo: ancorado no topo da barra, o tooltip cobria o
-        // próprio gráfico quando a barra era alta. Aqui ele senta na linha de
-        // base, sobre a faixa dos rótulos, e nunca esconde as barras.
-        tip.style.top = ((H - PAD_B) / H * rect.height) + 'px';
+        tip.style.top = (rect.top - wrapRect.top) + (PAD_T / H) * rect.height + 'px';
         tip.classList.add('show');
     }
     function leave() {

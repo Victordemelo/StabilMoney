@@ -630,3 +630,15 @@ a.tx { text-decoration: none; color: inherit; }
 
 /* Dica abaixo do toggle / das parcelas (Nx de R$ Y) */
 .field-hint { font-size: 12px; color: var(--ink-3); margin-top: 7px; display: block; }
+
+/* "Guardando R$ X por mês…" — plano de aporte calculado no form da meta */
+.meta-plan {
+  font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
+  background: var(--brand-50); border: 1px solid var(--brand-100);
+  border-radius: 10px; padding: 10px 12px; margin: 0 0 16px;
+}
+.meta-plan b { color: var(--brand-700); font-weight: 700; }
+[data-theme="dark"] .meta-plan { background: rgba(28,154,112,.1); border-color: rgba(28,154,112,.22); }
+[data-theme="dark"] .meta-plan b { color: var(--brand-300); }
+.meta-plan.is-late { background: #FCEDEA; border-color: rgba(229,96,77,.28); color: var(--neg); }
+[data-theme="dark"] .meta-plan.is-late { background: rgba(229,96,77,.12); }
