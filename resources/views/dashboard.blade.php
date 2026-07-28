@@ -82,7 +82,8 @@
                         <span class="trend {{ $isUp ? 'up' : 'down' }}" data-trend="{{ $card['key'] }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="{{ $isUp ? $arrowUp : $arrowDown }}"/></svg>{{ $pct($trend) }}</span>
                     @endif
                 </div>
-                <div class="value"><span class="cur">R$</span><span class="num" data-count="{{ $value }}" data-dec="2">{{ $money($value) }}</span></div>
+                {{-- Valor negativo (ex.: saldo/economia no vermelho) ganha .neg --}}
+                <div class="value {{ $value < 0 ? 'neg' : '' }}"><span class="cur">R$</span><span class="num" data-count="{{ $value }}" data-dec="2">{{ $money($value) }}</span></div>
                 @if (count($sparkVals) > 1)
                     <svg class="spark" data-spark="{{ $card['key'] }}" preserveAspectRatio="none" viewBox="0 0 120 34"></svg>
                 @endif

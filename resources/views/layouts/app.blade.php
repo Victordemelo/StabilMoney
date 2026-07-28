@@ -9,7 +9,9 @@
     <meta name="sm-user" content="{{ auth()->id() }}" />
     <meta name="theme-color" content="#0C3D2B" />
 
-    <title>StabilMoney</title>
+    {{-- Título da aba: cada view define @section('title'); o pjax copia daqui ao navegar. --}}
+    @php($tituloPagina = trim($__env->yieldContent('title')))
+    <title>{{ $tituloPagina ? $tituloPagina . ' · StabilMoney' : 'StabilMoney' }}</title>
 
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
     @include('partials.pwa-head')

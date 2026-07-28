@@ -77,4 +77,50 @@ class DashboardTest extends TestCase
         $response->assertDontSee('Sem movimentações ainda');
         $response->assertDontSee('Nenhuma conta ainda');
     }
+
+    public function test_negative_balance_is_shown_in_red(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create([
+            'type' => 'checking',
+            'initial_balance' => 100,
+        ]);
+        // Despesa maior que o saldo: saldo total fica negativo (-900).
+        Transaction::factory()->for($user)->for($account)->expense()->create([
+            'amount' => 1000,
+            'date' => now()->toDateString(),
+        ]);
+
+        $response = $this->actingAs($user)->get('/');
+
+        $response->assertOk();
+        // Stat card "Saldo total" marcado como negativo (CSS pinta de vermelho)
+        $response->assertSee('class="value neg"', false);
+        // O card "Patrimônio total" da sidebar também
+        $response->assertSee('class="sb-value neg"', false);
+    }
+
+    public function test_positive_balance_is_not_marked_negative(): void
+    {
+        $user = User::factory()->create();
+        Account::factory()->for($user)->create([
+            'type' => 'checking',
+            'initial_balance' => 500,
+        ]);
+
+        $response = $this->actingAs($user)->get('/');
+
+        $response->assertOk();
+        $response->assertDontSee('class="value neg"', false);
+        $response->assertDontSee('class="sb-value neg"', false);
+    }
+
+    public function test_page_title_uses_section(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get('/')
+            ->assertOk()
+            ->assertSee('<title>Visão geral · StabilMoney</title>', false);
+    }
 }

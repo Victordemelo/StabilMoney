@@ -63,6 +63,9 @@ function applyPeriod(data, period, drawCf, reduceMotion) {
         if (k && p.stats && p.stats[k] != null) {
             el.dataset.count = p.stats[k];
             animateCount(el, p.stats[k], 2, reduceMotion);
+            // Valor negativo fica vermelho (mesma regra do server-render).
+            const box = el.closest('.value');
+            if (box) box.classList.toggle('neg', p.stats[k] < 0);
         }
     });
 
