@@ -23,7 +23,7 @@ class ShellV2Test extends TestCase
         $user = User::factory()->create(['name' => 'Maria Silva']);
         // type=bank: cartão de crédito não entra no patrimônio, então fixamos
         // uma conta que é caixa para o saldo bater 1.234,56.
-        Account::factory()->for($user)->create(['type' => 'bank', 'initial_balance' => 1234.56]);
+        Account::factory()->for($user)->create(['type' => 'checking', 'initial_balance' => 1234.56]);
 
         $response = $this->actingAs($user)->get('/');
 
@@ -46,7 +46,7 @@ class ShellV2Test extends TestCase
         $response->assertSee('R$ 1.234');
         // Modelo "cofrinho": sublines de disponível e guardado em metas
         // (sem aportes => disponível = saldo cru, guardado = 0).
-        $response->assertSee('Disponível: R$ 1.234,56');
+        $response->assertSee('Disponível para gastar: R$ 1.234,56');
         $response->assertSee('Guardado em metas: R$ 0,00');
 
         // Sem transações não há base de variação => .sb-foot oculto
@@ -89,7 +89,7 @@ class ShellV2Test extends TestCase
     {
         $user = User::factory()->create();
         // type=bank: conta que é caixa (cartão de crédito ficaria fora do patrimônio).
-        $account = Account::factory()->for($user)->create(['type' => 'bank', 'initial_balance' => 1000]);
+        $account = Account::factory()->for($user)->create(['type' => 'checking', 'initial_balance' => 1000]);
 
         // Receita de hoje: saldo 1.100 vs base de 30 dias atrás 1.000 => +10,0%
         Transaction::factory()->for($user)->for($account)->income()->create([
@@ -107,7 +107,7 @@ class ShellV2Test extends TestCase
     public function test_shell_v2_is_present_on_other_authenticated_pages(): void
     {
         $user = User::factory()->create();
-        Account::factory()->for($user)->create(['type' => 'bank', 'initial_balance' => 50]);
+        Account::factory()->for($user)->create(['type' => 'checking', 'initial_balance' => 50]);
 
         foreach (['/transactions', '/categories', '/faturas'] as $uri) {
             $response = $this->actingAs($user)->get($uri);

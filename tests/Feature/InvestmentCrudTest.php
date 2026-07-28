@@ -36,7 +36,7 @@ class InvestmentCrudTest extends TestCase
         $this->user = User::factory()->create();
         // Conta com saldo inicial conhecido para checar o disponível.
         $this->account = Account::factory()->for($this->user)->create([
-            'type' => 'bank',
+            'type' => 'checking',
             'initial_balance' => 1000,
         ]);
     }
@@ -339,7 +339,7 @@ class InvestmentCrudTest extends TestCase
     public function test_dependent_can_manage_family_investments(): void
     {
         $titular = User::factory()->create();
-        $account = Account::factory()->for($titular)->create(['type' => 'bank', 'initial_balance' => 1000]);
+        $account = Account::factory()->for($titular)->create(['type' => 'checking', 'initial_balance' => 1000]);
         $investment = Investment::factory()->for($titular)->create(['name' => 'Invest da familia']);
         $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
 
@@ -406,7 +406,7 @@ class InvestmentCrudTest extends TestCase
         $investment = Investment::factory()->for($this->user)->create();
         // Conta de outra família.
         $stranger = User::factory()->create();
-        $strangerAccount = Account::factory()->for($stranger)->create(['type' => 'bank', 'initial_balance' => 1000]);
+        $strangerAccount = Account::factory()->for($stranger)->create(['type' => 'checking', 'initial_balance' => 1000]);
 
         $this->actingAs($this->user)->post("/investimentos/{$investment->id}/aportes", [
             'amount' => '10,00',

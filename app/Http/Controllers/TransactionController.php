@@ -9,6 +9,7 @@ use App\Models\Account;
 use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\FundingService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 
@@ -55,7 +56,8 @@ class TransactionController extends Controller
         $userId = $request->user()->ownerId();
 
         return view('transactions.create', [
-            'accounts' => Account::where('user_id', $userId)->orderBy('name')->get(),
+            // paymentOptions: cartão de débito aparece, mas submete a conta que ele espelha.
+            'accounts' => Account::paymentOptions($userId),
             'categories' => Category::where('user_id', $userId)
                 ->orderBy('type')
                 ->orderBy('name')
@@ -64,7 +66,7 @@ class TransactionController extends Controller
         ]);
     }
 
-    public function store(StoreTransactionRequest $request)
+    public function store(StoreTransactionRequest $request, FundingService $funding)
     {
         $data = $request->validated();
         $ownerId = $request->user()->ownerId();
@@ -74,7 +76,8 @@ class TransactionController extends Controller
 
         // Idempotência: o replay da fila offline pode reenviar o mesmo lançamento.
         // Se já existe um com este client_uuid na família, devolve o existente
-        // em vez de duplicar.
+        // em vez de duplicar. Precisa vir ANTES do guard: senão o reenvio de uma
+        // despesa já gravada tentaria resgatar do investimento outra vez.
         $clientUuid = $data['client_uuid'] ?? null;
         if ($clientUuid) {
             $existing = Transaction::where('user_id', $ownerId)
@@ -86,7 +89,27 @@ class TransactionController extends Controller
             }
         }
 
-        $transaction = Transaction::create($data);
+        // Escolha da fonte é instrução, não coluna: sai do payload da transação.
+        $fonte = $data['funding_source'] ?? null;
+        $investimentoId = $data['funding_investment_id'] ?? null;
+        unset($data['funding_source'], $data['funding_investment_id']);
+
+        // Receita não gasta nada: grava direto. Despesa passa pelo guard.
+        if ($data['type'] !== 'expense') {
+            return $this->storeResponse($request, Transaction::create($data), created: true);
+        }
+
+        $conta = Account::whereKey($data['account_id'])->firstOrFail();
+
+        $transaction = $funding->spend(
+            account: $conta,
+            amount: (float) $data['amount'],
+            source: $fonte,
+            investmentId: $investimentoId ? (int) $investimentoId : null,
+            write: fn (array $auditoria) => Transaction::create($data + $auditoria),
+            madeByUserId: $data['made_by_user_id'],
+            date: $data['date'],
+        );
 
         return $this->storeResponse($request, $transaction, created: true);
     }
@@ -118,7 +141,7 @@ class TransactionController extends Controller
 
         return view('transactions.edit', [
             'transaction' => $transaction,
-            'accounts' => Account::where('user_id', $userId)->orderBy('name')->get(),
+            'accounts' => Account::paymentOptions($userId),
             'categories' => Category::where('user_id', $userId)
                 ->orderBy('type')
                 ->orderBy('name')
@@ -127,13 +150,46 @@ class TransactionController extends Controller
         ]);
     }
 
-    public function update(UpdateTransactionRequest $request, Transaction $transaction)
+    public function update(UpdateTransactionRequest $request, Transaction $transaction, FundingService $funding)
     {
         $this->authorize('update', $transaction);
 
         $data = $request->validated();
         $data['made_by_user_id'] = $data['made_by_user_id'] ?? $request->user()->id;
-        $transaction->update($data);
+
+        $fonte = $data['funding_source'] ?? null;
+        $investimentoId = $data['funding_investment_id'] ?? null;
+        unset($data['funding_source'], $data['funding_investment_id']);
+
+        if ($data['type'] !== 'expense') {
+            $transaction->update($data);
+
+            return redirect()->route('transactions.index')->with('status', 'Transação atualizada.');
+        }
+
+        // $ignore devolve ao disponível o que ESTA transação já ocupa — senão
+        // reeditar uma despesa sem mudar o valor seria recusada por falta de saldo.
+        // Só vale quando a conta continua a mesma; trocando de conta, a nova
+        // precisa aguentar o valor inteiro.
+        $mesmaConta = (int) $data['account_id'] === (int) $transaction->account_id;
+        $ignore = $mesmaConta && $transaction->type === 'expense' ? (float) $transaction->amount : 0.0;
+
+        $conta = Account::whereKey($data['account_id'])->firstOrFail();
+
+        $funding->spend(
+            account: $conta,
+            amount: (float) $data['amount'],
+            source: $fonte,
+            investmentId: $investimentoId ? (int) $investimentoId : null,
+            write: function (array $auditoria) use ($transaction, $data) {
+                $transaction->update($data + $auditoria);
+
+                return $transaction;
+            },
+            ignore: $ignore,
+            madeByUserId: $data['made_by_user_id'],
+            date: $data['date'],
+        );
 
         return redirect()->route('transactions.index')
             ->with('status', 'Transação atualizada.');

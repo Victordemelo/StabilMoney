@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Fluent;
 
 class Account extends Model
 {
@@ -21,6 +23,8 @@ class Account extends Model
         'checking_account_id',
         'savings_account_id',
         'initial_balance',
+        // Cheque especial: quanto o saldo pode ficar negativo (só conta corrente).
+        'overdraft_limit',
         // Campos exclusivos de cartão de crédito (nullable nas demais contas).
         'credit_limit',
         'closing_day',
@@ -53,6 +57,7 @@ class Account extends Model
     {
         return [
             'initial_balance' => 'decimal:2',
+            'overdraft_limit' => 'decimal:2',
             'credit_limit' => 'decimal:2',
             'closing_day' => 'integer',
             'due_day' => 'integer',
@@ -63,6 +68,60 @@ class Account extends Model
     public function isCard(): bool
     {
         return $this->type === 'credit_card';
+    }
+
+    /** É conta de caixa — tem saldo próprio e pode ter cheque especial. */
+    public function isCash(): bool
+    {
+        return in_array($this->type, ['checking', 'savings'], true);
+    }
+
+    /**
+     * Métodos de pagamento para os selects de lançamento, escopados na família.
+     *
+     * Contas de caixa e cartões de crédito entram com o próprio id. O cartão de
+     * DÉBITO entra com o rótulo dele, mas o `id` submetido é o da conta que ele
+     * espelha — é de lá que o dinheiro sai de verdade. Sem isso, escolher o
+     * cartão de débito gravava a despesa numa conta sem saldo próprio e o
+     * dinheiro não descontava de lugar nenhum.
+     *
+     * Cartão de débito sem vínculo é omitido: não há de onde tirar o dinheiro.
+     *
+     * @return \Illuminate\Support\Collection<int, \Illuminate\Support\Fluent>
+     */
+    public static function paymentOptions(int $ownerId): Collection
+    {
+        $contas = self::where('user_id', $ownerId)->orderBy('name')->get();
+
+        return $contas
+            ->map(function (Account $conta) use ($contas) {
+                if (! $conta->isDebit()) {
+                    return new Fluent([
+                        'id' => $conta->id,
+                        'name' => $conta->name,
+                        'icon' => $conta->icon,
+                        'type' => $conta->type,
+                        'isCard' => $conta->isCard(),
+                    ]);
+                }
+
+                $destinoId = $conta->checking_account_id ?? $conta->savings_account_id;
+                $destino = $destinoId ? $contas->firstWhere('id', $destinoId) : null;
+
+                if (! $destino) {
+                    return null; // cartão órfão: nada a debitar
+                }
+
+                return new Fluent([
+                    'id' => $destino->id,
+                    'name' => $conta->name . ' → ' . $destino->name,
+                    'icon' => $conta->icon,
+                    'type' => $conta->type,
+                    'isCard' => false,
+                ]);
+            })
+            ->filter()
+            ->values();
     }
 
     /** É um cartão de débito? (Espelha o saldo das contas vinculadas.) */
@@ -185,10 +244,49 @@ class Account extends Model
         })();
     }
 
-    /** Disponível = saldo cru − reservado (metas + investimentos): o que sobra para gastar. */
+    /**
+     * Disponível = saldo cru − reservado (metas + investimentos).
+     *
+     * É ISTO que o usuário chama de "meu saldo": o dinheiro livre, já fora o que
+     * está guardado em metas e aplicado em investimentos. É este número que pode
+     * ficar negativo (até o limite do cheque especial) e que aparece em vermelho.
+     */
     public function getAvailableAttribute(): float
     {
         return round($this->balance - $this->reserved, 2);
+    }
+
+    // ======================= Cheque especial =======================
+
+    /**
+     * Limite efetivo do cheque especial. Zero fora de conta corrente: poupança
+     * não tem cheque especial no Brasil, cartão de crédito tem `credit_limit` e
+     * cartão de débito não tem saldo próprio.
+     */
+    public function getOverdraftLimitValueAttribute(): float
+    {
+        return $this->type === 'checking' ? round((float) $this->overdraft_limit, 2) : 0.0;
+    }
+
+    /** Quanto do cheque especial já está sendo usado (0 enquanto o disponível é positivo). */
+    public function getOverdraftUsedAttribute(): float
+    {
+        return round(max(0.0, -$this->available), 2);
+    }
+
+    /** Quanto ainda resta do cheque especial. */
+    public function getOverdraftAvailableAttribute(): float
+    {
+        return round(max(0.0, $this->overdraftLimitValue - $this->overdraftUsed), 2);
+    }
+
+    /**
+     * Teto de uma despesa nesta conta SEM tocar em investimento: o disponível
+     * que ainda existe mais o cheque especial que ainda resta.
+     */
+    public function getSpendableAttribute(): float
+    {
+        return round(max(0.0, $this->available) + $this->overdraftAvailable, 2);
     }
 
     // ======================= Cartão de crédito =======================
@@ -270,33 +368,47 @@ class Account extends Model
     }
 
     /**
-     * Comprometido: soma das parcelas em aberto do cartão — toda despesa com
-     * date ≥ início do ciclo atual (inclui parcelas futuras já agendadas).
-     * É o que está "preso" do limite. Zero se não for cartão.
+     * Comprometido: tudo que o cartão deve e AINDA NÃO FOI PAGO — inclusive as
+     * parcelas futuras já agendadas. É o que está "preso" do limite.
+     *
+     * A liberação é dirigida pelo PAGAMENTO (paid_at), não pela passagem do
+     * tempo: numa compra em 6x, o comprometido cai R$ 1 parcela a cada fatura
+     * paga. Antes o filtro era por data (date ≥ início do ciclo), o que
+     * devolvia limite a quem NUNCA pagava — bastava o ciclo virar — e não
+     * devolvia nada a quem pagava.
+     *
+     * Zero se não for cartão de crédito.
      */
     public function getCommittedAttribute(): float
     {
         return $this->committedCache ??= (function (): float {
-            $cycle = $this->billingCycle();
-            if (! $cycle) {
+            if (! $this->isCard()) {
                 return 0.0;
             }
 
-            [$start] = $cycle;
-
             $total = $this->transactions()
                 ->where('type', 'expense')
-                ->whereDate('date', '>=', $start->toDateString())
+                ->whereNull('paid_at')
                 ->sum('amount');
 
             return round((float) $total, 2);
         })();
     }
 
-    /** Limite disponível = limite total − comprometido (nunca abaixo de zero na exibição). */
+    /**
+     * Limite disponível REAL — pode ser negativo quando o cartão está estourado.
+     * Quem exibe é que clampa em zero; esconder o estouro aqui impedia validar
+     * o limite no lançamento.
+     */
     public function getAvailableLimitAttribute(): float
     {
-        return round(max(0.0, (float) $this->credit_limit - $this->committed), 2);
+        return round((float) $this->credit_limit - $this->committed, 2);
+    }
+
+    /** Limite disponível para EXIBIÇÃO (nunca negativo). */
+    public function getAvailableLimitDisplayAttribute(): float
+    {
+        return max(0.0, $this->availableLimit);
     }
 
     private ?float $openInvoiceDueCache = null;
@@ -328,25 +440,112 @@ class Account extends Model
     }
 
     /**
-     * Próximo vencimento da fatura, a partir do due_day. Retorna a próxima
-     * data com esse dia ≥ hoje, ou null se não for cartão / sem due_day.
+     * Vencimento DERIVADO do fechamento de um ciclo: a fatura que fecha em
+     * `$cycleEnd` vence no próximo dia `due_day` DEPOIS dela.
+     *
+     * Se `due_day > closing_day`, o vencimento cai no mesmo mês do fechamento
+     * (fecha 10, vence 20); senão, no mês seguinte (fecha 20, vence 5).
+     *
+     * Antes o vencimento era calculado ignorando o ciclo, o que exibia datas
+     * ANTERIORES ao fechamento da fatura que elas deveriam pagar.
      */
-    public function getDueDateAttribute(): ?CarbonImmutable
+    public function dueDateForCycle(CarbonImmutable $cycleEnd): ?CarbonImmutable
     {
         if (! $this->due_day) {
             return null;
         }
 
-        $today = CarbonImmutable::today();
         $day = max(1, (int) $this->due_day);
 
-        // Vencimento deste mês, clampado ao último dia do mês quando o dia não existe
-        // (ex.: dia 31 em fevereiro). O ramo do próximo mês parte do startOfMonth,
-        // nunca de uma data já no dia X (evita estouro de mês curto).
-        $thisMonthDue = $this->dayInMonth($today, $day);
+        return $day > (int) $this->closing_day
+            ? $this->dayInMonth($cycleEnd, $day)
+            : $this->dayInMonth($cycleEnd->startOfMonth()->addMonth(), $day);
+    }
 
-        return $today->lessThanOrEqualTo($thisMonthDue)
-            ? $thisMonthDue
-            : $this->dayInMonth($today->startOfMonth()->addMonth(), $day);
+    /**
+     * Vencimento da fatura do ciclo ABERTO (a próxima a fechar). Null se não
+     * for cartão ou não tiver dia de vencimento.
+     */
+    public function getDueDateAttribute(): ?CarbonImmutable
+    {
+        $cycle = $this->billingCycle();
+
+        return $cycle ? $this->dueDateForCycle($cycle[1]) : null;
+    }
+
+    /**
+     * Ciclo imediatamente ANTERIOR ao aberto — a fatura que já fechou e deveria
+     * ter sido paga. Calculado a partir do startOfMonth, nunca com subMonth()
+     * sobre uma data já posicionada no dia X (estouraria mês curto).
+     *
+     * @return array{0: CarbonImmutable, 1: CarbonImmutable}|null
+     */
+    public function closedCycle(?CarbonImmutable $today = null): ?array
+    {
+        $cycle = $this->billingCycle($today);
+        if (! $cycle) {
+            return null;
+        }
+
+        [$start] = $cycle;
+        $day = max(1, (int) $this->closing_day);
+
+        return [$this->dayInMonth($start->startOfMonth()->subMonth(), $day), $start];
+    }
+
+    private ?float $closedInvoiceDueCache = null;
+
+    /**
+     * Fatura do ciclo JÁ FECHADO que continua sem pagamento. Sem isto, a dívida
+     * do mês anterior sumia da tela no dia em que o ciclo virava: o
+     * `openInvoiceDue` só enxerga o ciclo aberto.
+     */
+    public function getClosedInvoiceDueAttribute(): float
+    {
+        return $this->closedInvoiceDueCache ??= (function (): float {
+            $cycle = $this->closedCycle();
+            if (! $cycle) {
+                return 0.0;
+            }
+
+            [$start, $end] = $cycle;
+
+            $total = $this->transactions()
+                ->where('type', 'expense')
+                ->whereNull('paid_at')
+                ->whereDate('date', '>', $start->toDateString())
+                ->whereDate('date', '<=', $end->toDateString())
+                ->sum('amount');
+
+            return round((float) $total, 2);
+        })();
+    }
+
+    /**
+     * Fatura VENCIDA: existe dívida do ciclo fechado e o vencimento dela já
+     * passou. Null quando está tudo em dia.
+     *
+     * @return array{valor: float, vencimento: CarbonImmutable, diasAtraso: int}|null
+     */
+    public function getOverdueInvoiceAttribute(): ?array
+    {
+        $valor = $this->closedInvoiceDue;
+        if ($valor <= 0.001) {
+            return null;
+        }
+
+        $cycle = $this->closedCycle();
+        $vencimento = $cycle ? $this->dueDateForCycle($cycle[1]) : null;
+        $hoje = CarbonImmutable::today();
+
+        if (! $vencimento || $vencimento->greaterThanOrEqualTo($hoje)) {
+            return null; // fechou, mas ainda está no prazo
+        }
+
+        return [
+            'valor' => $valor,
+            'vencimento' => $vencimento,
+            'diasAtraso' => (int) $vencimento->diffInDays($hoje),
+        ];
     }
 }

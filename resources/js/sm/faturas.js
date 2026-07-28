@@ -136,6 +136,40 @@ export function initFaturas() {
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharPay(); });
     }
 
+    // ---- Modal "Pagar conta fixa" (uma competência de uma conta mensal) ----
+    const fixaModal = document.getElementById('fixaPagarModal');
+    if (fixaModal) {
+        const fixaForm = fixaModal.querySelector('[data-fixa-form]');
+        const fixaNome = fixaModal.querySelector('[data-fixa-nome]');
+        const fixaValor = fixaModal.querySelector('#fixa-valor');
+        const fixaConta = fixaModal.querySelector('#fixa-conta');
+        const fecharFixa = () => fixaModal.classList.remove('open');
+
+        $$('[data-fixa-pagar]').forEach((btn) => btn.addEventListener('click', () => {
+            if (fixaForm) fixaForm.setAttribute('action', btn.dataset.action || '');
+            if (fixaNome) fixaNome.textContent = btn.dataset.nome || '';
+            // Vem com o valor PREVISTO; o usuário ajusta se a conta veio diferente.
+            if (fixaValor) fixaValor.value = btn.dataset.valor || '';
+            // E já seleciona o método de pagamento padrão da conta fixa, se houver.
+            if (fixaConta && btn.dataset.conta) fixaConta.value = btn.dataset.conta;
+            fixaModal.classList.add('open');
+        }));
+        fixaModal.addEventListener('click', (e) => { if (e.target === fixaModal) fecharFixa(); });
+        $$('[data-fixa-close]', fixaModal).forEach((b) => b.addEventListener('click', fecharFixa));
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharFixa(); });
+    }
+
+    // ---- Modal "Nova conta fixa" ----
+    const novaFixa = document.getElementById('fixaNovaModal');
+    if (novaFixa) {
+        const fecharNova = () => novaFixa.classList.remove('open');
+        const btnNova = document.getElementById('novaContaFixaBtn');
+        if (btnNova) btnNova.addEventListener('click', () => novaFixa.classList.add('open'));
+        novaFixa.addEventListener('click', (e) => { if (e.target === novaFixa) fecharNova(); });
+        $$('[data-fixanova-close]', novaFixa).forEach((b) => b.addEventListener('click', fecharNova));
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharNova(); });
+    }
+
     // ---- Reabrir o modal após erro de validação do servidor ----
     if (modal.dataset.reopen === '1') abrir();
 }

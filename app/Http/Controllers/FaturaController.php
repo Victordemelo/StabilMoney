@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\PayInvoiceRequest;
 use App\Http\Requests\StoreFaturaLaunchRequest;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Services\FaturaService;
+use App\Services\FundingService;
+use App\Support\Brl;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 
 /**
  * Feature "Faturas / Despesas": faturas por cartão (com parcelas/recorrência)
@@ -31,7 +33,7 @@ class FaturaController extends Controller
      * Cria a despesa: à vista (1 linha), parcelada (N linhas) ou recorrente
      * (1 ocorrência em aberto, datada no vencimento do cartão). type=expense, família.
      */
-    public function store(StoreFaturaLaunchRequest $request)
+    public function store(StoreFaturaLaunchRequest $request, FundingService $funding)
     {
         $data = $request->validated();
         $ownerId = $request->user()->ownerId();
@@ -40,6 +42,7 @@ class FaturaController extends Controller
         $total = round((float) $data['amount'], 2);
         $base = CarbonImmutable::parse($data['date']);
         $mode = $data['mode'];
+        $conta = Account::whereKey($data['account_id'])->firstOrFail();
 
         $common = [
             'user_id' => $ownerId,
@@ -50,20 +53,40 @@ class FaturaController extends Controller
             'description' => $data['description'],
         ];
 
-        if ($mode === 'parcelado') {
-            $this->createInstallments($common, $total, $base, (int) $data['installments']);
-            $status = 'Despesa parcelada lançada na fatura.';
-        } elseif ($mode === 'recorrente') {
-            $card = Account::find($data['account_id']);
-            $this->createRecurring($common, $total, $base, $card);
-            $status = 'Despesa recorrente lançada na fatura.';
-        } else {
-            Transaction::create($common + [
-                'amount' => $total,
-                'date' => $base->toDateString(),
-            ]);
-            $status = 'Despesa lançada com sucesso.';
-        }
+        // Todo lançamento passa pelo guard: em conta de caixa ele checa o saldo
+        // (e pergunta a fonte quando falta); em cartão, o limite de crédito.
+        // No parcelado o que pesa é o TOTAL da compra — é ele que fica retido.
+        $fonte = $data['funding_source'] ?? null;
+        $investimentoId = isset($data['funding_investment_id']) ? (int) $data['funding_investment_id'] : null;
+
+        $funding->spend(
+            account: $conta,
+            amount: $total,
+            source: $fonte,
+            investmentId: $investimentoId,
+            write: function (array $auditoria) use ($mode, $common, $total, $base, $data, $conta) {
+                if ($mode === 'parcelado') {
+                    return $this->createInstallments($common + $auditoria, $total, $base, (int) $data['installments']);
+                }
+
+                if ($mode === 'recorrente') {
+                    return $this->createRecurring($common + $auditoria, $total, $base, $conta);
+                }
+
+                return Transaction::create($common + $auditoria + [
+                    'amount' => $total,
+                    'date' => $base->toDateString(),
+                ]);
+            },
+            madeByUserId: $madeBy,
+            date: $base->toDateString(),
+        );
+
+        $status = match ($mode) {
+            'parcelado' => 'Despesa parcelada lançada na fatura.',
+            'recorrente' => 'Despesa recorrente lançada na fatura.',
+            default => 'Despesa lançada com sucesso.',
+        };
 
         return redirect()->route('faturas.index')->with('status', $status);
     }
@@ -97,90 +120,117 @@ class FaturaController extends Controller
      *
      * Só cartão de crédito: débito/Pix/conta já descontam no ato da compra.
      */
-    public function payInvoice(Request $request, Account $account)
+    public function payInvoice(PayInvoiceRequest $request, Account $account, FundingService $funding)
     {
         $this->authorize('update', $account); // escopo de família (AccountPolicy)
         abort_unless($account->isCard(), 403, 'Só cartão de crédito tem fatura para marcar como paga.');
 
         $ownerId = $account->user_id;
+        $data = $request->validated();
+        // Data em que o pagamento realmente aconteceu (permite quitar em atraso
+        // e registrar o dia certo). Default: hoje.
+        $pagoEm = CarbonImmutable::parse($data['paid_on'] ?? now()->toDateString());
 
-        $data = $request->validate([
-            'pay_account_id' => [
-                'required',
-                // Precisa ser uma conta de CAIXA (corrente/poupança) da mesma família.
-                Rule::exists('accounts', 'id')->where(fn ($q) => $q
-                    ->where('user_id', $ownerId)
-                    ->whereIn('type', ['checking', 'savings'])),
-            ],
-        ], [
-            'pay_account_id.required' => 'Escolha a conta que vai pagar a fatura.',
-            'pay_account_id.exists' => 'A conta de pagamento precisa ser uma conta corrente ou poupança sua.',
-        ]);
+        $cycle = $account->billingCycle();
+        if (! $cycle) {
+            return redirect()->route('faturas.index');
+        }
+        [$start, $end] = $cycle;
 
-        DB::transaction(function () use ($account, $data, $request, $ownerId) {
-            $cycle = $account->billingCycle();
-            if (! $cycle) {
-                return;
-            }
-            [$start, $end] = $cycle;
+        // Despesas EM ABERTO do ciclo (trava para evitar corrida/duplo pagamento).
+        $abertas = Transaction::where('account_id', $account->id)
+            ->where('type', 'expense')
+            ->whereNull('paid_at')
+            ->whereDate('date', '>', $start->toDateString())
+            ->whereDate('date', '<=', $end->toDateString())
+            ->get();
 
-            // Despesas EM ABERTO do ciclo (trava para evitar corrida/duplo pagamento).
-            $abertas = Transaction::where('account_id', $account->id)
-                ->where('type', 'expense')
-                ->whereNull('paid_at')
-                ->whereDate('date', '>', $start->toDateString())
-                ->whereDate('date', '<=', $end->toDateString())
-                ->lockForUpdate()
-                ->get();
+        $total = round((float) $abertas->sum('amount'), 2);
+        if ($total <= 0) {
+            return redirect()->route('faturas.index')
+                ->with('status', 'Esta fatura já estava quitada.');
+        }
 
-            $total = round((float) $abertas->sum('amount'), 2);
-            if ($total <= 0) {
-                return; // nada a pagar (fatura já quitada)
-            }
+        $caixa = Account::whereKey($data['pay_account_id'])->firstOrFail();
 
-            // Marca as despesas do cartão como pagas.
-            Transaction::whereIn('id', $abertas->pluck('id'))->update(['paid_at' => now()]);
+        // Pagar fatura é uma saída de caixa como outra qualquer: respeita o
+        // saldo e, se faltar, pergunta a fonte (cheque especial ou resgate).
+        $funding->spend(
+            account: $caixa,
+            amount: $total,
+            source: $data['funding_source'] ?? null,
+            investmentId: isset($data['funding_investment_id']) ? (int) $data['funding_investment_id'] : null,
+            write: function (array $auditoria) use ($abertas, $ownerId, $request, $data, $account, $total, $pagoEm) {
+                // Relock e recheque: só marca o que continua em aberto.
+                $ids = Transaction::whereIn('id', $abertas->pluck('id'))
+                    ->whereNull('paid_at')
+                    ->lockForUpdate()
+                    ->pluck('id');
 
-            // Cria a saída de caixa que paga a fatura — DESCONTA do saldo.
-            Transaction::create([
-                'user_id' => $ownerId,
-                'made_by_user_id' => $request->user()->id,
-                'account_id' => $data['pay_account_id'],
-                'type' => 'expense',
-                'amount' => $total,
-                'date' => now()->toDateString(),
-                'description' => 'Pagamento da fatura — ' . $account->name,
-            ]);
-        });
+                Transaction::whereIn('id', $ids)->update(['paid_at' => $pagoEm]);
 
-        return redirect()->route('faturas.index')->with('status', 'Fatura marcada como paga.');
+                return Transaction::create($auditoria + [
+                    'user_id' => $ownerId,
+                    'made_by_user_id' => $request->user()->id,
+                    'account_id' => $data['pay_account_id'],
+                    'type' => 'expense',
+                    'amount' => $total,
+                    'date' => $pagoEm->toDateString(),
+                    'paid_at' => $pagoEm,
+                    'description' => 'Pagamento da fatura — ' . $account->name,
+                ]);
+            },
+            madeByUserId: $request->user()->id,
+            date: $pagoEm->toDateString(),
+            // Fatura é dívida já contraída: se não houver cheque especial nem
+            // investimento, o pagamento passa e a conta fica negativa. O app
+            // não recusa um boleto — mas também nunca usa o cheque especial
+            // sozinho: quando há escolha, ela é feita pelo usuário (409).
+            obrigacao: true,
+        );
+
+        $saldo = $caixa->fresh()->available;
+        $aviso = $saldo < 0
+            ? 'Fatura paga. Atenção: a conta ' . $caixa->name . ' ficou em ' . Brl::format($saldo) . '.'
+            : 'Fatura marcada como paga.';
+
+        return redirect()->route('faturas.index')->with('status', $aviso);
     }
 
     /**
      * Parcelado em N: uma transação por mês. A última parcela absorve o
      * arredondamento para a soma bater o total exato.
      */
-    private function createInstallments(array $common, float $total, CarbonImmutable $base, int $n): void
+    private function createInstallments(array $common, float $total, CarbonImmutable $base, int $n): Transaction
     {
         $groupId = (string) Str::uuid();
         $parcela = round($total / $n, 2);
+        $primeira = null;
 
         // Atômico: as N parcelas entram juntas ou nenhuma — sem fatura "pela metade".
-        DB::transaction(function () use ($common, $total, $base, $n, $groupId, $parcela) {
+        // (Já roda dentro da transação do FundingService; aninhar é seguro.)
+        DB::transaction(function () use ($common, $total, $base, $n, $groupId, $parcela, &$primeira) {
             for ($i = 1; $i <= $n; $i++) {
                 $amount = $i < $n
                     ? $parcela
                     : round($total - $parcela * ($n - 1), 2); // última absorve o resto
 
-                Transaction::create($common + [
+                $linha = Transaction::create($common + [
                     'amount' => $amount,
-                    'date' => $base->addMonths($i - 1)->toDateString(),
+                    // NoOverflow: compra em 31/01 gera 28/02, não 03/03. Com o
+                    // addMonths puro do Carbon, fevereiro ficava sem parcela e
+                    // março levava duas.
+                    'date' => $base->addMonthsNoOverflow($i - 1)->toDateString(),
                     'group_id' => $groupId,
                     'installment_no' => $i,
                     'installments' => $n,
                 ]);
+
+                $primeira ??= $linha;
             }
         });
+
+        return $primeira;
     }
 
     /**
@@ -188,11 +238,11 @@ class FaturaController extends Controller
      * vencimento do cartão. Pagá-la (pay) gera a próxima (+1 mês). Se o cartão
      * não tiver dia de vencimento, usa a data informada.
      */
-    private function createRecurring(array $common, float $total, CarbonImmutable $base, Account $card): void
+    private function createRecurring(array $common, float $total, CarbonImmutable $base, Account $card): Transaction
     {
         $vencimento = $card->dueDate ?? $base;
 
-        Transaction::create($common + [
+        return Transaction::create($common + [
             'amount' => $total,
             'date' => $vencimento->toDateString(),
             'group_id' => (string) Str::uuid(),
@@ -237,7 +287,7 @@ class FaturaController extends Controller
                 'type' => 'expense',
                 'description' => $transaction->description,
                 'amount' => $transaction->amount,
-                'date' => CarbonImmutable::parse($transaction->date)->addMonth()->toDateString(),
+                'date' => CarbonImmutable::parse($transaction->date)->addMonthNoOverflow()->toDateString(),
                 'group_id' => $transaction->group_id,
                 'recurring' => true,
             ]);

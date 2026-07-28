@@ -25,12 +25,19 @@ class StoreAccountRequest extends FormRequest
     {
         $this->normalizeMoneyField('initial_balance');
         $this->normalizeMoneyField('credit_limit');
+        $this->normalizeMoneyField('overdraft_limit');
 
         $type = $this->input('type');
 
         // Saldo inicial só existe para conta corrente/poupança.
         if (! in_array($type, ['checking', 'savings'], true)) {
             $this->merge(['initial_balance' => null]);
+        }
+        // Cheque especial só existe em conta corrente. Vazio = sem cheque especial.
+        if ($type !== 'checking') {
+            $this->merge(['overdraft_limit' => 0]);
+        } elseif ($this->input('overdraft_limit') === null || $this->input('overdraft_limit') === '') {
+            $this->merge(['overdraft_limit' => 0]);
         }
         // Campos de cartão de crédito.
         if ($type !== 'credit_card') {
@@ -58,14 +65,17 @@ class StoreAccountRequest extends FormRequest
             // Saldo inicial: obrigatório p/ conta corrente/poupança; ausente nos cartões.
             'initial_balance' => $isAccount
                 ? ['required', 'numeric', 'min:0', 'max:9999999999999.99']
-                : ['nullable'],
+                : ['nullable', 'numeric'],
+
+            // Cheque especial: quanto o saldo pode ficar negativo nesta conta.
+            'overdraft_limit' => ['nullable', 'numeric', 'min:0', 'max:9999999999999.99'],
 
             // Cartão de crédito: limite + dias.
             'credit_limit' => $isCredit
                 ? ['required', 'numeric', 'min:0.01', 'max:9999999999999.99']
-                : ['nullable'],
-            'closing_day' => $isCredit ? ['required', 'integer', 'between:1,28'] : ['nullable'],
-            'due_day' => $isCredit ? ['required', 'integer', 'between:1,28'] : ['nullable'],
+                : ['nullable', 'numeric'],
+            'closing_day' => $isCredit ? ['required', 'integer', 'between:1,28'] : ['nullable', 'integer'],
+            'due_day' => $isCredit ? ['required', 'integer', 'between:1,28'] : ['nullable', 'integer'],
 
             // Cartão de débito: espelha uma conta corrente e/ou poupança da família.
             // Pelo menos uma é obrigatória (required_without) e precisa ser do tipo certo.
@@ -93,6 +103,7 @@ class StoreAccountRequest extends FormRequest
             'type' => 'tipo',
             'bank' => 'banco',
             'initial_balance' => 'saldo inicial',
+            'overdraft_limit' => 'limite do cheque especial',
             'credit_limit' => 'limite do cartão',
             'closing_day' => 'dia de fechamento',
             'due_day' => 'dia de vencimento',
@@ -114,6 +125,9 @@ class StoreAccountRequest extends FormRequest
             'initial_balance.numeric' => 'O saldo inicial deve ser um número. Use vírgula para os centavos, ex.: 150,00.',
             'initial_balance.min' => 'O saldo inicial não pode ser negativo.',
             'initial_balance.max' => 'O saldo inicial informado é alto demais.',
+            'overdraft_limit.numeric' => 'O limite do cheque especial deve ser um número. Use vírgula para os centavos, ex.: 2.500,00.',
+            'overdraft_limit.min' => 'O limite do cheque especial não pode ser negativo.',
+            'overdraft_limit.max' => 'O limite do cheque especial informado é alto demais.',
             'credit_limit.required' => 'Informe o limite do cartão.',
             'credit_limit.numeric' => 'O limite deve ser um número. Use vírgula para os centavos, ex.: 5.000,00.',
             'credit_limit.min' => 'O limite do cartão deve ser maior que zero.',

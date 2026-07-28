@@ -64,9 +64,14 @@
                 <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18v12H3zM3 7l2-3h14l2 3M16 13h2"/></svg>
             </div>
             <div class="sb-value {{ ($patrimonio['saldoTotal'] ?? 0) < 0 ? 'neg' : '' }}">R$ {{ $patInteiro }}<span>,{{ $patCentavos }}</span></div>
-            <div class="sb-subline">Disponível: R$ {{ number_format($patrimonio['disponivel'], 2, ',', '.') }}</div>
-            <div class="sb-subline">Guardado em metas: R$ {{ number_format($patrimonio['guardado'], 2, ',', '.') }}</div>
-            <div class="sb-subline">Investido: R$ {{ number_format($patrimonio['investido'], 2, ',', '.') }}</div>
+            <div class="sb-subline {{ $patrimonio['disponivel'] < 0 ? 'neg' : '' }}">Disponível para gastar: @brl($patrimonio['disponivel'])</div>
+            <div class="sb-subline">Guardado em metas: @brl($patrimonio['guardado'])</div>
+            <div class="sb-subline">Investido: @brl($patrimonio['investido'])</div>
+            @if (($patrimonio['chequeUsado'] ?? 0) > 0)
+                <div class="sb-subline neg">Cheque especial: @brl($patrimonio['chequeUsado']) de @brl($patrimonio['chequeLimite'])</div>
+            @elseif (($patrimonio['chequeLimite'] ?? 0) > 0)
+                <div class="sb-subline">Cheque especial livre: @brl($patrimonio['chequeLimite'])</div>
+            @endif
             <svg class="sb-spark" viewBox="0 0 180 40" preserveAspectRatio="none" aria-hidden="true">
                 <defs><linearGradient id="sbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6FCDA8" stop-opacity=".35"/><stop offset="1" stop-color="#6FCDA8" stop-opacity="0"/></linearGradient></defs>
                 <path d="{{ $patrimonio['sparkArea'] }}" fill="url(#sbg)"/>

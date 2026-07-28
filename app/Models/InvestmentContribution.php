@@ -21,6 +21,9 @@ class InvestmentContribution extends Model
     protected $fillable = [
         'investment_id',
         'account_id',
+        // Despesa que este resgate cobriu (só quando veio do fluxo de "de onde
+        // sai esse dinheiro?"); null nos aportes/resgates feitos direto na tela.
+        'transaction_id',
         'made_by_user_id',
         'type',
         'amount',

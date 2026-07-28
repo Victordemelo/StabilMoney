@@ -22,6 +22,8 @@
 //    compartilhado ninguém reenvia lançamento de outro.
 //  - Só a CRIAÇÃO entra na fila (form com data-offline-queue), nunca edição.
 
+import { pedirFonte } from './funding';
+
 const DB_NAME = 'sm-offline';
 const STORE = 'lancamentos';
 
@@ -130,20 +132,35 @@ async function drain() {
             .filter((i) => String(i.userId) === String(userId) && !i.failed);
 
         for (const item of items) {
+            const enviar = (payload) => fetch('/transactions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(payload),
+            });
+
             let res;
             try {
-                res = await fetch('/transactions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': token,
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    body: JSON.stringify(item.payload),
-                });
+                res = await enviar(item.payload);
             } catch (_) {
                 break; // caiu a rede no meio: tenta de novo no próximo online
+            }
+
+            // 409: o saldo não cobre. Aqui NÃO há como perguntar (o usuário pode
+            // nem estar na tela), e a compra já aconteceu no mundo real — então
+            // reenviamos UMA vez usando o cheque especial. Resgatar investimento
+            // sozinho seria decidir pelo usuário; isso nunca é automático.
+            if (res.status === 409) {
+                const comCheque = { ...item.payload, funding_source: 'cheque_especial' };
+                try {
+                    res = await enviar(comCheque);
+                } catch (_) {
+                    break;
+                }
             }
 
             if (res.ok) {
@@ -151,10 +168,20 @@ async function drain() {
             } else if (res.status === 401 || res.status === 419) {
                 showToast('Faça login para sincronizar seus lançamentos pendentes.');
                 break;                                         // sessão/CSRF expirou: mantém na fila
-            } else if (res.status === 422) {
-                item.failed = true;                            // dados inválidos: não insiste em loop
+            } else if (res.status === 422 || res.status === 409) {
+                // Nem o cheque especial cobriu (ou os dados são inválidos):
+                // guarda a mensagem REAL do servidor para o usuário resolver,
+                // em vez do texto genérico de antes.
+                let motivo = '';
+                try {
+                    const data = await res.json();
+                    motivo = flattenErrors(data && data.errors)[0] || data?.message || '';
+                } catch (_) { /* corpo não-JSON */ }
+
+                item.failed = true;                            // não insiste em loop
+                item.motivo = motivo;
                 await queueAdd(item);
-                showToast('Um lançamento não pôde ser sincronizado (dados inválidos).');
+                showToast(motivo || 'Um lançamento não pôde ser sincronizado.');
             } // 5xx e outros: deixa na fila para a próxima tentativa
         }
     } finally {
@@ -390,6 +417,32 @@ async function submitOnline(form, payload) {
             await enqueueOffline(
                 payload,
                 'Faça login para sincronizar seu lançamento.',
+                form
+            );
+            return;
+        }
+    }
+
+    // 409: o saldo disponível não cobre, mas há fonte (cheque especial ou
+    // resgate). Pergunta ao usuário e reenvia com a escolha — mesmo payload,
+    // mesmo client_uuid, então não duplica.
+    if (res.status === 409) {
+        setSubmitting(btn, false);
+        let dados = {};
+        try { dados = await res.json(); } catch (_) { /* segue com genérico */ }
+
+        const escolha = await pedirFonte(dados.fonte);
+        if (!escolha) return; // cancelou: fica na tela com os dados preenchidos
+
+        Object.assign(payload, escolha);
+        setSubmitting(btn, true);
+        try {
+            res = await postTransaction(action, payload, meta('csrf-token'));
+        } catch (_) {
+            setSubmitting(btn, false);
+            await enqueueOffline(
+                payload,
+                'Sem conexão — lançamento salvo; envio sozinho quando a internet voltar.',
                 form
             );
             return;

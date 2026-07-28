@@ -56,7 +56,7 @@ class StoreInvestmentContributionRequest extends FormRequest
                 'required',
                 // CRÍTICO: a conta precisa pertencer à família e não pode ser cartão de crédito.
                 Rule::exists('accounts', 'id')->where(function ($q) use ($userId) {
-                    $q->where('user_id', $userId)->where('type', '!=', 'credit_card');
+                    $q->where('user_id', $userId)->whereIn('type', ['checking', 'savings']);
                 }),
             ],
             // Quem aportou: precisa ser membro da família (titular ou dependente).
@@ -92,7 +92,7 @@ class StoreInvestmentContributionRequest extends FormRequest
             'amount.min' => 'O valor mínimo é R$ 0,01.',
             'amount.max' => 'O valor informado é alto demais.',
             'account_id.required' => 'Escolha a conta de origem do aporte.',
-            'account_id.exists' => 'A conta escolhida não existe, não pertence a você ou é um cartão de crédito.',
+            'account_id.exists' => 'Escolha uma conta corrente ou poupança sua — cartões não guardam dinheiro.',
             'date.date' => 'Data inválida.',
             'date.before_or_equal' => 'A data está longe demais no futuro.',
         ];

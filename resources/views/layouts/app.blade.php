@@ -62,6 +62,7 @@
 
 @auth
     @include('partials.launch-modal')
+    @include('partials.funding-modal')
 @endauth
 
 @include('partials.cookie-consent')

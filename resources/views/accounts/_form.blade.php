@@ -10,6 +10,8 @@
         ? number_format((float) $account->credit_limit, 2, ',', '.') : '');
     $fechamentoAtual = old('closing_day', $account->closing_day ?? '');
     $vencimentoAtual = old('due_day', $account->due_day ?? '');
+    $chequeAtual = old('overdraft_limit', $account && (float) $account->overdraft_limit > 0
+        ? number_format((float) $account->overdraft_limit, 2, ',', '.') : '');
     $checkingAtual = (int) old('checking_account_id', $account->checking_account_id ?? 0);
     $savingsAtual = (int) old('savings_account_id', $account->savings_account_id ?? 0);
 @endphp
@@ -78,6 +80,16 @@
                        id="initial_balance" name="initial_balance" placeholder="0,00"
                        value="{{ old('initial_balance', $editando && $account->initial_balance !== null ? number_format((float) $account->initial_balance, 2, ',', '.') : '0,00') }}">
                 @error('initial_balance')<div class="field-error">{{ $message }}</div>@enderror
+            </div>
+
+            {{-- Cheque especial: SÓ conta corrente (bloco próprio — o de cima
+                 vale também para poupança, que não tem cheque especial) --}}
+            <div class="field" data-fields-overdraft @if ($tipoAtual !== 'checking') hidden @endif>
+                <label for="overdraft_limit">Limite do cheque especial (R$)</label>
+                <input class="input @error('overdraft_limit') input-error @enderror" type="text" inputmode="decimal"
+                       id="overdraft_limit" name="overdraft_limit" placeholder="0,00" value="{{ $chequeAtual }}">
+                <p class="form-hint">Quanto o banco deixa seu saldo ficar negativo nesta conta. Deixe em branco se sua conta não tem cheque especial.</p>
+                @error('overdraft_limit')<div class="field-error">{{ $message }}</div>@enderror
             </div>
 
             {{-- Cartão de crédito: limite + dias --}}
@@ -152,6 +164,7 @@
         var preview = form.querySelector('[data-bank-preview]');
         var grupos = {
             account: form.querySelector('[data-fields-account]'),
+            overdraft: form.querySelector('[data-fields-overdraft]'),
             credit: form.querySelector('[data-fields-credit]'),
             debit: form.querySelector('[data-fields-debit]'),
         };
@@ -159,6 +172,8 @@
         function aplicarTipo() {
             var t = tipo.value;
             if (grupos.account) grupos.account.hidden = !(t === 'checking' || t === 'savings');
+            // Cheque especial é só de conta corrente (poupança não tem).
+            if (grupos.overdraft) grupos.overdraft.hidden = t !== 'checking';
             if (grupos.credit) grupos.credit.hidden = t !== 'credit_card';
             if (grupos.debit) grupos.debit.hidden = t !== 'debit_card';
         }

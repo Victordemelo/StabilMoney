@@ -55,7 +55,19 @@ class StoreFaturaLaunchRequest extends FormRequest
             'account_id' => [
                 'required',
                 // CRÍTICO: a conta (método) precisa pertencer à família.
-                Rule::exists('accounts', 'id')->where('user_id', $userId),
+                // Cartão de débito é recusado (não tem saldo próprio) — o select
+                // manda a conta corrente/poupança que ele espelha.
+                Rule::exists('accounts', 'id')->where(fn ($q) => $q
+                    ->where('user_id', $userId)
+                    ->where('type', '!=', 'debit_card')),
+            ],
+            // De onde sai o dinheiro quando o disponível não cobre (o
+            // FundingService responde 409 pedindo a escolha).
+            'funding_source' => ['nullable', Rule::in(\App\Support\FundingSource::TODAS)],
+            'funding_investment_id' => [
+                'nullable',
+                'required_if:funding_source,' . \App\Support\FundingSource::RESGATE_INVESTIMENTO,
+                Rule::exists('investments', 'id')->where('user_id', $userId),
             ],
             'category_id' => [
                 'nullable',
@@ -140,7 +152,10 @@ class StoreFaturaLaunchRequest extends FormRequest
             'date.after_or_equal' => 'A data deve ser a partir de 01/01/2000.',
             'date.before_or_equal' => 'A data está longe demais no futuro.',
             'account_id.required' => 'Escolha o método de pagamento.',
-            'account_id.exists' => 'O método escolhido não existe ou não pertence a você.',
+            'account_id.exists' => 'O método escolhido não existe ou não pertence a você. Cartão de débito não tem saldo próprio — escolha a conta que ele usa.',
+            'funding_source.in' => 'Escolha de onde sai o dinheiro é inválida.',
+            'funding_investment_id.required_if' => 'Escolha de qual investimento resgatar.',
+            'funding_investment_id.exists' => 'O investimento escolhido não existe ou não é da sua família.',
             'category_id.exists' => 'A categoria escolhida não existe ou não pertence a você.',
             'mode.required' => 'Escolha a forma de pagamento.',
             'mode.in' => 'Forma de pagamento inválida.',

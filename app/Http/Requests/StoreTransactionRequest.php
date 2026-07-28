@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\NormalizesMoneyInput;
 use App\Models\Category;
+use App\Support\FundingSource;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -40,8 +41,14 @@ class StoreTransactionRequest extends FormRequest
             'amount' => ['required', 'numeric', 'min:0.01', 'max:9999999999999.99'],
             'account_id' => [
                 'required',
-                // CRÍTICO: a conta precisa pertencer ao usuário logado
-                Rule::exists('accounts', 'id')->where('user_id', $userId),
+                // CRÍTICO: a conta precisa pertencer ao usuário logado.
+                // Cartão de DÉBITO é recusado: ele não tem saldo próprio (só
+                // espelha a corrente/poupança), então uma transação nele não
+                // descontava de conta nenhuma. Os selects já mandam a conta
+                // vinculada quando o usuário escolhe o cartão.
+                Rule::exists('accounts', 'id')->where(fn ($q) => $q
+                    ->where('user_id', $userId)
+                    ->where('type', '!=', 'debit_card')),
             ],
             'category_id' => [
                 'nullable',
@@ -71,6 +78,15 @@ class StoreTransactionRequest extends FormRequest
                 Rule::exists('users', 'id')->where(function ($q) use ($userId) {
                     $q->where('id', $userId)->orWhere('account_owner_id', $userId);
                 }),
+            ],
+            // De onde sai o dinheiro quando o disponível não cobre. Só é exigido
+            // pelo FundingService (que responde 409 pedindo a escolha); aqui é
+            // opcional para o caminho normal não precisar mandar nada.
+            'funding_source' => ['nullable', Rule::in(FundingSource::TODAS)],
+            'funding_investment_id' => [
+                'nullable',
+                'required_if:funding_source,' . FundingSource::RESGATE_INVESTIMENTO,
+                Rule::exists('investments', 'id')->where('user_id', $userId),
             ],
             'description' => ['nullable', 'string', 'max:255'],
             'date' => [
@@ -104,9 +120,12 @@ class StoreTransactionRequest extends FormRequest
             'amount.min' => 'O valor mínimo é R$ 0,01.',
             'amount.max' => 'O valor informado é alto demais.',
             'account_id.required' => 'Escolha a conta da transação.',
-            'account_id.exists' => 'A conta escolhida não existe ou não pertence a você.',
+            'account_id.exists' => 'A conta escolhida não existe ou não pertence a você. Cartão de débito não tem saldo próprio — escolha a conta que ele usa.',
             'category_id.exists' => 'A categoria escolhida não existe ou não pertence a você.',
             'description.max' => 'A descrição pode ter no máximo 255 caracteres.',
+            'funding_source.in' => 'Escolha de onde sai o dinheiro é inválida.',
+            'funding_investment_id.required_if' => 'Escolha de qual investimento resgatar.',
+            'funding_investment_id.exists' => 'O investimento escolhido não existe ou não é da sua família.',
             'date.required' => 'Informe a data da transação.',
             'date.date' => 'Data inválida.',
             'date.after_or_equal' => 'A data deve ser a partir de 01/01/2000.',

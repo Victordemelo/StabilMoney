@@ -22,10 +22,17 @@ class Transaction extends Model
         'date',
         // Parcelamento/recorrência (feature "Faturas / Despesas").
         'group_id',
+        // Pagamento de conta fixa mensal: qual conta e qual mês foi quitado.
+        'fixed_bill_id',
+        'competence',
         'installment_no',
         'installments',
         'recurring',
         'paid_at',
+        // De onde saiu o dinheiro quando o disponível não cobriu sozinho
+        // (cheque especial / resgate) e quanto veio de lá. Só auditoria.
+        'funding_source',
+        'funding_amount',
     ];
 
     protected function casts(): array
@@ -33,10 +40,12 @@ class Transaction extends Model
         return [
             'amount' => 'decimal:2',
             'date' => 'date',
+            'competence' => 'date',
             'installment_no' => 'integer',
             'installments' => 'integer',
             'recurring' => 'boolean',
             'paid_at' => 'datetime',
+            'funding_amount' => 'decimal:2',
         ];
     }
 

@@ -31,7 +31,7 @@ class FaturaService
         $stats = [
             'totalFaturas' => round($cards->sum(fn ($c) => $c['currentInvoice']), 2),
             'numCartoes' => $cards->count(),
-            'limiteDisponivel' => round($cards->sum(fn ($c) => $c['availableLimit']), 2),
+            'limiteDisponivel' => round($cards->sum(fn ($c) => max(0.0, (float) $c['availableLimit'])), 2),
         ];
 
         return [
@@ -49,6 +49,11 @@ class FaturaService
                 ->whereIn('type', ['checking', 'savings'])
                 ->orderBy('name')
                 ->get(['id', 'name', 'type', 'bank']),
+            // Contas fixas mensais: competência do mês + as atrasadas.
+            'contasFixas' => app(FixedBillService::class)->currentAndOverdue($userId),
+            // Cadastro/edição de conta fixa (select de categoria de despesa).
+            'fixedBills' => \App\Models\FixedBill::where('user_id', $userId)
+                ->orderBy('due_day')->get(),
         ];
     }
 
@@ -63,9 +68,24 @@ class FaturaService
         $limit = $today->addDays($days);
         $itens = collect();
 
-        // Faturas de cartão: vencimento em <= $days dias e com valor EM ABERTO.
         $cards = Account::where('user_id', $userId)->where('type', 'credit_card')->get();
+
         foreach ($cards as $card) {
+            // (1) Fatura JÁ VENCIDA (ciclo fechado, não paga, vencimento no
+            // passado). Sem este ramo a dívida do mês anterior sumia do sino no
+            // dia em que o ciclo virava — o oposto de avisar que venceu.
+            if ($atrasada = $card->overdueInvoice) {
+                $itens->push(new Fluent([
+                    'tipo' => 'fatura',
+                    'nome' => 'Fatura ' . $card->name,
+                    'valor' => $atrasada['valor'],
+                    'due' => $atrasada['vencimento'],
+                    'diasRestantes' => -$atrasada['diasAtraso'],
+                    'vencida' => true,
+                ]));
+            }
+
+            // (2) Fatura do ciclo aberto a vencer dentro da janela.
             $due = $card->dueDate;
             $devido = $card->openInvoiceDue;
             if (! $due || $devido <= 0.001 || $due->greaterThan($limit)) {
@@ -76,11 +96,27 @@ class FaturaService
                 'nome' => 'Fatura ' . $card->name,
                 'valor' => $devido,
                 'due' => $due,
-                'diasRestantes' => $today->diffInDays($due, false),
+                'diasRestantes' => (int) $today->diffInDays($due, false),
+                'vencida' => false,
             ]));
         }
 
-        // Recorrências em aberto (recurring, paid_at null) com data <= limite.
+        // (3) Contas fixas mensais: a competência do mês e todas as atrasadas.
+        foreach (app(FixedBillService::class)->currentAndOverdue($userId) as $ocorrencia) {
+            if ($ocorrencia['paga'] || $ocorrencia['vencimento']->greaterThan($limit)) {
+                continue;
+            }
+            $itens->push(new Fluent([
+                'tipo' => 'conta_fixa',
+                'nome' => $ocorrencia['bill']->name,
+                'valor' => $ocorrencia['valor'],
+                'due' => $ocorrencia['vencimento'],
+                'diasRestantes' => $ocorrencia['diasRestantes'],
+                'vencida' => $ocorrencia['vencida'],
+            ]));
+        }
+
+        // (4) Recorrências legadas de cartão (em aberto, data <= limite).
         $rec = Transaction::with('account')
             ->where('user_id', $userId)
             ->where('recurring', true)
@@ -94,11 +130,15 @@ class FaturaService
                 'nome' => $t->description ?: 'Recorrência',
                 'valor' => (float) $t->amount,
                 'due' => $due,
-                'diasRestantes' => $today->diffInDays($due, false),
+                'diasRestantes' => (int) $today->diffInDays($due, false),
+                'vencida' => $due->lessThan($today),
             ]));
         }
 
-        return $itens->sortBy(fn ($i) => $i['due']->timestamp)->values();
+        // Vencidas primeiro (mais antiga no topo), depois as a vencer.
+        return $itens
+            ->sortBy(fn ($i) => [$i['vencida'] ? 0 : 1, $i['due']->timestamp])
+            ->values();
     }
 
     /** Um objeto por cartão de crédito, com a fatura do ciclo aberto e seus itens. */
@@ -181,12 +221,14 @@ class FaturaService
             ->get();
     }
 
-    /** Contas da família (todas, inclusive cartões) para o select de método. */
+    /**
+     * Métodos de pagamento para o select do modal de lançar. Cartão de débito
+     * aparece com o rótulo dele mas submete a conta corrente/poupança que ele
+     * espelha (Account::paymentOptions).
+     */
     private function accounts(int $userId): Collection
     {
-        return Account::where('user_id', $userId)
-            ->orderBy('name')
-            ->get(['id', 'name', 'icon', 'type', 'credit_limit', 'closing_day', 'due_day']);
+        return Account::paymentOptions($userId);
     }
 
     /** Categorias de despesa da família. */

@@ -23,13 +23,37 @@ class AccountFactory extends Factory
     {
         // Padrão: Conta Corrente (tem saldo próprio, comportamento previsível nos
         // testes) com um banco. Cartões usam os states abaixo.
+        //
+        // O saldo inicial é FIXO e folgado de propósito: desde que existe limite
+        // de gasto (SpendingGuard), um saldo sorteado entre 0 e 5.000 fazia
+        // qualquer teste que lança despesa falhar de vez em quando, conforme o
+        // sorteio. Quem testa saldo/limite informa `initial_balance` explícito.
         return [
             'user_id' => User::factory(),
             'name' => fake()->randomElement(['Conta Corrente', 'Banco Azul', 'Banco Roxo', 'Poupança']) . ' ' . fake()->unique()->numberBetween(1, 9999),
             'type' => 'checking',
             'bank' => fake()->randomElement(array_keys(Account::BANKS)),
-            'initial_balance' => fake()->randomFloat(2, 0, 5000),
+            'initial_balance' => 100000,
         ];
+    }
+
+    /** Conta corrente com cheque especial (o limite é só de `checking`). */
+    public function overdraft(float $limite = 2500): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => 'checking',
+            'overdraft_limit' => $limite,
+        ]);
+    }
+
+    /** Cartão de débito espelhando uma conta corrente. */
+    public function debitCard(?int $checkingId = null): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => 'debit_card',
+            'initial_balance' => null,
+            'checking_account_id' => $checkingId,
+        ]);
     }
 
     /** Cartão de crédito com limite e dias de fechamento/vencimento. */

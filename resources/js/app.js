@@ -11,6 +11,7 @@ import { initInvestimentos } from './sm/investimentos';
 import { initFaturas } from './sm/faturas';
 import { initMoney } from './sm/money';
 import { initLaunch } from './sm/launch';
+import { initFunding } from './sm/funding';
 import { initNav } from './sm/nav';
 import { initPwa } from './sm/pwa';
 import { initOfflineQueue } from './sm/offline-queue';
@@ -34,6 +35,9 @@ function init() {
     initTheme();
     initShell();
     initAuth();
+    // O modal de escolha de fonte vive no shell (serve os 3 formulários), então
+    // é ligado uma vez só, antes de quem o consome.
+    initFunding();
     initLaunch();
     initPwa();
     initOfflineQueue();

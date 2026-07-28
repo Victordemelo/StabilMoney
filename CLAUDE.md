@@ -425,6 +425,21 @@ com EXIF/GPS; sem verificação de e-mail; IndexedDB da fila offline não é lim
   e reportam; o principal **integra, verifica e commita**. Sempre commitar **direto na `main`**
   (sem PR/branch de feature) e **dar `push` para `origin/main`** — preferência do Victor.
   Se você é um subagente lendo isto: não rode `git commit` nem `git push`.
+- **🔒 REGRA DE OURO — cada agente cuida SÓ dos seus arquivos (jul/2026).** Quando houver mais
+  de uma sessão/agente trabalhando no repo ao mesmo tempo, **ninguém edita arquivo que outro
+  agente está mexendo**. Motivo: em 27/07/2026 duas sessões implementaram a MESMA feature
+  ("saldo disponível") em paralelo, uma deixou o `DashboardService` com `use` duplicado (app
+  inteiro em erro fatal) e o `AppServiceProvider` ficou com as duas frentes misturadas, sem
+  como separar por arquivo na hora de commitar.
+  - **Antes de começar:** rode `git status` e veja o que já está modificado. Arquivo que
+    aparece como `M` e você não mexeu é de outra pessoa — **não toque**.
+  - **Se precisar de um arquivo que já está sendo mexido:** pare e avise o Victor, em vez de
+    editar por cima. Ele decide quem segue.
+  - **Se encontrar o app quebrado por edição alheia:** conserte só o necessário para destravar
+    (ex.: um `use` duplicado), avise no relatório, e **não continue** implementando por cima.
+  - **Antes de commitar:** confira que o `git status` só tem os SEUS arquivos. Nunca faça
+    `git add .` com trabalho de outro agente pendente — isso engole a feature dele numa
+    mensagem de commit que não é a dele.
 
 ---
 

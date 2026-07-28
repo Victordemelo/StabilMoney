@@ -29,10 +29,13 @@ class SidebarService
     {
         $today = CarbonImmutable::today();
 
-        // Cartão de crédito NÃO é caixa: fica fora do patrimônio/saldo. Tanto os
-        // saldos iniciais quanto as transações de cartões são excluídos das somas.
+        // Cartões NÃO são caixa e ficam fora do patrimônio/saldo: o de CRÉDITO
+        // porque é dívida, o de DÉBITO porque só espelha a corrente/poupança
+        // vinculada (contá-lo somaria o mesmo dinheiro duas vezes).
+        // Precisa ser a MESMA lista do DashboardService — quando a sidebar
+        // excluía só o crédito, os dois totais divergiam na mesma tela.
         $cardIds = Account::where('user_id', $userId)
-            ->where('type', 'credit_card')
+            ->whereIn('type', ['credit_card', 'debit_card'])
             ->pluck('id')
             ->all();
 
@@ -90,8 +93,26 @@ class SidebarService
             $variacao = $this->dashboard->pctChange($saldoTotal, $saldoAnterior);
         }
 
+        // Cheque especial da família: limite total das contas correntes e quanto
+        // dele já está sendo usado (uma conta por vez, só as que têm limite).
+        $chequeLimite = round((float) Account::where('user_id', $userId)
+            ->where('type', 'checking')
+            ->sum('overdraft_limit'), 2);
+
+        $chequeUsado = 0.0;
+        if ($chequeLimite > 0) {
+            foreach (Account::where('user_id', $userId)->where('type', 'checking')->get() as $conta) {
+                $chequeUsado += $conta->overdraftUsed;
+            }
+            $chequeUsado = round($chequeUsado, 2);
+        }
+
         return [
             'saldoTotal' => $saldoTotal,
+            // Cheque especial (só conta corrente): total, usado e o que resta.
+            'chequeLimite' => $chequeLimite,
+            'chequeUsado' => $chequeUsado,
+            'chequeDisponivel' => round(max(0.0, $chequeLimite - $chequeUsado), 2),
             // "Em conta" = o que está nas contas, fora dos investimentos
             // (= disponível + guardado em metas). Patrimônio total = isto + investido.
             'emConta' => round($disponivel + $guardado, 2),

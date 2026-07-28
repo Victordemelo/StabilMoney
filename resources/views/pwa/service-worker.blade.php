@@ -78,34 +78,65 @@ function odbDelete(key) {
     tx.onerror = () => resolve();
   }));
 }
+// Regrava o item (usado para marcar `failed` sem perder o lançamento).
+function odbPut(item) {
+  return odbOpen().then((db) => new Promise((resolve) => {
+    const tx = db.transaction(ODB_STORE, 'readwrite');
+    tx.objectStore(ODB_STORE).put(item);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  }));
+}
 
 async function flushLancamentos() {
   const items = await odbAll();
   let retry = false; // sobrou item por falha passageira → pede novo sync (backoff do navegador)
   for (const item of items) {
     if (item.failed) continue;
+
+    const enviar = (payload) => fetch('/transactions', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': item.csrf || '',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(payload),
+    });
+
     let res;
     try {
-      res = await fetch('/transactions', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-CSRF-TOKEN': item.csrf || '',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify(item.payload),
-      });
+      res = await enviar(item.payload);
     } catch (e) {
       retry = true; break; // a rede caiu no meio: tenta de novo no próximo sync
     }
+
+    // 409: o saldo não cobre. Sem tela para perguntar (o app pode estar
+    // fechado) e com a compra já feita no mundo real, reenvia UMA vez pelo
+    // cheque especial. Resgate de investimento nunca é automático.
+    if (res.status === 409) {
+      try {
+        res = await enviar(Object.assign({}, item.payload, { funding_source: 'cheque_especial' }));
+      } catch (e) {
+        retry = true; break;
+      }
+    }
+
     if (res.ok) {
       await odbDelete(item.client_uuid); // 201 criado ou 200 já existia (idempotente)
     } else if (res.status >= 500) {
       retry = true; // erro passageiro do servidor
+    } else if (res.status === 422 || res.status === 409) {
+      // Nem o cheque especial cobriu, ou os dados são inválidos. MARCA como
+      // failed em vez de deixar em silêncio: antes o item ficava vivo na fila,
+      // sendo reenviado para sempre e sem nenhuma tela para o usuário resolver.
+      item.failed = true;
+      item.motivo = 'Saldo insuficiente ou dados inválidos — revise este lançamento.';
+      await odbPut(item);
     }
-    // 401/419 (sessão/CSRF de outra sessão) e 422 (inválido): deixa p/ a página tratar
+    // 401/419 (sessão/CSRF de outra sessão): deixa p/ a página tratar no login
   }
   if (retry) throw new Error('sync incompleto'); // rejeita → navegador reagenda o sync
 }

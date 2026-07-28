@@ -57,7 +57,7 @@ class StoreInvestmentRequest extends FormRequest
                 'nullable',
                 // CRÍTICO: a conta precisa pertencer à família e não pode ser cartão de crédito.
                 Rule::exists('accounts', 'id')->where(function ($q) use ($userId) {
-                    $q->where('user_id', $userId)->where('type', '!=', 'credit_card');
+                    $q->where('user_id', $userId)->whereIn('type', ['checking', 'savings']);
                 }),
                 // O aporte inicial não pode passar do saldo disponível da conta.
                 function (string $attribute, mixed $value, Closure $fail) use ($userId, $temValorInicial) {
@@ -118,7 +118,7 @@ class StoreInvestmentRequest extends FormRequest
             'valor_inicial.min' => 'O valor inicial não pode ser negativo.',
             'valor_inicial.max' => 'O valor inicial informado é alto demais.',
             'account_id.required' => 'Escolha a conta de origem do valor inicial.',
-            'account_id.exists' => 'A conta escolhida não existe, não pertence a você ou é um cartão de crédito.',
+            'account_id.exists' => 'Escolha uma conta corrente ou poupança sua — cartões não guardam dinheiro.',
             'date.date' => 'Data inválida.',
             'date.before_or_equal' => 'A data está longe demais no futuro.',
         ];

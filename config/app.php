@@ -59,13 +59,14 @@ return [
     | Application Timezone
     |--------------------------------------------------------------------------
     |
-    | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | O app é 100% pt-BR e todo cálculo de dia (ciclo de fatura, vencimento,
+    | "vencida há N dias", data padrão do lançamento) precisa virar à meia-noite
+    | de Brasília — em UTC o dia virava às 21h e o lançamento das 21h30 caía no
+    | dia seguinte, no mês seguinte do dashboard e no ciclo de fatura errado.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'America/Sao_Paulo'),
 
     /*
     |--------------------------------------------------------------------------

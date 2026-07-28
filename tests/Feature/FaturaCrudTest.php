@@ -188,7 +188,7 @@ class FaturaCrudTest extends TestCase
 
     public function test_parcelado_rejected_on_non_card_account(): void
     {
-        $conta = Account::factory()->for($this->user)->create(['type' => 'bank', 'initial_balance' => 0]);
+        $conta = Account::factory()->for($this->user)->create(['type' => 'checking', 'initial_balance' => 0]);
 
         $this->actingAs($this->user)->post('/faturas/lancar', $this->launch([
             'account_id' => $conta->id,
@@ -201,7 +201,7 @@ class FaturaCrudTest extends TestCase
 
     public function test_recorrente_rejected_on_non_card_account(): void
     {
-        $conta = Account::factory()->for($this->user)->create(['type' => 'wallet', 'initial_balance' => 0]);
+        $conta = Account::factory()->for($this->user)->create(['type' => 'checking', 'initial_balance' => 0]);
 
         $this->actingAs($this->user)->post('/faturas/lancar', $this->launch([
             'account_id' => $conta->id,
@@ -213,7 +213,9 @@ class FaturaCrudTest extends TestCase
 
     public function test_avista_allowed_on_non_card_account(): void
     {
-        $conta = Account::factory()->for($this->user)->create(['type' => 'bank', 'initial_balance' => 0]);
+        // Saldo suficiente: aqui o que se testa é o TIPO da conta aceitar "à
+        // vista", não o limite de gasto (que tem testes próprios).
+        $conta = Account::factory()->for($this->user)->create(['type' => 'checking', 'initial_balance' => 500]);
 
         $this->actingAs($this->user)->post('/faturas/lancar', $this->launch([
             'account_id' => $conta->id,
@@ -380,14 +382,15 @@ class FaturaCrudTest extends TestCase
 
     public function test_upcoming_card_invoice_shows_in_notifications(): void
     {
-        \Illuminate\Support\Carbon::setTestNow('2026-07-15');
+        \Illuminate\Support\Carbon::setTestNow('2026-07-08');
 
+        // Fecha dia 10, vence dia 12: hoje (08/07) o ciclo aberto é (10/06, 10/07],
+        // que fecha em 10/07 e vence em 12/07 — 4 dias, dentro da janela do sino.
         $card = Account::factory()->for($this->user)->create([
-            'type' => 'credit_card', 'credit_limit' => 5000, 'closing_day' => 10, 'due_day' => 20,
+            'type' => 'credit_card', 'credit_limit' => 5000, 'closing_day' => 10, 'due_day' => 12,
         ]);
-        // Despesa no ciclo aberto (após fechamento 10/07) → fatura em aberto que vence 20/07 (5 dias).
         Transaction::factory()->for($this->user)->for($card)->expense()->create([
-            'amount' => 300, 'date' => '2026-07-14',
+            'amount' => 300, 'date' => '2026-06-20',
         ]);
 
         $due = app(\App\Services\FaturaService::class)->upcomingDue($this->user->id, 7);

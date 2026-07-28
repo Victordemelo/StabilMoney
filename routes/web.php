@@ -5,6 +5,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DependentController;
 use App\Http\Controllers\FaturaController;
+use App\Http\Controllers\FixedBillController;
 use App\Http\Controllers\GoalContributionController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\InvestmentContributionController;
@@ -50,13 +51,18 @@ Route::middleware('auth')->group(function () {
     // Meu perfil (dados pessoais: nome, e-mail, telefone, foto)
     Route::get('/meu-perfil', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/meu-perfil', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/meu-perfil', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    // Valida a senha atual → limitada (ver 'senha' no AppServiceProvider).
+    Route::delete('/meu-perfil', [ProfileController::class, 'destroy'])
+        ->middleware('throttle:senha')
+        ->name('profile.destroy');
 
     // Configurações (subabas: Segurança / Conta)
     Route::get('/configuracoes/{tab?}', [SettingsController::class, 'index'])->name('settings');
 
     // Segurança: encerrar as demais sessões/dispositivos conectados
+    // Valida a senha atual → limitada (ver 'senha' no AppServiceProvider).
     Route::delete('/configuracoes/sessoes', [SecurityController::class, 'destroyOtherSessions'])
+        ->middleware('throttle:senha')
         ->name('settings.sessions.destroy');
 
     // Dependentes (conta-família) — só o titular gerencia
@@ -95,6 +101,16 @@ Route::middleware('auth')->group(function () {
     // Marcar a fatura de um cartão de crédito como paga (desconta do caixa escolhido).
     Route::post('/faturas/cartao/{account}/pagar', [FaturaController::class, 'payInvoice'])
         ->name('faturas.fatura.pagar');
+
+    // Contas fixas mensais (condomínio, aluguel, carro…). A listagem não tem
+    // rota própria: as ocorrências aparecem como um bloco de /faturas.
+    Route::post('/contas-fixas', [FixedBillController::class, 'store'])->name('contas-fixas.store');
+    Route::patch('/contas-fixas/{conta}', [FixedBillController::class, 'update'])->name('contas-fixas.update');
+    Route::delete('/contas-fixas/{conta}', [FixedBillController::class, 'destroy'])->name('contas-fixas.destroy');
+    // Paga UMA competência (mês), no formato AAAA-MM.
+    Route::post('/contas-fixas/{conta}/pagar/{competencia}', [FixedBillController::class, 'pay'])
+        ->where('competencia', '\d{4}-\d{2}')
+        ->name('contas-fixas.pagar');
 });
 
 require __DIR__ . '/auth.php';

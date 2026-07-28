@@ -31,7 +31,7 @@ class CreditCardTest extends TestCase
     {
         $user = User::factory()->create();
         // Conta com 1.000 (entra no patrimônio).
-        Account::factory()->for($user)->create(['type' => 'bank', 'initial_balance' => 1000]);
+        Account::factory()->for($user)->create(['type' => 'checking', 'initial_balance' => 1000]);
         // Cartão: limite alto e uma despesa — NÃO deve mexer no patrimônio.
         $card = Account::factory()->for($user)->creditCard()->create();
         Transaction::factory()->for($user)->for($card)->expense()->create([
@@ -44,13 +44,13 @@ class CreditCardTest extends TestCase
         $response->assertOk();
         // Patrimônio = só a conta (1.000), a despesa no cartão não derruba o saldo.
         $response->assertSee('R$ 1.000');
-        $response->assertSee('Disponível: R$ 1.000,00');
+        $response->assertSee('Disponível para gastar: R$ 1.000,00');
     }
 
     public function test_credit_card_balance_is_excluded_from_dashboard_saldo_stat(): void
     {
         $user = User::factory()->create();
-        Account::factory()->for($user)->create(['type' => 'bank', 'initial_balance' => 2000]);
+        Account::factory()->for($user)->create(['type' => 'checking', 'initial_balance' => 2000]);
         $card = Account::factory()->for($user)->creditCard()->create();
         // Despesa no cartão não afeta o stat "saldo".
         Transaction::factory()->for($user)->for($card)->expense()->create([
@@ -68,7 +68,7 @@ class CreditCardTest extends TestCase
     public function test_non_card_expense_still_reduces_saldo(): void
     {
         $user = User::factory()->create();
-        $conta = Account::factory()->for($user)->create(['type' => 'bank', 'initial_balance' => 2000]);
+        $conta = Account::factory()->for($user)->create(['type' => 'checking', 'initial_balance' => 2000]);
         Transaction::factory()->for($user)->for($conta)->expense()->create([
             'amount' => 300,
             'date' => now()->toDateString(),
@@ -115,14 +115,21 @@ class CreditCardTest extends TestCase
 
         $card->refresh();
 
-        // Comprometido = parcelas em aberto (date ≥ início do ciclo = 10/06): 1200 + 300.
-        $this->assertSame(1500.0, $card->committed);
-        // Limite disponível = 5000 − 1500.
-        $this->assertSame(3500.0, $card->availableLimit);
+        // Comprometido = TUDO que ainda não foi pago, independente do ciclo:
+        // 1200 (18/06) + 300 (parcela futura) + 999 (ciclo anterior, NÃO paga).
+        // A liberação do limite é dirigida pelo pagamento (paid_at), não pela
+        // passagem do tempo — antes o 999 saía da conta só porque o ciclo virou,
+        // devolvendo limite a quem nunca pagou.
+        $this->assertSame(2499.0, $card->committed);
+        // Limite disponível = 5000 − 2499.
+        $this->assertSame(2501.0, $card->availableLimit);
         // Fatura atual = despesas no ciclo aberto (10/06, 10/07]: só a de 18/06 (1200).
         $this->assertSame(1200.0, $card->currentInvoice);
-        // Vencimento: próximo dia 20 ≥ hoje (18/06) = 20/06.
-        $this->assertSame('2026-06-20', $card->dueDate->toDateString());
+        // Vencimento DERIVADO do ciclo: a fatura que fecha em 10/07 vence em
+        // 20/07. Antes o accessor devolvia "próximo dia 20 ≥ hoje" = 20/06, que
+        // é o vencimento da fatura ANTERIOR — não batia com o currentInvoice
+        // exibido ao lado.
+        $this->assertSame('2026-07-20', $card->dueDate->toDateString());
     }
 
     public function test_cycle_before_closing_day_uses_previous_window(): void
@@ -153,8 +160,9 @@ class CreditCardTest extends TestCase
         $card->refresh();
 
         $this->assertSame(250.0, $card->currentInvoice);
-        // Comprometido (date ≥ 10/05) = só a de 20/05.
-        $this->assertSame(250.0, $card->committed);
+        // Comprometido = tudo em aberto (250 + 700), inclusive a despesa de 02/05
+        // que está fora do ciclo mas continua sem pagamento.
+        $this->assertSame(950.0, $card->committed);
         // Vencimento: hoje 05/06 ≤ dia 20 ⇒ 20/06.
         $this->assertSame('2026-06-20', $card->dueDate->toDateString());
     }

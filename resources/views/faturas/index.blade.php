@@ -69,6 +69,77 @@
         </div>
     </div>
 
+    {{-- ---------- Contas fixas do mês (condomínio, aluguel, carro…) ---------- --}}
+    @php
+        $fixasAbertas = $contasFixas->where('paga', false);
+        $fixasVencidas = $contasFixas->where('vencida', true);
+        $totalFixas = round((float) $fixasAbertas->sum('valor'), 2);
+    @endphp
+    <div class="card fatura-card span12" style="margin-top:18px">
+        <div class="fatura-head">
+            <div class="fh-card" style="background:linear-gradient(135deg,#6B4E9E,#3A2A5C)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" width="22" height="22"><path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/></svg>
+            </div>
+            <div class="fh-info">
+                <strong>Contas fixas do mês</strong>
+                <span>
+                    @if ($fixasVencidas->isNotEmpty())
+                        <em class="fi-badge recorrente" style="color:var(--neg)">{{ $fixasVencidas->count() }} vencida{{ $fixasVencidas->count() > 1 ? 's' : '' }}</em>
+                    @else
+                        Condomínio, aluguel, parcelas — o que vence todo mês
+                    @endif
+                </span>
+            </div>
+            <div class="fh-total">
+                <span>Em aberto</span>
+                <b class="{{ $fixasVencidas->isNotEmpty() ? 'neg' : '' }}">@brl($totalFixas)</b>
+            </div>
+        </div>
+
+        <div class="fatura-items">
+            @forelse ($contasFixas as $oc)
+                @php $bill = $oc['bill']; @endphp
+                <div class="fatura-item">
+                    <span class="fi-ico">{{ $bill->category?->icon ?: '🏠' }}</span>
+                    <div class="fi-txt">
+                        <strong>{{ $bill->name }}</strong>
+                        <span>
+                            {{ $oc['competence']->translatedFormat('F/Y') }} · vence dia {{ $bill->due_day }}
+                            @if ($oc['paga'])
+                                · <em class="fi-badge avista" style="color:var(--pos, #1FA06E)">paga</em>
+                            @elseif ($oc['vencida'])
+                                · <em class="fi-badge recorrente" style="color:var(--neg)">vencida há {{ abs($oc['diasRestantes']) }} {{ abs($oc['diasRestantes']) === 1 ? 'dia' : 'dias' }}</em>
+                            @elseif ($oc['diasRestantes'] === 0)
+                                · <em class="fi-badge parcelado">vence hoje</em>
+                            @else
+                                · vence em {{ $oc['diasRestantes'] }} {{ $oc['diasRestantes'] === 1 ? 'dia' : 'dias' }}
+                            @endif
+                        </span>
+                    </div>
+                    <div class="fi-val">
+                        <b class="{{ $oc['vencida'] ? 'neg' : '' }}">@brl($oc['valor'])</b>
+                        <small>{{ $oc['vencimento']->translatedFormat('d M') }}</small>
+                    </div>
+                    @if (! $oc['paga'] && $accounts->isNotEmpty())
+                        <button class="btn primary" type="button" data-fixa-pagar
+                                data-action="{{ route('contas-fixas.pagar', [$bill, $oc['competence']->format('Y-m')]) }}"
+                                data-nome="{{ $bill->name }}"
+                                data-valor="{{ number_format($oc['valor'], 2, ',', '.') }}"
+                                data-conta="{{ $bill->account_id }}">
+                            Pagar
+                        </button>
+                    @endif
+                </div>
+            @empty
+                <div class="fi-empty">Nenhuma conta fixa cadastrada. Cadastre o condomínio, o aluguel ou a parcela do carro para nunca perder o vencimento.</div>
+            @endforelse
+        </div>
+
+        <div class="fatura-pay">
+            <button class="btn ghost" type="button" id="novaContaFixaBtn">+ Nova conta fixa</button>
+        </div>
+    </div>
+
     @if ($cards->isEmpty() && $accountExpenses->isEmpty())
         {{-- Estado vazio amigável (nenhum cartão e nenhuma despesa avulsa) --}}
         <div class="grid" style="margin-top:18px">
@@ -163,6 +234,17 @@
                                 <b>{{ $brl($item->amount) }}</b>
                                 <small>{{ $item->date?->translatedFormat('d M') }}</small>
                             </div>
+                            {{-- Recorrência em aberto: pagar gera a próxima (+1 mês).
+                                 A rota existia desde sempre, mas sem botão nenhum — então
+                                 a recorrência nunca avançava de mês. --}}
+                            @if ($item->recurring && ! $item->paid_at)
+                                <form method="POST" action="{{ route('faturas.recorrente.pagar', $item->id) }}">
+                                    @csrf
+                                    <button class="btn primary" type="submit" title="Marcar como paga e gerar a próxima">
+                                        Pagar
+                                    </button>
+                                </form>
+                            @endif
                             <form method="POST" action="{{ route('faturas.compra.destroy', $item->id) }}"
                                   onsubmit="return confirm('Remover esta compra da fatura?');">
                                 @csrf
@@ -294,7 +376,7 @@
                     <select class="input" id="lanc-method" name="account_id" required>
                         @foreach ($accounts as $account)
                             <option value="{{ $account->id }}"
-                                    data-card="{{ $account->isCard() ? '1' : '0' }}"
+                                    data-card="{{ $account->isCard ? '1' : '0' }}"
                                     @selected($reabreLancar && (int) old('account_id') === $account->id)>
                                 {{ $account->icon ? $account->icon . '  ' : '' }}{{ $account->name }}
                             </option>
@@ -358,6 +440,124 @@
             <div class="modal-foot">
                 <button class="btn ghost" type="button" data-lancar-close>Cancelar</button>
                 <button class="btn primary" type="submit">Lançar despesa</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- ======================== MODAL: PAGAR CONTA FIXA ======================== --}}
+@if ($accounts->isNotEmpty())
+<div class="modal-scrim" id="fixaPagarModal" data-fixa-scrim>
+    <div class="modal">
+        <div class="modal-head">
+            <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg></span>
+            <div>
+                <h3>Pagar conta fixa</h3>
+                <p><b data-fixa-nome></b> — o valor sai da conta escolhida.</p>
+            </div>
+            <button class="modal-x" type="button" data-fixa-close aria-label="Fechar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+        </div>
+        <form method="POST" action="" data-fixa-form>
+            @csrf
+            <div class="modal-body">
+                <div class="field-row">
+                    <div class="field">
+                        <label for="fixa-valor">Valor pago</label>
+                        <input class="input" type="text" id="fixa-valor" name="amount" inputmode="decimal" required>
+                        <small class="field-hint">Vem preenchido com o previsto — ajuste se veio diferente.</small>
+                    </div>
+                    <div class="field">
+                        <label for="fixa-data">Data do pagamento</label>
+                        <input class="input" type="date" id="fixa-data" name="paid_on"
+                               value="{{ now()->format('Y-m-d') }}" max="{{ now()->format('Y-m-d') }}">
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="fixa-conta">Pagar com</label>
+                    <select class="input" id="fixa-conta" name="account_id" required>
+                        @foreach ($accounts as $acc)
+                            <option value="{{ $acc->id }}">{{ $acc->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn ghost" type="button" data-fixa-close>Cancelar</button>
+                <button class="btn primary" type="submit">Confirmar pagamento</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
+{{-- ====================== MODAL: NOVA CONTA FIXA ====================== --}}
+<div class="modal-scrim" id="fixaNovaModal" data-fixanova-scrim>
+    <div class="modal">
+        <div class="modal-head">
+            <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 10 12 4l9 6M5 10v9h14v-9"/></svg></span>
+            <div>
+                <h3>Nova conta fixa</h3>
+                <p>Ela aparece todo mês aqui, e avisa quando estiver perto de vencer.</p>
+            </div>
+            <button class="modal-x" type="button" data-fixanova-close aria-label="Fechar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+        </div>
+        <form method="POST" action="{{ route('contas-fixas.store') }}">
+            @csrf
+            <div class="modal-body">
+                <div class="field">
+                    <label for="cf-nome">Nome</label>
+                    <input class="input" type="text" id="cf-nome" name="name" maxlength="255" required
+                           placeholder="Ex.: Condomínio, Aluguel, Parcela do carro">
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="cf-valor">Valor mensal</label>
+                        <input class="input" type="text" id="cf-valor" name="amount" inputmode="decimal" required placeholder="0,00">
+                    </div>
+                    <div class="field">
+                        <label for="cf-dia">Vence todo dia</label>
+                        <input class="input" type="number" id="cf-dia" name="due_day" min="1" max="31" required placeholder="10">
+                    </div>
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="cf-conta">Pagar com <span class="hint">(opcional)</span></label>
+                        <select class="input" id="cf-conta" name="account_id">
+                            <option value="">Escolher na hora</option>
+                            @foreach ($accounts as $acc)
+                                <option value="{{ $acc->id }}">{{ $acc->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="cf-cat">Categoria <span class="hint">(opcional)</span></label>
+                        <select class="input" id="cf-cat" name="category_id">
+                            <option value="">Sem categoria</option>
+                            @foreach ($categories as $categoria)
+                                <option value="{{ $categoria->id }}">{{ $categoria->icon ? $categoria->icon . '  ' : '' }}{{ $categoria->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="cf-inicio">A partir de</label>
+                        <input class="input" type="date" id="cf-inicio" name="starts_on" required value="{{ now()->startOfMonth()->format('Y-m-d') }}">
+                    </div>
+                    <div class="field">
+                        <label for="cf-fim">Até <span class="hint">(opcional)</span></label>
+                        <input class="input" type="date" id="cf-fim" name="ends_on">
+                        <small class="field-hint">Deixe vazio se não tem fim.</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn ghost" type="button" data-fixanova-close>Cancelar</button>
+                <button class="btn primary" type="submit">Cadastrar</button>
             </div>
         </form>
     </div>

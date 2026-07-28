@@ -26,7 +26,7 @@ class GoalController extends Controller
 
         // Contas elegíveis como origem de aporte: tudo menos cartão de crédito.
         $accounts = Account::where('user_id', $userId)
-            ->where('type', '!=', 'credit_card')
+            ->whereIn('type', ['checking', 'savings'])
             ->orderBy('name')
             ->get();
 

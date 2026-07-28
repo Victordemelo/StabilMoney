@@ -19,6 +19,9 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- Testes de borda de data (ciclo de fatura, vencido) não podem depender
+             do fuso da máquina nem do .env local. -->
+        <env name="APP_TIMEZONE" value="America/Sao_Paulo"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>

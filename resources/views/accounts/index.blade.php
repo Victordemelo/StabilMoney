@@ -56,7 +56,7 @@
                             <div class="cc-top"><span class="net">{{ $conta->name }}</span></div>
                             <div class="cc-chip"></div>
                             <div class="cc-bot">
-                                <div><div class="lbl">Saldo atual</div><div class="cc-balance">R$ {{ number_format($conta->balance, 2, ',', '.') }}</div></div>
+                                <div><div class="lbl">Saldo em conta</div><div class="cc-balance {{ $conta->available < 0 ? 'neg' : '' }}">@brl($conta->available)</div></div>
                             </div>
                         </div>
                     @endif
@@ -69,14 +69,33 @@
 
                         @if ($conta->isDebit())
                             <div class="acct-sub">
-                                <span>Corrente <b>R$ {{ number_format($conta->checkingBalance, 2, ',', '.') }}</b></span>
-                                <span>Poupança <b>R$ {{ number_format($conta->savingsBalance, 2, ',', '.') }}</b></span>
+                                <span>Corrente <b>@brl($conta->checkingBalance)</b></span>
+                                <span>Poupança <b>@brl($conta->savingsBalance)</b></span>
                             </div>
-                            <div class="acct-balance">R$ {{ number_format($conta->balance, 2, ',', '.') }} <span class="acct-balance-lbl">total</span></div>
+                            <div class="acct-balance {{ $conta->balance < 0 ? 'neg' : '' }}">@brl($conta->balance) <span class="acct-balance-lbl">total</span></div>
                         @elseif ($conta->isCard())
-                            <div class="acct-balance">R$ {{ number_format($conta->availableLimit, 2, ',', '.') }} <span class="acct-balance-lbl">limite disponível</span></div>
+                            <div class="acct-balance">@brl($conta->availableLimitDisplay) <span class="acct-balance-lbl">limite disponível</span></div>
                         @else
-                            <div class="acct-balance">R$ {{ number_format($conta->balance, 2, ',', '.') }} <span class="acct-balance-lbl">saldo atual</span></div>
+                            {{-- "Saldo em conta" = disponível (já fora metas e investimentos):
+                                 é o número que o usuário pode de fato gastar. --}}
+                            <div class="acct-balance {{ $conta->available < 0 ? 'neg' : '' }}">@brl($conta->available) <span class="acct-balance-lbl">saldo em conta</span></div>
+                            @if ($conta->reserved > 0)
+                                <div class="acct-sub">
+                                    <span>Guardado/investido <b>@brl($conta->reserved)</b></span>
+                                </div>
+                            @endif
+                        @endif
+
+                        {{-- Cheque especial: barra de uso ou o limite livre --}}
+                        @if ($conta->overdraftLimitValue > 0)
+                            @php $pctCheque = (int) min(100, round($conta->overdraftUsed / $conta->overdraftLimitValue * 100)); @endphp
+                            <div class="fh-limit">
+                                <div class="dp-bar cheque"><i style="width:{{ $pctCheque }}%"></i></div>
+                                <div class="dp-meta">
+                                    <span>Cheque especial usado</span>
+                                    <span>@brl($conta->overdraftUsed) de @brl($conta->overdraftLimitValue)</span>
+                                </div>
+                            </div>
                         @endif
                     </div>
 

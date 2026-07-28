@@ -33,7 +33,7 @@ class GoalCrudTest extends TestCase
         $this->user = User::factory()->create();
         // Conta com saldo inicial conhecido para checar o disponível.
         $this->account = Account::factory()->for($this->user)->create([
-            'type' => 'bank',
+            'type' => 'checking',
             'initial_balance' => 1000,
         ]);
     }
@@ -249,7 +249,7 @@ class GoalCrudTest extends TestCase
     public function test_contribution_author_defaults_to_current_user(): void
     {
         $titular = User::factory()->create();
-        $account = Account::factory()->for($titular)->create(['type' => 'bank', 'initial_balance' => 500]);
+        $account = Account::factory()->for($titular)->create(['type' => 'checking', 'initial_balance' => 500]);
         $goal = Goal::factory()->for($titular)->create();
         $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
 
@@ -281,7 +281,7 @@ class GoalCrudTest extends TestCase
     public function test_dependent_can_manage_family_goals(): void
     {
         $titular = User::factory()->create();
-        $account = Account::factory()->for($titular)->create(['type' => 'bank', 'initial_balance' => 1000]);
+        $account = Account::factory()->for($titular)->create(['type' => 'checking', 'initial_balance' => 1000]);
         $goal = Goal::factory()->for($titular)->create(['name' => 'Meta da familia']);
         $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
 
@@ -345,7 +345,7 @@ class GoalCrudTest extends TestCase
         $goal = Goal::factory()->for($this->user)->create();
         // Conta de outra família.
         $stranger = User::factory()->create();
-        $strangerAccount = Account::factory()->for($stranger)->create(['type' => 'bank', 'initial_balance' => 1000]);
+        $strangerAccount = Account::factory()->for($stranger)->create(['type' => 'checking', 'initial_balance' => 1000]);
 
         $this->actingAs($this->user)->post("/metas/{$goal->id}/aportes", [
             'amount' => '10,00',
