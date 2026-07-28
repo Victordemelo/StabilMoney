@@ -224,6 +224,8 @@ class DashboardService
             'showAuthor' => User::where('account_owner_id', $userId)->exists(),
             // Resumos das features (metas, faturas a pagar, investimentos) p/ os cards.
             ...$this->featureResumos($userId, $accounts),
+            // Painel "Meus cartões": gasto e limite disponível de cada cartão.
+            ...$this->creditCardsPanel($accounts),
         ];
     }
 
@@ -232,6 +234,44 @@ class DashboardService
      * a pagar nas faturas de cartão (ciclo atual) e total investido — cada um com
      * contagem e os 3 principais itens.
      */
+    /**
+     * Painel "Meus cartões": um item por cartão de CRÉDITO com o que já foi
+     * gasto (fatura do ciclo aberto) e o limite ainda disponível, mais os
+     * totais da carteira. O card do dashboard mostra o cartão escolhido e
+     * lista todos — antes só aparecia a primeira conta.
+     *
+     * @return array{cartoes: list<array<string, mixed>>, cartoesTotais: array<string, float>}
+     */
+    private function creditCardsPanel($accounts): array
+    {
+        $cartoes = $accounts->where('type', 'credit_card')->values()->map(function (Account $c) {
+            $limite = (float) $c->credit_limit;
+            $disponivel = $c->availableLimitDisplay;
+            $usado = max(0.0, round($limite - $disponivel, 2));
+
+            return [
+                'id' => $c->id,
+                'nome' => $c->name,
+                'banco' => $c->bankLabel(),
+                'imagem' => $c->bankImageUrl(),
+                'gasto' => $c->currentInvoice,   // fatura do ciclo aberto
+                'limite' => $limite,
+                'disponivel' => $disponivel,
+                'usadoPct' => $limite > 0 ? (int) min(100, round($usado / $limite * 100)) : 0,
+                'vencimento' => $c->dueDate?->format('d/m'),
+            ];
+        })->all();
+
+        return [
+            'cartoes' => $cartoes,
+            'cartoesTotais' => [
+                'gasto' => round(array_sum(array_column($cartoes, 'gasto')), 2),
+                'disponivel' => round(array_sum(array_column($cartoes, 'disponivel')), 2),
+                'limite' => round(array_sum(array_column($cartoes, 'limite')), 2),
+            ],
+        ];
+    }
+
     private function featureResumos(int $userId, $accounts): array
     {
         $goals = Goal::where('user_id', $userId)->orderByDesc('id')->get();

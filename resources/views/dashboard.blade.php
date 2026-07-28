@@ -183,13 +183,71 @@
             @endif
         </div>
 
-        {{-- Meu cartão / contas --}}
+        {{-- Meus cartões: um painel por cartão de crédito (gasto + limite livre).
+             Sem cartão cadastrado, cai para a lista de contas. --}}
         <div class="card span4" style="animation-delay:.3s">
             <div class="card-head">
-                <h3>Meu cartão</h3>
+                <h3>{{ count($cartoes) ? 'Meus cartões' : 'Minhas contas' }}</h3>
                 <a class="mini-btn" href="{{ route('accounts.index') }}">Gerenciar<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg></a>
             </div>
-            @if ($accounts->isEmpty())
+
+            @if (count($cartoes))
+                {{-- Totais da carteira de cartões --}}
+                <div class="cards-sum">
+                    <div>
+                        <span class="lbl">Gasto nas faturas</span>
+                        <b>R$ {{ $money($cartoesTotais['gasto']) }}</b>
+                    </div>
+                    <div class="right">
+                        <span class="lbl">Limite livre</span>
+                        <b>R$ {{ $money($cartoesTotais['disponivel']) }}</b>
+                    </div>
+                </div>
+
+                {{-- Cartão em destaque (troca ao escolher na lista abaixo) --}}
+                @foreach ($cartoes as $i => $c)
+                    <div class="cc-panel" data-card-panel="{{ $c['id'] }}" @if ($i > 0) hidden @endif>
+                        @if ($c['imagem'])
+                            <div class="bankcard"><img src="{{ $c['imagem'] }}" alt="{{ $c['banco'] }}" loading="lazy"></div>
+                        @else
+                            <div class="cc">
+                                <div class="cc-top">
+                                    <span class="net">StabilMoney</span>
+                                    <img class="cc-mark" src="{{ asset('assets/stabilmoney-mark.png') }}" alt="StabilMoney" />
+                                </div>
+                                <div class="cc-chip"></div>
+                                <div class="cc-num">{{ $c['nome'] }}</div>
+                            </div>
+                        @endif
+                        <div class="cc-panel-name">
+                            {{ $c['nome'] }}
+                            @if ($c['vencimento'])<span>· vence {{ $c['vencimento'] }}</span>@endif
+                        </div>
+                        <div class="cc-panel-nums">
+                            <div><span class="lbl">Gasto</span><b>R$ {{ $money($c['gasto']) }}</b></div>
+                            <div class="right"><span class="lbl">Limite disponível</span><b>R$ {{ $money($c['disponivel']) }}</b></div>
+                        </div>
+                        <div class="dp-bar"><div class="dp-bar-fill {{ $c['usadoPct'] >= 90 ? 'over' : '' }}" style="width:{{ $c['usadoPct'] }}%"></div></div>
+                        <div class="cc-panel-sub">{{ $c['usadoPct'] }}% do limite de R$ {{ $money($c['limite']) }}</div>
+                    </div>
+                @endforeach
+
+                {{-- Todos os cartões: clicar troca o destaque acima --}}
+                @if (count($cartoes) > 1)
+                    <div class="cc-picker">
+                        @foreach ($cartoes as $i => $c)
+                            <button class="acct {{ $i === 0 ? 'is-on' : '' }}" type="button" data-card-pick="{{ $c['id'] }}">
+                                <div class="ab" style="background:{{ $abColors[$loop->index % count($abColors)] }}">{{ $initials($c['nome']) }}</div>
+                                <div>
+                                    <div class="an">{{ $c['nome'] }}</div>
+                                    <div class="at">Gasto R$ {{ $money($c['gasto']) }}</div>
+                                </div>
+                                <div class="av">R$ {{ $money($c['disponivel']) }}</div>
+                            </button>
+                        @endforeach
+                    </div>
+                @endif
+            @elseif ($accounts->isEmpty())
                 <div class="empty-state">
                     <div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg></div>
                     <h3>Nenhuma conta ainda</h3>
@@ -200,35 +258,19 @@
                     </a>
                 </div>
             @else
-                @php $firstAccount = $accounts->first(); @endphp
-                <div class="cc">
-                    <div class="cc-top">
-                        <span class="net">StabilMoney</span>
-                        <img class="cc-mark" src="{{ asset('assets/stabilmoney-mark.png') }}" alt="StabilMoney" />
-                    </div>
-                    <div class="cc-chip"></div>
-                    <div class="cc-num">{{ $firstAccount->name }}</div>
-                    <div class="cc-bot">
-                        <div>
-                            <div class="lbl">{{ $firstAccount->isCard() ? 'Limite disponível' : 'Saldo disponível' }}</div>
-                            <div class="cc-balance">R$ {{ $money($firstAccount->isCard() ? $firstAccount->availableLimitDisplay : $firstAccount->current_balance) }}</div>
-                        </div>
-                    </div>
-                </div>
-                @if ($accounts->count() > 1)
-                    <div style="margin-top:16px">
-                        @foreach ($accounts->slice(1)->take(3)->values() as $account)
-                            <div class="acct">
-                                <div class="ab" style="background:{{ $abColors[$loop->index % count($abColors)] }}">{{ $initials($account->name) }}</div>
-                                <div>
-                                    <div class="an">{{ $account->name }}</div>
-                                    <div class="at">{{ $account->type_label }}</div>
-                                </div>
-                                <div class="av">R$ {{ $money($account->isCard() ? $account->availableLimitDisplay : $account->current_balance) }}</div>
+                {{-- Sem cartão de crédito: lista as contas com o saldo de cada uma --}}
+                <div class="cc-picker">
+                    @foreach ($accounts->take(5) as $account)
+                        <div class="acct">
+                            <div class="ab" style="background:{{ $abColors[$loop->index % count($abColors)] }}">{{ $initials($account->name) }}</div>
+                            <div>
+                                <div class="an">{{ $account->name }}</div>
+                                <div class="at">{{ $account->type_label }}</div>
                             </div>
-                        @endforeach
-                    </div>
-                @endif
+                            <div class="av">R$ {{ $money($account->current_balance) }}</div>
+                        </div>
+                    @endforeach
+                </div>
             @endif
         </div>
 

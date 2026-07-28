@@ -158,6 +158,9 @@ export function initDashboard() {
     // Contadores de todos os [data-count] da página
     runCounters(document, reduceMotion);
 
+    // Card "Meus cartões": escolher um cartão troca o destaque
+    initCardPicker();
+
     // Período inicial = botão ativo do segmented (o servidor marca qual é,
     // via DashboardService::DEFAULT_PERIOD; hoje "semana")
     const seg = document.getElementById('period');
@@ -165,4 +168,20 @@ export function initDashboard() {
     const initial = (activeBtn && activeBtn.dataset.p) || 'semana';
     initPeriod(data, drawCf, reduceMotion);
     applyPeriod(data, initial, drawCf, reduceMotion);
+}
+
+/**
+ * Troca o cartão em destaque no card "Meus cartões": cada botão da lista
+ * (data-card-pick) mostra o painel correspondente (data-card-panel) e esconde
+ * os demais. Tudo já vem renderizado pelo servidor — aqui só alternamos.
+ */
+function initCardPicker() {
+    const botoes = $$('[data-card-pick]');
+    if (!botoes.length) return;
+
+    botoes.forEach((btn) => btn.addEventListener('click', () => {
+        const id = btn.dataset.cardPick;
+        $$('[data-card-panel]').forEach((p) => { p.hidden = p.dataset.cardPanel !== id; });
+        botoes.forEach((b) => b.classList.toggle('is-on', b === btn));
+    }));
 }

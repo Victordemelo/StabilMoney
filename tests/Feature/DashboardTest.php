@@ -191,6 +191,43 @@ class DashboardTest extends TestCase
         $this->assertSame(1000.0, $dashboard['totalBalance']);
     }
 
+    public function test_card_panel_lists_every_credit_card_with_spent_and_available(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow('2026-06-18');
+
+        $user = User::factory()->create();
+        $nubank = Account::factory()->for($user)->create([
+            'type' => 'credit_card', 'name' => 'Nubank', 'bank' => 'nubank',
+            'credit_limit' => 5000, 'closing_day' => 10, 'due_day' => 20,
+        ]);
+        $itau = Account::factory()->for($user)->create([
+            'type' => 'credit_card', 'name' => 'Itaú', 'bank' => 'itau',
+            'credit_limit' => 2000, 'closing_day' => 10, 'due_day' => 20,
+        ]);
+        Transaction::factory()->for($user)->for($nubank)->expense()->create(['amount' => 300, 'date' => '2026-06-18']);
+        Transaction::factory()->for($user)->for($itau)->expense()->create(['amount' => 450, 'date' => '2026-06-18']);
+
+        $d = app(\App\Services\DashboardService::class)->build($user->id);
+
+        // Os DOIS cartões aparecem (antes o card mostrava só a primeira conta)
+        $this->assertCount(2, $d['cartoes']);
+        $nu = collect($d['cartoes'])->firstWhere('nome', 'Nubank');
+        $it = collect($d['cartoes'])->firstWhere('nome', 'Itaú');
+
+        // Cada um com o que gastou e o limite que ainda tem
+        $this->assertSame(300.0, $nu['gasto']);
+        $this->assertSame(4700.0, $nu['disponivel']);
+        $this->assertSame(450.0, $it['gasto']);
+        $this->assertSame(1550.0, $it['disponivel']);
+        $this->assertSame(23, $it['usadoPct']); // 450 de 2.000
+
+        // E os totais da carteira
+        $this->assertSame(750.0, $d['cartoesTotais']['gasto']);
+        $this->assertSame(6250.0, $d['cartoesTotais']['disponivel']);
+
+        \Illuminate\Support\Carbon::setTestNow();
+    }
+
     public function test_page_title_uses_section(): void
     {
         $user = User::factory()->create();

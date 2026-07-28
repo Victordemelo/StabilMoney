@@ -312,6 +312,29 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 [data-theme="dark"] .trend.up { background: rgba(28,154,112,.14); }
 [data-theme="dark"] .trend.down { background: rgba(229,96,77,.14); }
 .trend svg { width: 13px; height: 13px; stroke-width: 2.4; }
+/* ---- Card "Meus cartões" do dashboard ---- */
+/* Totais da carteira (gasto nas faturas x limite livre) */
+.cards-sum { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.cards-sum .right { text-align: right; }
+.cards-sum .lbl { display: block; font-size: 11.5px; color: var(--ink-3); font-weight: 600; }
+.cards-sum b { font-family: var(--font-head); font-size: 17px; font-weight: 800; letter-spacing: -.02em; }
+
+/* Cartão em destaque */
+.cc-panel-name { margin-top: 12px; font-size: 14px; font-weight: 700; }
+.cc-panel-name span { font-weight: 500; color: var(--ink-3); font-size: 12px; }
+.cc-panel-nums { display: flex; justify-content: space-between; gap: 12px; margin: 10px 0 8px; }
+.cc-panel-nums .right { text-align: right; }
+.cc-panel-nums .lbl { display: block; font-size: 11.5px; color: var(--ink-3); font-weight: 600; }
+.cc-panel-nums b { font-family: var(--font-head); font-size: 15px; font-weight: 800; }
+.cc-panel-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 6px; }
+
+/* Lista de cartões (clicável quando há mais de um) */
+.cc-picker { margin-top: 14px; display: flex; flex-direction: column; gap: 2px; }
+.cc-picker button.acct { width: 100%; text-align: left; background: none; border: none; cursor: pointer; font: inherit; }
+.cc-picker button.acct:hover { background: var(--surface-2); }
+.cc-picker button.acct.is-on { background: var(--brand-50); }
+[data-theme="dark"] .cc-picker button.acct.is-on { background: rgba(28,154,112,.12); }
+
 /* KPI compacto dos cards do dashboard (metas, faturas, investimentos) */
 .dash-kpi-val { font-family: var(--font-head); font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin-top: 3px; }
 .dash-kpi-val span { font-family: var(--font-body); font-size: 12.5px; font-weight: 600; color: var(--ink-3); letter-spacing: 0; }
