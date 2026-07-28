@@ -51,101 +51,110 @@ export function drawSpark(svg, vals, color, reduceMotion, opts) {
 
 const W = 760, H = 230, PAD_L = 8, PAD_R = 8, PAD_T = 16, PAD_B = 28;
 
-// Desenha o gráfico de fluxo de caixa e devolve o estado usado pelo hover.
-// `p` = { labels: [], receitas: [], despesas: [] }
+// Desenha o gráfico de fluxo de caixa (BARRAS AGRUPADAS) e devolve o estado
+// usado pelo hover. `p` = { labels: [], receitas: [], despesas: [] }
+//
+// Por que barras e não linhas: com poucos períodos (ex.: 4 semanas) e valores
+// esparsos, a linha vira um "pico" pontiagudo que engana a leitura. Duas barras
+// por período (receitas x despesas) comparam direto e nunca distorcem.
 export function buildCashflow(svg, p, reduceMotion) {
-    if (!svg || !p || !Array.isArray(p.labels) || p.labels.length < 2) return null;
+    if (!svg || !p || !Array.isArray(p.labels) || !p.labels.length) return null;
 
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     const all = p.receitas.concat(p.despesas);
-    const max = (Math.max(...all) || 1) * 1.12, min = 0; // "|| 1" evita NaN com tudo zerado
+    const max = (Math.max(...all) || 1) * 1.12; // "|| 1" evita divisão por zero com tudo zerado
     const n = p.labels.length;
-    const xAt = (i) => PAD_L + (i / (n - 1)) * (W - PAD_L - PAD_R);
-    const yAt = (v) => H - PAD_B - ((v - min) / (max - min)) * (H - PAD_T - PAD_B);
 
-    const lineOf = (arr) => arr.map((v, i) => (i ? 'L' : 'M') + xAt(i).toFixed(1) + ' ' + yAt(v).toFixed(1)).join(' ');
-    const areaOf = (arr) => lineOf(arr) + ` L${xAt(n - 1).toFixed(1)} ${(H - PAD_B)} L${xAt(0).toFixed(1)} ${(H - PAD_B)} Z`;
+    const plotW = W - PAD_L - PAD_R;
+    const base = H - PAD_B;                 // y da linha de base (valor zero)
+    const groupW = plotW / n;               // faixa horizontal de cada período
+    const GAP = 5;                          // respiro entre a barra de receita e a de despesa
+    // Barra confortável, limitada para não engordar quando há poucos períodos
+    const barW = Math.max(7, Math.min(26, (groupW - GAP) / 2 - 8));
+    const centerAt = (i) => PAD_L + groupW * (i + 0.5);
+    const yAt = (v) => base - (Math.max(0, v) / max) * (H - PAD_T - PAD_B);
+    const xAt = centerAt; // compat: o hover posiciona o tooltip pelo centro do grupo
 
-    // linhas-guia + rótulos do eixo X
+    // linhas-guia horizontais + rótulos do eixo X
     let grid = '<g class="cf-grid">';
     for (let g = 0; g <= 4; g++) {
         const y = PAD_T + (g / 4) * (H - PAD_T - PAD_B);
         grid += `<line x1="${PAD_L}" y1="${y}" x2="${W - PAD_R}" y2="${y}"/>`;
     }
     grid += '</g>';
+
     let xlabels = '<g class="cf-axis">';
-    p.labels.forEach((l, i) => { xlabels += `<text x="${xAt(i)}" y="${H - 8}" text-anchor="middle">${l}</text>`; });
+    p.labels.forEach((l, i) => { xlabels += `<text x="${centerAt(i).toFixed(1)}" y="${H - 8}" text-anchor="middle">${l}</text>`; });
     xlabels += '</g>';
 
-    svg.innerHTML =
-        `<defs><linearGradient id="cfArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1C9A70" stop-opacity=".24"/><stop offset="1" stop-color="#1C9A70" stop-opacity="0"/></linearGradient></defs>` +
-        grid + xlabels +
-        `<path class="cf-area" d="${areaOf(p.receitas)}" fill="url(#cfArea)" opacity="1"/>` +
-        `<line class="cf-guide" id="cfGuide" y1="${PAD_T}" y2="${H - PAD_B}"/>` +
-        `<path class="cf-line" id="cfDesp" d="${lineOf(p.despesas)}" stroke="#F0A93B" stroke-dasharray="6 5"/>` +
-        `<path class="cf-line" id="cfRec" d="${lineOf(p.receitas)}" stroke="#1C9A70"/>` +
-        p.receitas.map((v, i) => `<circle class="cf-point" data-i="${i}" cx="${xAt(i)}" cy="${yAt(v)}" r="0" fill="#1C9A70" stroke="var(--surface)" stroke-width="2.5"/>`).join('') +
-        `<circle class="cf-dot-d" cx="0" cy="0" r="0" fill="#F0A93B" stroke="var(--surface)" stroke-width="2.5" style="opacity:0"/>`;
+    // Realce do período sob o cursor (fica atrás das barras)
+    const hover = `<rect class="cf-hover" id="cfHover" x="0" y="${PAD_T}" width="${groupW.toFixed(1)}" height="${(base - PAD_T).toFixed(1)}" rx="10" style="opacity:0"/>`;
 
-    // anima o "desenho" das linhas
-    [['#cfRec', 1], ['#cfDesp', 0]].forEach(([sel]) => {
-        const line = $(sel, svg);
-        if (!line) return;
-        if (reduceMotion) { line.style.strokeDasharray = sel === '#cfDesp' ? '6 5' : 'none'; return; }
-        const len = line.getTotalLength();
-        line.style.strokeDasharray = len;
-        line.style.strokeDashoffset = len;
-        line.style.transition = 'none';
-        setTimeout(() => {
-            line.style.transition = 'stroke-dashoffset 1.2s var(--ease-out)';
-            line.style.strokeDashoffset = 0;
-            // limpa as props de dash depois do draw pro traço descansar nítido
-            setTimeout(() => {
-                line.style.strokeDasharray = sel === '#cfDesp' ? '6 5' : 'none';
-                line.style.strokeDashoffset = '0';
-            }, 1250);
-        }, 60);
-    });
-    const area = $('.cf-area', svg);
-    if (area) setTimeout(() => { area.style.transition = 'opacity .6s'; area.style.opacity = 1; }, reduceMotion ? 0 : 350);
-    $$('.cf-point', svg).forEach((c, i) => setTimeout(() => { c.setAttribute('r', 3.2); }, reduceMotion ? 0 : 700 + i * 40));
+    // Uma dupla de barras por período. Começam com altura 0 e crescem (anima).
+    const barras = p.labels.map((_, i) => {
+        const cx = centerAt(i);
+        const xRec = cx - GAP / 2 - barW;
+        const xDesp = cx + GAP / 2;
+        const rec = `<rect class="cf-bar cf-bar-rec" data-i="${i}" x="${xRec.toFixed(1)}" y="${base}" width="${barW.toFixed(1)}" height="0" rx="${Math.min(5, barW / 2).toFixed(1)}" fill="#1C9A70"/>`;
+        const desp = `<rect class="cf-bar cf-bar-desp" data-i="${i}" x="${xDesp.toFixed(1)}" y="${base}" width="${barW.toFixed(1)}" height="0" rx="${Math.min(5, barW / 2).toFixed(1)}" fill="#F0A93B"/>`;
+        return rec + desp;
+    }).join('');
 
-    return { p, xAt, yAt, n };
+    // Linha de base sólida, para as barras "descansarem" sobre algo
+    const baseline = `<line class="cf-baseline" x1="${PAD_L}" y1="${base}" x2="${W - PAD_R}" y2="${base}"/>`;
+
+    svg.innerHTML = grid + hover + xlabels + baseline + barras;
+
+    // Anima o crescimento de cada barra (de baixo para cima), em cascata
+    const crescer = (el, valor, atraso) => {
+        const alturaFinal = Math.max(0, base - yAt(valor));
+        const aplicar = () => {
+            el.setAttribute('y', yAt(valor).toFixed(1));
+            el.setAttribute('height', alturaFinal.toFixed(1));
+        };
+        if (reduceMotion) { aplicar(); return; }
+        el.style.transition = 'y .55s var(--ease-out), height .55s var(--ease-out)';
+        setTimeout(aplicar, atraso);
+    };
+    $$('.cf-bar-rec', svg).forEach((el, i) => crescer(el, p.receitas[i], 60 + i * 55));
+    $$('.cf-bar-desp', svg).forEach((el, i) => crescer(el, p.despesas[i], 110 + i * 55));
+
+    return { p, xAt, yAt, n, groupW, centerAt };
 }
 
 // Liga o tooltip/guide do fluxo de caixa. `getState` devolve o estado atual
 // (retorno de buildCashflow) — assim o redraw por período não exige rebind.
 export function bindCashflowHover(wrap, svg, tip, getState) {
     if (!wrap || !svg || !tip) return;
-    const guide = () => $('#cfGuide', svg);
-    const dotD = () => $('.cf-dot-d', svg);
+    const realce = () => $('#cfHover', svg);
 
     function move(clientX) {
         const st = getState();
-        if (!st || !guide() || !dotD()) return;
+        if (!st || !realce()) return;
         const rect = svg.getBoundingClientRect();
         const rel = (clientX - rect.left) / rect.width * W;
-        let i = Math.round((rel - PAD_L) / ((W - PAD_L - PAD_R) / (st.n - 1)));
+        // Índice do GRUPO de barras sob o cursor (faixa de largura groupW)
+        let i = Math.floor((rel - PAD_L) / st.groupW);
         i = Math.max(0, Math.min(st.n - 1, i));
-        const x = st.xAt(i);
-        guide().setAttribute('x1', x); guide().setAttribute('x2', x); guide().style.opacity = 1;
-        $$('.cf-point', svg).forEach((c) => c.setAttribute('r', +c.dataset.i === i ? 5.5 : 3.2));
-        const dY = st.yAt(st.p.despesas[i]);
-        dotD().setAttribute('cx', x); dotD().setAttribute('cy', dY); dotD().setAttribute('r', 4.5); dotD().style.opacity = 1;
+
+        // Realça a faixa do período e apaga levemente as barras dos outros
+        realce().setAttribute('x', (PAD_L + st.groupW * i).toFixed(1));
+        realce().style.opacity = 1;
+        $$('.cf-bar', svg).forEach((b) => { b.style.opacity = +b.dataset.i === i ? 1 : .38; });
+
         tip.innerHTML =
             `<div class="tt">${st.p.labels[i]}</div>` +
-            `<div class="row"><span class="d" style="background:var(--brand-300)"></span><span class="n">Receitas</span><span class="v">R$ ${BRL(st.p.receitas[i])}</span></div>` +
-            `<div class="row"><span class="d" style="background:var(--c-saude)"></span><span class="n">Despesas</span><span class="v">R$ ${BRL(st.p.despesas[i])}</span></div>`;
-        const px = x / W * svg.getBoundingClientRect().width;
+            `<div class="row"><span class="d" style="background:#1C9A70"></span><span class="n">Receitas</span><span class="v">R$ ${BRL(st.p.receitas[i])}</span></div>` +
+            `<div class="row"><span class="d" style="background:#F0A93B"></span><span class="n">Despesas</span><span class="v">R$ ${BRL(st.p.despesas[i])}</span></div>`;
+        const px = st.centerAt(i) / W * rect.width;
         tip.style.left = px + 'px';
-        tip.style.top = (st.yAt(Math.max(st.p.receitas[i], st.p.despesas[i])) / H * svg.getBoundingClientRect().height) + 'px';
+        tip.style.top = (st.yAt(Math.max(st.p.receitas[i], st.p.despesas[i])) / H * rect.height) + 'px';
         tip.classList.add('show');
     }
     function leave() {
         tip.classList.remove('show');
-        if (guide()) guide().style.opacity = 0;
-        $$('.cf-point', svg).forEach((c) => c.setAttribute('r', 3.2));
-        if (dotD()) dotD().style.opacity = 0;
+        if (realce()) realce().style.opacity = 0;
+        $$('.cf-bar', svg).forEach((b) => { b.style.opacity = 1; });
     }
     wrap.addEventListener('mousemove', (e) => move(e.clientX));
     wrap.addEventListener('mouseleave', leave);

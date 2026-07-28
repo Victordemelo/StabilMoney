@@ -36,6 +36,7 @@
         .legal h1 { font: 700 26px/1.2 var(--font-head); color: var(--ink); letter-spacing: -.01em; }
         .legal .upd { color: var(--ink-3); font-size: 13px; margin: 6px 0 24px; }
         .legal h2 { font: 600 17px/1.3 var(--font-head); color: var(--ink); margin: 26px 0 8px; }
+        .legal h3 { font: 600 15px/1.35 var(--font-head); color: var(--ink); margin: 18px 0 6px; }
         .legal p, .legal li { color: var(--ink); font-size: 15px; line-height: 1.65; }
         .legal a { color: var(--brand-600); font-weight: 600; }
         .legal ul { margin: 8px 0 8px 20px; }
@@ -43,6 +44,22 @@
         .legal-note { margin-top: 26px; padding: 14px 16px; border-radius: 12px;
                       background: rgba(15,107,71,.07); border: 1px solid var(--line); font-size: 14px; }
         .legal-back { display: inline-block; margin-top: 30px; }
+
+        /* Tabelas de transparência (dado → finalidade → base legal) — rolam no celular */
+        .legal-table { overflow-x: auto; margin: 12px 0 18px; border: 1px solid var(--line); border-radius: 12px; }
+        .legal-table table { width: 100%; border-collapse: collapse; min-width: 520px; }
+        .legal-table th, .legal-table td { text-align: left; padding: 10px 12px; font-size: 14px;
+                                           line-height: 1.5; border-bottom: 1px solid var(--line); color: var(--ink); }
+        .legal-table th { font: 600 13px/1.4 var(--font-head); color: var(--ink-2);
+                          background: rgba(15,107,71,.05); text-transform: uppercase; letter-spacing: .03em; }
+        .legal-table tr:last-child td { border-bottom: 0; }
+
+        /* Sumário no topo dos documentos longos */
+        .legal-toc { margin: 0 0 26px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); }
+        .legal-toc strong { display: block; font: 600 13px/1.4 var(--font-head); color: var(--ink-2);
+                            text-transform: uppercase; letter-spacing: .03em; margin-bottom: 8px; }
+        .legal-toc ol { margin: 0 0 0 20px; }
+        .legal-toc li { font-size: 14px; margin-bottom: 3px; }
     </style>
 </head>
 <body>

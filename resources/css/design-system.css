@@ -328,10 +328,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .cashflow-svg { width: 100%; height: 230px; display: block; overflow: visible; }
 .cf-grid line { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 5; }
 .cf-axis { fill: var(--ink-3); font-size: 11px; font-weight: 500; }
-.cf-area { transition: opacity .3s; }
-.cf-line { fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
-.cf-point { transition: r .15s var(--ease); cursor: pointer; }
-.cf-guide { stroke: var(--brand-300); stroke-width: 1.4; stroke-dasharray: 4 4; opacity: 0; transition: opacity .15s; }
+/* Fluxo de caixa em BARRAS agrupadas (receitas x despesas por período) */
+.cf-baseline { stroke: var(--line-2, var(--line)); stroke-width: 1.2; }
+.cf-bar { transition: opacity .15s var(--ease); cursor: pointer; }
+.cf-hover { fill: var(--surface-2); transition: opacity .15s var(--ease); }
+[data-theme="dark"] .cf-hover { fill: rgba(255,255,255,.05); }
 .cf-tip {
   position: absolute; pointer-events: none; opacity: 0; transform: translate(-50%, -8px) scale(.96);
   transition: opacity .15s var(--ease), transform .15s var(--ease);
@@ -350,8 +351,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .donut-wrap { display: flex; align-items: center; gap: 6px; }
 .donut-svg { width: 132px; height: 132px; flex: none; }
 .donut-seg { transition: stroke-width .25s var(--ease), opacity .25s; cursor: pointer; transform-origin: center; }
-.donut-center .dc-amt { font-family: var(--font-head); font-weight: 700; font-size: 22px; fill: var(--ink); }
-.donut-center .dc-lbl { font-size: 11px; fill: var(--ink-3); font-weight: 500; }
+/* 17px (era 22): "R$ 1,6k" a 22px media ~88px e estourava o furo do donut (~84px) */
+.donut-center .dc-amt { font-family: var(--font-head); font-weight: 700; font-size: 17px; fill: var(--ink); }
+.donut-center .dc-lbl { font-size: 10px; fill: var(--ink-3); font-weight: 500; }
 .cat-legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cat-row {
   display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px;
@@ -639,6 +641,28 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .dep-card:hover .dep-card-chev { transform: translateX(2px); }
 .collapsed .dep-card-txt, .collapsed .dep-card-chev { opacity: 0; pointer-events: none; }
 .collapsed .dep-card { justify-content: center; }
+
+/* ---- Sidebar recolhida: itens viram QUADRADOS centralizados ----
+   Os textos escondidos usavam só `opacity: 0` — continuavam ocupando espaço no
+   flex, então o conteúdo transbordava do item (sobreposição) e a caixa ficava
+   um retângulo achatado bem maior que o ícone. Aqui zeramos a largura deles e
+   damos ao item uma caixa quadrada. */
+.collapsed .nav-label,
+.collapsed .side-foot-text,
+.collapsed .dep-card-txt,
+.collapsed .brand-name { width: 0; margin: 0; overflow: hidden; }
+.collapsed .side-foot .chev,
+.collapsed .dep-card-chev { width: 0; margin: 0; overflow: hidden; }
+
+.collapsed .nav-item,
+.collapsed .dep-card,
+.collapsed .side-foot {
+  width: 46px; height: 46px; min-height: 0;
+  padding: 0; gap: 0; margin-left: auto; margin-right: auto;
+  justify-content: center; border-radius: 14px;
+}
+/* A barrinha do item ativo acompanha o novo recuo (item centrado em 52px úteis) */
+.collapsed .nav-item.active::before { left: -19px; }
 
 /* ============ Password input with toggle ============ */
 .input-pw { position: relative; display: flex; align-items: center; }
@@ -939,6 +963,15 @@ body.pjax-loading #content { opacity: .5; }
   /* App real: o drawer mobile mostra tudo mesmo com "sm-collapsed" persistido */
   .collapsed .side-foot .chev, .collapsed .dep-card-txt, .collapsed .dep-card-chev { opacity: 1; pointer-events: auto; }
   .collapsed .dep-card { justify-content: flex-start; }
+  /* Desfaz o "quadradinho" do recolhido: no drawer os itens são largos de novo */
+  .collapsed .nav-label, .collapsed .side-foot-text, .collapsed .dep-card-txt,
+  .collapsed .brand-name, .collapsed .side-foot .chev, .collapsed .dep-card-chev {
+    width: auto; overflow: visible;
+  }
+  .collapsed .nav-item { width: auto; height: auto; padding: 11px 12px; gap: 13px; justify-content: flex-start; }
+  .collapsed .dep-card { width: auto; height: auto; padding: 10px 11px; gap: 11px; }
+  .collapsed .side-foot { width: 100%; height: auto; padding: 8px; gap: 11px; justify-content: flex-start; }
+  .collapsed .nav-item.active::before { left: -16px; }
   .collapsed .side-balance {
     opacity: 1; pointer-events: auto; height: auto;
     margin: 16px 6px 4px; padding: 15px 16px; border: 1px solid rgba(255,255,255,.1);
