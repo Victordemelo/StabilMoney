@@ -206,8 +206,9 @@
                     </div>
                 </div>
 
-                {{-- Lista compacta: um item por cartão, com a miniatura do banco --}}
-                <div class="cc-list">
+                {{-- Lista compacta: um item por cartão, com a miniatura do banco.
+                     Mostra 2 e rola do 3º em diante (.scroll = barra discreta). --}}
+                <div class="cc-list scroll">
                     @foreach ($cartoes as $c)
                         <div class="cc-item">
                             <span class="cc-thumb">

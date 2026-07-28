@@ -320,9 +320,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .cards-sum b { font-family: var(--font-head); font-size: 17px; font-weight: 800; letter-spacing: -.02em; }
 .cards-sum .sub { display: block; font-size: 11px; color: var(--ink-3); }
 
-/* Lista de cartões: miniatura + nome, gasto, livre, vencimento e melhor compra */
-.cc-list { display: flex; flex-direction: column; gap: 12px; }
-.cc-item { display: flex; align-items: flex-start; gap: 11px; }
+/* Lista de cartões: miniatura + nome, gasto, livre, vencimento e melhor compra.
+   Mostra 2 cartões e rola o restante — mesma ideia das transações recentes.
+   --cc-item-h = altura de um item (miniatura + 3 linhas + barra). */
+.cc-list {
+  display: flex; flex-direction: column; gap: 18px;
+  --cc-item-h: 84px;
+  max-height: calc(var(--cc-item-h) * 2 + 18px); /* 2 itens + 1 gap */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Respiro à direita para a barra de rolagem não colar no valor */
+.cc-list:has(.cc-item:nth-child(3)) { padding-right: 6px; }
+.cc-item { display: flex; align-items: flex-start; gap: 12px; }
 .cc-thumb {
   width: 52px; height: 33px; border-radius: 7px; flex: none; overflow: hidden;
   background: var(--surface-3); display: grid; place-items: center;
@@ -334,10 +344,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .cc-item-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .cc-item-top strong { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cc-item-free { font-family: var(--font-head); font-size: 13.5px; font-weight: 800; flex: none; }
-.cc-item-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
+.cc-item-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
 .cc-item-freelbl { flex: none; }
-.cc-item .dp-bar { margin: 7px 0 6px; }
-.cc-item-days { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--ink-3); }
+.cc-item .dp-bar { margin: 9px 0 8px; }
+.cc-item-days { display: flex; flex-wrap: wrap; gap: 5px 14px; font-size: 11px; color: var(--ink-3); }
 .cc-item-days span { display: inline-flex; align-items: center; gap: 4px; }
 .cc-item-days svg { width: 12px; height: 12px; stroke-width: 1.9; flex: none; }
 
