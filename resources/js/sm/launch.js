@@ -4,6 +4,8 @@
 // spinner no "Salvar"; sucesso recarrega a página (via pjax, se houver) para
 // refletir a transação; erro treme o modal e mostra a mensagem. Sem reload no erro.
 
+import { pedirFonte } from './funding';
+
 export function initLaunch() {
     const modal = document.getElementById('launchModal');
     if (!modal) return;
@@ -60,14 +62,17 @@ export function initLaunch() {
 
     if (!form) return; // estado "crie uma conta primeiro" não tem form
 
-    // Type-toggle: cor da pílula/accent + filtro das categorias pelo tipo (escopado ao modal).
+    // Type-toggle: cor da pílula/accent + filtro das categorias E das contas
+    // pelo tipo escolhido (escopado ao modal).
     const radios = form.querySelectorAll('input[name="type"]');
     const select = form.querySelector('#lm-category');
+    const contaSel = form.querySelector('#lm-account');
     const applyType = () => {
         const marcado = form.querySelector('input[name="type"]:checked');
         const tipo = marcado ? marcado.value : 'expense';
         form.dataset.type = tipo;
         if (card) card.dataset.type = tipo;
+
         if (select) {
             select.querySelectorAll('optgroup').forEach((g) => {
                 const ativo = g.dataset.type === tipo;
@@ -79,9 +84,40 @@ export function initLaunch() {
                 });
             });
         }
+
+        // RECEITA não entra em cartão de crédito — some as opções de cartão e,
+        // se uma delas estava escolhida, cai na primeira conta válida.
+        if (contaSel) {
+            let trocar = false;
+            contaSel.querySelectorAll('option').forEach((opt) => {
+                const soDespesa = opt.dataset.card === '1' && tipo === 'income';
+                opt.hidden = soDespesa;
+                opt.disabled = soDespesa;
+                if (soDespesa && opt.selected) trocar = true;
+            });
+            if (trocar) {
+                const valida = Array.from(contaSel.options).find((o) => !o.disabled);
+                if (valida) contaSel.value = valida.value;
+            }
+        }
     };
     radios.forEach((r) => r.addEventListener('change', applyType));
     applyType();
+
+    // Idempotência: o mesmo lançamento pode ser reenviado (duplo toque, retry de
+    // rede, confirmação da escolha de fonte). O servidor deduplica por
+    // client_uuid, então geramos um por ABERTURA do modal e só trocamos depois
+    // de um envio bem-sucedido.
+    let clientUuid = novoUuid();
+
+    function novoUuid() {
+        if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+        // Fallback p/ navegador sem randomUUID (contexto não-seguro).
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = (Math.random() * 16) | 0;
+            return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+        });
+    }
 
     // Envio por AJAX.
     form.addEventListener('submit', async (e) => {
@@ -89,20 +125,46 @@ export function initLaunch() {
         hideError();
         setSaving(true);
 
+        const payload = new FormData(form);
+        payload.set('client_uuid', clientUuid);
+
+        const enviar = () => fetch(form.action, {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: payload,
+        });
+
         let resp;
         try {
-            resp = await fetch(form.action, {
-                method: 'POST',
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                body: new FormData(form),
-            });
+            resp = await enviar();
         } catch (_) {
             setSaving(false);
             showError('Sem conexão. Verifique sua internet e tente de novo.');
             return;
         }
 
+        // 409 = o saldo não cobre, mas há fonte. Pergunta e reenvia a MESMA
+        // requisição (mesmo client_uuid) com a escolha do usuário.
+        if (resp.status === 409) {
+            setSaving(false);
+            const dados = await resp.json().catch(() => ({}));
+            const escolha = await pedirFonte(dados.fonte);
+            if (!escolha) return; // cancelou
+
+            Object.entries(escolha).forEach(([k, v]) => payload.set(k, v));
+            setSaving(true);
+            try {
+                resp = await enviar();
+            } catch (_) {
+                setSaving(false);
+                showError('Sem conexão. Verifique sua internet e tente de novo.');
+                return;
+            }
+        }
+
         if (resp.ok) {
+            // Salvou: o próximo lançamento é outro, então renova a chave.
+            clientUuid = novoUuid();
             // Transação criada — recarrega a página atual p/ refletir os novos dados.
             if (typeof window.smPjaxReload === 'function') window.smPjaxReload();
             else window.location.reload();

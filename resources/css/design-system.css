@@ -374,13 +374,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .cf-bar { transition: opacity .15s var(--ease); cursor: pointer; }
 .cf-hover { fill: var(--surface-2); transition: opacity .15s var(--ease); }
 [data-theme="dark"] .cf-hover { fill: rgba(255,255,255,.05); }
+/* O tooltip fica sempre ABAIXO do eixo (o JS ancora na base): ancorado no topo
+   da barra, ele cobria o gráfico justamente quando a barra era alta. */
 .cf-tip {
-  position: absolute; pointer-events: none; opacity: 0; transform: translate(-50%, -8px) scale(.96);
+  position: absolute; pointer-events: none; opacity: 0; transform: translate(-50%, 4px) scale(.96);
   transition: opacity .15s var(--ease), transform .15s var(--ease);
   background: var(--brand-900); color: #fff; border-radius: 12px; padding: 11px 13px;
   font-size: 12px; box-shadow: var(--shadow-lg); min-width: 150px; z-index: 5;
 }
-.cf-tip.show { opacity: 1; transform: translate(-50%, -12px) scale(1); }
+.cf-tip.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
 .cf-tip .tt { font-size: 11px; color: var(--brand-300); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 7px; }
 .cf-tip .row { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
 .cf-tip .row .d { width: 8px; height: 8px; border-radius: 50%; }
@@ -1127,6 +1129,9 @@ body.pjax-loading #content { opacity: .5; }
 /* Valores negativos fora dos stat cards (saldo em conta, sidebar). */
 .acct-balance.neg, .cc-balance.neg { color: var(--neg); }
 .sb-subline.neg { color: #FFB4A6; }
+
+/* Badge do sino em VERMELHO quando há alguma conta vencida (não só "tem aviso"). */
+.notif-badge.late { background: var(--neg); }
 
 /* ----- Modal "De onde sai esse dinheiro?" (escolha da fonte) ----- */
 .fonte-lista { display: grid; gap: 10px; }

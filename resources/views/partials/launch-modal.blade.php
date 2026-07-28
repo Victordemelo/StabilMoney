@@ -70,17 +70,23 @@
 
                     <div class="form-row">
                         <div class="field">
-                            <label for="lm-account">Conta</label>
+                            <label for="lm-account">Onde</label>
+                            {{-- data-card marca os cartões de crédito: em RECEITA eles somem
+                                 do select (não se recebe dinheiro num cartão de crédito). --}}
                             <select class="input" id="lm-account" name="account_id" required>
                                 @foreach ($lmAccounts as $conta)
-                                    <option value="{{ $conta->id }}">{{ $conta->name }}</option>
+                                    {{-- $lmAccounts vem de Account::paymentOptions() e é Fluent:
+                                         `isCard` é PROPRIEDADE, não método. Chamar isCard() aqui
+                                         cairia no __call do Fluent, que devolve $this (truthy) e
+                                         marcaria TODA conta como cartão. --}}
+                                    <option value="{{ $conta->id }}" data-card="{{ $conta->isCard ? '1' : '0' }}">{{ $conta->name }}</option>
                                 @endforeach
                             </select>
                         </div>
                         <div class="field">
                             <label for="lm-category">Categoria</label>
                             <select class="input" id="lm-category" name="category_id">
-                                <option value="">Sem categoria</option>
+                                <option value="">Selecione a categoria</option>
                                 <optgroup label="Receitas" data-type="income">
                                     @foreach ($lmCategories->where('type', 'income') as $categoria)
                                         <option value="{{ $categoria->id }}" data-type="income">{{ trim(($categoria->icon ?? '') . ' ' . $categoria->name) }}</option>

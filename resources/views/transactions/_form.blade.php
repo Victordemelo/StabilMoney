@@ -68,10 +68,12 @@
             <div class="form-row">
                 {{-- Conta --}}
                 <div class="field">
-                    <label for="account_id">Conta</label>
+                    <label for="account_id">Onde</label>
+                    {{-- data-card marca os cartões de crédito: em RECEITA eles somem
+                         do select (não se recebe dinheiro num cartão de crédito). --}}
                     <select class="input @error('account_id') input-error @enderror" id="account_id" name="account_id" required>
                         @foreach ($accounts as $conta)
-                            <option value="{{ $conta->id }}" @selected((int) old('account_id', $transaction->account_id ?? 0) === $conta->id)>
+                            <option value="{{ $conta->id }}" data-card="{{ $conta->isCard() ? '1' : '0' }}" @selected((int) old('account_id', $transaction->account_id ?? 0) === $conta->id)>
                                 {{ trim(($conta->icon ?? '') . ' ' . $conta->name) }}
                             </option>
                         @endforeach
@@ -83,7 +85,7 @@
                 <div class="field">
                     <label for="category_id">Categoria</label>
                     <select class="input @error('category_id') input-error @enderror" id="category_id" name="category_id">
-                        <option value="">Sem categoria</option>
+                        <option value="">Selecione a categoria</option>
                         <optgroup label="Receitas" data-type="income">
                             @foreach ($categories->where('type', 'income') as $categoria)
                                 <option value="{{ $categoria->id }}" data-type="income" @selected((int) old('category_id', $transaction->category_id ?? 0) === $categoria->id)>
@@ -147,6 +149,7 @@
         var radios = form.querySelectorAll('input[name="type"]');
         if (!radios.length) return;
         var select = form.querySelector('#category_id');
+        var contaSel = form.querySelector('#account_id');
 
         function aplicar() {
             var marcado = document.querySelector('input[name="type"]:checked');
@@ -163,10 +166,26 @@
                     grupo.querySelectorAll('option').forEach(function (opt) {
                         opt.hidden = !ativo;
                         opt.disabled = !ativo;
-                        // Se a categoria selecionada é do outro tipo, volta para "Sem categoria"
+                        // Se a categoria selecionada é do outro tipo, limpa a escolha
                         if (!ativo && opt.selected) select.value = '';
                     });
                 });
+            }
+
+            // RECEITA não entra em cartão de crédito: some as opções de cartão
+            // e, se uma delas estava escolhida, cai na primeira conta válida.
+            if (contaSel) {
+                var trocar = false;
+                contaSel.querySelectorAll('option').forEach(function (opt) {
+                    var soDespesa = opt.dataset.card === '1' && tipo === 'income';
+                    opt.hidden = soDespesa;
+                    opt.disabled = soDespesa;
+                    if (soDespesa && opt.selected) trocar = true;
+                });
+                if (trocar) {
+                    var valida = Array.prototype.find.call(contaSel.options, function (o) { return !o.disabled; });
+                    if (valida) contaSel.value = valida.value;
+                }
             }
         }
 

@@ -148,7 +148,10 @@ export function bindCashflowHover(wrap, svg, tip, getState) {
             `<div class="row"><span class="d" style="background:#F0A93B"></span><span class="n">Despesas</span><span class="v">R$ ${BRL(st.p.despesas[i])}</span></div>`;
         const px = st.centerAt(i) / W * rect.width;
         tip.style.left = px + 'px';
-        tip.style.top = (st.yAt(Math.max(st.p.receitas[i], st.p.despesas[i])) / H * rect.height) + 'px';
+        // SEMPRE abaixo do eixo: ancorado no topo da barra, o tooltip cobria o
+        // próprio gráfico quando a barra era alta. Aqui ele senta na linha de
+        // base, sobre a faixa dos rótulos, e nunca esconde as barras.
+        tip.style.top = ((H - PAD_B) / H * rect.height) + 'px';
         tip.classList.add('show');
     }
     function leave() {
