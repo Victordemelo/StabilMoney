@@ -55,7 +55,7 @@ class DependentController extends Controller
         $dependent->password = Hash::make($data['password']);
 
         if ($request->hasFile('avatar')) {
-            $dependent->avatar_path = $request->file('avatar')->store('avatars', 'public');
+            $dependent->storeAvatar($request->file('avatar')); // sem metadados (EXIF/GPS)
         }
 
         $dependent->save();
@@ -79,8 +79,8 @@ class DependentController extends Controller
         }
 
         if ($request->hasFile('avatar')) {
-            $dependent->purgeStoredAvatar(); // não deixa a foto antiga órfã no disco
-            $dependent->avatar_path = $request->file('avatar')->store('avatars', 'public');
+            // Apaga a foto antiga e grava a nova sem metadados (EXIF/GPS).
+            $dependent->storeAvatar($request->file('avatar'));
         }
 
         $dependent->save();

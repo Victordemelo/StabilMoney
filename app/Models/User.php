@@ -4,12 +4,15 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\BrowserSessions;
+use App\Support\ImageMetadata;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
@@ -101,6 +104,28 @@ class User extends Authenticatable
         if ($this->avatar_path) {
             Storage::disk('public')->delete($this->avatar_path);
         }
+    }
+
+    /**
+     * Guarda a foto de perfil: apaga a anterior, REMOVE OS METADADOS e grava.
+     *
+     * A limpeza de metadados existe porque estes arquivos vão para o disco `public`,
+     * servidos sem autenticação — foto de celular costuma trazer GPS no EXIF. O nome é
+     * aleatório e a extensão vem do MIME real (nunca do nome enviado pelo cliente),
+     * então não há path traversal nem `.php` disfarçado.
+     *
+     * Não persiste: quem chama decide quando dar `save()`.
+     */
+    public function storeAvatar(UploadedFile $arquivo): void
+    {
+        $this->purgeStoredAvatar();
+
+        $limpo = ImageMetadata::strip((string) file_get_contents($arquivo->getRealPath()));
+        $caminho = 'avatars/'.Str::random(40).'.'.$arquivo->extension();
+
+        Storage::disk('public')->put($caminho, $limpo);
+
+        $this->avatar_path = $caminho;
     }
 
     public function accounts(): HasMany

@@ -39,6 +39,20 @@
         @endif
     </div>
 
+    {{-- Confirmação de senha: exigida pelo servidor SÓ quando o e-mail muda (o e-mail é
+         o que recupera a conta, então trocá-lo sem senha permitiria tomada de conta a
+         partir de uma sessão sequestrada). Fica sempre visível de propósito — revelar por
+         JS deixaria quem não tem JS sem conseguir trocar o e-mail. --}}
+    <div class="field">
+        <label for="current_password">Senha atual</label>
+        <input id="current_password" class="input" type="password" name="current_password"
+               autocomplete="current-password" />
+        <span class="field-hint">Necessária apenas se você alterar o e-mail.</span>
+        @error('current_password')
+            <p class="field-error">{{ $message }}</p>
+        @enderror
+    </div>
+
     <div>
         <button type="submit" class="btn-primary">Salvar</button>
     </div>

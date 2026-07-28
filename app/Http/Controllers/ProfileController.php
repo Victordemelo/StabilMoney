@@ -27,16 +27,17 @@ class ProfileController extends Controller
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
         $user = $request->user();
-        // 'avatar' é arquivo, tratado à parte — não vai no fill().
-        $user->fill($request->safe()->except('avatar'));
+        // 'avatar' é arquivo e 'current_password' é só confirmação — nenhum dos dois
+        // é coluna do model, então ficam fora do fill().
+        $user->fill($request->safe()->except(['avatar', 'current_password']));
 
         if ($user->isDirty('email')) {
             $user->email_verified_at = null;
         }
 
         if ($request->hasFile('avatar')) {
-            $user->purgeStoredAvatar(); // não deixa a foto antiga órfã no disco
-            $user->avatar_path = $request->file('avatar')->store('avatars', 'public');
+            // Apaga a foto antiga e grava a nova sem metadados (EXIF/GPS).
+            $user->storeAvatar($request->file('avatar'));
         }
 
         $user->save();

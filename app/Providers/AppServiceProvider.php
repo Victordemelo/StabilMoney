@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -35,6 +36,7 @@ class AppServiceProvider extends ServiceProvider
         Carbon::setLocale(config('app.locale'));
 
         $this->configurarLimitesDeTaxa();
+        $this->configurarPoliticaDeSenha();
 
         // @brl($valor) — dinheiro no padrão brasileiro, com o sinal ANTES do
         // símbolo ("−R$ 1.234,56"). number_format sozinho produzia "R$ -1.234,56".
@@ -70,6 +72,32 @@ class AppServiceProvider extends ServiceProvider
                     : collect(),
                 'lmFamily' => $ownerId ? User::familyOf($ownerId)->get() : collect(),
             ]);
+        });
+    }
+
+    /**
+     * Política de senha de TODO o app.
+     *
+     * `Password::defaults()` é usado no registro, na troca de senha, no reset e no
+     * cadastro de dependente — mas nunca havia sido configurado, então valia o default
+     * do framework: `min(8)` e nada mais. "12345678" era aceito.
+     *
+     * A escolha aqui segue a orientação atual do NIST (SP 800-63B): comprimento mínimo
+     * + conferência contra vazamentos, SEM exigir composição (maiúscula/símbolo). Regra
+     * de composição empurra a pessoa para "Senha@123" — que satisfaz todos os requisitos
+     * e está em qualquer lista de ataque. `uncompromised()` barra justamente essas.
+     *
+     * `uncompromised()` consulta a API do Pwned Passwords por k-anonimato: envia só os
+     * 5 primeiros caracteres do SHA-1 da senha, nunca a senha nem o hash completo. Se a
+     * rede falhar, a regra passa (fail-open) — por isso ela reforça, não substitui, o
+     * mínimo de tamanho. Desligada em teste para a suíte não depender de rede.
+     */
+    protected function configurarPoliticaDeSenha(): void
+    {
+        Password::defaults(function () {
+            $regra = Password::min(8);
+
+            return $this->app->runningUnitTests() ? $regra : $regra->uncompromised();
         });
     }
 

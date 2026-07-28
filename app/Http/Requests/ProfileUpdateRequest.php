@@ -28,7 +28,24 @@ class ProfileUpdateRequest extends FormRequest
             ],
             'phone' => ['nullable', 'string', 'max:30'],
             'avatar' => ['nullable', 'image', 'max:2048'],
+            // Senha atual exigida SÓ quando o e-mail muda. O e-mail é o que recupera a
+            // conta: quem consegue trocá-lo (sessão sequestrada, aparelho aberto) pedia
+            // "esqueci a senha" e tomava a conta em definitivo. Trocar nome, telefone ou
+            // foto não tem esse poder, então não faz sentido pedir senha para isso.
+            'current_password' => [
+                $this->trocandoEmail() ? 'required' : 'nullable',
+                'current_password',
+            ],
         ];
+    }
+
+    /** O e-mail enviado é diferente do que está na conta? */
+    protected function trocandoEmail(): bool
+    {
+        $novo = $this->input('email');
+
+        return is_string($novo)
+            && mb_strtolower(trim($novo)) !== mb_strtolower((string) $this->user()->email);
     }
 
     /**
@@ -48,6 +65,8 @@ class ProfileUpdateRequest extends FormRequest
             'email.unique' => 'Este e-mail já está em uso por outra conta.',
             'avatar.image' => 'A foto precisa ser uma imagem.',
             'avatar.max' => 'A foto pode ter no máximo 2 MB.',
+            'current_password.required' => 'Para trocar o e-mail, confirme sua senha atual.',
+            'current_password.current_password' => 'A senha informada está incorreta.',
         ];
     }
 
@@ -61,6 +80,7 @@ class ProfileUpdateRequest extends FormRequest
         return [
             'name' => 'nome',
             'email' => 'e-mail',
+            'current_password' => 'senha atual',
         ];
     }
 }

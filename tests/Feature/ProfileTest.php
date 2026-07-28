@@ -45,6 +45,10 @@ class ProfileTest extends TestCase
                 'name' => 'Test User',
                 'email' => 'test@example.com',
                 'phone' => '(11) 98888-7777',
+                // Trocar o e-mail passou a exigir a senha atual (pentest onda 2):
+                // sem isso, uma sessão sequestrada trocava o e-mail e tomava a conta
+                // via "esqueci a senha". Ver SecurityHardeningWave2Test.
+                'current_password' => 'password',
             ]);
 
         $response
