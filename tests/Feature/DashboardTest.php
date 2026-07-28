@@ -224,8 +224,29 @@ class DashboardTest extends TestCase
         // E os totais da carteira
         $this->assertSame(750.0, $d['cartoesTotais']['gasto']);
         $this->assertSame(6250.0, $d['cartoesTotais']['disponivel']);
+        $this->assertSame(7000.0, $d['cartoesTotais']['limite']);
+
+        // Melhor dia de compra = dia seguinte ao fechamento (fecha 10 => 11):
+        // comprando nele, a despesa cai só na fatura seguinte.
+        $this->assertSame(11, $nu['melhorDia']);
+        $this->assertSame(10, $nu['fechamento']);
 
         \Illuminate\Support\Carbon::setTestNow();
+    }
+
+    public function test_best_purchase_day_wraps_when_closing_is_at_the_end(): void
+    {
+        $user = User::factory()->create();
+        // Fechamento no dia 28 (limite do cadastro): o dia seguinte seria 29,
+        // que não existe em fevereiro — então vira dia 1.
+        Account::factory()->for($user)->create([
+            'type' => 'credit_card', 'name' => 'Fim do mês', 'bank' => 'itau',
+            'credit_limit' => 1000, 'closing_day' => 28, 'due_day' => 5,
+        ]);
+
+        $d = app(\App\Services\DashboardService::class)->build($user->id);
+
+        $this->assertSame(1, $d['cartoes'][0]['melhorDia']);
     }
 
     public function test_page_title_uses_section(): void

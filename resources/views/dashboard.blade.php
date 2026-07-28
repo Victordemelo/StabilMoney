@@ -195,58 +195,55 @@
                 {{-- Totais da carteira de cartões --}}
                 <div class="cards-sum">
                     <div>
-                        <span class="lbl">Gasto nas faturas</span>
+                        <span class="lbl">Gasto total das faturas</span>
                         <b>R$ {{ $money($cartoesTotais['gasto']) }}</b>
                     </div>
                     <div class="right">
-                        <span class="lbl">Limite livre</span>
+                        <span class="lbl">Limite total livre</span>
                         <b>R$ {{ $money($cartoesTotais['disponivel']) }}</b>
+                        <span class="sub">de R$ {{ $money($cartoesTotais['limite']) }}</span>
                     </div>
                 </div>
 
-                {{-- Cartão em destaque (troca ao escolher na lista abaixo) --}}
-                @foreach ($cartoes as $i => $c)
-                    <div class="cc-panel" data-card-panel="{{ $c['id'] }}" @if ($i > 0) hidden @endif>
-                        @if ($c['imagem'])
-                            <div class="bankcard"><img src="{{ $c['imagem'] }}" alt="{{ $c['banco'] }}" loading="lazy"></div>
-                        @else
-                            <div class="cc">
-                                <div class="cc-top">
-                                    <span class="net">StabilMoney</span>
-                                    <img class="cc-mark" src="{{ asset('assets/stabilmoney-mark.png') }}" alt="StabilMoney" />
+                {{-- Lista compacta: um item por cartão, com a miniatura do banco --}}
+                <div class="cc-list">
+                    @foreach ($cartoes as $c)
+                        <div class="cc-item">
+                            <span class="cc-thumb">
+                                @if ($c['imagem'])
+                                    <img src="{{ $c['imagem'] }}" alt="{{ $c['banco'] }}" loading="lazy">
+                                @else
+                                    {{ $initials($c['nome']) }}
+                                @endif
+                            </span>
+                            <div class="cc-item-body">
+                                <div class="cc-item-top">
+                                    <strong>{{ $c['nome'] }}</strong>
+                                    <b class="cc-item-free">R$ {{ $money($c['disponivel']) }}</b>
                                 </div>
-                                <div class="cc-chip"></div>
-                                <div class="cc-num">{{ $c['nome'] }}</div>
+                                <div class="cc-item-line">
+                                    <span>Gasto R$ {{ $money($c['gasto']) }}</span>
+                                    <span class="cc-item-freelbl">livre</span>
+                                </div>
+                                <div class="dp-bar"><div class="dp-bar-fill {{ $c['usadoPct'] >= 90 ? 'over' : '' }}" style="width:{{ $c['usadoPct'] }}%"></div></div>
+                                <div class="cc-item-days">
+                                    @if ($c['vencimento'])
+                                        <span title="Dia em que a fatura precisa estar paga">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M8 2v3M16 2v3M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
+                                            Vence {{ $c['vencimento'] }}
+                                        </span>
+                                    @endif
+                                    @if ($c['melhorDia'])
+                                        <span title="Comprando a partir deste dia, a despesa cai só na fatura seguinte — é o maior prazo para pagar.">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l2.4 5.3 5.6.6-4.2 3.9 1.2 5.6L12 15.6 6.9 18.4l1.2-5.6L4 8.9l5.6-.6z"/></svg>
+                                            Melhor compra dia {{ $c['melhorDia'] }}
+                                        </span>
+                                    @endif
+                                </div>
                             </div>
-                        @endif
-                        <div class="cc-panel-name">
-                            {{ $c['nome'] }}
-                            @if ($c['vencimento'])<span>· vence {{ $c['vencimento'] }}</span>@endif
                         </div>
-                        <div class="cc-panel-nums">
-                            <div><span class="lbl">Gasto</span><b>R$ {{ $money($c['gasto']) }}</b></div>
-                            <div class="right"><span class="lbl">Limite disponível</span><b>R$ {{ $money($c['disponivel']) }}</b></div>
-                        </div>
-                        <div class="dp-bar"><div class="dp-bar-fill {{ $c['usadoPct'] >= 90 ? 'over' : '' }}" style="width:{{ $c['usadoPct'] }}%"></div></div>
-                        <div class="cc-panel-sub">{{ $c['usadoPct'] }}% do limite de R$ {{ $money($c['limite']) }}</div>
-                    </div>
-                @endforeach
-
-                {{-- Todos os cartões: clicar troca o destaque acima --}}
-                @if (count($cartoes) > 1)
-                    <div class="cc-picker">
-                        @foreach ($cartoes as $i => $c)
-                            <button class="acct {{ $i === 0 ? 'is-on' : '' }}" type="button" data-card-pick="{{ $c['id'] }}">
-                                <div class="ab" style="background:{{ $abColors[$loop->index % count($abColors)] }}">{{ $initials($c['nome']) }}</div>
-                                <div>
-                                    <div class="an">{{ $c['nome'] }}</div>
-                                    <div class="at">Gasto R$ {{ $money($c['gasto']) }}</div>
-                                </div>
-                                <div class="av">R$ {{ $money($c['disponivel']) }}</div>
-                            </button>
-                        @endforeach
-                    </div>
-                @endif
+                    @endforeach
+                </div>
             @elseif ($accounts->isEmpty())
                 <div class="empty-state">
                     <div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg></div>

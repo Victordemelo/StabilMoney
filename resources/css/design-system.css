@@ -313,27 +313,33 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 [data-theme="dark"] .trend.down { background: rgba(229,96,77,.14); }
 .trend svg { width: 13px; height: 13px; stroke-width: 2.4; }
 /* ---- Card "Meus cartões" do dashboard ---- */
-/* Totais da carteira (gasto nas faturas x limite livre) */
+/* Totais da carteira (gasto total das faturas x limite total livre) */
 .cards-sum { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .cards-sum .right { text-align: right; }
 .cards-sum .lbl { display: block; font-size: 11.5px; color: var(--ink-3); font-weight: 600; }
 .cards-sum b { font-family: var(--font-head); font-size: 17px; font-weight: 800; letter-spacing: -.02em; }
+.cards-sum .sub { display: block; font-size: 11px; color: var(--ink-3); }
 
-/* Cartão em destaque */
-.cc-panel-name { margin-top: 12px; font-size: 14px; font-weight: 700; }
-.cc-panel-name span { font-weight: 500; color: var(--ink-3); font-size: 12px; }
-.cc-panel-nums { display: flex; justify-content: space-between; gap: 12px; margin: 10px 0 8px; }
-.cc-panel-nums .right { text-align: right; }
-.cc-panel-nums .lbl { display: block; font-size: 11.5px; color: var(--ink-3); font-weight: 600; }
-.cc-panel-nums b { font-family: var(--font-head); font-size: 15px; font-weight: 800; }
-.cc-panel-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 6px; }
-
-/* Lista de cartões (clicável quando há mais de um) */
-.cc-picker { margin-top: 14px; display: flex; flex-direction: column; gap: 2px; }
-.cc-picker button.acct { width: 100%; text-align: left; background: none; border: none; cursor: pointer; font: inherit; }
-.cc-picker button.acct:hover { background: var(--surface-2); }
-.cc-picker button.acct.is-on { background: var(--brand-50); }
-[data-theme="dark"] .cc-picker button.acct.is-on { background: rgba(28,154,112,.12); }
+/* Lista de cartões: miniatura + nome, gasto, livre, vencimento e melhor compra */
+.cc-list { display: flex; flex-direction: column; gap: 12px; }
+.cc-item { display: flex; align-items: flex-start; gap: 11px; }
+.cc-thumb {
+  width: 52px; height: 33px; border-radius: 7px; flex: none; overflow: hidden;
+  background: var(--surface-3); display: grid; place-items: center;
+  font-family: var(--font-head); font-size: 11px; font-weight: 800; color: var(--ink-3);
+  box-shadow: var(--shadow-sm);
+}
+.cc-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cc-item-body { flex: 1; min-width: 0; }
+.cc-item-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cc-item-top strong { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-item-free { font-family: var(--font-head); font-size: 13.5px; font-weight: 800; flex: none; }
+.cc-item-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
+.cc-item-freelbl { flex: none; }
+.cc-item .dp-bar { margin: 7px 0 6px; }
+.cc-item-days { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--ink-3); }
+.cc-item-days span { display: inline-flex; align-items: center; gap: 4px; }
+.cc-item-days svg { width: 12px; height: 12px; stroke-width: 1.9; flex: none; }
 
 /* KPI compacto dos cards do dashboard (metas, faturas, investimentos) */
 .dash-kpi-val { font-family: var(--font-head); font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin-top: 3px; }

@@ -235,10 +235,14 @@ class DashboardService
      * contagem e os 3 principais itens.
      */
     /**
-     * Painel "Meus cartões": um item por cartão de CRÉDITO com o que já foi
-     * gasto (fatura do ciclo aberto) e o limite ainda disponível, mais os
-     * totais da carteira. O card do dashboard mostra o cartão escolhido e
-     * lista todos — antes só aparecia a primeira conta.
+     * Painel "Meus cartões": um item por cartão de CRÉDITO, em lista compacta,
+     * com nome, gasto da fatura, limite ainda livre, dia de vencimento e o
+     * MELHOR DIA DE COMPRA. Mais os totais da carteira.
+     *
+     * Melhor dia de compra = o dia seguinte ao fechamento: comprando nele, a
+     * despesa cai só na fatura seguinte, dando o maior prazo possível para
+     * pagar. Como o cadastro limita o fechamento a 1..28, o dia seguinte é
+     * sempre válido (29 vira 1, para não cair num dia inexistente em fevereiro).
      *
      * @return array{cartoes: list<array<string, mixed>>, cartoesTotais: array<string, float>}
      */
@@ -248,6 +252,9 @@ class DashboardService
             $limite = (float) $c->credit_limit;
             $disponivel = $c->availableLimitDisplay;
             $usado = max(0.0, round($limite - $disponivel, 2));
+
+            $fechamento = (int) $c->closing_day;
+            $melhorDia = $fechamento > 0 ? ($fechamento >= 28 ? 1 : $fechamento + 1) : null;
 
             return [
                 'id' => $c->id,
@@ -259,6 +266,8 @@ class DashboardService
                 'disponivel' => $disponivel,
                 'usadoPct' => $limite > 0 ? (int) min(100, round($usado / $limite * 100)) : 0,
                 'vencimento' => $c->dueDate?->format('d/m'),
+                'fechamento' => $fechamento ?: null,
+                'melhorDia' => $melhorDia,
             ];
         })->all();
 
