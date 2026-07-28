@@ -41,7 +41,7 @@ class DashboardTest extends TestCase
         $user = User::factory()->create();
         $account = Account::factory()->for($user)->create([
             'name' => 'Conta Corrente Principal',
-            'type' => 'bank', // caixa: cartão de crédito ficaria fora do saldo/patrimônio
+            'type' => 'checking', // caixa: cartão de crédito ficaria fora do saldo/patrimônio
             'initial_balance' => 1000,
         ]);
         $category = Category::factory()->expense()->for($user)->create(['name' => 'Alimentação']);
@@ -169,6 +169,26 @@ class DashboardTest extends TestCase
 
         // Sem despesa no mês, o card mostra o estado vazio (não um donut zerado)
         $this->assertSame([], app(\App\Services\DashboardService::class)->build($user->id)['cats']);
+    }
+
+    public function test_saldo_stat_discounts_goals_and_investments(): void
+    {
+        $user = User::factory()->create();
+        $conta = Account::factory()->for($user)->create(['type' => 'checking', 'initial_balance' => 1000]);
+
+        // Guardado numa meta (modelo cofrinho: o dinheiro segue na conta, mas
+        // não está disponível para gastar).
+        $meta = \App\Models\Goal::factory()->for($user)->create();
+        \App\Models\GoalContribution::factory()->for($meta)->for($conta)->create([
+            'type' => 'aporte', 'amount' => 300, 'date' => now()->toDateString(),
+        ]);
+
+        $dashboard = app(\App\Services\DashboardService::class)->build($user->id);
+
+        // O card do topo mostra o DISPONÍVEL (1000 − 300), não o saldo cru.
+        $this->assertSame(700.0, $dashboard['initialStats']['saldo']);
+        // O saldo bruto das contas continua 1000 (o dinheiro não sumiu).
+        $this->assertSame(1000.0, $dashboard['totalBalance']);
     }
 
     public function test_page_title_uses_section(): void

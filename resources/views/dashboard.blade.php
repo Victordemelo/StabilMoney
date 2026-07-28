@@ -18,15 +18,20 @@
     $arrowUp = 'M7 17 17 7M17 7h-7M17 7v7';
     $arrowDown = 'M7 7 17 17M17 17h-7M17 17v-7';
 
-    // Stat cards na mesma ordem/visual do design (ícones exatos do protótipo)
+    // Stat cards na mesma ordem/visual do design (ícones exatos do protótipo).
+    // O `hint` vira title (tooltip) — os números precisam se explicar sozinhos.
     $statCards = [
-        ['key' => 'saldo', 'label' => 'Saldo total', 'g' => 'g1', 'delay' => '.02s',
+        ['key' => 'saldo', 'label' => 'Saldo disponível', 'g' => 'g1', 'delay' => '.02s',
+         'hint' => 'O que você tem nas contas para gastar agora — já descontando o que está guardado em metas e investido. Não depende do período escolhido.',
          'icon' => '<path d="M3 7h18v12H3zM3 7l2-3h14l2 3M16 13h2"/>'],
         ['key' => 'receitas', 'label' => 'Receitas', 'g' => 'g2', 'delay' => '.08s',
+         'hint' => 'Tudo que ENTROU no período selecionado.',
          'icon' => '<path d="M12 19V5M12 5l-6 6M12 5l6 6"/>'],
         ['key' => 'despesas', 'label' => 'Despesas', 'g' => 'g3', 'delay' => '.14s',
+         'hint' => 'Tudo que SAIU no período selecionado.',
          'icon' => '<path d="M12 5v14M12 19l6-6M12 19l-6-6"/>'],
-        ['key' => 'economia', 'label' => 'Economizado', 'g' => 'g4', 'delay' => '.2s',
+        ['key' => 'economia', 'label' => 'Sobrou no período', 'g' => 'g4', 'delay' => '.2s',
+         'hint' => 'Receitas menos despesas do período. Positivo: sobrou dinheiro. Negativo (vermelho): você gastou mais do que entrou.',
          'icon' => '<path d="M12 2v4M5 9a7 7 0 1 1 14 0c0 4-3 5-3 8H8c0-3-3-4-3-8Z"/><path d="M9 21h6"/>'],
     ];
 
@@ -77,7 +82,7 @@
             <div class="card stat span3" style="animation-delay:{{ $card['delay'] }}">
                 <div class="stat-top">
                     <div class="ico {{ $card['g'] }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor">{!! $card['icon'] !!}</svg></div>
-                    <span class="label">{{ $card['label'] }}</span>
+                    <span class="label" title="{{ $card['hint'] }}">{{ $card['label'] }}</span>
                     @if ($trend === null)
                         <span class="trend neutral" data-trend="{{ $card['key'] }}">—</span>
                     @else
@@ -206,7 +211,7 @@
                     <div class="cc-bot">
                         <div>
                             <div class="lbl">{{ $firstAccount->isCard() ? 'Limite disponível' : 'Saldo disponível' }}</div>
-                            <div class="cc-balance">R$ {{ $money($firstAccount->isCard() ? $firstAccount->availableLimit : $firstAccount->current_balance) }}</div>
+                            <div class="cc-balance">R$ {{ $money($firstAccount->isCard() ? $firstAccount->availableLimitDisplay : $firstAccount->current_balance) }}</div>
                         </div>
                     </div>
                 </div>
@@ -219,7 +224,7 @@
                                     <div class="an">{{ $account->name }}</div>
                                     <div class="at">{{ $account->type_label }}</div>
                                 </div>
-                                <div class="av">R$ {{ $money($account->isCard() ? $account->availableLimit : $account->current_balance) }}</div>
+                                <div class="av">R$ {{ $money($account->isCard() ? $account->availableLimitDisplay : $account->current_balance) }}</div>
                             </div>
                         @endforeach
                     </div>

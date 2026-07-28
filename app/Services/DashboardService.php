@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\Goal;
+use App\Models\GoalContribution;
 use App\Models\Investment;
+use App\Models\InvestmentContribution;
 use App\Models\Transaction;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -82,6 +84,12 @@ class DashboardService
         $initialTotal = round((float) $nonCardAccounts->sum(fn ($a) => (float) $a->initial_balance), 2);
         $totalBalance = round((float) $nonCardAccounts->sum('current_balance'), 2);
 
+        // O card do topo mostra o SALDO DISPONÍVEL: o que está nas contas menos
+        // o que já está comprometido em metas e investimentos (modelo cofrinho —
+        // o dinheiro continua na conta, mas não é para gastar).
+        $reservado = $this->reservedTotals($userId);
+        $saldoDisponivel = round($totalBalance - $reservado['total'], 2);
+
         $hasData = Transaction::where('user_id', $userId)->exists();
 
         // ----- Semana atual (Seg..Dom) -----
@@ -151,7 +159,7 @@ class DashboardService
                 $weekIncome,
                 $weekExpense,
                 $weekPrev,
-                $userId, $hasData, $totalBalance, $initialTotal, $weekStart->subDay(), $cardIds,
+                $userId, $hasData, $saldoDisponivel, $initialTotal, $weekStart->subDay(), $cardIds,
             ),
             'mes' => $this->period(
                 Str::ucfirst($today->translatedFormat('F')) . ' de ' . $today->year,
@@ -159,7 +167,7 @@ class DashboardService
                 $monthIncome,
                 $monthExpense,
                 $monthPrev,
-                $userId, $hasData, $totalBalance, $initialTotal, $monthStart->subDay(), $cardIds,
+                $userId, $hasData, $saldoDisponivel, $initialTotal, $monthStart->subDay(), $cardIds,
             ),
             'ano' => $this->period(
                 (string) $today->year,
@@ -167,7 +175,7 @@ class DashboardService
                 $yearIncome,
                 $yearExpense,
                 $yearPrev,
-                $userId, $hasData, $totalBalance, $initialTotal, $yearStart->subDay(), $cardIds,
+                $userId, $hasData, $saldoDisponivel, $initialTotal, $yearStart->subDay(), $cardIds,
             ),
         ];
 
@@ -272,7 +280,7 @@ class DashboardService
         array $prev,
         int $userId,
         bool $hasData,
-        float $totalBalance,
+        float $saldoDisponivel,
         float $initialTotal,
         CarbonImmutable $prevPeriodEnd,
         array $cardIds = [],
@@ -286,13 +294,51 @@ class DashboardService
             'receitas' => $income,
             'despesas' => $expense,
             'stats' => [
-                // Saldo total é o atual (contas que são caixa, sem cartões), independe do período
-                'saldo' => $totalBalance,
+                // Saldo DISPONÍVEL atual (contas que são caixa, menos o que está
+                // guardado em metas/investimentos). É uma foto de agora — não
+                // depende do período escolhido.
+                'saldo' => $saldoDisponivel,
                 'receitas' => $incomeTotal,
                 'despesas' => $expenseTotal,
+                // Receitas − despesas do período: positivo sobrou, negativo faltou.
                 'economia' => round($incomeTotal - $expenseTotal, 2),
             ],
-            'trends' => $this->trends($userId, $hasData, $totalBalance, $initialTotal, $prevPeriodEnd, $incomeTotal, $expenseTotal, $prev, $cardIds),
+            'trends' => $this->trends($userId, $hasData, $saldoDisponivel, $initialTotal, $prevPeriodEnd, $incomeTotal, $expenseTotal, $prev, $cardIds),
+        ];
+    }
+
+    /**
+     * Dinheiro "reservado" no modelo cofrinho da família: guardado em metas +
+     * aplicado em investimentos (Σ aportes − Σ resgates). Ele continua dentro
+     * do saldo da conta, mas NÃO está disponível para gastar.
+     *
+     * $until limita por data (usado para comparar com o período anterior).
+     *
+     * @return array{guardado: float, investido: float, total: float}
+     */
+    public function reservedTotals(int $userId, ?CarbonImmutable $until = null): array
+    {
+        $guardado = (float) GoalContribution::query()
+            ->join('goals', 'goals.id', '=', 'goal_contributions.goal_id')
+            ->where('goals.user_id', $userId)
+            ->when($until, fn ($q) => $q->whereDate('goal_contributions.date', '<=', $until->toDateString()))
+            ->selectRaw("COALESCE(SUM(CASE WHEN goal_contributions.type = 'aporte' THEN goal_contributions.amount ELSE -goal_contributions.amount END), 0) AS reservado")
+            ->value('reservado');
+
+        $investido = (float) InvestmentContribution::query()
+            ->join('investments', 'investments.id', '=', 'investment_contributions.investment_id')
+            ->where('investments.user_id', $userId)
+            ->when($until, fn ($q) => $q->whereDate('investment_contributions.date', '<=', $until->toDateString()))
+            ->selectRaw("COALESCE(SUM(CASE WHEN investment_contributions.type = 'aporte' THEN investment_contributions.amount ELSE -investment_contributions.amount END), 0) AS aplicado")
+            ->value('aplicado');
+
+        $guardado = round($guardado, 2);
+        $investido = round($investido, 2);
+
+        return [
+            'guardado' => $guardado,
+            'investido' => $investido,
+            'total' => round($guardado + $investido, 2),
         ];
     }
 
@@ -303,7 +349,7 @@ class DashboardService
     private function trends(
         int $userId,
         bool $hasData,
-        float $totalBalance,
+        float $saldoDisponivel,
         float $initialTotal,
         CarbonImmutable $prevPeriodEnd,
         float $income,
@@ -316,11 +362,18 @@ class DashboardService
         }
 
         // Saldo ao fim do período anterior = saldos iniciais (sem cartões) + transações
-        // até lá (também sem cartões — cartão não é caixa).
-        $previousBalance = round($initialTotal + $this->signedSumUntil($userId, $prevPeriodEnd, $cardIds), 2);
+        // até lá (também sem cartões — cartão não é caixa), MENOS o que já estava
+        // reservado em metas/investimentos naquela data. Assim comparamos
+        // disponível com disponível (maçã com maçã).
+        $previousBalance = round(
+            $initialTotal
+            + $this->signedSumUntil($userId, $prevPeriodEnd, $cardIds)
+            - $this->reservedTotals($userId, $prevPeriodEnd)['total'],
+            2,
+        );
 
         return [
-            'saldo' => $this->pctChange($totalBalance, $previousBalance),
+            'saldo' => $this->pctChange($saldoDisponivel, $previousBalance),
             'receitas' => $this->pctChange($income, $prev['income']),
             'despesas' => $this->pctChange($expense, $prev['expense']),
             'economia' => $this->pctChange(
