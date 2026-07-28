@@ -127,7 +127,7 @@ system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 | Banco | **MySQL 8.0** (Docker) | Container `db`; porta **3307 no host → 3306 no container** (db `stabilmoney`, user/password no `.env`). A 3307 no host só serve p/ ferramenta externa (DBeaver/TablePlus); o app fala com `db:3306` pela rede interna, então `DB_PORT=3306` no `.env`. |
 | Runtime | **Docker** (php:8.4-apache) | Container `app`, site em **http://localhost:8001** (porta do host → 80 no container). Host não precisa de PHP. |
 | Frontend | **Blade + design system próprio** | `resources/css/design-system.css` (portado de `design/project/styles.css` v2) + `forms.css` + `auth.css` (telas de auth, escopado sob `.auth`). Tailwind 4 carregado como base utilitária via Vite 7. |
-| JS | **Vanilla** em `resources/js/sm/` (padrão atual) | Módulos: `theme.js`, `shell.js`, `charts.js`, `dashboard.js`, `auth.js`, `categories.js`. **Frameworks/bibliotecas JS são liberados** quando a feature se beneficiar (decisão do Victor, jun/2026) — escolher a ferramenta certa caso a caso; "vanilla" deixou de ser obrigatório. |
+| JS | **Vanilla** em `resources/js/sm/` (padrão atual) | Módulos em `resources/js/sm/` (ver mapa de pastas). **Frameworks/bibliotecas JS são liberados** quando a feature se beneficiar (decisão do Victor, jun/2026) — escolher a ferramenta certa caso a caso; "vanilla" deixou de ser obrigatório. |
 | Auth | **Laravel Breeze 2.4** (blade) | Login/cadastro no layout split v2 com vídeo (`layouts/auth.blade.php`); demais telas no `layouts/guest.blade.php`. Tudo PT-BR. Hash de senha em **argon2id** (`config/hashing.php`). |
 | i18n | **laravel-lang/common** | `lang/pt_BR` completo (validation, auth, passwords). `APP_LOCALE=pt_BR`; `Carbon::setLocale` no `AppServiceProvider`. |
 | Fontes | Google Fonts | Sora (títulos/números) + Plus Jakarta Sans (corpo) — link nos layouts. |
@@ -139,15 +139,18 @@ system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 
 ```
 app/
+├── Exceptions/             # RequiresFundingChoice (vira HTTP 409 com as opções de fonte)
 ├── Http/
-│   ├── Controllers/        # Dashboard, Transaction, Account, Category, Profile, Settings, Security, Dependent + Auth/ (Breeze)
-│   └── Requests/           # Form Requests com mensagens/attributes PT-BR (Store/Update por recurso)
-├── Models/                 # User, Account (accessor balance), Category, Transaction
-├── Policies/               # Account/Category/TransactionPolicy (update+delete = dono); descoberta automática
-├── Services/               # DashboardService (agregação SQL do dashboard) + SidebarService (card patrimônio)
-├── Support/                # DefaultCategories (categorias padrão; seedFor() idempotente) + BrowserSessions (sessões ativas via tabela `sessions`, parse de user-agent sem dependência)
+│   ├── Controllers/        # Dashboard, Transaction, Account, Category, Fatura, FixedBill, Goal, Investment, Profile, Settings, Security, Dependent + Auth/ (Breeze)
+│   └── Requests/           # Form Requests com mensagens/attributes PT-BR (Store/Update por recurso) + PayInvoiceRequest, PayFixedBillRequest
+├── Models/                 # User, Account (bolsos: balance/reserved/available/spendable), Category, Transaction, Goal, Investment, FixedBill
+├── Policies/               # Account/Category/Transaction/FixedBillPolicy (update+delete = família); descoberta automática
+├── Services/               # DashboardService, SidebarService, FaturaService,
+│                           # SpendingGuard (calcula os bolsos e decide), FundingService (grava sob lock),
+│                           # FixedBillService (projeta as competências das contas fixas)
+├── Support/                # DefaultCategories, BrowserSessions, Brl (formato R$ pt-BR), FundingSource (constantes)
 ├── Listeners/              # SeedDefaultCategoriesForNewUser (evento Registered, auto-descoberto)
-└── Providers/              # AppServiceProvider (Carbon::setLocale + View Composer da sidebar)
+└── Providers/              # AppServiceProvider (Carbon::setLocale, directive @brl, View Composers, rate limits)
 
 resources/
 ├── css/
@@ -155,10 +158,13 @@ resources/
 │   ├── design-system.css   # Design system completo portado do protótipo v2 + seção "Extensões"
 │   ├── forms.css           # Formulários, pickers, filtros, paginação, flash de erro, chips de categoria
 │   └── auth.css            # Telas de auth split com vídeo — TUDO escopado sob .auth (sempre claro)
-├── js/sm/                  # theme, shell (popover do perfil), charts, dashboard, auth, categories (drag), security (medidor de força + mostrar/ocultar senha + revelar "encerrar sessões")
+├── js/sm/                  # theme, shell (popover do perfil), charts, dashboard, auth, categories (drag),
+│                           # security, launch (modal global), funding (modal "de onde sai o dinheiro" — consome o 409),
+│                           # money (máscara BRL), nav (pjax), offline-queue, pwa
 └── views/
     ├── layouts/            # app.blade.php (shell), auth.blade.php (login/cadastro com vídeo), guest.blade.php (demais telas de auth)
-    ├── partials/           # sidebar (popover, patrimônio, dependentes), topbar, bottom-nav, flash
+    ├── partials/           # sidebar (patrimônio + cheque especial), topbar (sino, também no mobile),
+    │                       # bottom-nav, flash, launch-modal, funding-modal
     ├── dashboard.blade.php
     ├── transactions|accounts|categories/   # index/create/edit + _form por recurso
     ├── auth/               # 6 telas Breeze reescritas (login, register, etc.)
@@ -170,10 +176,12 @@ design/                     # Handoff do Claude Design v2 (fonte da verdade visu
 lang/pt_BR(+.json)          # Traduções PT-BR (laravel-lang)
 routes/web.php              # Rotas do app | routes/auth.php (Breeze)
 database/
-├── migrations/             # users/cache/jobs + accounts/categories/transactions
-├── factories/              # User, Account, Category (states income/expense), Transaction
+├── migrations/             # users/cache/jobs + accounts/categories/transactions + goals/investments
+│                           # + 2026_07_28_*: cheque especial, funding_source, fixed_bills
+├── factories/              # User, Account (states creditCard/overdraft/debitCard), Category, Transaction
 └── seeders/                # DatabaseSeeder (só roda em APP_ENV=local; credenciais via .env)
-tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, isolamento multiusuário
+tests/Feature/              # 290 testes: auth, dashboard, CRUD, validação, isolamento multiusuário,
+                            # ModeloDeDinheiroTest (cheque especial/fonte/limite) e FixedBillTest
 ```
 
 ---
@@ -236,14 +244,15 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
 |---|---|---|
 | `GET /` (`dashboard`) | `dashboard.blade.php` | Stats com sparklines, segmented semana/mês/ano, fluxo de caixa, donut por categoria, transações recentes, "Meu cartão" (rótulo "Limite disponível" p/ crédito) + contas, e cards **com dados reais** de Metas / Contas a pagar (faturas de cartão em aberto) / Investimentos — resumos via `DashboardService::featureResumos`. |
 | `/transactions` (resource, sem `show`) | `transactions/*` | Lista com filtros GET (tipo/conta), paginação; form com type-toggle, valor com vírgula, conta, categoria filtrada por tipo. |
-| `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"**. 4 tipos (Conta Corrente/Poupança, Cartão de Débito/Crédito) + **banco** com logo (imagem `public/assets/banks/`, preview no form). Form com campos condicionais por tipo (JS): conta = saldo inicial; crédito = limite + fechamento/vencimento; débito = vincula corrente/poupança que ele espelha. **Sem picker de ícone/cor.** O card mostra a imagem do banco; débito mostra corrente/poupança separados + total. |
+| `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"**. 4 tipos (Conta Corrente/Poupança, Cartão de Débito/Crédito) + **banco** com logo (imagem `public/assets/banks/`, preview no form). Form com campos condicionais por tipo (JS): conta = saldo inicial; **corrente = + limite do cheque especial**; crédito = limite + fechamento/vencimento; débito = vincula corrente/poupança que ele espelha. **Sem picker de ícone/cor.** O card mostra a imagem do banco e o **"Saldo em conta" = `available`** (vermelho quando negativo), com barra de uso do cheque especial; débito mostra corrente/poupança separados + total. |
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
 | `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais: nome, e-mail, telefone, foto (preview antes de salvar). **Acesso pelo popover do perfil** (sidebar). |
 | `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security`) | Subabas-pílula numa coluna centrada (680px). **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), e **2FA "em breve"**. **Conta** = excluir conta (modal). |
 | `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais **fora da `.card`** — ela tem `overflow:hidden`+animação `transform`, que prendia o `position:fixed`). Cada card mostra **foto** (avatar), nome/e-mail e **quanto gastou no mês** (`Σ` despesas do mês corrente com `made_by_user_id` da pessoa; titular incluso), com botões **editar** e **excluir**. No cadastro/edição define-se nome, e-mail, **foto** (avatar central clicável — a bolinha É o botão de upload, classe `.avatar-pick`), **parentesco** (select `User::RELATIONSHIPS`) e senha (Store/UpdateDependentRequest; senha opcional na edição). **Lançar em nome de um dependente** é feito no formulário de transação, pelo seletor "quem fez a compra" (suporta deep-link `transactions.create?autor=ID`). Só titular acessa (403 p/ dependente). |
 | `/metas` (`GoalController` index/store/update/destroy + aportes/resgates) | `metas/index` | **Metas (implementado).** Objetivos de poupança modelo "cofrinho": aporte reserva, resgate devolve à conta. Compartilhadas na família (`ownerId`). |
 | `/investimentos` (`InvestmentController` index/store/update/destroy + aportes/resgates) | `investimentos/index` | **Investimentos (implementado).** Cofrinho + metadados/projeções (indexador CDI/Selic/IPCA+/Prefixado, % do indexador, prévia de IR/IOF). Compartilhados na família. |
-| `/faturas` (**"Pagar despesas"**: `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy` + **`faturas.fatura.pagar`** + `faturas.recorrente.pagar`) | `faturas/index` | **Pagar despesas (implementado).** Faturas por cartão (parcelas/recorrência, ciclo, limite) via `FaturaService` + despesas avulsas. **Marcar fatura como paga** (só cartão de crédito): `payInvoice` marca as despesas EM ABERTO do ciclo (`paid_at`) e cria a saída no **caixa escolhido** (corrente/poupança) — é o que **desconta do saldo**; débito/Pix/conta já descontam no ato. `Account::openInvoiceDue` = fatura não paga do ciclo; `FaturaService` expõe `isPaid`/`canPay`/`invoiceDue` por cartão. |
+| `/faturas` (**"Pagar despesas"**: `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy` + **`faturas.fatura.pagar`** + `faturas.recorrente.pagar`) | `faturas/index` | **Pagar despesas (implementado).** Três blocos: **contas fixas do mês** (topo — competências projetadas, badge de vencida, botão Pagar e "+ Nova conta fixa"), faturas por cartão (parcelas/recorrência, ciclo, limite) e despesas avulsas. **Marcar fatura como paga** usa `PayInvoiceRequest` (com **data do pagamento** informável) e passa pelo `FundingService` — respeita saldo e pergunta a fonte. `Account::openInvoiceDue` = fatura do ciclo aberto; **`closedInvoiceDue`/`overdueInvoice`** = a do ciclo fechado e vencida. A recorrência de cartão agora tem **botão "Pagar"** (a rota existia sem UI, então nunca avançava de mês). |
+| `/contas-fixas` (`FixedBillController` store/update/destroy + **`contas-fixas.pagar/{competencia}`**) | bloco em `faturas/index` | **Contas fixas mensais (implementado).** Condomínio, aluguel, parcela do carro. **Sem rota de listagem** — aparecem em `/faturas`. `due_day` aceita **1..31**. Pagar recebe o valor REAL (editável, vem preenchido com o previsto) e a data; idempotente pelo `unique(fixed_bill_id, competence)`. |
 | `routes/auth.php` | `auth/*` | Breeze: login, registro, esqueci/redefinir senha, confirmar senha, verificar e-mail. |
 
 **Menu da sidebar (v2):** grupo **Menu** = Visão geral → `dashboard`, **Histórico** →
@@ -260,18 +269,27 @@ re-executa scripts inline, reinicia os módulos de conteúdo (`initContent` no `
 título/histórico/estado-ativo. Fallback para navegação normal em qualquer erro. `window.smPjaxReload()`
 recarrega a página atual sem reload (usado após salvar no modal de lançar).
 
-**Notificações (topbar):** o sino mostra as **contas a vencer nos próximos 7 dias** (faturas de
-cartão em aberto + recorrências não pagas), via `FaturaService::upcomingDue` num View Composer de
-`partials.topbar`; badge com a contagem no sino. **Saldo negativo:** o card "Patrimônio total" da
-sidebar fica **vermelho** (`.sb-value.neg`) quando `saldoTotal < 0`.
+**Notificações (topbar):** o sino mostra **vencidas primeiro**, depois o que vence nos próximos
+7 dias, de três fontes: faturas de cartão (do ciclo aberto **e do fechado não pago**), **contas
+fixas** e recorrências legadas — `FaturaService::upcomingDue` num View Composer de
+`partials.topbar`. Badge fica **vermelho** (`.notif-badge.late`) quando há atraso. **O sino também
+existe no mobile** (a `.topbar` some em ≤920px; sem ele o celular não recebia aviso nenhum num app
+PWA-first). **Saldo negativo:** a sidebar mostra "Disponível para gastar" em vermelho e uma linha
+de cheque especial usado.
 
 **Modal "Lançar" (global):** o botão da topbar e o FAB (`data-launch-open`) abrem um modal de
 **nova transação** (`partials/launch-modal.blade.php`, dados via View Composer em `AppServiceProvider`
 = contas/categorias/família da família), em vez de navegar para `transactions.create` (que segue
 de fallback no `href` e como página cheia). Abre/fecha com a animação do `.modal-scrim`; envia por
 AJAX (`sm/launch.js` → `transactions.store` com `Accept: json`), spinner no "Salvar", erro treme +
-banner, sucesso recarrega via `smPjaxReload`. **Nuance:** o modal usa `fetch` direto (não passa pela
-fila offline do `offline-queue.js`); lançar **offline** ainda funciona pela página cheia `transactions.create`.
+banner, sucesso recarrega via `smPjaxReload`. Gera **`client_uuid`** por abertura (idempotência —
+antes o caminho mais usado do app não tinha) e trata **409** abrindo o modal de escolha de fonte.
+**Nuance:** o modal usa `fetch` direto (não passa pela fila offline do `offline-queue.js`); lançar
+**offline** ainda funciona pela página cheia `transactions.create`.
+
+**Modal "De onde sai esse dinheiro?" (global):** `partials/funding-modal.blade.php` + `sm/funding.js`,
+no shell. Consome o **409** e devolve a escolha para quem chamou — serve o modal de lançar, o
+formulário cheio e a tela de faturas sem duplicar regra. Ver "💰 Modelo de dinheiro".
 
 ---
 
@@ -288,6 +306,7 @@ pelo `DashboardService` (consumido por `resources/js/sm/dashboard.js` — sem es
       "labels": ["Sem 1", ...],      // buckets do fluxo de caixa (semana: Seg..Dom; ano: Jan..Dez)
       "receitas": [0.0, ...],        // série por bucket
       "despesas": [0.0, ...],
+      // ⚠️ "saldo" é o DISPONÍVEL (saldo cru − metas − investimentos), não o bruto.
       "stats":  { "saldo": 0.0, "receitas": 0.0, "despesas": 0.0, "economia": 0.0 },
       "trends": { "saldo": -4.2, ... }  // % vs período anterior; null = sem base ("—" neutro)
     }
@@ -297,6 +316,10 @@ pelo `DashboardService` (consumido por `resources/js/sm/dashboard.js` — sem es
   "hasData": true                    // usuário tem transações?
 }
 ```
+
+> ⚠️ **Contrato é ADITIVO e a ordem dos stats é FIXA.** `dashboard.js` casa card ↔ valor **por
+> ÍNDICE** (`STAT_ORDER[i]`), então acrescentar um 5º stat card quebra o casamento — antes disso é
+> preciso migrar para `data-stat="chave"`. Trate como sub-passo explícito, nunca como efeito colateral.
 
 Convenções do front: valores do **mês** são server-rendered (acessível sem JS); o JS anima
 contadores e troca período sem reload. Trend de **despesas** invertida (cair = verde/`up`).
@@ -495,7 +518,7 @@ continua descartando o menos, porque valor digitado nunca é negativo.
 
 ---
 
-## 🔒 Segurança (pentest de 27/07/2026 — onda 1 aplicada)
+## 🔒 Segurança (pentest de 27/07/2026 — ondas 1, 2 e 3 aplicadas)
 
 Auditoria completa em jul/2026 (SQL injection, IDOR, auth/sessão, XSS/PWA). **Limpo em
 SQL injection e isolamento entre famílias** — o padrão "escopo por `ownerId()` + policy no
@@ -588,6 +611,16 @@ sink hoje); revisão jurídica dos documentos legais. Detalhes e passo a passo n
   **descarta o sinal de menos** — entrada negativa vira positiva. Ao adicionar um novo campo de
   valor, use `inputmode="decimal"` para herdar esse comportamento. Campos que NÃO são moeda
   (ex.: taxa em %) marcam `data-no-money` para o `money.js` ignorá-los.
+- **Exibir dinheiro: `@brl($valor)`** (ou `App\Support\Brl::format()`), nunca `number_format` cru —
+  o negativo precisa sair como `−R$ 1.234,56`, com o sinal antes do símbolo.
+- **🚨 NUNCA grave uma despesa com `Transaction::create()` direto.** Todo caminho de gasto passa
+  por `FundingService::spend()`, que checa o saldo sob lock e pergunta a fonte quando falta. Isso
+  vale para os 6 caminhos: `transactions.store`/`update`, `faturas.lancar`, `faturas.fatura.pagar`,
+  `faturas.recorrente.pagar` e `contas-fixas.pagar`. Um caminho novo que escape do guard reabre o
+  buraco que a v3 fechou. Ver "💰 Modelo de dinheiro".
+- **Saldo exibido = `Account::available`**, não `balance`. O bruto é detalhe interno.
+- **Cartão de débito não é conta de lançamento:** os selects usam `Account::paymentOptions()`, que
+  devolve **Fluent** — nas views, `$conta->isCard` (propriedade), nunca `$conta->isCard()`.
 - **Ownership sempre**: queries escopadas por `auth()->id()`; `account_id`/`category_id` validados
   com `Rule::exists()->where('user_id', ...)`; categoria deve casar com o `type` da transação.
 - **Policies** para `update`/`delete` (dono); controllers usam `$this->authorize()`
@@ -675,7 +708,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte completa (87 testes)
+docker compose exec app php artisan test                       # suíte completa (290 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan tinker                     # console interativo
 docker compose exec app php artisan view:cache                 # valida sintaxe de TODAS as views
@@ -709,12 +742,17 @@ Com a PWA pronta (Fase 1), "Adicionar à tela inicial".
 - **Features financeiras do design v2: ✅ CONCLUÍDA (jun/2026)** — Metas, Investimentos,
   Faturas/Despesas (cartão com ciclo/limite), seletor "quem fez a compra" e conta-família com
   dependentes. Decisões e referência do protótipo na seção "Features financeiras" abaixo.
+- **Modelo de dinheiro v3: ✅ CONCLUÍDA (27/07/2026)** — cheque especial por conta corrente,
+  "saldo em conta" = disponível (investido nunca é consumido em silêncio), escolha da fonte via
+  409, contas fixas mensais com competências projetadas, fatura vencida que não some, e o limite
+  do cartão voltando ao pagar. Nasceu de uma auditoria que provou 12 defeitos rodando código.
+  Ver a seção "💰 Modelo de dinheiro" e a spec de 27/07.
 - **Fase 2 — Futuro:** empacotar a PWA como app Android (**TWA**) para a Play Store;
   **bot WhatsApp** para consultar/lançar transações por mensagem (ver infra abaixo).
 
 ---
 
-## 💰 Próxima rodada (features financeiras — decisões já tomadas com o usuário)
+## 📜 Rodada de features financeiras (jun/2026 — ENTREGUE, mantido como histórico)
 
 Implementar o que o protótipo `design/project/finance.js` + as views do Dashboard.html v2
 demonstram. **Decisões fechadas com o usuário em jun/2026** (não rediscutir do zero):
