@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\DefaultCategories;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -123,5 +124,129 @@ class CategoryCrudTest extends TestCase
         // A transação sobrevive, agora "Sem categoria" (FK nullOnDelete)
         $transaction->refresh();
         $this->assertNull($transaction->category_id);
+    }
+
+    /* ----- Categorias fixas (is_locked) ----- */
+
+    public function test_locked_category_cannot_be_deleted(): void
+    {
+        $category = Category::factory()->expense()->for($this->user)->create([
+            'name' => 'Alimentação',
+            'is_locked' => true,
+        ]);
+
+        $response = $this->actingAs($this->user)->delete("/categories/{$category->id}");
+
+        $response->assertSessionHasErrors('category');
+        $this->assertDatabaseHas('categories', ['id' => $category->id]);
+    }
+
+    public function test_categories_index_hides_delete_button_of_locked_category(): void
+    {
+        $fixa = Category::factory()->expense()->for($this->user)->create([
+            'name' => 'Transporte',
+            'is_locked' => true,
+        ]);
+        $livre = Category::factory()->expense()->for($this->user)->create(['name' => 'Lazer']);
+
+        $response = $this->actingAs($this->user)->get('/categories');
+
+        $response->assertOk();
+        // A rota destroy compartilha a URL com update/edit, então a checagem
+        // é pelo botão de excluir em si (aria-label de cada chip).
+        $response->assertDontSee('Excluir '.$fixa->name);
+        $response->assertSee('Excluir '.$livre->name);
+        $response->assertSee('Categoria fixa', false);
+        // Chip fixo não é arrastável (não pode mudar de tipo)
+        $response->assertSee('draggable="false"', false);
+    }
+
+    public function test_locked_category_can_be_renamed(): void
+    {
+        $category = Category::factory()->expense()->for($this->user)->create([
+            'name' => 'Alimentação',
+            'is_locked' => true,
+        ]);
+
+        $response = $this->actingAs($this->user)->put("/categories/{$category->id}", [
+            'name' => 'Mercado e comida',
+            'type' => 'expense',
+            'color' => '#F0A93B',
+            'icon' => '🍽️',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect(route('categories.index'));
+
+        $category->refresh();
+        $this->assertSame('Mercado e comida', $category->name);
+        // Continua fixa depois da edição
+        $this->assertTrue($category->isLocked());
+    }
+
+    /**
+     * Drag & drop tentando levar uma categoria fixa para a coluna de receitas:
+     * o servidor rejeita com 422 (o JS faz rollback do chip).
+     */
+    public function test_locked_category_type_cannot_be_changed(): void
+    {
+        $category = Category::factory()->expense()->for($this->user)->create([
+            'name' => 'Saúde',
+            'is_locked' => true,
+        ]);
+
+        $response = $this->actingAs($this->user)->patchJson("/categories/{$category->id}", [
+            'name' => 'Saúde',
+            'type' => 'income',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('type');
+        $this->assertSame('expense', $category->fresh()->type);
+    }
+
+    public function test_default_categories_seed_the_five_locked_ones(): void
+    {
+        $novo = User::factory()->create();
+
+        DefaultCategories::seedFor($novo);
+
+        $fixas = Category::where('user_id', $novo->id)->where('is_locked', true)->pluck('name');
+
+        $this->assertEqualsCanonicalizing(
+            ['Alimentação', 'Moradia', 'Saúde', 'Transporte', 'Contas'],
+            $fixas->all(),
+        );
+        $this->assertEqualsCanonicalizing(
+            DefaultCategories::lockedExpenseNames(),
+            $fixas->all(),
+        );
+
+        // As demais (inclusive todas as receitas) continuam livres
+        $this->assertFalse(
+            Category::where('user_id', $novo->id)->where('type', 'income')->where('is_locked', true)->exists(),
+        );
+        $this->assertFalse(
+            Category::where('user_id', $novo->id)->where('name', 'Lazer')->value('is_locked'),
+        );
+    }
+
+    /**
+     * Idempotência: rodar o seed de novo marca como fixa uma categoria que
+     * já existia sem o cadeado (bancos criados antes da coluna is_locked).
+     */
+    public function test_seed_locks_existing_default_category(): void
+    {
+        $novo = User::factory()->create();
+        $antiga = Category::factory()->expense()->for($novo)->create([
+            'name' => 'Moradia',
+            'is_locked' => false,
+        ]);
+
+        DefaultCategories::seedFor($novo);
+
+        $this->assertTrue($antiga->fresh()->isLocked());
+        // Não duplicou a categoria
+        $this->assertSame(1, Category::where('user_id', $novo->id)->where('name', 'Moradia')->count());
     }
 }

@@ -40,7 +40,10 @@
                 </div>
                 <div class="cat-drop" data-type="{{ $grupo['tipo'] }}" aria-label="Categorias de {{ mb_strtolower($grupo['titulo']) }}">
                     @foreach ($grupo['lista'] as $categoria)
-                        <div class="cat-chip" draggable="true"
+                        {{-- Categoria fixa: não arrasta (não pode mudar de tipo) e não tem
+                             botão de excluir — o cadeado explica o porquê. --}}
+                        @php $fixa = $categoria->isLocked(); @endphp
+                        <div class="cat-chip @if ($fixa) is-locked @endif" draggable="{{ $fixa ? 'false' : 'true' }}"
                              data-id="{{ $categoria->id }}"
                              data-name="{{ $categoria->name }}"
                              data-color="{{ $categoria->color }}"
@@ -52,15 +55,25 @@
                             <a class="cc-act" href="{{ route('categories.edit', $categoria) }}" title="Editar" aria-label="Editar {{ $categoria->name }}">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/></svg>
                             </a>
-                            <form method="POST" action="{{ route('categories.destroy', $categoria) }}"
-                                  onsubmit="return confirm('Excluir esta categoria? As transações dela ficarão sem categoria.')">
-                                @csrf
-                                @method('DELETE')
-                                <button class="cc-del" type="submit" title="Excluir" aria-label="Excluir {{ $categoria->name }}">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                                </button>
-                            </form>
-                            <svg class="cc-grip" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>
+                            @unless ($fixa)
+                                <form method="POST" action="{{ route('categories.destroy', $categoria) }}"
+                                      onsubmit="return confirm('Excluir esta categoria? As transações dela ficarão sem categoria.')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button class="cc-del" type="submit" title="Excluir" aria-label="Excluir {{ $categoria->name }}">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                                    </button>
+                                </form>
+                            @endunless
+                            @if ($fixa)
+                                <span class="cc-lock" role="img"
+                                      title="Categoria fixa — não pode ser excluída"
+                                      aria-label="{{ $categoria->name }} é uma categoria fixa e não pode ser excluída">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>
+                                </span>
+                            @else
+                                <svg class="cc-grip" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>
+                            @endif
                         </div>
                     @endforeach
                     {{-- Some via CSS assim que a coluna ganha um chip (.cat-chip ~ .cat-drop-empty) --}}

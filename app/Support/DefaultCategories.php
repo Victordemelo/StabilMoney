@@ -38,6 +38,15 @@ class DefaultCategories
     ];
 
     /**
+     * Categorias FIXAS (is_locked): as de uso recorrente, sempre de despesa.
+     * Não podem ser excluídas nem mudar de tipo — só renomeadas/repintadas.
+     * "Farmácia" está coberta por Saúde, por isso não existe categoria própria.
+     *
+     * @var list<string>
+     */
+    private const LOCKED_EXPENSES = ['Alimentação', 'Moradia', 'Saúde', 'Transporte', 'Contas'];
+
+    /**
      * Categorias padrão de receita: [nome, ícone].
      *
      * @var list<array{0: string, 1: string}>
@@ -60,6 +69,17 @@ class DefaultCategories
     }
 
     /**
+     * Nomes das categorias fixas (despesa) — usado pelos testes e por quem
+     * precisar checar a lista sem duplicar as strings.
+     *
+     * @return list<string>
+     */
+    public static function lockedExpenseNames(): array
+    {
+        return self::LOCKED_EXPENSES;
+    }
+
+    /**
      * Cria as categorias de um tipo, atribuindo cores da paleta em ciclo.
      *
      * @param  list<array{0: string, 1: string}>  $items
@@ -67,13 +87,22 @@ class DefaultCategories
     private static function seedType(User $user, string $type, array $items): void
     {
         foreach ($items as $i => [$name, $icon]) {
-            $user->categories()->firstOrCreate(
+            $fixa = $type === 'expense' && in_array($name, self::LOCKED_EXPENSES, true);
+
+            $categoria = $user->categories()->firstOrCreate(
                 ['name' => $name, 'type' => $type],
                 [
                     'icon' => $icon,
                     'color' => self::COLORS[$i % count(self::COLORS)],
+                    'is_locked' => $fixa,
                 ],
             );
+
+            // Idempotência do cadeado: se a categoria já existia (criada antes
+            // de is_locked existir), rodar de novo marca as fixas como fixas.
+            if ($fixa && ! $categoria->is_locked) {
+                $categoria->update(['is_locked' => true]);
+            }
         }
     }
 }

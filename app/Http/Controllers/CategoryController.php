@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class CategoryController extends Controller
 {
@@ -53,7 +54,19 @@ class CategoryController extends Controller
     {
         $this->authorize('update', $category);
 
-        $category->update($request->validated());
+        $data = $request->validated();
+
+        // Categoria fixa pode ser renomeada/repintada, mas NÃO muda de tipo
+        // (elas são de despesa por definição). Cobre o drag & drop entre as
+        // colunas: como é ValidationException, vira 422 JSON no AJAX e
+        // redirect com erro no envio normal do formulário.
+        if ($category->isLocked() && $data['type'] !== $category->type) {
+            throw ValidationException::withMessages([
+                'type' => 'Esta é uma categoria fixa do sistema e não pode mudar de tipo.',
+            ]);
+        }
+
+        $category->update($data);
 
         // O drag & drop da página de categorias envia PATCH via fetch (JSON)
         // e só precisa do OK — sem redirect (evita o GET extra da página toda).
@@ -68,6 +81,14 @@ class CategoryController extends Controller
     public function destroy(Category $category)
     {
         $this->authorize('delete', $category);
+
+        // Categorias fixas (uso recorrente) são a espinha dorsal dos
+        // lançamentos — o usuário pode renomeá-las, mas não removê-las.
+        if ($category->isLocked()) {
+            return back()->withErrors([
+                'category' => 'Esta é uma categoria fixa do sistema e não pode ser excluída.',
+            ]);
+        }
 
         // A FK de transactions.category_id é nullOnDelete: as transações
         // associadas ficam "Sem categoria" — pode excluir sem perder dados.

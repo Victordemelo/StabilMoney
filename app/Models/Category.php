@@ -17,7 +17,24 @@ class Category extends Model
         'type',
         'color',
         'icon',
+        'is_locked',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_locked' => 'boolean',
+        ];
+    }
+
+    /**
+     * Categoria fixa do sistema (uso recorrente): não pode ser excluída
+     * nem mudar de tipo. Renomear/trocar cor e ícone continua liberado.
+     */
+    public function isLocked(): bool
+    {
+        return (bool) $this->is_locked;
+    }
 
     public function user(): BelongsTo
     {

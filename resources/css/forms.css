@@ -283,6 +283,16 @@ a.tx { text-decoration: none; color: inherit; }
   .cat-chip .cc-act, .cat-chip .cc-del { opacity: 1; }
 }
 
+/* Categoria fixa: não arrasta e não exclui — o cadeado (no lugar do grip)
+   ocupa a mesma caixa do .cc-grip para os chips não desalinharem */
+.cat-chip.is-locked { cursor: default; }
+.cat-chip.is-locked:active { cursor: default; }
+.cat-chip .cc-lock {
+  width: 18px; height: 18px; flex: none; display: grid; place-items: center;
+  color: var(--ink-3); opacity: .55;
+}
+.cat-chip .cc-lock svg { width: 15px; height: 15px; stroke-width: 1.9; }
+
 /* Coluna vazia: convite para criar — some assim que a coluna ganha um chip */
 .cat-drop-empty { text-align: center; font-size: 12.5px; color: var(--ink-3); padding: 24px 10px; }
 .cat-drop-empty a { color: var(--brand-600); font-weight: 600; }
