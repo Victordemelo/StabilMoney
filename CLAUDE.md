@@ -14,8 +14,15 @@ código (PWA na próxima fase). UI 100% em **português do Brasil**, moeda **R$*
 
 ## 🧭 Estado atual (leia primeiro numa sessão nova)
 
-**Última grande entrega (jun/2026):** **design v2** implementado (handoff novo do Claude
-Design) — escopo desta rodada foi **só visual/shell/auth**, sem features financeiras novas:
+**Última grande entrega (27/07/2026): modelo de dinheiro v3** — cheque especial, separação
+real entre saldo e investido, escolha da fonte quando o saldo acaba, e contas fixas mensais.
+Antes disso o app **não tinha trava de gasto nenhuma**: uma conta com R$ 100 aceitava despesa
+de R$ 99.999,99. Leia a seção **"💰 Modelo de dinheiro"** antes de mexer em saldo, fatura ou
+lançamento. Spec completa (com a auditoria que originou tudo) em
+`docs/superpowers/specs/2026-07-27-cheque-especial-segregacao-e-contas-fixas.md`.
+
+**Entrega anterior (jun/2026):** **design v2** implementado (handoff novo do Claude
+Design) — escopo daquela rodada foi **só visual/shell/auth**, sem features financeiras novas:
 
 - **Shell v2:** sidebar com menu reorganizado (grupos "Menu" e "Preferências"), **popover de
   perfil** (Meu perfil/Configurações/Sair — Configurações saiu do menu lateral), card
@@ -40,8 +47,9 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ 184 testes / 610 asserções verdes |
+| Suíte de testes | ✅ **290 testes / 969 asserções** verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
+| **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | PWA (manifest + SW + lançamento offline com fila e Background Sync) | ✅ Instalável + offline (Fases 1-2) |
 | Deploy (VPS) / domínio | ⬜ Futuro (ver "Visão de infraestrutura") |
 
@@ -319,18 +327,40 @@ Saldo total = atual de todas as contas, independe do período.
   `savings`=Conta Poupança, `debit_card`=Cartão de Débito, `credit_card`=Cartão de Crédito),
   `bank` (`Account::BANKS`: banco_do_brasil/bradesco/caixa/inter/itau/mercado_pago/nubank/santander
   — imagem em `public/assets/banks/{bank}.png`), `initial_balance` (**nullable**: só corrente/poupança
-  têm; cartões = null), campos de cartão de crédito (`credit_limit`/`closing_day`/`due_day`),
+  têm; cartões = null), **`overdraft_limit`** (decimal 15,2 **NOT NULL default 0** — cheque
+  especial; só faz sentido em `checking`, zerado nos outros tipos pelo `prepareForValidation`),
+  campos de cartão de crédito (`credit_limit`/`closing_day`/`due_day`),
   `checking_account_id`/`savings_account_id` (FKs `nullOnDelete` — o **cartão de débito** espelha
   estas contas), `color`/`icon` (legado, sem picker no form). Saldo: corrente/poupança =
   `initial_balance` + receitas − despesas; **débito = saldo da corrente + poupança vinculadas**
   (mostradas separadas + total; `checkingBalance`/`savingsBalance`); crédito não é caixa. Débito e
   crédito ficam **fora do patrimônio** (Sidebar/DashboardService) p/ não duplicar. Helpers:
-  `isCard()`/`isDebit()`, `typeLabel()`, `bankLabel()`, `bankImageUrl()`, `linkedChecking()`/`linkedSavings()`.
+  `isCard()`/`isDebit()`/**`isCash()`**, `typeLabel()`, `bankLabel()`, `bankImageUrl()`,
+  `linkedChecking()`/`linkedSavings()`, **`paymentOptions()`** (estático — ver "Modelo de dinheiro").
 - **categories** — `user_id`, `name`, `type` (`income|expense`), `color`, `icon`.
 - **transactions** — `user_id` (dono = **titular** da família), `made_by_user_id` (nullable,
   FK `nullOnDelete` — **quem lançou**, p/ "quem fez a compra"), `account_id` (FK `cascadeOnDelete`),
   `category_id` (nullable, FK `nullOnDelete`), `type` (`income|expense`), `amount` (decimal 15,2
-  **sempre positivo**), `description` (nullable), `date`.
+  **sempre positivo**), `description` (nullable), `date`, `paid_at`, campos de parcela
+  (`group_id`/`installment_no`/`installments`/`recurring`).
+  **Auditoria da fonte:** `funding_source` (string 24 nullable — `cheque_especial` |
+  `resgate_investimento` | null; valores em `App\Support\FundingSource`, **não** enum de banco,
+  que diverge entre MySQL e sqlite) e `funding_amount` (quanto veio da fonte; pode ser < `amount`).
+  **Conta fixa:** `fixed_bill_id` (nullable, **sem FK** — `dropForeign` em sqlite exige recriar a
+  tabela) + `competence` (date, sempre dia 01), com **`unique(fixed_bill_id, competence)`** como
+  trava de idempotência. Nos dois drivers o índice único ignora linhas com NULL, então as
+  transações comuns não colidem.
+  Coluna temporária `legacy_account_id` (nullable): guarda de onde veio o movimento que a migration
+  `2026_07_28_000000` moveu de cartão de débito para a conta vinculada — existe só para o `down()`
+  ser real; uma migration de faxina pode removê-la.
+- **fixed_bills** (contas fixas mensais) — `user_id` (titular), `made_by_user_id`, `name`,
+  `amount` (valor **esperado**; o real vai na transação do pagamento, porque conta de luz varia),
+  `due_day` (**1..31** — o clamp de mês curto é feito em PHP, ao contrário do 1..28 dos cartões),
+  `account_id`/`category_id` (nullable, padrão de pagamento), `starts_on`, `ends_on` (nullable =
+  sem fim), `active`. **As competências mensais NÃO são materializadas** — ver "Modelo de dinheiro".
+- **goal_contributions / investment_contributions** — ganharam `transaction_id` (nullable, **sem
+  FK**, indexado): liga o resgate à despesa que ele cobriu quando o usuário escolheu "tirar do
+  investimento". Null nos aportes/resgates feitos direto na tela.
 
 > **Dinheiro**: `decimal(15,2)`; o sinal vem do `type`, nunca do valor.
 > Excluir **conta** com transações é bloqueado (apagaria histórico); excluir **categoria** é
@@ -342,6 +372,126 @@ Saldo total = atual de todas as contas, independe do período.
 > pelo titular (tela `/dependentes`, titular-only) **sem** disparar `Registered` (usa as
 > categorias da família). Round atual = acesso total na família; permissões granulares por
 > módulo são um subprojeto futuro (ver `docs/superpowers/specs/`).
+
+---
+
+## 💰 Modelo de dinheiro (v3 — 27/07/2026) — LEIA ANTES DE MEXER EM SALDO
+
+Spec completa: `docs/superpowers/specs/2026-07-27-cheque-especial-segregacao-e-contas-fixas.md`
+
+### Os quatro bolsos
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  SALDO BRUTO   Account::balance                                  │
+│  = initial_balance + receitas − despesas                         │
+│                                                                  │
+│  ├── RESERVADO   Account::reserved                               │
+│  │   = Σ aportes − Σ resgates (metas + investimentos) DESTA conta│
+│  │   → dinheiro carimbado: está na conta, mas não é para gastar  │
+│  │                                                               │
+│  └── DISPONÍVEL  Account::available = balance − reserved         │
+│      → É ISTO que a UI chama de "Saldo em conta".                │
+│        É este número que fica VERMELHO e pode ir a negativo.     │
+└──────────────────────────────────────────────────────────────────┘
+                              +
+   CHEQUE ESPECIAL  accounts.overdraft_limit  (só `checking`)
+
+   Account::spendable = max(0, disponível) + cheque especial livre
+   PISO do disponível = − overdraft_limit
+```
+
+**Regra de ouro da UI:** onde antes se mostrava `balance`, hoje se mostra **`available`**.
+O `balance` é detalhe interno. Se você for exibir saldo numa tela nova, use `available`.
+
+### Quem decide se um gasto pode acontecer
+
+Nunca escreva uma despesa direto com `Transaction::create()`. Todo caminho de gasto passa por:
+
+| Classe | Papel |
+|---|---|
+| `App\Services\SpendingGuard` | **Calcula** os bolsos e devolve o veredito: `ok` / `precisa_fonte` / `estoura_limite`. Também monta o payload de opções e as mensagens PT-BR. |
+| `App\Services\FundingService::spend()` | **Grava**, dentro de UMA `DB::transaction` com `lockForUpdate`. É a palavra final (o Form Request é time-of-check; aqui é time-of-use). |
+| `App\Exceptions\RequiresFundingChoice` | Vira **HTTP 409** (não 422) com as opções, ou redirect com `session('fonteNecessaria')` sem JS. |
+
+**Ordem de lock: conta → pai (Goal/Investment), SEMPRE.** `HandlesContributions` usa a mesma
+ordem; inverter em um dos caminhos causa deadlock.
+
+### Gasto novo × obrigação vencida — regras DIFERENTES
+
+| Situação | Sem fonte que cubra |
+|---|---|
+| **Gasto novo** (compra, despesa avulsa) | **Recusa** (422). Mensagem sugere lançar um recebimento. |
+| **Obrigação vencida** (fatura de cartão, conta fixa) | **Passa e a conta fica negativa.** A dívida já existe no mundo real; não se recusa um boleto. O flash avisa o novo saldo. |
+
+Quem paga obrigação chama `spend(..., obrigacao: true)`.
+
+**O app NUNCA usa o cheque especial sozinho.** Uma conta que vence não é paga automaticamente:
+fica **marcada como vencida** e espera. No pagamento, havendo cheque especial e/ou investimento,
+o servidor responde **409** e o usuário escolhe. Enquanto não escolher, nada é pago.
+
+### Escolha da fonte (fluxo do 409)
+
+1. Front envia a despesa normalmente.
+2. Servidor responde **409** com `{precisa_fonte: true, fonte: {...}}`.
+3. `resources/js/sm/funding.js` → `pedirFonte(payload)` abre o modal
+   (`partials/funding-modal.blade.php`, no shell) e resolve com a escolha.
+4. Front **reenvia o mesmo payload** + `funding_source` (+ `funding_investment_id`), com o
+   **mesmo `client_uuid`** — por isso não duplica.
+5. `resgate_investimento` resgata só o **FALTANTE** (`amount − max(0, disponível)`), não o total,
+   e a despesa + o resgate nascem na mesma transação de banco.
+
+Consumidores do 409: `sm/launch.js` (modal global), `sm/offline-queue.js` (form cheio) e, sem
+JS, o Blade via `session('fonteNecessaria')`. **Fila offline e service worker**: no 409
+reenviam **uma vez** com `cheque_especial` (a compra já aconteceu no mundo real); resgate de
+investimento nunca é automático. Se ainda falhar, marcam `failed` com a mensagem real do servidor.
+
+### Cartão de crédito
+
+- `committed` = **tudo que não foi pago** (`paid_at` null), sem filtro de data. O limite volta
+  **ao pagar**, não com a passagem do tempo. (Antes era por data: quem nunca pagava recebia
+  limite de volta quando o ciclo virava, e quem pagava não recebia nada.)
+- `availableLimit` devolve o valor **real** (pode ser negativo, se estourado);
+  `availableLimitDisplay` é o clampado em 0 — use este na view.
+- `dueDateForCycle($cycleEnd)`: vencimento **derivado do ciclo**. Se `due_day > closing_day`,
+  cai no mês do fechamento; senão, no seguinte.
+- `closedCycle()` / `closedInvoiceDue` / `overdueInvoice`: a fatura do ciclo **já fechado** e não
+  paga. Sem isso ela sumia da tela no dia em que o ciclo virava.
+
+### Contas fixas — as competências NÃO são materializadas
+
+`FixedBillService::occurrences()` **projeta** os meses de `starts_on` até hoje. Só existe linha
+em `transactions` quando a conta é **paga** (com `fixed_bill_id` + `competence`).
+
+**Por que isso importa:** uma transação em aberto já reduz o saldo hoje (`Account::balance` soma
+tudo, sem olhar `paid_at` nem data). Materializar 12 meses derrubaria o saldo em 12 aluguéis de
+uma vez e sabotaria o limite de gasto, que depende de um saldo confiável.
+**Corolário: não é preciso agendador** — a competência do mês existe sempre porque é calculada.
+Um comando agendado só entraria depois, para NOTIFICAR, nunca para criar dado.
+
+### Cartão de débito NÃO é conta de lançamento
+
+Ele não tem saldo próprio (espelha corrente/poupança). Os Form Requests recusam `debit_card` em
+`account_id`, e os selects usam **`Account::paymentOptions($ownerId)`**: o cartão aparece com o
+rótulo dele, mas o `id` submetido é o da conta que ele espelha.
+
+⚠️ `paymentOptions()` devolve **`Fluent`**, não `Account`. Nas views use `$conta->isCard`
+(propriedade), **nunca** `$conta->isCard()` — o `__call` do Fluent devolveria `$this` (truthy) e
+marcaria toda conta como cartão.
+
+### Formatação
+
+`App\Support\Brl::format()` e a directive **`@brl($valor)`**: negativo sai como **`−R$ 1.234,56`**
+(sinal antes do símbolo, traço U+2212), não `R$ -1.234,56`. Entrada (`sm/money.js`) não muda:
+continua descartando o menos, porque valor digitado nunca é negativo.
+
+### Comportamentos conhecidos e aceitos (não são bugs novos)
+
+- Despesa com **data futura** e recorrência **não paga** já entram no saldo (`Account::balance`
+  não olha `date` nem `paid_at`). Mudar isso era a proposta "R-SALDO", **descartada** quando as
+  contas fixas passaram a ser calculadas — ver §8.2 e decisão D-4 da spec.
+- Falta implementar (§14 da spec): estorno de pagamento de fatura, guard de parcela isolada no
+  Histórico, bloqueio de excluir conta/investimento com saldo negativo.
 
 ---
 
@@ -383,12 +533,48 @@ Coberto por `tests/Feature/SecurityHardeningTest.php`. **argon2id está adequado
 acima do mínimo OWASP); não hashear IP com argon2id (hash é irreversível e quebraria a tela de
 dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypted`).
 
-**Pendências conhecidas (ondas 2 e 3):** política de senha ainda é só `min(8)`
-(`Password::defaults()` nunca configurado) enquanto a UI promete maiúscula/número/símbolo;
-sem headers de segurança/CSP; troca de e-mail não pede senha atual; avatares em disco público
-com EXIF/GPS; sem verificação de e-mail; IndexedDB da fila offline não é limpo no logout;
-`is_admin`/`account_owner_id` em `$fillable` (sem sink hoje). Deploy: `APP_DEBUG=false`,
-`APP_ENV=production`, `APP_KEY` nova, `SESSION_SECURE_COOKIE=true`, nada de `chmod 777` na VPS.
+**Onda 2** (`tests/Feature/SecurityHardeningWave2Test.php`):
+
+- **Política de senha:** `Password::defaults()` agora é configurado em
+  `AppServiceProvider::configurarPoliticaDeSenha()` → `min(8)->uncompromised()` (antes valia o
+  default do framework: só `min(8)`, aceitava "12345678"). Segue o **NIST SP 800-63B**:
+  comprimento + checagem de vazamento, **sem** regra de composição — exigir maiúscula/símbolo
+  empurra para "Senha@123", que passa em tudo e está em qualquer lista de ataque.
+  `uncompromised()` usa k-anonimato (envia 5 caracteres do SHA-1, nunca a senha) e é
+  **desligado em teste** (`runningUnitTests`) p/ a suíte não depender de rede.
+- **Headers de segurança:** `App\Http\Middleware\SecurityHeaders` (append no grupo `web`) —
+  CSP, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, e HSTS
+  **só sobre HTTPS**. A CSP usa `'unsafe-inline'` em `script-src` de propósito (scripts inline
+  + `nav.js` recriando `<script>` no pjax); o que ela entrega é `connect-src`/`img-src` na
+  própria origem e `frame-ancestors`/`object-src`/`base-uri`/`form-action` travados. **Libera
+  `localhost:5173` só em ambiente local** — senão `npm run dev` quebra.
+- **Trocar e-mail exige a senha atual** (`ProfileUpdateRequest` → `current_password` requerido
+  **só quando o e-mail muda**). O e-mail é o que recupera a conta: sem isso, sessão sequestrada
+  → troca e-mail → "esqueci a senha" → conta tomada. Nome/telefone/foto seguem sem atrito.
+- **Metadados das fotos:** `App\Support\ImageMetadata::strip()` remove segmentos APPn/COM do
+  JPEG e chunks de texto do PNG **no nível dos bytes** (sem re-encode, então não perde
+  qualidade). Foi preciso assim porque **o GD do container está compilado SEM suporte a JPEG**
+  (`imagejpeg` não existe) — não tente `imagejpeg()` aqui. Consolidado em
+  `User::storeAvatar()`, que substituiu a duplicação em perfil + criar/editar dependente.
+
+**Onda 3:**
+
+- **Logout manda `Clear-Site-Data: "cache"`** (`AuthenticatedSessionController::destroy`): o SW
+  cacheia `/transactions/create` (HTML autenticado com contas/categorias/família) e o cache
+  sobrevivia ao logout. **Só `"cache"`, NUNCA `"storage"`** — `storage` apagaria o IndexedDB da
+  fila offline e destruiria lançamentos não sincronizados. Há teste garantindo a ausência de
+  `storage` no header.
+- **`config/filesystems.php`:** `'serve' => false` no disco `local` (o default `true` registra
+  `GET|PUT /storage/{path}` fora de auth; não é explorável, mas é superfície morta).
+- **`docs/checklist-de-publicacao.md`** — 16 itens de deploy priorizados, com o "por quê" e o
+  valor de config de cada um. **Consulte antes de publicar.**
+
+**Pendências (não são código — infra ou decisão):** avatares ainda no disco `public` sem auth
+(o EXIF já sai; falta rota autenticada + migrar arquivos); IndexedDB não é limpo na troca de
+usuário no cliente; **verificação de e-mail bloqueada por `MAIL_MAILER=log`** — ativar
+`MustVerifyEmail` sem mailer trancaria todos fora do app, e é o mesmo bloqueio que faz a
+**recuperação de senha não funcionar hoje**; `is_admin`/`account_owner_id` em `$fillable` (sem
+sink hoje); revisão jurídica dos documentos legais. Detalhes e passo a passo no checklist.
 
 ---
 
