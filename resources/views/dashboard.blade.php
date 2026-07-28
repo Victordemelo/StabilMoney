@@ -159,7 +159,8 @@
                     <p>Quando você lançar receitas e despesas, as mais recentes aparecem aqui.</p>
                 </div>
             @else
-                <div class="tx-list">
+                {{-- .scroll = barra de rolagem discreta do design system --}}
+                <div class="tx-list scroll">
                     @foreach ($recent as $transaction)
                         @php $isIncome = $transaction->type === 'income'; @endphp
                         <div class="tx">

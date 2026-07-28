@@ -249,6 +249,29 @@ class DashboardTest extends TestCase
         $this->assertSame(1, $d['cartoes'][0]['melhorDia']);
     }
 
+    public function test_recent_transactions_are_newest_first_and_capped(): void
+    {
+        $user = User::factory()->create();
+        $conta = Account::factory()->for($user)->create(['type' => 'checking']);
+
+        // 10 lançamentos em dias diferentes (o mais novo é "Dia 0").
+        for ($i = 0; $i < 10; $i++) {
+            Transaction::factory()->for($user)->for($conta)->expense()->create([
+                'description' => "Dia {$i}",
+                'amount' => 10,
+                'date' => now()->subDays($i)->toDateString(),
+            ]);
+        }
+
+        $recent = app(\App\Services\DashboardService::class)->build($user->id)['recent'];
+
+        // A lista mostra 4 por vez e rola o restante (CSS); o servidor manda 8.
+        $this->assertCount(8, $recent);
+        // Mais recentes SEMPRE no topo
+        $this->assertSame('Dia 0', $recent->first()->description);
+        $this->assertSame('Dia 7', $recent->last()->description);
+    }
+
     public function test_page_title_uses_section(): void
     {
         $user = User::factory()->create();
