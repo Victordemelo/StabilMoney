@@ -115,6 +115,29 @@ class DashboardTest extends TestCase
         $response->assertDontSee('class="sb-value neg"', false);
     }
 
+    public function test_dashboard_opens_on_week_period(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create(['type' => 'checking', 'initial_balance' => 0]);
+
+        // Despesa de hoje (entra na semana) e uma de 20 dias atrás (só no mês).
+        Transaction::factory()->for($user)->for($account)->expense()->create([
+            'amount' => 100, 'date' => now()->toDateString(),
+        ]);
+        Transaction::factory()->for($user)->for($account)->expense()->create([
+            'amount' => 900, 'date' => now()->subDays(20)->toDateString(),
+        ]);
+
+        $response = $this->actingAs($user)->get('/');
+
+        $response->assertOk();
+        // O botão "Semana" abre marcado (o JS desenha o período do botão ativo)
+        $response->assertSee('data-p="semana" class="active"', false);
+        $response->assertDontSee('data-p="mes" class="active"', false);
+        // E os stat cards já vêm com os números DA SEMANA (100), não do mês (1.000)
+        $response->assertSee('100,00');
+    }
+
     public function test_page_title_uses_section(): void
     {
         $user = User::factory()->create();

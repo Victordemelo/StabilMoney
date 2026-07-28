@@ -233,20 +233,22 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .section-head .sub { font-size: 13px; color: var(--ink-3); }
 
 /* Period segmented control */
+/* Segmented (Semana/Mês/Ano): trilho e pílula totalmente arredondados —
+   com raio pequeno a pílula do item ativo parecia um retângulo achatado. */
 .seg {
   margin-left: auto; display: flex; gap: 3px; background: var(--surface-3);
-  padding: 4px; border-radius: 12px; border: 1px solid var(--line);
+  padding: 4px; border-radius: 999px; border: 1px solid var(--line);
   flex: none; white-space: nowrap; position: relative;
 }
 .seg button {
-  font-size: 13px; font-weight: 600; color: var(--ink-3); padding: 7px 15px;
-  border-radius: 8px; position: relative; transition: color .25s var(--ease); white-space: nowrap;
+  font-size: 13px; font-weight: 600; color: var(--ink-3); padding: 8px 17px;
+  border-radius: 999px; position: relative; transition: color .25s var(--ease); white-space: nowrap;
   background: none; line-height: 1.1;
 }
 .seg button.active { color: var(--brand-700); }
 [data-theme="dark"] .seg button.active { color: var(--brand-300); }
 .seg .seg-pill {
-  position: absolute; inset: 4px auto 4px 0; border-radius: 8px;
+  position: absolute; inset: 4px auto 4px 0; border-radius: 999px;
   background: var(--surface); box-shadow: var(--shadow-sm);
   transition: transform .35s var(--ease-out), width .35s var(--ease-out); z-index: 0;
 }

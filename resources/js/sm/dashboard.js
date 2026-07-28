@@ -153,10 +153,11 @@ export function initDashboard() {
     // Contadores de todos os [data-count] da página
     runCounters(document, reduceMotion);
 
-    // Período inicial = botão ativo do segmented (padrão: mês)
+    // Período inicial = botão ativo do segmented (o servidor marca qual é,
+    // via DashboardService::DEFAULT_PERIOD; hoje "semana")
     const seg = document.getElementById('period');
     const activeBtn = seg && seg.querySelector('button.active');
-    const initial = (activeBtn && activeBtn.dataset.p) || 'mes';
+    const initial = (activeBtn && activeBtn.dataset.p) || 'semana';
     initPeriod(data, drawCf, reduceMotion);
     applyPeriod(data, initial, drawCf, reduceMotion);
 }

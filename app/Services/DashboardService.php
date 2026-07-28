@@ -19,6 +19,13 @@ use Illuminate\Support\Str;
  */
 class DashboardService
 {
+    /**
+     * Período que o dashboard abre selecionado ("semana" | "mes" | "ano").
+     * Preferência do usuário: abrir na SEMANA. Vale para o server-render dos
+     * stat cards e para o botão ativo do segmented.
+     */
+    public const DEFAULT_PERIOD = 'semana';
+
     /** Paleta do design para categorias sem cor própria (cicla na ordem). */
     private const PALETTE = ['#0F6B47', '#1FA06E', '#59C497', '#18B6BE', '#F0A93B', '#9FB0A7'];
 
@@ -193,6 +200,12 @@ class DashboardService
             'payloadJson' => json_encode($payload, JSON_UNESCAPED_UNICODE),
             'hasData' => $hasData,
             'cats' => $cats,
+            // Período que abre selecionado no dashboard (server-render + botão ativo).
+            'defaultPeriod' => self::DEFAULT_PERIOD,
+            'initialStats' => $periods[self::DEFAULT_PERIOD]['stats'],
+            'initialTrends' => $periods[self::DEFAULT_PERIOD]['trends'],
+            'initialSub' => $periods[self::DEFAULT_PERIOD]['sub'],
+            // Compat: alguns pontos ainda leem os números do mês explicitamente.
             'monthStats' => $periods['mes']['stats'],
             'monthTrends' => $periods['mes']['trends'],
             'recent' => $recent,

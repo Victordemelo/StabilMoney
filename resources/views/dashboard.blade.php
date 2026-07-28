@@ -53,12 +53,14 @@
 
     <div class="section-head">
         <h2>Visão geral</h2>
-        <span class="sub" id="periodSub">{{ $payload['periods']['mes']['sub'] }}</span>
+        <span class="sub" id="periodSub">{{ $initialSub }}</span>
+        {{-- O período que abre marcado vem do DashboardService::DEFAULT_PERIOD
+             (hoje "semana"); o JS lê o botão .active e desenha esse período. --}}
         <div class="seg" id="period">
             <span class="seg-pill" id="segPill"></span>
-            <button type="button" data-p="semana"><span>Semana</span></button>
-            <button type="button" data-p="mes" class="active"><span>Mês</span></button>
-            <button type="button" data-p="ano"><span>Ano</span></button>
+            <button type="button" data-p="semana" @class(['active' => $defaultPeriod === 'semana'])><span>Semana</span></button>
+            <button type="button" data-p="mes" @class(['active' => $defaultPeriod === 'mes'])><span>Mês</span></button>
+            <button type="button" data-p="ano" @class(['active' => $defaultPeriod === 'ano'])><span>Ano</span></button>
         </div>
     </div>
 
@@ -66,8 +68,8 @@
         {{-- Stat cards (valores do mês renderizados no servidor; o JS anima/troca o período) --}}
         @foreach ($statCards as $card)
             @php
-                $value = $monthStats[$card['key']];
-                $trend = $monthTrends[$card['key']];
+                $value = $initialStats[$card['key']];
+                $trend = $initialTrends[$card['key']];
                 // Para despesas, cair é bom (verde); para o resto, subir é bom
                 $isUp = $trend === null ? null : ($card['key'] === 'despesas' ? $trend < 0 : $trend >= 0);
                 $sparkVals = $payload['sparks'][$card['key']] ?? [];
