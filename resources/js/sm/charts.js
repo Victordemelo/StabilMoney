@@ -189,6 +189,9 @@ export function buildDonut(svg, legend, cats) {
     svg.innerHTML =
         `<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="var(--surface-3)" stroke-width="13"/>` +
         cats.map((c, i) => {
+            // Categoria fixa sem gasto no período: entra só na legenda. Sem isto
+            // o arco mínimo (0,1°) com linecap round viraria uma bolinha no donut.
+            if (!(c.value > 0)) return '';
             const span = (c.value / total) * 360;
             const d0 = acc + GAP / 2, d1 = acc + span - GAP / 2;
             acc += span;
@@ -196,8 +199,9 @@ export function buildDonut(svg, legend, cats) {
         }).join('') +
         `<g class="donut-center" text-anchor="middle"><text class="dc-amt" x="${C}" y="${C - 2}">${donutTotalLabel(total)}</text><text class="dc-lbl" x="${C}" y="${C + 14}">Total no mês</text></g>`;
 
+    // Legenda lista TODAS (inclusive as fixas zeradas, marcadas com .is-zero)
     legend.innerHTML = cats.map((c, i) =>
-        `<div class="cat-row" data-i="${i}"><span class="cd" style="background:${c.color}"></span><span class="cn">${c.name}</span><span class="cv">R$ ${BRL(c.value, 0)}</span><span class="cp">${Math.round(c.value / total * 100)}%</span></div>`
+        `<div class="cat-row${c.value > 0 ? '' : ' is-zero'}" data-i="${i}"><span class="cd" style="background:${c.color}"></span><span class="cn">${c.name}</span><span class="cv">R$ ${BRL(c.value, 0)}</span><span class="cp">${Math.round(c.value / total * 100)}%</span></div>`
     ).join('');
 
     const amtEl = $('.dc-amt', svg), lblEl = $('.dc-lbl', svg);

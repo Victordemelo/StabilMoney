@@ -95,10 +95,15 @@ function initPeriod(data, drawCf, reduceMotion) {
     const btns = $$('button[data-p]', seg);
     if (!btns.length) return;
 
-    // Pill animada acompanha o botão ativo
+    // Pílula animada acompanha o botão ativo.
+    // O deslocamento é a diferença entre a posição de LAYOUT do botão e a da
+    // própria pílula (offsetLeft ignora transform, então serve de referência
+    // estável). Assim a pílula cobre o botão exatamente, sem depender de
+    // padding/borda do trilho — o desconto fixo de 4px que havia aqui a deixava
+    // desalinhada, com folga desigual dos dois lados.
     const setPill = (btn) => {
         pill.style.width = btn.offsetWidth + 'px';
-        pill.style.transform = `translateX(${btn.offsetLeft - 4}px)`;
+        pill.style.transform = `translateX(${btn.offsetLeft - pill.offsetLeft}px)`;
     };
 
     btns.forEach((b) => b.addEventListener('click', () => {

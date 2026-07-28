@@ -138,6 +138,39 @@ class DashboardTest extends TestCase
         $response->assertSee('100,00');
     }
 
+    public function test_locked_categories_always_appear_in_breakdown(): void
+    {
+        $user = User::factory()->create();
+        \App\Support\DefaultCategories::seedFor($user);
+        $account = Account::factory()->for($user)->create(['type' => 'checking']);
+
+        // Um gasto só em Alimentação — as outras 4 fixas ficam sem gasto no mês.
+        $alimentacao = Category::where('user_id', $user->id)->where('name', 'Alimentação')->firstOrFail();
+        Transaction::factory()->for($user)->for($account)->expense()->create([
+            'category_id' => $alimentacao->id, 'amount' => 250, 'date' => now()->toDateString(),
+        ]);
+
+        $cats = collect(app(\App\Services\DashboardService::class)->build($user->id)['cats']);
+
+        // As 5 fixas aparecem, mesmo as zeradas; a com gasto vem com valor.
+        foreach (['Alimentação', 'Moradia', 'Saúde', 'Transporte', 'Contas'] as $nome) {
+            $this->assertTrue($cats->contains('name', $nome), "categoria fixa {$nome} deveria estar na lista");
+        }
+        $this->assertSame(250.0, $cats->firstWhere('name', 'Alimentação')['value']);
+        $this->assertSame(0.0, $cats->firstWhere('name', 'Moradia')['value']);
+        // Categoria não fixa e sem gasto NÃO entra
+        $this->assertFalse($cats->contains('name', 'Lazer'));
+    }
+
+    public function test_breakdown_is_empty_without_expenses(): void
+    {
+        $user = User::factory()->create();
+        \App\Support\DefaultCategories::seedFor($user);
+
+        // Sem despesa no mês, o card mostra o estado vazio (não um donut zerado)
+        $this->assertSame([], app(\App\Services\DashboardService::class)->build($user->id)['cats']);
+    }
+
     public function test_page_title_uses_section(): void
     {
         $user = User::factory()->create();

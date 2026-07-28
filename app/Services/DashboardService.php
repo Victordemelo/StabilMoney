@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Account;
+use App\Models\Category;
 use App\Models\Goal;
 use App\Models\Investment;
 use App\Models\Transaction;
@@ -402,9 +403,15 @@ class DashboardService
     }
 
     /**
-     * Despesas do mês agrupadas por categoria (decrescente). Mais de 6
-     * categorias => 5 maiores + "Outros" agregado. Sem categoria entra como
-     * "Sem categoria". Cor: a da categoria ou a paleta do design (ciclando).
+     * Despesas do mês agrupadas por categoria (decrescente).
+     *
+     * As categorias FIXAS (is_locked) aparecem SEMPRE — mesmo sem gasto no
+     * período, entrando zeradas no fim da lista — para o usuário acompanhar as
+     * principais o tempo todo. Elas também nunca caem no agregado "Outros":
+     * o corte de 5 maiores + "Outros" vale só para as demais.
+     *
+     * Sem nenhuma despesa no período devolve [] (o card mostra o estado vazio;
+     * um donut todo zerado não diria nada).
      */
     private function categoryBreakdown(int $userId, CarbonImmutable $monthStart, CarbonImmutable $monthEnd): array
     {
@@ -413,24 +420,46 @@ class DashboardService
             ->where('transactions.user_id', $userId)
             ->where('transactions.type', 'expense')
             ->whereBetween('transactions.date', [$monthStart->toDateString(), $monthEnd->toDateString()])
-            ->groupBy('transactions.category_id', 'categories.name', 'categories.color')
+            ->groupBy('transactions.category_id', 'categories.name', 'categories.color', 'categories.is_locked')
             ->orderByDesc('total')
-            ->selectRaw('categories.name AS cat_name, categories.color AS cat_color, SUM(transactions.amount) AS total')
+            ->selectRaw('categories.name AS cat_name, categories.color AS cat_color, categories.is_locked AS cat_locked, SUM(transactions.amount) AS total')
             ->get();
 
         $items = $rows->map(fn ($row) => [
             'name' => $row->cat_name ?? 'Sem categoria',
             'value' => round((float) $row->total, 2),
             'color' => $row->cat_name === null ? self::NO_CATEGORY_COLOR : ($row->cat_color ?: null),
+            'locked' => (bool) $row->cat_locked,
         ])->values();
 
-        if ($items->count() > 6) {
-            $rest = round($items->slice(5)->sum('value'), 2);
-            $items = $items->take(5)->push(['name' => 'Outros', 'value' => $rest, 'color' => null]);
+        if ($items->isEmpty()) {
+            return [];
         }
 
-        return $items->values()->map(function (array $cat, int $i) {
+        // "Outros" agrega só as NÃO fixas que passarem do corte.
+        $fixas = $items->where('locked', true)->values();
+        $livres = $items->where('locked', false)->values();
+        if ($livres->count() > 6) {
+            $rest = round($livres->slice(5)->sum('value'), 2);
+            $livres = $livres->take(5)->push(['name' => 'Outros', 'value' => $rest, 'color' => null, 'locked' => false]);
+        }
+
+        // Com gasto no período, ordenadas do maior para o menor.
+        $comGasto = $fixas->concat($livres)->sortByDesc('value')->values();
+
+        // Fixas sem gasto no período: entram zeradas, no fim (só na legenda —
+        // o donut não desenha fatia de valor zero).
+        $zeradas = Category::where('user_id', $userId)
+            ->where('type', 'expense')
+            ->where('is_locked', true)
+            ->whereNotIn('name', $fixas->pluck('name')->all())
+            ->orderBy('name')
+            ->get(['name', 'color'])
+            ->map(fn (Category $c) => ['name' => $c->name, 'value' => 0.0, 'color' => $c->color ?: null, 'locked' => true]);
+
+        return $comGasto->concat($zeradas)->values()->map(function (array $cat, int $i) {
             $cat['color'] = $cat['color'] ?? self::PALETTE[$i % count(self::PALETTE)];
+            unset($cat['locked']); // uso interno; o contrato do payload é {name, value, color}
 
             return $cat;
         })->all();
