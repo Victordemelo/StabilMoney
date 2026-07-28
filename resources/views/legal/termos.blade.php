@@ -4,7 +4,9 @@
 
 @section('content')
     <h1>Termos de Uso</h1>
-    <p class="upd">Versão 2.0 · Última atualização: 27 de julho de 2026</p>
+    {{-- Versão/data e dados do controlador vêm do config/legal.php (fonte única:
+         o cadastro grava a mesma versão em users.terms_version como prova do aceite). --}}
+    <p class="upd">Versão {{ config('legal.version') }} · Última atualização: {{ config('legal.updated_at') }}</p>
 
     <p>Estes Termos de Uso são o contrato entre você e o responsável pelo <strong>Stabil Money</strong>.
        Ao criar uma conta e usar o aplicativo, você declara que leu e concorda com o que está escrito aqui.
@@ -42,11 +44,11 @@
     </div>
 
     <h2 id="s1">1. Quem é o responsável pelo aplicativo</h2>
-    <p>O Stabil Money é um projeto pessoal desenvolvido e mantido por <strong>Victor de Melo da Rosa</strong>,
+    <p>O Stabil Money é um projeto pessoal desenvolvido e mantido por <strong>{{ config('legal.controller') }}</strong>,
        pessoa física, atuando como responsável pelo serviço e como <em>controlador</em> dos dados pessoais
        tratados no aplicativo, nos termos da Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).</p>
     <p>Contato oficial para qualquer assunto relacionado ao aplicativo, incluindo estes termos e pedidos
-       sobre seus dados: <strong>victor.rosa.faculdade@gmail.com</strong>.</p>
+       sobre seus dados: <strong>{{ config('legal.contact_email') }}</strong>.</p>
 
     <h2 id="s2">2. O que é o Stabil Money</h2>
     <p>O Stabil Money é um aplicativo de <strong>controle financeiro pessoal e familiar</strong>. Ele permite
@@ -236,7 +238,7 @@
 
     <h2 id="s17">17. Contato</h2>
     <p>Dúvidas, problemas, relatos de falhas de segurança ou pedidos relacionados a estes termos:
-       <strong>victor.rosa.faculdade@gmail.com</strong>. Nesta fase de testes o atendimento é feito
+       <strong>{{ config('legal.contact_email') }}</strong>. Nesta fase de testes o atendimento é feito
        pessoalmente pelo desenvolvedor, sem prazo garantido de resposta.</p>
 
     <div class="legal-note">

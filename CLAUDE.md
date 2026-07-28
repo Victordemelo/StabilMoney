@@ -179,9 +179,29 @@ tests/Feature/              # 87 testes: auth, dashboard, CRUD, validação, iso
   **aceite de Termos de Uso/Política de Privacidade obrigatório** (`terms => required|accepted`,
   validado no servidor com mensagem PT-BR). As páginas de Termos/Privacidade **já existem**
   (rotas públicas `/termos` e `/privacidade` → views em `resources/views/legal/`, cobertas por
-  `LegalPagesTest`); o cadastro linka para elas. O **conteúdo** é simplificado ("fase de testes")
-  e precisa de revisão jurídica antes do lançamento público amplo. Os fluxos de **redefinir senha**
-  e **alterar senha no perfil** continuam exigindo confirmação.
+  `LegalPagesTest`); o cadastro linka para elas. **Conteúdo v2 (27/07/2026):** documentos
+  **completos** e específicos ao app — controlador = **Victor de Melo da Rosa** (pessoa física,
+  sem CPF publicado), contato/DPO = **victor.rosa.faculdade@gmail.com**, app **gratuito** com
+  cláusula de planos futuros, tom mantido em "fase de testes". Termos cobrem disclaimers-chave
+  (não é instituição financeira / não movimenta dinheiro / não é aconselhamento financeiro /
+  nunca pedimos senha de banco), conta-família, PWA offline, limitação de responsabilidade e
+  foro do consumidor. Privacidade traz tabelas de transparência (dado → finalidade → base legal
+  da LGPD; cookies com os **nomes reais**: `stabilmoney_session`, `XSRF-TOKEN`, `sm-theme`,
+  `sm-collapsed`, `sm-cookie-consent`, `sm-form-user`, IndexedDB da fila offline), operadores
+  (hospedagem + Google Fonts como transferência internacional), retenção (logs 6 meses — Marco
+  Civil) e os direitos do art. 18. **Ao mexer no que o app coleta/compartilha, atualizar essas
+  tabelas** — elas descrevem o código real, não texto genérico. Estilos `.legal-table`/`.legal-toc`/
+  `h3` vivem no `<style>` do `layouts/legal.blade.php`. Ainda **falta revisão jurídica** antes do
+  lançamento público amplo. Os fluxos de **redefinir senha** e **alterar senha no perfil**
+  continuam exigindo confirmação.
+- **`config/legal.php` é a fonte única** de `version` / `updated_at` / `controller` /
+  `contact_email` — as views legais exibem esses valores e o cadastro grava `legal.version` em
+  `users.terms_version`. **Ao alterar o texto dos documentos, suba a `version`** (senão o registro
+  do aceite passa a apontar para um texto que mudou por baixo).
+- **Prova do aceite (LGPD art. 8º, §1º):** o `RegisteredUserController` grava
+  `terms_accepted_at` + `terms_version` + `terms_accepted_ip` no cadastro — validar o checkbox sem
+  gravar não comprova consentimento. Fica **nulo para dependentes** (criados pelo titular, não
+  passam pelo `/register`): se um dia dependente precisar aceitar no 1º login, é aqui que entra.
 - Login/cadastro usam o `layouts/auth.blade.php` (split com vídeo, **sempre claro** — tokens
   fixos no escopo `.auth`); as demais telas de auth (esqueci/redefinir/confirmar senha,
   verificar e-mail) seguem no `layouts/guest.blade.php` com suporte a tema (inconsistência
@@ -285,7 +305,16 @@ Saldo total = atual de todas as contas, independe do período.
   `dependents()`, `titular()`, `madeTransactions()` (despesas lançadas pela pessoa, base do
   "quanto gastou no mês" no card de dependentes), `avatarUrl()`. `relationship` (string nullable):
   parentesco do dependente — valores em `User::RELATIONSHIPS` (conjuge/filho/pai_mae/irmao/outro);
-  `relationshipLabel()` devolve o rótulo PT-BR.
+  `relationshipLabel()` devolve o rótulo PT-BR. `terms_accepted_at` (datetime nullable) +
+  `terms_version` (string 20) + `terms_accepted_ip` (string 45, cabe IPv6): **prova do aceite** dos
+  documentos legais, gravada só no `/register` (nulo em dependentes) — ver seção de Autenticação.
+  **Hook `deleting` (em `User::booted`)** limpa o que o cascade do banco não alcança ao excluir a
+  conta: o **arquivo da foto** no disco `public` (`purgeStoredAvatar()`) e as linhas de `sessions`
+  (`BrowserSessions::purgeForUser()` — IP/user-agent; a tabela não tem FK com cascade). Os
+  **dependentes são apagados um a um pelo Eloquent** de propósito: o `cascadeOnDelete` de
+  `account_owner_id` roda no banco e **não dispara eventos**, então as fotos deles ficariam órfãs
+  (e servidas pelo symlink de `storage/`). Coberto por `AccountDeletionPurgeTest`. **Regra geral:
+  ao excluir algo que tenha arquivo em disco, o cascade da FK não basta.**
 - **accounts** — `user_id`, `name`, `type` (`Account::TYPES`: `checking`=Conta Corrente,
   `savings`=Conta Poupança, `debit_card`=Cartão de Débito, `credit_card`=Cartão de Crédito),
   `bank` (`Account::BANKS`: banco_do_brasil/bradesco/caixa/inter/itau/mercado_pago/nubank/santander

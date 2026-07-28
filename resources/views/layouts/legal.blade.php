@@ -28,6 +28,12 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <style>
+        /* O design system usa `body { overflow: hidden }` porque no app a rolagem mora
+           dentro do `.content`. Aqui não existe shell, então o body precisa rolar —
+           mesma solução do `.auth-body`. Sem isto, documento longo fica cortado no desktop
+           (no mobile a media query de 920px já devolve o overflow). */
+        .legal-body { height: auto; min-height: 100%; overflow-y: auto; overflow-x: hidden; }
+
         .legal-wrap { max-width: 760px; margin: 0 auto; padding: 34px 20px 80px; }
         .legal-head { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 28px; text-decoration: none; }
         .legal-head img { width: 30px; height: 30px; display: block; }
@@ -62,7 +68,7 @@
         .legal-toc li { font-size: 14px; margin-bottom: 3px; }
     </style>
 </head>
-<body>
+<body class="legal-body">
     <div class="legal-wrap">
         <a class="legal-head" href="{{ url('/') }}">
             <img src="{{ asset('assets/stabilmoney-mark.png') }}" alt="StabilMoney" />

@@ -49,6 +49,11 @@ class RegisteredUserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'is_admin' => true,
+            // Prova do aceite (LGPD art. 8º, §1º): quando, qual versão do documento
+            // e de qual IP. Sem isso não há como comprovar o consentimento depois.
+            'terms_accepted_at' => now(),
+            'terms_version' => config('legal.version'),
+            'terms_accepted_ip' => $request->ip(),
         ]);
 
         event(new Registered($user));

@@ -7,7 +7,6 @@ use App\Http\Requests\UpdateDependentRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Gerenciamento de dependentes — apenas o titular (account_owner_id null) acessa.
@@ -80,9 +79,7 @@ class DependentController extends Controller
         }
 
         if ($request->hasFile('avatar')) {
-            if ($dependent->avatar_path) {
-                Storage::disk('public')->delete($dependent->avatar_path);
-            }
+            $dependent->purgeStoredAvatar(); // não deixa a foto antiga órfã no disco
             $dependent->avatar_path = $request->file('avatar')->store('avatars', 'public');
         }
 
@@ -96,10 +93,7 @@ class DependentController extends Controller
         $titular = $request->user();
         abort_unless($titular->isTitular() && $dependent->account_owner_id === $titular->id, 403);
 
-        if ($dependent->avatar_path) {
-            Storage::disk('public')->delete($dependent->avatar_path);
-        }
-
+        // A foto e as sessões saem no hook `deleting` do User.
         $dependent->delete();
 
         return redirect()->route('dependentes')->with('status', 'Dependente removido.');

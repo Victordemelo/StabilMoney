@@ -83,6 +83,59 @@ class RegistrationTest extends TestCase
     }
 
     /**
+     * O aceite não pode ser só validado e esquecido: a LGPD (art. 8º, §1º) exige que
+     * o controlador PROVE que houve consentimento. Gravamos data, versão e IP.
+     */
+    public function test_registration_records_proof_of_terms_acceptance(): void
+    {
+        $this->post('/register', [
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'password',
+            'terms' => '1',
+        ]);
+
+        $user = User::where('email', 'test@example.com')->firstOrFail();
+
+        $this->assertNotNull($user->terms_accepted_at, 'A data do aceite deve ser gravada.');
+        $this->assertSame(config('legal.version'), $user->terms_version);
+        $this->assertNotNull($user->terms_accepted_ip, 'O IP do aceite deve ser gravado.');
+    }
+
+    /**
+     * A versão gravada tem de ser a mesma exibida nos documentos — se divergirem,
+     * não dá para saber qual texto o usuário aceitou.
+     */
+    public function test_recorded_terms_version_matches_the_published_documents(): void
+    {
+        $this->post('/register', [
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'password',
+            'terms' => '1',
+        ]);
+
+        $version = User::where('email', 'test@example.com')->firstOrFail()->terms_version;
+
+        $this->get('/termos')->assertSee('Versão '.$version);
+        $this->get('/privacidade')->assertSee('Versão '.$version);
+    }
+
+    /**
+     * Sem aceite não existe usuário — logo, não existe registro de aceite.
+     */
+    public function test_no_acceptance_record_when_registration_is_rejected(): void
+    {
+        $this->post('/register', [
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'password',
+        ]);
+
+        $this->assertDatabaseMissing('users', ['email' => 'test@example.com']);
+    }
+
+    /**
      * O listener do evento Registered (SeedDefaultCategoriesForNewUser)
      * cria as categorias padrão de receita e despesa para o usuário novo.
      */

@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\BrowserSessions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Ações de segurança da conta (tela Configurações › Segurança).
@@ -32,13 +32,10 @@ class SecurityController extends Controller
         Auth::logoutOtherDevices($request->input('password'));
 
         // Remove as linhas das outras sessões (o que de fato as desconecta).
-        if (config('session.driver') === 'database') {
-            DB::connection(config('session.connection'))
-                ->table(config('session.table', 'sessions'))
-                ->where('user_id', $request->user()->getAuthIdentifier())
-                ->where('id', '!=', $request->session()->getId())
-                ->delete();
-        }
+        BrowserSessions::purgeForUser(
+            $request->user()->getAuthIdentifier(),
+            exceptSessionId: $request->session()->getId(),
+        );
 
         return back()->with('status', 'sessions-cleared');
     }

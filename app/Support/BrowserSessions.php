@@ -46,6 +46,32 @@ class BrowserSessions
             ]);
     }
 
+    /**
+     * Apaga as linhas de sessão do usuário — é isso que efetivamente desconecta
+     * os navegadores no driver `database`, e o que remove IP e user-agent guardados
+     * junto da sessão.
+     *
+     * @param  string|null  $exceptSessionId  sessão a preservar (ex.: a atual, ao
+     *                                        encerrar "as outras"); null apaga todas.
+     * @return int  linhas removidas
+     */
+    public static function purgeForUser(int|string $userId, ?string $exceptSessionId = null): int
+    {
+        if (config('session.driver') !== 'database') {
+            return 0;
+        }
+
+        $query = DB::connection(config('session.connection'))
+            ->table(config('session.table', 'sessions'))
+            ->where('user_id', $userId);
+
+        if ($exceptSessionId !== null) {
+            $query->where('id', '!=', $exceptSessionId);
+        }
+
+        return $query->delete();
+    }
+
     private static function isMobile(?string $ua): bool
     {
         return $ua !== null && preg_match('/Mobi|Android|iPhone|iPad|iPod/i', $ua) === 1;

@@ -3,11 +3,13 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\BrowserSessions;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
@@ -29,6 +31,9 @@ class User extends Authenticatable
         'is_admin',
         'account_owner_id',
         'relationship',
+        'terms_accepted_at',
+        'terms_version',
+        'terms_accepted_ip',
     ];
 
     /** Graus de parentesco de um dependente (valor no banco => rótulo PT-BR). */
@@ -62,7 +67,40 @@ class User extends Authenticatable
             'password' => 'hashed',
             'password_changed_at' => 'datetime',
             'is_admin' => 'boolean',
+            'terms_accepted_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Ao excluir a conta, remover o que o `cascadeOnDelete` do banco NÃO alcança:
+     * o arquivo da foto no disco e as linhas da tabela `sessions` (que guardam IP e
+     * user-agent). A Política de Privacidade promete que os dados associados são
+     * removidos — sem isto, o retrato da pessoa continuaria servido publicamente
+     * pelo symlink de `storage/` depois da conta deixar de existir.
+     *
+     * Os dependentes são apagados aqui, um a um, DE PROPÓSITO: o cascade da FK
+     * `account_owner_id` roda no banco e não dispara eventos do Eloquent, então as
+     * fotos e sessões deles passariam batido.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (User $user) {
+            foreach ($user->dependents as $dependent) {
+                $dependent->delete();
+            }
+
+            $user->purgeStoredAvatar();
+
+            BrowserSessions::purgeForUser($user->getKey());
+        });
+    }
+
+    /** Apaga o arquivo da foto de perfil do disco (não mexe na coluna). */
+    public function purgeStoredAvatar(): void
+    {
+        if ($this->avatar_path) {
+            Storage::disk('public')->delete($this->avatar_path);
+        }
     }
 
     public function accounts(): HasMany
@@ -128,6 +166,6 @@ class User extends Authenticatable
     /** URL pública da foto de perfil (ou null se não houver — a view cai nas iniciais). */
     public function avatarUrl(): ?string
     {
-        return $this->avatar_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($this->avatar_path) : null;
+        return $this->avatar_path ? Storage::disk('public')->url($this->avatar_path) : null;
     }
 }
