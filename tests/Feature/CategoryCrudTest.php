@@ -266,6 +266,21 @@ class CategoryCrudTest extends TestCase
         }
     }
 
+    public function test_no_default_category_uses_the_debt_red(): void
+    {
+        $user = User::factory()->create();
+        DefaultCategories::seedFor($user);
+
+        // #E5604D é o token --neg: cor de "está devendo" (saldo negativo, a
+        // pagar, vencido). Nenhuma categoria pode usá-la, senão vermelho na
+        // tela deixa de significar dívida.
+        $this->assertSame(
+            0,
+            Category::where('user_id', $user->id)->where('color', '#E5604D')->count(),
+            'o vermelho de dívida (--neg) não pode ser cor de categoria',
+        );
+    }
+
     public function test_locked_categories_are_listed_first(): void
     {
         $user = User::factory()->create();

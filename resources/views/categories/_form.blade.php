@@ -5,7 +5,10 @@
 @php
     $editando = $category !== null;
     $icones = ['🍽️', '🚗', '🏠', '💊', '🎮', '📚', '🛒', '🧾', '💰', '💼', '📈', '🎁', '📦', '✨'];
-    $cores = ['#0F6B47', '#15795A', '#1C9A70', '#1FA06E', '#59C497', '#18B6BE', '#F0A93B', '#E5604D', '#9FB0A7', '#0B3A28'];
+    // Sem vermelho: o #E5604D (--neg) é reservado para "está devendo" (saldo
+    // negativo, a pagar, vencido). Cores variadas para as categorias não
+    // ficarem todas parecidas.
+    $cores = ['#0F6B47', '#1FA06E', '#59C497', '#18B6BE', '#0EA5B5', '#3B82C4', '#6366F1', '#8B5CF6', '#EC4899', '#F0A93B', '#64748B', '#78716C'];
     $tipoPrefill = in_array(request('type'), ['income', 'expense'], true) ? request('type') : 'expense';
     $tipoAtual = old('type', $category->type ?? $tipoPrefill);
     $iconeAtual = old('icon', $category->icon ?? '✨');
