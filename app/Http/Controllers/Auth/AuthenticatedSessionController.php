@@ -52,6 +52,19 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        $resposta = redirect('/');
+
+        // Manda o navegador apagar o cache do site ao sair. O service worker do PWA
+        // guarda `/transactions/create` — HTML autenticado, com nomes de contas, de
+        // categorias e da família — e esse cache sobrevive ao logout. Até aqui a limpeza
+        // dependia de o JS rodar na tela de login; num aparelho compartilhado, quem
+        // navegasse offline para aquela URL veria os dados do usuário anterior.
+        //
+        // Só "cache", DE PROPÓSITO: incluir "storage" apagaria o IndexedDB da fila
+        // offline e destruiria silenciosamente lançamentos ainda não sincronizados.
+        // Perder o cache custa um download; perder a fila custa o dado do usuário.
+        $resposta->headers->set('Clear-Site-Data', '"cache"');
+
+        return $resposta;
     }
 }

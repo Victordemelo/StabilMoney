@@ -199,6 +199,34 @@ class SecurityHardeningWave2Test extends TestCase
         $this->get('/termos')->assertOk()->assertHeader('X-Content-Type-Options', 'nosniff');
     }
 
+    /**
+     * O logout manda o navegador apagar o cache do site: o service worker guarda
+     * `/transactions/create` (HTML autenticado com contas, categorias e família) e esse
+     * cache sobrevivia ao logout num aparelho compartilhado.
+     */
+    public function test_logout_tells_the_browser_to_clear_cached_pages(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->post('/logout');
+
+        $response->assertHeader('Clear-Site-Data', '"cache"');
+    }
+
+    /**
+     * E NÃO pede para limpar "storage": isso apagaria o IndexedDB da fila offline e
+     * destruiria lançamentos que o usuário fez sem internet e ainda não sincronizaram.
+     */
+    public function test_logout_does_not_wipe_offline_queue_storage(): void
+    {
+        $user = User::factory()->create();
+
+        $header = $this->actingAs($user)->post('/logout')->headers->get('Clear-Site-Data');
+
+        $this->assertStringNotContainsString('storage', (string) $header);
+        $this->assertStringNotContainsString('"*"', (string) $header);
+    }
+
     /** A política de senha do app rejeita menos de 8 caracteres em todos os fluxos. */
     public function test_password_policy_rejects_short_passwords(): void
     {

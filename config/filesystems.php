@@ -33,7 +33,12 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // 'serve' => false: o default do Laravel (true) registra as rotas
+            // GET|PUT /storage/{path} FORA de qualquer middleware de auth. Elas exigem
+            // assinatura válida com a APP_KEY, então não são exploráveis — mas o app não
+            // usa este disco para nada, então é superfície de ataque morta. Se algum dia
+            // servir arquivo privado por URL temporária, voltar para true.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],
