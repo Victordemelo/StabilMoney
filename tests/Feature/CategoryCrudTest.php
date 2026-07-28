@@ -249,4 +249,40 @@ class CategoryCrudTest extends TestCase
         // Não duplicou a categoria
         $this->assertSame(1, Category::where('user_id', $novo->id)->where('name', 'Moradia')->count());
     }
+
+    public function test_default_categories_have_distinct_colors(): void
+    {
+        $novo = User::factory()->create();
+        DefaultCategories::seedFor($novo);
+
+        foreach (['expense', 'income'] as $tipo) {
+            $cores = Category::where('user_id', $novo->id)->where('type', $tipo)->pluck('color');
+
+            $this->assertSame(
+                $cores->count(),
+                $cores->unique()->count(),
+                "categorias de {$tipo} não podem repetir cor (ficavam quase todas verdes)",
+            );
+        }
+    }
+
+    public function test_locked_categories_are_listed_first(): void
+    {
+        $user = User::factory()->create();
+        DefaultCategories::seedFor($user);
+
+        $lista = $this->actingAs($user)->get('/categories')
+            ->assertOk()
+            ->viewData('expenseCategories')
+            ->values();
+
+        // As 5 fixas ocupam as primeiras posições
+        $primeiras = $lista->take(5)->pluck('name')->sort()->values()->all();
+        $esperadas = collect(DefaultCategories::lockedExpenseNames())->sort()->values()->all();
+        $this->assertSame($esperadas, $primeiras);
+
+        // E nenhuma livre aparece antes de uma fixa
+        $this->assertTrue($lista->take(5)->every(fn ($c) => $c->isLocked()));
+        $this->assertTrue($lista->skip(5)->every(fn ($c) => ! $c->isLocked()));
+    }
 }

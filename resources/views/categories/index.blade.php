@@ -66,14 +66,16 @@
                                 </form>
                             @endunless
                             @if ($fixa)
+                                {{-- Cadeado ocupa a MESMA caixa do botão excluir (.cc-del) --}}
                                 <span class="cc-lock" role="img"
                                       title="Categoria fixa — não pode ser excluída"
                                       aria-label="{{ $categoria->name }} é uma categoria fixa e não pode ser excluída">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>
                                 </span>
-                            @else
-                                <svg class="cc-grip" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>
                             @endif
+                            {{-- Grip sempre presente: no chip fixo fica invisível (não arrasta),
+                                 mas segura o espaço para os chips ficarem alinhados entre si. --}}
+                            <svg class="cc-grip" viewBox="0 0 24 24" fill="none" stroke="currentColor" @if ($fixa) aria-hidden="true" @endif><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>
                         </div>
                     @endforeach
                     {{-- Some via CSS assim que a coluna ganha um chip (.cat-chip ~ .cat-drop-empty) --}}

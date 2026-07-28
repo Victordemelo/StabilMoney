@@ -17,7 +17,10 @@ class CategoryController extends Controller
 
     public function index(Request $request)
     {
+        // Fixas primeiro (são as de uso recorrente), depois as demais — cada
+        // bloco em ordem alfabética.
         $categories = Category::where('user_id', $request->user()->ownerId())
+            ->orderByDesc('is_locked')
             ->orderBy('name')
             ->get();
 

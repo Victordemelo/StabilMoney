@@ -14,27 +14,36 @@ use App\Models\User;
 class DefaultCategories
 {
     /**
-     * Paleta de cores do design system (cicla pela lista na ordem das categorias).
+     * Paleta antiga (6 cores, quase todas verdes). Ficou aqui só para a
+     * migration de recoloração saber quais cores pode substituir sem apagar
+     * uma escolha do usuário.
      *
      * @var list<string>
      */
-    private const COLORS = ['#0F6B47', '#1FA06E', '#59C497', '#18B6BE', '#F0A93B', '#9FB0A7'];
+    public const LEGACY_COLORS = ['#0F6B47', '#1FA06E', '#59C497', '#18B6BE', '#F0A93B', '#9FB0A7'];
+
+    /** Cor de quem não está na lista (categoria criada à mão sem cor). */
+    private const FALLBACK_COLOR = '#9FB0A7';
 
     /**
-     * Categorias padrão de despesa: [nome, ícone].
+     * Categorias padrão de despesa: [nome, ícone, cor].
      *
-     * @var list<array{0: string, 1: string}>
+     * Cada uma tem cor PRÓPRIA e bem distinta — antes a paleta de 6 tons
+     * (4 deles verdes) ciclava e repetia, deixando o donut e os chips
+     * praticamente da mesma cor (ex.: Alimentação e Compras iguais).
+     *
+     * @var list<array{0: string, 1: string, 2: string}>
      */
     private const EXPENSES = [
-        ['Alimentação', '🍽️'],
-        ['Transporte', '🚗'],
-        ['Moradia', '🏠'],
-        ['Saúde', '💊'],
-        ['Lazer', '🎮'],
-        ['Educação', '📚'],
-        ['Compras', '🛒'],
-        ['Contas', '🧾'],
-        ['Outros', '📦'],
+        ['Alimentação', '🍽️', '#E5604D'], // coral
+        ['Transporte', '🚗', '#3B82C4'],   // azul
+        ['Moradia', '🏠', '#8B5CF6'],      // roxo
+        ['Saúde', '💊', '#18B6BE'],        // turquesa
+        ['Lazer', '🎮', '#EC4899'],        // rosa
+        ['Educação', '📚', '#6366F1'],     // índigo
+        ['Compras', '🛒', '#F0A93B'],      // âmbar
+        ['Contas', '🧾', '#0F6B47'],       // verde escuro
+        ['Outros', '📦', '#9FB0A7'],       // cinza
     ];
 
     /**
@@ -47,17 +56,32 @@ class DefaultCategories
     private const LOCKED_EXPENSES = ['Alimentação', 'Moradia', 'Saúde', 'Transporte', 'Contas'];
 
     /**
-     * Categorias padrão de receita: [nome, ícone].
+     * Categorias padrão de receita: [nome, ícone, cor].
      *
-     * @var list<array{0: string, 1: string}>
+     * @var list<array{0: string, 1: string, 2: string}>
      */
     private const INCOMES = [
-        ['Salário', '💰'],
-        ['Freelance', '💼'],
-        ['Investimentos', '📈'],
-        ['Presente', '🎁'],
-        ['Outros', '📦'],
+        ['Salário', '💰', '#1FA06E'],       // verde
+        ['Freelance', '💼', '#59C497'],     // verde claro
+        ['Investimentos', '📈', '#0EA5B5'], // ciano
+        ['Presente', '🎁', '#EC4899'],      // rosa
+        ['Outros', '📦', '#9FB0A7'],        // cinza
     ];
+
+    /**
+     * Cor padrão de uma categoria pelo nome+tipo (null se não for uma das padrão).
+     * Usado pela migration que recolore as categorias já existentes.
+     */
+    public static function defaultColorFor(string $name, string $type): ?string
+    {
+        foreach ($type === 'income' ? self::INCOMES : self::EXPENSES as [$n, , $cor]) {
+            if ($n === $name) {
+                return $cor;
+            }
+        }
+
+        return null;
+    }
 
     /**
      * Cria as categorias padrão para o usuário informado (idempotente).
@@ -80,20 +104,20 @@ class DefaultCategories
     }
 
     /**
-     * Cria as categorias de um tipo, atribuindo cores da paleta em ciclo.
+     * Cria as categorias de um tipo, cada uma com a sua cor própria.
      *
-     * @param  list<array{0: string, 1: string}>  $items
+     * @param  list<array{0: string, 1: string, 2: string}>  $items
      */
     private static function seedType(User $user, string $type, array $items): void
     {
-        foreach ($items as $i => [$name, $icon]) {
+        foreach ($items as [$name, $icon, $color]) {
             $fixa = $type === 'expense' && in_array($name, self::LOCKED_EXPENSES, true);
 
             $categoria = $user->categories()->firstOrCreate(
                 ['name' => $name, 'type' => $type],
                 [
                     'icon' => $icon,
-                    'color' => self::COLORS[$i % count(self::COLORS)],
+                    'color' => $color ?: self::FALLBACK_COLOR,
                     'is_locked' => $fixa,
                 ],
             );
