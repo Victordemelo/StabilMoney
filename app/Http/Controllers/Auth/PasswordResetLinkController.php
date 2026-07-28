@@ -37,9 +37,15 @@ class PasswordResetLinkController extends Controller
             $request->only('email')
         );
 
-        return $status == Password::RESET_LINK_SENT
-                    ? back()->with('status', __($status))
-                    : back()->withInput($request->only('email'))
-                        ->withErrors(['email' => __($status)]);
+        // Resposta SEMPRE igual quando o e-mail não existe (INVALID_USER): dizer
+        // "não existe nenhum usuário com esse e-mail" entregava a um script a lista
+        // de quem tem conta aqui — insumo para phishing dirigido e credential
+        // stuffing. Só erros operacionais (ex.: THROTTLED) aparecem para o usuário.
+        if ($status === Password::RESET_LINK_SENT || $status === Password::INVALID_USER) {
+            return back()->with('status', __(Password::RESET_LINK_SENT));
+        }
+
+        return back()->withInput($request->only('email'))
+            ->withErrors(['email' => __($status)]);
     }
 }

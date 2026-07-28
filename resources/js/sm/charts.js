@@ -199,10 +199,35 @@ export function buildDonut(svg, legend, cats) {
         }).join('') +
         `<g class="donut-center" text-anchor="middle"><text class="dc-amt" x="${C}" y="${C - 2}">${donutTotalLabel(total)}</text><text class="dc-lbl" x="${C}" y="${C + 14}">Total no mês</text></g>`;
 
-    // Legenda lista TODAS (inclusive as fixas zeradas, marcadas com .is-zero)
-    legend.innerHTML = cats.map((c, i) =>
-        `<div class="cat-row${c.value > 0 ? '' : ' is-zero'}" data-i="${i}"><span class="cd" style="background:${c.color}"></span><span class="cn">${c.name}</span><span class="cv">R$ ${BRL(c.value, 0)}</span><span class="cp">${Math.round(c.value / total * 100)}%</span></div>`
-    ).join('');
+    // Legenda lista TODAS (inclusive as fixas zeradas, marcadas com .is-zero).
+    // Montada com createElement + textContent, NÃO com innerHTML: `c.name` é o nome
+    // da categoria, texto livre do usuário, e categorias são compartilhadas na família
+    // — interpolar isso em HTML deixava um dependente executar script no dashboard do
+    // titular (ex.: categoria chamada `<img src=x onerror=...>`).
+    legend.replaceChildren(...cats.map((c, i) => {
+        const row = document.createElement('div');
+        row.className = 'cat-row' + (c.value > 0 ? '' : ' is-zero');
+        row.dataset.i = i;
+
+        const dot = document.createElement('span');
+        dot.className = 'cd';
+        dot.style.background = c.color;
+
+        const nome = document.createElement('span');
+        nome.className = 'cn';
+        nome.textContent = c.name;
+
+        const valor = document.createElement('span');
+        valor.className = 'cv';
+        valor.textContent = `R$ ${BRL(c.value, 0)}`;
+
+        const pct = document.createElement('span');
+        pct.className = 'cp';
+        pct.textContent = `${Math.round(c.value / total * 100)}%`;
+
+        row.append(dot, nome, valor, pct);
+        return row;
+    }));
 
     const amtEl = $('.dc-amt', svg), lblEl = $('.dc-lbl', svg);
     // Sincroniza segmento <-> linha da legenda e troca o texto do centro

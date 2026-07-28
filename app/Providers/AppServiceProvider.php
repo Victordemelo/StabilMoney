@@ -7,7 +7,11 @@ use App\Models\Category;
 use App\Models\User;
 use App\Services\FaturaService;
 use App\Services\SidebarService;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -29,6 +33,12 @@ class AppServiceProvider extends ServiceProvider
         // Datas traduzidas em todo o app (ex.: "terça-feira, 9 de junho"
         // via translatedFormat). O locale vem do .env (APP_LOCALE=pt_BR).
         Carbon::setLocale(config('app.locale'));
+
+        $this->configurarLimitesDeTaxa();
+
+        // @brl($valor) — dinheiro no padrão brasileiro, com o sinal ANTES do
+        // símbolo ("−R$ 1.234,56"). number_format sozinho produzia "R$ -1.234,56".
+        Blade::directive('brl', fn ($expressao) => "<?php echo e(\App\Support\Brl::format($expressao)); ?>");
 
         // Card "Patrimônio total" da sidebar: dados agregados injetados em
         // toda renderização do partial (todas as páginas autenticadas).
@@ -54,14 +64,40 @@ class AppServiceProvider extends ServiceProvider
             $ownerId = $user?->ownerId();
 
             $view->with([
-                'lmAccounts' => $ownerId
-                    ? Account::where('user_id', $ownerId)->orderBy('name')->get()
-                    : collect(),
+                'lmAccounts' => $ownerId ? Account::paymentOptions($ownerId) : collect(),
                 'lmCategories' => $ownerId
                     ? Category::where('user_id', $ownerId)->orderBy('type')->orderBy('name')->get()
                     : collect(),
                 'lmFamily' => $ownerId ? User::familyOf($ownerId)->get() : collect(),
             ]);
         });
+    }
+
+    /**
+     * Limites de taxa das rotas sensíveis.
+     *
+     * Motivo: todo endpoint que VALIDA uma senha é um oráculo de força bruta se não
+     * tiver limite — quem tem a sessão (celular perdido, PC compartilhado) mas não a
+     * senha ganharia tentativas ilimitadas para descobri-la e tomar a conta em
+     * definitivo. E cada tentativa custa um argon2id de 64 MiB, então sem limite isso
+     * também é amplificação de DoS: o hash caro é a defesa, o limite é o que impede
+     * de transformá-la em arma.
+     */
+    protected function configurarLimitesDeTaxa(): void
+    {
+        // Endpoints autenticados que pedem a senha atual (confirmar senha, trocar senha,
+        // excluir conta, encerrar outras sessões). Chave pelo usuário — mais preciso que
+        // por IP, que agruparia toda uma casa atrás do mesmo NAT.
+        RateLimiter::for('senha', fn (Request $request) => Limit::perMinute(6)
+            ->by($request->user()?->id ?: $request->ip()));
+
+        // Rotas públicas de credencial. Cada POST em /register roda um argon2id;
+        // sem limite, é o jeito mais barato de derrubar a VPS.
+        RateLimiter::for('credencial', fn (Request $request) => Limit::perMinute(5)->by($request->ip()));
+
+        // Login: complementa o throttle por e-mail+IP que já existe no LoginRequest.
+        // Aquele protege UMA conta; este barra "password spraying" — uma senha comum
+        // testada contra milhares de e-mails diferentes, que não repete a chave de lá.
+        RateLimiter::for('login-ip', fn (Request $request) => Limit::perMinute(20)->by($request->ip()));
     }
 }

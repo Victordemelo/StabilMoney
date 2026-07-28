@@ -345,6 +345,53 @@ Saldo total = atual de todas as contas, independe do período.
 
 ---
 
+## 🔒 Segurança (pentest de 27/07/2026 — onda 1 aplicada)
+
+Auditoria completa em jul/2026 (SQL injection, IDOR, auth/sessão, XSS/PWA). **Limpo em
+SQL injection e isolamento entre famílias** — o padrão "escopo por `ownerId()` + policy no
+binding + `Rule::exists` escopado em todo FK" está consistente; não há SQL cru com input do
+usuário (a única interpolação, `DashboardService` `$monthExpr`, é ternário entre constantes).
+
+Corrigido nesta rodada — **não regredir**:
+
+- **XSS armazenado (era CRÍTICO):** `charts.js` montava a legenda do donut com
+  `innerHTML` interpolando o **nome da categoria**. Como categorias são compartilhadas na
+  família, um dependente executava script no dashboard do titular. Agora a legenda é
+  `createElement` + `textContent`. **REGRA: nunca interpolar dado do usuário em `innerHTML`** —
+  no JS do projeto, `textContent` sempre (nome de categoria/meta/conta/dependente, descrição
+  de transação).
+- **JSON dentro de `<script>`:** `DashboardService` usa `JSON_HEX_TAG|HEX_AMP|HEX_APOS|HEX_QUOT`
+  (as mesmas flags do `@json`). Sem elas, categoria chamada `<!--<script>` engolia a página.
+  `</script>` já era coberto pelo escape de `/` do `json_encode`.
+- **Throttle:** limiters nomeados em `AppServiceProvider::configurarLimitesDeTaxa()` —
+  `senha` (6/min por usuário) em **todo endpoint que valida senha** (confirmar senha, trocar
+  senha, excluir conta, encerrar sessões); `credencial` (5/min por IP) em register/forgot/reset;
+  `login-ip` (20/min por IP) somado ao throttle por e-mail+IP do `LoginRequest` (aquele protege
+  uma conta, este barra *password spraying*). **Ao criar rota que pede senha, aplique
+  `throttle:senha`** — sem limite é oráculo de força bruta e amplificação de DoS (cada tentativa
+  custa um argon2id de 64 MiB).
+- **Enumeração de usuário:** `PasswordResetLinkController` responde igual para e-mail
+  inexistente (`INVALID_USER` → mensagem de sucesso).
+- **Trocar senha derruba as outras sessões** (`PasswordController` → `logoutOtherDevices` +
+  `BrowserSessions::purgeForUser`). `AuthenticateSession` NÃO está habilitado, então é a purga
+  das linhas de `sessions` que efetivamente desconecta.
+- **MySQL:** porta publicada em `127.0.0.1:3307` (antes `3307:3306` = bind em 0.0.0.0, banco
+  exposto a toda a rede Wi-Fi) e credenciais via `.env` com defaults. Trocar a senha exige
+  recriar o volume ou `ALTER USER` — o MySQL só cria o usuário no 1º boot.
+
+Coberto por `tests/Feature/SecurityHardeningTest.php`. **argon2id está adequado** (64 MiB, t=4 —
+acima do mínimo OWASP); não hashear IP com argon2id (hash é irreversível e quebraria a tela de
+dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypted`).
+
+**Pendências conhecidas (ondas 2 e 3):** política de senha ainda é só `min(8)`
+(`Password::defaults()` nunca configurado) enquanto a UI promete maiúscula/número/símbolo;
+sem headers de segurança/CSP; troca de e-mail não pede senha atual; avatares em disco público
+com EXIF/GPS; sem verificação de e-mail; IndexedDB da fila offline não é limpo no logout;
+`is_admin`/`account_owner_id` em `$fillable` (sem sink hoje). Deploy: `APP_DEBUG=false`,
+`APP_ENV=production`, `APP_KEY` nova, `SESSION_SECURE_COOKIE=true`, nada de `chmod 777` na VPS.
+
+---
+
 ## Convenções
 
 - **Validação em Form Requests** com `messages()`/`attributes()` PT-BR. Valores aceitam vírgula

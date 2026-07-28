@@ -21,12 +21,22 @@ services:
     container_name: stabilmoney_db
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: stabilmoney
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
+      # Credenciais vêm do .env (gitignorado). Os defaults abaixo são os valores
+      # históricos deste ambiente de dev — sem eles, quem clonar o repo não sobe.
+      # ATENÇÃO: o MySQL só cria o usuário no PRIMEIRO boot do volume. Trocar a
+      # senha aqui não muda o banco existente; para valer é preciso alinhar o .env
+      # e recriar o volume (`docker compose down -v` APAGA os dados) ou rodar
+      # ALTER USER dentro do container.
+      MYSQL_DATABASE: ${DB_DATABASE:-stabilmoney}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_USER: ${DB_USERNAME:-user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-password}
     ports:
-      - "3307:3306"
+      # Bind explícito em 127.0.0.1: com "3307:3306" o Docker publica em 0.0.0.0 e
+      # qualquer dispositivo da mesma rede Wi-Fi acessa o banco (e o CLAUDE.md manda
+      # testar o app pelo celular na mesma rede). O app NÃO usa esta porta — fala
+      # com db:3306 pela rede interna do compose; ela existe só para DBeaver/TablePlus.
+      - "127.0.0.1:3307:3306"
     volumes:
       - db_data:/var/lib/mysql
 
