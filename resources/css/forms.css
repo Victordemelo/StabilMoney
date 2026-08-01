@@ -618,6 +618,10 @@ a.tx { text-decoration: none; color: inherit; }
 [data-theme="dark"] .fi-rm:hover { background: rgba(229,96,77,.12); }
 .fi-rm svg { width: 15px; height: 15px; stroke-width: 2; }
 
+/* Variante "editar" do mesmo botãozinho: hover neutro (o vermelho é só p/ excluir) */
+.fi-rm.fi-ed:hover { background: var(--surface-2, rgba(0,0,0,.05)); color: var(--ink-1); }
+[data-theme="dark"] .fi-rm.fi-ed:hover { background: rgba(255,255,255,.08); }
+
 /* Lista vazia do cartão */
 .fi-empty { padding: 18px 4px; font-size: 13px; color: var(--ink-3); text-align: center; }
 

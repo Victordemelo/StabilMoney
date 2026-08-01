@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateFixedBillRequest;
 use App\Models\Account;
 use App\Models\FixedBill;
 use App\Models\Transaction;
+use App\Services\FixedBillService;
 use App\Services\FundingService;
 use App\Support\Brl;
 use Carbon\CarbonImmutable;
@@ -46,9 +47,22 @@ class FixedBillController extends Controller
         return redirect()->route('faturas.index')->with('status', 'Conta fixa atualizada.');
     }
 
-    public function destroy(FixedBill $conta)
+    public function destroy(FixedBill $conta, FixedBillService $service)
     {
         $this->authorize('delete', $conta);
+
+        // Desativar/excluir tira as competências VENCIDAS EM ABERTO do bloco de
+        // /faturas e do sino — a dívida some do radar sem que nada tenha sido
+        // pago (M-10). Não bloqueamos (quem cancelou o serviço tem o direito de
+        // apagar a conta e talvez nunca vá pagar aquele mês), mas avisamos com
+        // números: quantas competências e quanto some.
+        $vencidas = $service->overdue($conta->user_id)
+            ->filter(fn ($o) => $o['bill']->id === $conta->id);
+
+        $aviso = $vencidas->isEmpty() ? '' : ' Atenção: ' . $vencidas->count()
+            . ($vencidas->count() === 1 ? ' competência vencida' : ' competências vencidas')
+            . ' em aberto (' . Brl::format((float) $vencidas->sum('valor'))
+            . ') deixaram de aparecer aqui — se você ainda deve, lance como despesa avulsa.';
 
         // Os pagamentos já feitos são transações de verdade e ficam no
         // histórico; só o vínculo se perde (fixed_bill_id vira null não é
@@ -58,12 +72,12 @@ class FixedBillController extends Controller
             $conta->update(['active' => false]);
 
             return redirect()->route('faturas.index')
-                ->with('status', 'Conta fixa desativada (os pagamentos já feitos continuam no histórico).');
+                ->with('status', 'Conta fixa desativada (os pagamentos já feitos continuam no histórico).' . $aviso);
         }
 
         $conta->delete();
 
-        return redirect()->route('faturas.index')->with('status', 'Conta fixa removida.');
+        return redirect()->route('faturas.index')->with('status', 'Conta fixa removida.' . $aviso);
     }
 
     /**
@@ -84,20 +98,38 @@ class FixedBillController extends Controller
         // A rota já garante mês 01..12; o `!` reseta hora/minuto para não herdar "agora".
         $competence = CarbonImmutable::createFromFormat('!Y-m-d', $competencia . '-01')->startOfMonth();
 
-        // Competência FUTURA não se paga: a cobrança ainda não existe. Sem esta guarda
-        // dava para pagar dezembro em julho — o dinheiro saía e a competência paga não
-        // aparecia em nenhuma tela (a projeção só lista até o mês corrente).
-        if ($competence->greaterThan(CarbonImmutable::now()->startOfMonth())) {
+        // Conta DESATIVADA não se paga (M-11): o serviço só projeta contas
+        // ativas, então o dinheiro saía do caixa e a competência paga não
+        // aparecia em tela nenhuma — pagamento invisível é pagamento perdido.
+        if (! $conta->active) {
             throw ValidationException::withMessages([
-                'amount' => 'Esta competência ainda não venceu — só é possível pagar o mês atual ou meses anteriores.',
+                'amount' => 'Esta conta fixa está desativada. Reative-a (ou lance a despesa avulsa) antes de pagar.',
+            ]);
+        }
+
+        $hoje = CarbonImmutable::today();
+        $vencimento = $conta->dueDateFor($competence);
+
+        // Competência FUTURA só se paga se ela JÁ APARECE na tela — ou seja, se
+        // o vencimento cabe na janela de projeção (hoje + DIAS_A_FRENTE). Pagar
+        // o aluguel do dia 5 no dia 30 do mês anterior é normal; pagar dezembro
+        // em julho não é, e o dinheiro sairia para uma competência que nenhuma
+        // tela mostra.
+        if ($vencimento->greaterThan($hoje->addDays(FixedBillService::DIAS_A_FRENTE))) {
+            throw ValidationException::withMessages([
+                'amount' => 'Esta competência ainda está longe — ela fica disponível para pagamento a partir de '
+                    . $vencimento->subDays(FixedBillService::DIAS_A_FRENTE)->translatedFormat('d/m/Y') . '.',
             ]);
         }
 
         // Anterior ao início da conta fixa: aquela competência nunca existiu.
-        if ($competence->lessThan(CarbonImmutable::parse($conta->starts_on)->startOfMonth())) {
+        // Compara o VENCIMENTO com `starts_on` (não o mês), senão a conta
+        // cadastrada em 20/07 que vence dia 5 aceitaria o pagamento de uma
+        // competência de julho que a tela (corretamente) nem lista — A-10.
+        if ($vencimento->lessThan(CarbonImmutable::parse($conta->starts_on)->startOfDay())) {
             throw ValidationException::withMessages([
                 'amount' => 'Esta conta fixa começou em '
-                    . CarbonImmutable::parse($conta->starts_on)->translatedFormat('F/Y')
+                    . CarbonImmutable::parse($conta->starts_on)->translatedFormat('d/m/Y')
                     . ' — não há o que pagar antes disso.',
             ]);
         }
@@ -127,8 +159,12 @@ class FixedBillController extends Controller
                 ]),
                 madeByUserId: $request->user()->id,
                 date: $pagoEm->toDateString(),
-                // Conta fixa vencida é obrigação: sem fonte, negativa em vez de recusar.
-                obrigacao: true,
+                // Obrigação SÓ depois do vencimento (C-2c). A dívida vencida é
+                // real e não se recusa um boleto: a conta fica negativa. Mas a
+                // competência que ainda NÃO venceu é um gasto como outro
+                // qualquer — se não cabe no disponível, a trava recusa (422) em
+                // vez de deixar a conta no vermelho por antecipação.
+                obrigacao: $vencimento->lessThanOrEqualTo($hoje),
             );
         } catch (UniqueConstraintViolationException $e) {
             // Violação do UNIQUE = alguém já pagou esta competência (duplo clique /

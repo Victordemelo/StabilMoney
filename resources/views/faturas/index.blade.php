@@ -74,6 +74,11 @@
         $fixasAbertas = $contasFixas->where('paga', false);
         $fixasVencidas = $contasFixas->where('vencida', true);
         $totalFixas = round((float) $fixasAbertas->sum('valor'), 2);
+        // Editar/excluir são da CONTA FIXA, não da competência: a mesma conta
+        // pode aparecer em várias linhas (julho vencido + agosto a vencer), e
+        // repetir os botões em todas confundiria. Só a primeira linha de cada
+        // conta os recebe.
+        $fixasComAcoes = [];
     @endphp
     <div class="card fatura-card span12" style="margin-top:18px">
         <div class="fatura-head">
@@ -125,9 +130,41 @@
                                 data-action="{{ route('contas-fixas.pagar', [$bill, $oc['competence']->format('Y-m')]) }}"
                                 data-nome="{{ $bill->name }}"
                                 data-valor="{{ number_format($oc['valor'], 2, ',', '.') }}"
-                                data-conta="{{ $bill->account_id }}">
+                                data-conta="{{ $bill->account_id }}"
+                                {{-- Piso da data de pagamento = 1º dia do mês anterior à
+                                     competência (o mesmo do PayFixedBillRequest). --}}
+                                data-min="{{ $oc['competence']->subMonthNoOverflow()->startOfMonth()->format('Y-m-d') }}">
                             Pagar
                         </button>
+                    @endif
+
+                    @php
+                        $primeiraLinhaDaConta = ! in_array($bill->id, $fixasComAcoes, true);
+                        if ($primeiraLinhaDaConta) { $fixasComAcoes[] = $bill->id; }
+                    @endphp
+                    @if ($primeiraLinhaDaConta)
+                        {{-- Editar: corrige o previsto (1.800 digitado como 18.000 ficava
+                             projetado para sempre e ainda vinha pré-preenchido no pagamento). --}}
+                        <button class="fi-rm fi-ed" type="button" data-fixa-editar
+                                data-action="{{ route('contas-fixas.update', $bill) }}"
+                                data-nome="{{ $bill->name }}"
+                                data-valor="{{ number_format((float) $bill->amount, 2, ',', '.') }}"
+                                data-dia="{{ $bill->due_day }}"
+                                data-conta="{{ $bill->account_id }}"
+                                data-categoria="{{ $bill->category_id }}"
+                                data-inicio="{{ optional($bill->starts_on)->format('Y-m-d') }}"
+                                data-fim="{{ optional($bill->ends_on)->format('Y-m-d') }}"
+                                aria-label="Editar conta fixa" title="Editar conta fixa">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg>
+                        </button>
+                        <form method="POST" action="{{ route('contas-fixas.destroy', $bill) }}"
+                              onsubmit="return confirm({{ Illuminate\Support\Js::from('Excluir a conta fixa “' . $bill->name . '”? As competências em aberto deixam de aparecer aqui; os pagamentos já feitos continuam no histórico.') }});">
+                            @csrf
+                            @method('DELETE')
+                            <button class="fi-rm" type="submit" aria-label="Excluir conta fixa" title="Excluir conta fixa">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                            </button>
+                        </form>
                     @endif
                 </div>
             @empty
@@ -545,8 +582,14 @@
                 </div>
                 <div class="field-row">
                     <div class="field">
+                        {{-- Default = HOJE, não o dia 1 do mês. Com o dia 1, quem
+                             cadastrava dia 27 uma conta que vence dia 5 ganhava na
+                             hora uma competência "vencida há 22 dias" de um mês que
+                             já tinha pago fora do app — e um clique em Pagar tirava o
+                             dinheiro de novo (auditoria 28/07/2026, A-10). --}}
                         <label for="cf-inicio">A partir de</label>
-                        <input class="input" type="date" id="cf-inicio" name="starts_on" required value="{{ now()->startOfMonth()->format('Y-m-d') }}">
+                        <input class="input" type="date" id="cf-inicio" name="starts_on" required value="{{ now()->format('Y-m-d') }}">
+                        <small class="field-hint">Data do primeiro vencimento que você vai pagar aqui. Vencimentos anteriores a ela não são cobrados.</small>
                     </div>
                     <div class="field">
                         <label for="cf-fim">Até <span class="hint">(opcional)</span></label>
@@ -562,6 +605,116 @@
         </form>
     </div>
 </div>
+
+{{-- ====================== MODAL: EDITAR CONTA FIXA ======================
+     Um só modal, preenchido pelos data-* do botão clicado (mesmo padrão do
+     "Pagar conta fixa"). Fica FORA da .card de propósito: a .card tem
+     overflow:hidden + animação de transform, que prende position:fixed. --}}
+<div class="modal-scrim" id="fixaEditarModal" data-fixaedit-scrim>
+    <div class="modal">
+        <div class="modal-head">
+            <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg></span>
+            <div>
+                <h3>Editar conta fixa</h3>
+                <p>Vale para as próximas competências — os pagamentos já feitos não mudam.</p>
+            </div>
+            <button class="modal-x" type="button" data-fixaedit-close aria-label="Fechar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+        </div>
+        <form method="POST" action="" data-fixaedit-form>
+            @csrf
+            @method('PATCH')
+            <div class="modal-body">
+                <div class="field">
+                    <label for="cfe-nome">Nome</label>
+                    <input class="input" type="text" id="cfe-nome" name="name" maxlength="255" required>
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="cfe-valor">Valor mensal</label>
+                        <input class="input" type="text" id="cfe-valor" name="amount" inputmode="decimal" required placeholder="0,00">
+                    </div>
+                    <div class="field">
+                        <label for="cfe-dia">Vence todo dia</label>
+                        <input class="input" type="number" id="cfe-dia" name="due_day" min="1" max="31" required>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="cfe-conta">Pagar com <span class="hint">(opcional)</span></label>
+                        <select class="input" id="cfe-conta" name="account_id">
+                            <option value="">Escolher na hora</option>
+                            @foreach ($accounts as $acc)
+                                <option value="{{ $acc->id }}">{{ $acc->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="cfe-cat">Categoria <span class="hint">(opcional)</span></label>
+                        <select class="input" id="cfe-cat" name="category_id">
+                            <option value="">Sem categoria</option>
+                            @foreach ($categories as $categoria)
+                                <option value="{{ $categoria->id }}">{{ $categoria->icon ? $categoria->icon . '  ' : '' }}{{ $categoria->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="cfe-inicio">A partir de</label>
+                        <input class="input" type="date" id="cfe-inicio" name="starts_on" required>
+                    </div>
+                    <div class="field">
+                        <label for="cfe-fim">Até <span class="hint">(opcional)</span></label>
+                        <input class="input" type="date" id="cfe-fim" name="ends_on">
+                        <small class="field-hint">Deixe vazio se não tem fim.</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn ghost" type="button" data-fixaedit-close>Cancelar</button>
+                <button class="btn primary" type="submit">Salvar alterações</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Abertura/fechamento do modal de edição. Inline de propósito: o resto da
+     tela vive em resources/js/sm/faturas.js, mas este bloco é pequeno, roda
+     também depois da navegação pjax (nav.js re-executa scripts inline) e evita
+     mexer no módulo compartilhado. --}}
+<script>
+(function () {
+    var modal = document.getElementById('fixaEditarModal');
+    if (!modal) return;
+
+    var form = modal.querySelector('[data-fixaedit-form]');
+    var campo = function (sel) { return modal.querySelector(sel); };
+    var fechar = function () { modal.classList.remove('open'); };
+
+    document.querySelectorAll('[data-fixa-editar]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var d = btn.dataset;
+            if (form) form.setAttribute('action', d.action || '');
+            campo('#cfe-nome').value = d.nome || '';
+            campo('#cfe-valor').value = d.valor || '';
+            campo('#cfe-dia').value = d.dia || '';
+            campo('#cfe-conta').value = d.conta || '';
+            campo('#cfe-cat').value = d.categoria || '';
+            campo('#cfe-inicio').value = d.inicio || '';
+            campo('#cfe-fim').value = d.fim || '';
+            modal.classList.add('open');
+        });
+    });
+
+    modal.addEventListener('click', function (e) { if (e.target === modal) fechar(); });
+    modal.querySelectorAll('[data-fixaedit-close]').forEach(function (b) {
+        b.addEventListener('click', fechar);
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fechar(); });
+})();
+</script>
 
 {{-- ============================ MODAL: PAGAR FATURA ============================ --}}
 @if ($cashAccounts->isNotEmpty())

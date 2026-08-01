@@ -33,7 +33,9 @@ class StoreFixedBillRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'amount' => ['required', 'numeric', 'min:0.01', 'max:9999999999999.99'],
+            // `decimal:0,2` barra notação científica ("1e12", que é `numeric`
+            // para o PHP) e mais de duas casas — auditoria 28/07/2026.
+            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:9999999999999.99'],
             'due_day' => ['required', 'integer', 'between:1,31'],
             'account_id' => [
                 'nullable',
@@ -75,6 +77,7 @@ class StoreFixedBillRequest extends FormRequest
             'name.max' => 'O nome pode ter no máximo 255 caracteres.',
             'amount.required' => 'Informe o valor mensal.',
             'amount.numeric' => 'O valor deve ser um número. Use vírgula para os centavos, ex.: 800,00.',
+            'amount.decimal' => 'O valor deve ter no máximo duas casas decimais, ex.: 800,00.',
             'amount.min' => 'O valor mínimo é R$ 0,01.',
             'due_day.required' => 'Informe o dia do vencimento.',
             'due_day.between' => 'O dia do vencimento deve ser entre 1 e 31.',
