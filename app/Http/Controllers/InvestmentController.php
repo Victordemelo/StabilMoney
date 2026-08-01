@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HandlesContributions;
 use App\Http\Requests\StoreInvestmentRequest;
 use App\Http\Requests\UpdateInvestmentRequest;
 use App\Models\Account;
@@ -14,6 +15,9 @@ use Illuminate\Support\Facades\DB;
 class InvestmentController extends Controller
 {
     use AuthorizesRequests;
+    // Só pelos helpers de escrita (lockAccount / assertCabeNoDisponivel): o
+    // aporte inicial usa exatamente a mesma rede dos aportes normais.
+    use HandlesContributions;
 
     public function index(Request $request)
     {
@@ -57,11 +61,22 @@ class InvestmentController extends Controller
     public function store(StoreInvestmentRequest $request)
     {
         $data = $request->validated();
+        $ownerId = $request->user()->ownerId();
+        $valorInicial = (float) ($data['valor_inicial'] ?? 0);
 
         // Atômico: ou cria o investimento E o aporte inicial, ou nenhum dos dois.
-        DB::transaction(function () use ($request, $data) {
+        // O aporte inicial passa pelo MESMO recheque sob lock dos aportes
+        // normais (HandlesContributions) — sem isso, dois submits validados na
+        // mesma janela reservavam duas vezes o mesmo dinheiro.
+        DB::transaction(function () use ($request, $data, $ownerId, $valorInicial) {
+            $temAporte = $valorInicial > 0 && ! empty($data['account_id']);
+
+            // ORDEM DE LOCK: conta → pai. A conta é travada ANTES de criar o
+            // investimento, para manter a mesma ordem do FundingService.
+            $conta = $temAporte ? $this->lockAccount($ownerId, (int) $data['account_id']) : null;
+
             $investment = Investment::create([
-                'user_id' => $request->user()->ownerId(),
+                'user_id' => $ownerId,
                 // Autor do investimento: o usuário atual (titular ou dependente que criou).
                 'made_by_user_id' => $request->user()->id,
                 'name' => $data['name'],
@@ -72,16 +87,19 @@ class InvestmentController extends Controller
 
             // Aporte inicial opcional: se informado (> 0), reserva já o principal
             // da conta escolhida (modelo "cofrinho"; não cria transação).
-            if (! empty($data['valor_inicial']) && (float) $data['valor_inicial'] > 0) {
+            if ($conta) {
+                // Time-of-use: o disponível pode ter mudado desde a validação.
+                $this->assertCabeNoDisponivel($conta, $valorInicial);
+
                 $investment->contributions()->create([
-                    'account_id' => $data['account_id'],
+                    'account_id' => $conta->id,
                     'made_by_user_id' => $data['made_by_user_id'] ?? $request->user()->id,
                     'type' => 'aporte',
                     'amount' => $data['valor_inicial'],
                     'date' => $data['date'] ?? now()->toDateString(),
                 ]);
             }
-        });
+        }, attempts: 3);
 
         return redirect()->route('investimentos.index')
             ->with('status', 'Investimento criado com sucesso.');

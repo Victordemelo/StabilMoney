@@ -6,7 +6,6 @@ use App\Http\Controllers\Concerns\HandlesContributions;
 use App\Http\Requests\StoreGoalContributionRequest;
 use App\Http\Requests\WithdrawGoalContributionRequest;
 use App\Models\Goal;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class GoalContributionController extends Controller
@@ -39,18 +38,5 @@ class GoalContributionController extends Controller
 
         return redirect()->route('metas.index')
             ->with('status', 'Resgate realizado com sucesso.');
-    }
-
-    /** Valor guardado na meta (limite de resgate). */
-    protected function parentBalance(Model $parent): float
-    {
-        /** @var Goal $parent */
-        return $parent->saved;
-    }
-
-    protected function withdrawOverflowMessage(float $available): string
-    {
-        return 'O valor do resgate é maior que o valor guardado na meta (R$ '
-            . number_format($available, 2, ',', '.') . ').';
     }
 }

@@ -296,7 +296,15 @@ class ModeloDeDinheiroTest extends TestCase
         $this->assertSame(['2027-01-31', '2027-02-28', '2027-03-31'], $datas);
     }
 
-    /** E-02: aportar da conta A e resgatar para a conta B cria dinheiro do nada. */
+    /**
+     * E-02: aportar da conta A e resgatar para a conta B criava dinheiro do nada.
+     *
+     * CORRIGIDO (auditoria C-1, 07/2026). Este teste era de CARACTERIZAÇÃO: ele
+     * documentava o defeito como se fosse o comportamento esperado — B ficava
+     * com reservado −1.000 e oferecia R$ 1.000 "disponíveis" tendo saldo zero.
+     * Hoje o resgate é validado contra o que AQUELA conta aportou
+     * (`Investment::reservedFromAccount`), então a tentativa é RECUSADA.
+     */
     public function test_resgatar_para_outra_conta_cria_dinheiro_fantasma(): void
     {
         $u = $this->titular();
@@ -309,10 +317,10 @@ class ModeloDeDinheiroTest extends TestCase
             'amount' => '1.000,00', 'account_id' => $a->id,
         ])->assertRedirect();
 
-        // resgata 1.000 mas manda para B
+        // resgata 1.000 mas manda para B (que nunca aportou) -> RECUSADO
         $this->actingAs($u)->post(route('investimentos.resgates.store', $inv), [
             'amount' => '1.000,00', 'account_id' => $b->id,
-        ])->assertRedirect();
+        ])->assertSessionHasErrors('amount');
 
         $ra = Account::find($a->id);
         $rb = Account::find($b->id);
@@ -320,15 +328,14 @@ class ModeloDeDinheiroTest extends TestCase
 
         fwrite(STDERR, "[E-02] A: saldo {$ra->balance} reservado {$ra->reserved} disponivel {$ra->available} | B: saldo {$rb->balance} reservado {$rb->reserved} disponivel {$rb->available} | DISPONIVEL TOTAL: {$total}\n");
 
-        // O TOTAL se conserva (1000) — o plano da varredura errou nesse ponto.
-        // O defeito real e a DISTRIBUICAO: a conta B passa a oferecer R$ 1.000
-        // "disponiveis" tendo R$ 0,00 de saldo, porque o reservado dela ficou
-        // NEGATIVO (-1000). Se o limite de gasto olhar o disponivel por conta,
-        // da para gastar 1.000 de uma conta vazia.
-        $this->assertSame(1000.0, $total, 'o total se conserva');
+        // O total continua se conservando (o dinheiro segue reservado em A) e,
+        // agora, a DISTRIBUICAO tambem esta certa: B nao tem reservado negativo
+        // e nao oferece um centavo que nao possui.
+        $this->assertSame(0.0, $total, 'os 1.000 seguem reservados no investimento');
         $this->assertSame(0.0, $rb->balance, 'B nao tem dinheiro nenhum');
-        $this->assertSame(-1000.0, $rb->reserved, 'reservado NEGATIVO em B');
-        $this->assertSame(1000.0, $rb->available, 'mas B oferece 1.000 disponiveis');
+        $this->assertSame(0.0, $rb->reserved, 'reservado de B nunca fica negativo');
+        $this->assertSame(0.0, $rb->available, 'B nao oferece dinheiro que nao tem');
+        $this->assertSame(1000.0, $inv->fresh()->aplicado, 'o investimento continua com o principal');
     }
 
     /**

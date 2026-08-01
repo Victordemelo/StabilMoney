@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\NormalizesMoneyInput;
+use App\Models\Account;
 use App\Models\Investment;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -11,16 +12,23 @@ use Illuminate\Validation\Rule;
 /**
  * Resgate de um investimento (modelo "cofrinho"): devolve dinheiro aplicado
  * para uma conta de destino (o disponível dela sobe). Nunca pode passar do que
- * está aplicado no investimento (principal).
+ * AQUELA conta aplicou — só volta para a conta o que saiu dela.
  */
 class WithdrawInvestmentContributionRequest extends FormRequest
 {
     use NormalizesMoneyInput;
 
+    /**
+     * A posse é checada AQUI (e não só pela InvestmentPolicy no controller)
+     * porque a validação roda antes do controller: sem isso, a mensagem de
+     * erro revelava o valor aplicado no investimento de OUTRA família.
+     */
     public function authorize(): bool
     {
-        // A posse do investimento é verificada pela InvestmentPolicy no controller.
-        return true;
+        $investimento = $this->route('investimento');
+
+        return $investimento instanceof Investment
+            && $investimento->user_id === $this->user()?->ownerId();
     }
 
     /** Normaliza o valor digitado no padrão pt-BR para decimal. */
@@ -40,14 +48,25 @@ class WithdrawInvestmentContributionRequest extends FormRequest
                 'numeric',
                 'min:0.01',
                 'max:9999999999999.99',
-                // Não pode resgatar mais do que está aplicado no investimento.
-                function (string $attribute, mixed $value, Closure $fail) {
+                // Não pode resgatar mais do que ESTA conta aplicou no ativo
+                // (o recheque final, sob lock, está em HandlesContributions).
+                function (string $attribute, mixed $value, Closure $fail) use ($userId) {
                     /** @var Investment|null $investment */
                     $investment = $this->route('investimento');
 
-                    if ($investment instanceof Investment && (float) $value > $investment->aplicado + 0.001) {
-                        $fail('O valor do resgate é maior que o valor aplicado no investimento (R$ '
-                            . number_format($investment->aplicado, 2, ',', '.') . ').');
+                    $conta = Account::where('id', $this->input('account_id'))
+                        ->where('user_id', $userId)
+                        ->first();
+
+                    // Sem ativo ou sem conta válida, quem reprova é a regra do account_id.
+                    if (! $investment instanceof Investment || ! $conta) {
+                        return;
+                    }
+
+                    $reservado = $investment->reservedFromAccount($conta->id);
+
+                    if ((float) $value > $reservado + 0.001) {
+                        $fail($investment->mensagemResgateAcimaDoReservado($conta, $reservado));
                     }
                 },
             ],

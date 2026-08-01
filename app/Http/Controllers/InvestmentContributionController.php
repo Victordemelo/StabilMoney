@@ -6,7 +6,6 @@ use App\Http\Controllers\Concerns\HandlesContributions;
 use App\Http\Requests\StoreInvestmentContributionRequest;
 use App\Http\Requests\WithdrawInvestmentContributionRequest;
 use App\Models\Investment;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class InvestmentContributionController extends Controller
@@ -39,18 +38,5 @@ class InvestmentContributionController extends Controller
 
         return redirect()->route('investimentos.index')
             ->with('status', 'Resgate realizado com sucesso.');
-    }
-
-    /** Valor aplicado no investimento (limite de resgate). */
-    protected function parentBalance(Model $parent): float
-    {
-        /** @var Investment $parent */
-        return $parent->aplicado;
-    }
-
-    protected function withdrawOverflowMessage(float $available): string
-    {
-        return 'O valor do resgate é maior que o valor aplicado no investimento (R$ '
-            . number_format($available, 2, ',', '.') . ').';
     }
 }

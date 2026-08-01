@@ -297,9 +297,15 @@ class InvestmentCrudTest extends TestCase
         $pre = Investment::factory()->for($this->user)->create(['indexador' => 'Prefixado', 'taxa' => 12]);
         $this->assertSame(12.0, $pre->grossRate);
 
-        // Sem indexador → 0.
-        $rv = Investment::factory()->for($this->user)->rendaVariavel()->create();
-        $this->assertSame(0.0, $rv->grossRate);
+        // Sem indexador → a PRÓPRIA taxa informada (renda variável/cripto/fundos),
+        // igual ao grossRate do investimentos.js. Antes devolvia 0 aqui enquanto
+        // o JS já usava a taxa: o card mostrava 0,0% e a prévia, 30% (auditoria M-1).
+        $rv = Investment::factory()->for($this->user)->rendaVariavel()->create(['taxa' => 30]);
+        $this->assertSame(30.0, $rv->grossRate);
+
+        // Sem indexador E sem taxa → não há o que estimar.
+        $semTaxa = Investment::factory()->for($this->user)->rendaVariavel()->create();
+        $this->assertSame(0.0, $semTaxa->grossRate);
     }
 
     public function test_account_with_investment_contribution_cannot_be_deleted(): void

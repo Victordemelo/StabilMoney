@@ -476,7 +476,8 @@
                 </div>
 
                 <div class="field">
-                    <label for="meta-resgate-account">Conta de destino</label>
+                    <label for="meta-resgate-account">Conta de destino
+                        <span class="hint">(a mesma de onde o dinheiro saiu)</span></label>
                     <select class="input" id="meta-resgate-account" name="account_id" required>
                         @foreach ($accounts as $account)
                             <option value="{{ $account->id }}" @selected($reabreResgate && (int) old('account_id') === $account->id)>

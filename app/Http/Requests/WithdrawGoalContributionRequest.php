@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\NormalizesMoneyInput;
+use App\Models\Account;
 use App\Models\Goal;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -11,16 +12,22 @@ use Illuminate\Validation\Rule;
 /**
  * Resgate de uma meta (modelo "cofrinho"): devolve dinheiro guardado para
  * uma conta de destino (o disponível dela sobe). Nunca pode passar do que
- * está guardado na meta.
+ * AQUELA conta guardou na meta — só volta para a conta o que saiu dela.
  */
 class WithdrawGoalContributionRequest extends FormRequest
 {
     use NormalizesMoneyInput;
 
+    /**
+     * A posse é checada AQUI (e não só pela GoalPolicy no controller) porque
+     * a validação roda antes do controller: sem isso, a mensagem de erro do
+     * resgate revelava o valor guardado na meta de OUTRA família.
+     */
     public function authorize(): bool
     {
-        // A posse da meta é verificada pela GoalPolicy no controller.
-        return true;
+        $meta = $this->route('meta');
+
+        return $meta instanceof Goal && $meta->user_id === $this->user()?->ownerId();
     }
 
     /** Normaliza o valor digitado no padrão pt-BR para decimal. */
@@ -40,14 +47,25 @@ class WithdrawGoalContributionRequest extends FormRequest
                 'numeric',
                 'min:0.01',
                 'max:9999999999999.99',
-                // Não pode resgatar mais do que está guardado na meta.
-                function (string $attribute, mixed $value, Closure $fail) {
+                // Não pode resgatar mais do que ESTA conta guardou na meta
+                // (o recheque final, sob lock, está em HandlesContributions).
+                function (string $attribute, mixed $value, Closure $fail) use ($userId) {
                     /** @var Goal|null $goal */
                     $goal = $this->route('meta');
 
-                    if ($goal instanceof Goal && (float) $value > $goal->saved + 0.001) {
-                        $fail('O valor do resgate é maior que o valor guardado na meta (R$ '
-                            . number_format($goal->saved, 2, ',', '.') . ').');
+                    $conta = Account::where('id', $this->input('account_id'))
+                        ->where('user_id', $userId)
+                        ->first();
+
+                    // Sem meta ou sem conta válida, quem reprova é a regra do account_id.
+                    if (! $goal instanceof Goal || ! $conta) {
+                        return;
+                    }
+
+                    $reservado = $goal->reservedFromAccount($conta->id);
+
+                    if ((float) $value > $reservado + 0.001) {
+                        $fail($goal->mensagemResgateAcimaDoReservado($conta, $reservado));
                     }
                 },
             ],

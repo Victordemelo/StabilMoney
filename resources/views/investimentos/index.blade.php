@@ -101,9 +101,12 @@
         <div class="card stat span4">
             <div class="stat-top">
                 <div class="ico g4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
-                <span class="label">Rentab. média</span>
+                <span class="label">Rentab. média estimada</span>
             </div>
-            <div class="value">{{ number_format((float) ($stats['rentabMedia'] ?? 0), 1, ',', '.') }}% a.a.</div>
+            <div class="value" title="Estimativa a partir do indexador e da taxa informados — não é rendimento realizado.">
+                ≈ {{ number_format((float) ($stats['rentabMedia'] ?? 0), 1, ',', '.') }}% a.a.
+            </div>
+            <div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">Projeção, não rendimento realizado</div>
         </div>
     </div>
 
@@ -189,7 +192,9 @@
                             </div>
                             <div class="invr-val">
                                 <b>{{ $brl0($inv->aplicado) }}</b>
-                                <span class="pos">▲ {{ number_format((float) $inv->grossRate, 1, ',', '.') }}% a.a.</span>
+                                {{-- Taxa ESTIMADA (premissa de projeção), nunca rendimento realizado:
+                                     por isso "≈ … est." e sem a seta de alta, que sugeria ganho real. --}}
+                                <span class="pos" style="color:var(--ink-3)" title="Rentabilidade estimada pelo indexador/taxa cadastrados — não é rendimento realizado.">≈ {{ number_format((float) $inv->grossRate, 1, ',', '.') }}% a.a. est.</span>
                             </div>
                             <button class="invr-btn" type="button"
                                     data-inv-aporte
@@ -262,7 +267,7 @@
                 <div class="field-row">
                     <div class="field">
                         <label for="inv-c-classe">Classe</label>
-                        <select class="input" id="inv-c-classe" name="classe" required>
+                        <select class="input" id="inv-c-classe" name="classe" data-inv-classe required>
                             @foreach ($classeLabels as $val => $label)
                                 <option value="{{ $val }}" @selected(($reabreCreate ? old('classe') : 'renda_fixa') === $val)>{{ $label }}</option>
                             @endforeach
@@ -321,9 +326,10 @@
                     <input class="input" type="date" id="inv-c-date" name="date" value="{{ $reabreCreate ? old('date') : '' }}">
                 </div>
 
-                {{-- Preview de rentabilidade (recalculada em JS conforme indexador/taxa/valor) --}}
+                {{-- Projeção ESTIMADA (recalculada em JS conforme classe/indexador/taxa/valor).
+                     Nada aqui vira saldo: é só simulação, com as premissas à mostra. --}}
                 <div class="inv-preview" data-inv-preview>
-                    <div class="ivp-hint">Preencha o valor para ver a projeção de rendimento.</div>
+                    <div class="ivp-hint">Preencha o valor para ver a projeção estimada de rendimento.</div>
                 </div>
             </div>
             <div class="modal-foot">
@@ -546,7 +552,8 @@
                 </div>
 
                 <div class="field">
-                    <label for="inv-resgate-account">Conta de destino</label>
+                    <label for="inv-resgate-account">Conta de destino
+                        <span class="hint">(a mesma de onde o dinheiro saiu)</span></label>
                     <select class="input" id="inv-resgate-account" name="account_id" required>
                         @foreach ($accounts as $account)
                             <option value="{{ $account->id }}" @selected($reabreResgate && (int) old('account_id') === $account->id)>

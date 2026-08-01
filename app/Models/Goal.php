@@ -66,6 +66,43 @@ class Goal extends Model
         })();
     }
 
+    /**
+     * Quanto DESTA conta está guardado nesta meta (Σ aportes − Σ resgates
+     * feitos a partir dela). Nunca negativo.
+     *
+     * É o teto de um resgate para aquela conta: só volta para a conta o que
+     * saiu dela. Sem isso, resgatar para uma conta que nunca aportou deixaria
+     * o `reserved` dela NEGATIVO — e o disponível passaria a oferecer dinheiro
+     * que a conta não tem (invariante I6). Espelha
+     * `App\Services\SpendingGuard::resgatavelDe()`.
+     */
+    public function reservedFromAccount(int $accountId): float
+    {
+        $total = $this->contributions()
+            ->where('account_id', $accountId)
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'aporte' THEN amount ELSE -amount END), 0) AS total")
+            ->value('total');
+
+        return round(max(0.0, (float) $total), 2);
+    }
+
+    /**
+     * Mensagem PT-BR de "esse resgate não cabe". Fica no model para ser a
+     * MESMA no time-of-check (WithdrawGoalContributionRequest) e no
+     * time-of-use (recheque sob lock do HandlesContributions).
+     */
+    public function mensagemResgateAcimaDoReservado(Account $conta, float $reservado): string
+    {
+        if ($reservado <= 0) {
+            return 'A conta “' . $conta->name . '” não tem nada guardado nesta meta'
+                . ' — só é possível resgatar para a conta de onde o dinheiro saiu.';
+        }
+
+        return 'O valor do resgate é maior que o guardado nesta meta a partir da conta “'
+            . $conta->name . '” (R$ ' . number_format($reservado, 2, ',', '.')
+            . '). Só volta para a conta o que saiu dela.';
+    }
+
     /** Quanto ainda falta para bater o alvo (nunca negativo). */
     public function getRemainingAttribute(): float
     {

@@ -35,8 +35,13 @@ class Investment extends Model
     ];
 
     /**
-     * Bases anuais (% a.a.) projetadas por indexador — porte de
-     * design/project/finance.js (IDX_BASE). Sem indexador => 0.
+     * Bases anuais (% a.a.) **projetadas** por indexador — porte de
+     * design/project/finance.js (IDX_BASE).
+     *
+     * ⚠️ São constantes de código, sem data de referência: uma PREMISSA de
+     * projeção, não a taxa de hoje. Tudo que sai daqui é estimativa e a UI
+     * precisa dizer isso (ver `investimentos/index.blade.php` e
+     * `resources/js/sm/investimentos.js`).
      */
     public const INDEX_BASE = [
         'CDI' => 10.65,
@@ -94,9 +99,51 @@ class Investment extends Model
     }
 
     /**
-     * Taxa bruta anual projetada (% a.a.) — porte de finance.js `grossRate`:
+     * Quanto DESTA conta está aplicado neste investimento (Σ aportes −
+     * Σ resgates feitos a partir dela). Nunca negativo.
+     *
+     * É o teto de um resgate para aquela conta: só volta para a conta o que
+     * saiu dela. Sem isso, resgatar para uma conta que nunca aportou deixaria
+     * o `reserved` dela NEGATIVO — e o disponível passaria a oferecer dinheiro
+     * que a conta não tem (invariante I6). Espelha
+     * `App\Services\SpendingGuard::resgatavelDe()`.
+     */
+    public function reservedFromAccount(int $accountId): float
+    {
+        $total = $this->contributions()
+            ->where('account_id', $accountId)
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'aporte' THEN amount ELSE -amount END), 0) AS total")
+            ->value('total');
+
+        return round(max(0.0, (float) $total), 2);
+    }
+
+    /**
+     * Mensagem PT-BR de "esse resgate não cabe". Fica no model para ser a
+     * MESMA no time-of-check (WithdrawInvestmentContributionRequest) e no
+     * time-of-use (recheque sob lock do HandlesContributions).
+     */
+    public function mensagemResgateAcimaDoReservado(Account $conta, float $reservado): string
+    {
+        if ($reservado <= 0) {
+            return 'A conta “' . $conta->name . '” não tem nada aplicado neste investimento'
+                . ' — só é possível resgatar para a conta de onde o dinheiro saiu.';
+        }
+
+        return 'O valor do resgate é maior que o aplicado neste investimento a partir da conta “'
+            . $conta->name . '” (R$ ' . number_format($reservado, 2, ',', '.')
+            . '). Só volta para a conta o que saiu dela.';
+    }
+
+    /**
+     * Taxa bruta anual **estimada** (% a.a.) — porte de finance.js `grossRate`:
      * CDI/Selic → base × taxa/100; IPCA+ → 4.5 + taxa; Prefixado → taxa;
-     * sem indexador (null) → 0. Só exibição (não armazenado).
+     * **sem indexador → a própria taxa informada** (renda variável/cripto/
+     * fundos: o usuário digita a rentabilidade que espera/observa).
+     *
+     * Antes devolvia 0 quando não havia indexador, enquanto o JS da prévia já
+     * usava a taxa: o card mostrava "0,0% a.a." e o modal, "30%". Só exibição
+     * (nada disso é armazenado nem entra em saldo).
      */
     public function getGrossRateAttribute(): float
     {
@@ -106,7 +153,7 @@ class Investment extends Model
             'CDI', 'Selic' => round(self::INDEX_BASE[$this->indexador] * $taxa / 100, 2),
             'IPCA+' => round(self::INDEX_BASE['IPCA+'] + $taxa, 2),
             'Prefixado' => round($taxa, 2),
-            default => 0.0,
+            default => round($taxa, 2),
         };
     }
 

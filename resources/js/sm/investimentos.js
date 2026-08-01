@@ -7,8 +7,8 @@
 //   • no "Aportar"/"Resgatar" (modais COMPARTILHADOS), setar o `action` do form e
 //     preencher nome/posição a partir dos data-* do botão clicado;
 //   • a PREVIEW de rentabilidade do "Novo investimento": recalcula bruto/líquido
-//     e a projeção em 12 meses ao mudar indexador/taxa/valor (porte do investModal
-//     do design v2 → finance.js; líquido ≈ bruto * 0.85);
+//     e a projeção em 12 meses ao mudar classe/indexador/taxa/valor (porte do
+//     investModal do design v2 → finance.js, com o IR pela tabela regressiva);
 //   • reabrir o modal certo quando a validação do servidor volta com erro.
 //
 // Só roda na tela de investimentos (guard pelo modal de criação da view).
@@ -35,7 +35,33 @@ function grossRate(indexador, taxa, idxBase) {
     if (indexador === 'IPCA+') return (idxBase['IPCA+'] || 0) + taxa;
     if (indexador === 'Prefixado') return taxa;
     // Não indexado (RV/cripto/fundos): usa a própria taxa informada como rentab. observada.
+    // (O accessor Investment::grossRate no PHP faz o mesmo — os dois têm de bater.)
     return taxa;
+}
+
+// A projeção da tela é sempre de 12 meses.
+const PRAZO_PROJECAO_DIAS = 365;
+
+// Tabela REGRESSIVA do IR sobre o rendimento de renda fixa/fundos
+// (Lei 11.033/2004): quanto mais tempo aplicado, menor a alíquota.
+// Antes o app usava 15% fixo para qualquer prazo — em 12 meses o correto é 17,5%.
+const IR_FAIXAS = [
+    { ateDias: 180, aliquota: 22.5 },
+    { ateDias: 360, aliquota: 20 },
+    { ateDias: 720, aliquota: 17.5 },
+    { ateDias: Infinity, aliquota: 15 },
+];
+
+// Alíquota estimada de IR conforme a classe do ativo e o prazo.
+// Renda variável e cripto não seguem a tabela regressiva: 15% sobre o ganho.
+function irAliquota(classe, dias) {
+    if (classe === 'renda_variavel' || classe === 'cripto') return 15;
+    return (IR_FAIXAS.find((f) => dias <= f.ateDias) || IR_FAIXAS[IR_FAIXAS.length - 1]).aliquota;
+}
+
+// Número em pt-BR com 1..2 casas, sem zeros à toa ("17,5" e não "17,50").
+function pct(v) {
+    return (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 }
 
 export function initInvestimentos() {
@@ -128,12 +154,14 @@ export function initInvestimentos() {
     }
 
     // ---- Preview de rentabilidade do "Novo investimento" ----
-    // Recalcula bruto/líquido (≈ bruto * 0.85, ~15% IR/IOF) e a projeção em 12 meses
-    // ao mudar indexador/taxa/valor. Porte do upd() do investModal (finance.js).
+    // ESTIMATIVA: recalcula bruto/IR/líquido e a projeção em 12 meses ao mudar
+    // classe/indexador/taxa/valor. Porte do upd() do investModal (finance.js),
+    // com o IR pela tabela regressiva (17,5% em 12 meses) no lugar dos 15% fixos.
     {
         let idxBase = {};
         try { idxBase = JSON.parse(createModal.dataset.idxBase || '{}'); } catch (_) { idxBase = {}; }
 
+        const classeSel = createModal.querySelector('[data-inv-classe]');
         const idxSel = createModal.querySelector('[data-inv-idx]');
         const taxaInput = createModal.querySelector('[data-inv-taxa]');
         const taxaLabel = createModal.querySelector('[data-inv-taxa-label]');
@@ -148,8 +176,21 @@ export function initInvestimentos() {
             '': 'Rentab. (% a.a.)',
         };
 
+        // Premissas visíveis: as bases são constantes do app, sem data de referência.
+        const premissas = () => {
+            const partes = Object.entries(idxBase)
+                .filter(([nome, base]) => nome !== 'Prefixado' && Number(base) > 0)
+                .map(([nome, base]) => `${nome} ${pct(base)}%`);
+
+            return 'Estimativa, não é promessa de retorno. Premissas: '
+                + (partes.length ? partes.join(' · ') + ' a.a. (constantes do app, sem data de referência); ' : '')
+                + 'IR pela tabela regressiva sobre o rendimento. Não considera IOF '
+                + '(só incide em resgates com menos de 30 dias), come-cotas, taxas nem variação de mercado.';
+        };
+
         const atualizar = () => {
             if (!preview) return;
+            const classe = classeSel ? classeSel.value : '';
             const indexador = idxSel ? idxSel.value : '';
             const taxa = parseMoney(taxaInput ? taxaInput.value : '');
             const valor = parseMoney(valorInput ? valorInput.value : '');
@@ -160,18 +201,22 @@ export function initInvestimentos() {
             }
 
             const bruto = grossRate(indexador, taxa, idxBase);
-            const liquido = bruto * 0.85; // ~15% IR/IOF estimado
+            const aliquota = irAliquota(classe, PRAZO_PROJECAO_DIAS);
+            const liquido = bruto * (1 - aliquota / 100);
 
             if (valor > 0) {
                 preview.innerHTML =
-                    `<div class="ivp-row"><span>Rentabilidade bruta estimada</span><b>${bruto.toFixed(2).replace('.', ',')}% a.a.</b></div>` +
-                    `<div class="ivp-row"><span>Líquido (após IR/IOF ~15%)</span><b class="pos">${liquido.toFixed(2).replace('.', ',')}% a.a.</b></div>` +
-                    `<div class="ivp-row"><span>Projeção em 12 meses</span><b>R$ ${brl(valor * (1 + liquido / 100))}</b></div>`;
+                    `<div class="ivp-row"><span>Rentabilidade bruta estimada</span><b>${pct(bruto)}% a.a.</b></div>` +
+                    `<div class="ivp-row"><span>IR estimado em 12 meses</span><b>${pct(aliquota)}%</b></div>` +
+                    `<div class="ivp-row"><span>Líquido estimado</span><b class="pos">${pct(liquido)}% a.a.</b></div>` +
+                    `<div class="ivp-row"><span>Projeção em 12 meses</span><b>R$ ${brl(valor * (1 + liquido / 100))}</b></div>` +
+                    `<div class="ivp-hint">${premissas()}</div>`;
             } else {
-                preview.innerHTML = `<div class="ivp-hint">Preencha o valor para ver a projeção de rendimento.</div>`;
+                preview.innerHTML = `<div class="ivp-hint">Preencha o valor para ver a projeção estimada de rendimento.</div>`;
             }
         };
 
+        if (classeSel) classeSel.addEventListener('change', atualizar);
         if (idxSel) idxSel.addEventListener('change', atualizar);
         if (taxaInput) taxaInput.addEventListener('input', atualizar);
         if (valorInput) valorInput.addEventListener('input', atualizar);
