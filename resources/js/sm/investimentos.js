@@ -39,24 +39,55 @@ function grossRate(indexador, taxa, idxBase) {
     return taxa;
 }
 
-// A projeção da tela é sempre de 12 meses.
+// Prazo padrão da simulação (o seletor da tela troca este valor).
 const PRAZO_PROJECAO_DIAS = 365;
 
-// Tabela REGRESSIVA do IR sobre o rendimento de renda fixa/fundos
-// (Lei 11.033/2004): quanto mais tempo aplicado, menor a alíquota.
-// Antes o app usava 15% fixo para qualquer prazo — em 12 meses o correto é 17,5%.
-const IR_FAIXAS = [
-    { ateDias: 180, aliquota: 22.5 },
-    { ateDias: 360, aliquota: 20 },
-    { ateDias: 720, aliquota: 17.5 },
-    { ateDias: Infinity, aliquota: 15 },
-];
+// IOF e IR vêm do PHP (App\Support\TributosRendaFixa) pelo data-tributos do modal.
+// Fonte ÚNICA de propósito: esta tela já teve card e prévia discordando por terem
+// cada um a sua regra. O fallback abaixo só existe para o caso de o atributo faltar.
+const TRIBUTOS_FALLBACK = {
+    iofPorDia: {},
+    iofDiasIsencao: 30,
+    irFaixas: [
+        { ate: 180, aliquota: 22.5 },
+        { ate: 360, aliquota: 20 },
+        { ate: 720, aliquota: 17.5 },
+        { ate: null, aliquota: 15 },
+    ],
+    classesGanhoDeCapital: ['renda_variavel', 'cripto'],
+};
 
-// Alíquota estimada de IR conforme a classe do ativo e o prazo.
-// Renda variável e cripto não seguem a tabela regressiva: 15% sobre o ganho.
-function irAliquota(classe, dias) {
-    if (classe === 'renda_variavel' || classe === 'cripto') return 15;
-    return (IR_FAIXAS.find((f) => dias <= f.ateDias) || IR_FAIXAS[IR_FAIXAS.length - 1]).aliquota;
+const ganhoDeCapital = (t, classe) => (t.classesGanhoDeCapital || []).includes(classe);
+
+// % do RENDIMENTO retido como IOF. Só existe nos 29 primeiros dias — no 30º zera.
+// Ações e cripto são ganho de capital: não têm IOF de renda fixa.
+function iofAliquota(t, classe, dias) {
+    if (ganhoDeCapital(t, classe)) return 0;
+    return Number((t.iofPorDia || {})[dias] || 0);
+}
+
+// % do RENDIMENTO retido como IR (tabela regressiva, Lei 11.033/2004).
+function irAliquota(t, classe, dias) {
+    if (ganhoDeCapital(t, classe)) return 15;
+    const faixa = (t.irFaixas || []).find((f) => f.ate === null || dias <= f.ate);
+    return faixa ? Number(faixa.aliquota) : 15;
+}
+
+// Decompõe o rendimento em IOF, IR e líquido.
+// ORDEM: o IOF sai primeiro e o IR incide sobre o que SOBROU — aplicar os dois sobre o
+// rendimento cheio cobraria imposto a mais. Espelha TributosRendaFixa::decompor().
+function decomporRendimento(t, rendimento, classe, dias) {
+    const aliqIof = iofAliquota(t, classe, dias);
+    const aliqIr = irAliquota(t, classe, dias);
+
+    if (!(rendimento > 0)) {
+        return { iof: 0, ir: 0, aliqIof, aliqIr, liquido: rendimento };
+    }
+
+    const iof = rendimento * aliqIof / 100;
+    const ir = (rendimento - iof) * aliqIr / 100;
+
+    return { iof, ir, aliqIof, aliqIr, liquido: rendimento - iof - ir };
 }
 
 // Número em pt-BR com 1..2 casas, sem zeros à toa ("17,5" e não "17,50").
@@ -161,6 +192,14 @@ export function initInvestimentos() {
         let idxBase = {};
         try { idxBase = JSON.parse(createModal.dataset.idxBase || '{}'); } catch (_) { idxBase = {}; }
 
+        // Tabelas de IOF/IR vindas do PHP — fonte única (ver TributosRendaFixa).
+        let tributos = TRIBUTOS_FALLBACK;
+        try {
+            const bruto = JSON.parse(createModal.dataset.tributos || 'null');
+            if (bruto && bruto.irFaixas) tributos = bruto;
+        } catch (_) { tributos = TRIBUTOS_FALLBACK; }
+
+        const prazoSel = createModal.querySelector('[data-inv-prazo]');
         const classeSel = createModal.querySelector('[data-inv-classe]');
         const idxSel = createModal.querySelector('[data-inv-idx]');
         const taxaInput = createModal.querySelector('[data-inv-taxa]');
@@ -184,8 +223,9 @@ export function initInvestimentos() {
 
             return 'Estimativa, não é promessa de retorno. Premissas: '
                 + (partes.length ? partes.join(' · ') + ' a.a. (constantes do app, sem data de referência); ' : '')
-                + 'IR pela tabela regressiva sobre o rendimento. Não considera IOF '
-                + '(só incide em resgates com menos de 30 dias), come-cotas, taxas nem variação de mercado.';
+                + 'IR e IOF pelas tabelas regressivas sobre o rendimento (o IOF só incide '
+                + 'nos 29 primeiros dias). Não considera come-cotas, taxas de custódia/administração '
+                + 'nem variação de mercado.';
         };
 
         const atualizar = () => {
@@ -200,22 +240,42 @@ export function initInvestimentos() {
                 taxaLabel.innerHTML = `Taxa <span class="hint">(${sufixo})</span>`;
             }
 
+            const dias = Number(prazoSel ? prazoSel.value : PRAZO_PROJECAO_DIAS) || PRAZO_PROJECAO_DIAS;
             const bruto = grossRate(indexador, taxa, idxBase);
-            const aliquota = irAliquota(classe, PRAZO_PROJECAO_DIAS);
-            const liquido = bruto * (1 - aliquota / 100);
+
+            // Rendimento do PERÍODO simulado (a taxa é anual, então proporcional aos dias).
+            const rendimentoPct = bruto * (dias / 365);
+            const rendimento = valor * rendimentoPct / 100;
+            const t = decomporRendimento(tributos, rendimento, classe, dias);
+
+            const rotuloPrazo = dias < 30
+                ? `${dias} ${dias === 1 ? 'dia' : 'dias'}`
+                : (dias % 365 === 0 ? `${dias / 365} ${dias === 365 ? 'ano' : 'anos'}` : `${Math.round(dias / 30)} meses`);
 
             if (valor > 0) {
+                // A linha do IOF só aparece quando ele existe — mostrar "IOF 0%" em 12
+                // meses seria ruído. Quando aparece, vem com o aviso do porquê.
+                const linhaIof = t.aliqIof > 0
+                    ? `<div class="ivp-row"><span>IOF (${pct(t.aliqIof)}% do rendimento)</span><b class="neg">− R$ ${brl(t.iof)}</b></div>`
+                    : '';
+
                 preview.innerHTML =
                     `<div class="ivp-row"><span>Rentabilidade bruta estimada</span><b>${pct(bruto)}% a.a.</b></div>` +
-                    `<div class="ivp-row"><span>IR estimado em 12 meses</span><b>${pct(aliquota)}%</b></div>` +
-                    `<div class="ivp-row"><span>Líquido estimado</span><b class="pos">${pct(liquido)}% a.a.</b></div>` +
-                    `<div class="ivp-row"><span>Projeção em 12 meses</span><b>R$ ${brl(valor * (1 + liquido / 100))}</b></div>` +
+                    `<div class="ivp-row"><span>Rendimento em ${rotuloPrazo}</span><b>R$ ${brl(rendimento)}</b></div>` +
+                    linhaIof +
+                    `<div class="ivp-row"><span>IR (${pct(t.aliqIr)}% do rendimento)</span><b class="neg">− R$ ${brl(t.ir)}</b></div>` +
+                    `<div class="ivp-row"><span>Rendimento líquido</span><b class="pos">R$ ${brl(t.liquido)}</b></div>` +
+                    `<div class="ivp-row"><span>Valor final em ${rotuloPrazo}</span><b>R$ ${brl(valor + t.liquido)}</b></div>` +
+                    (t.aliqIof > 0
+                        ? `<div class="ivp-hint">Resgatar antes de 30 dias tem IOF: ele começa em 96% do rendimento no 1º dia e cai até zerar no 30º.</div>`
+                        : '') +
                     `<div class="ivp-hint">${premissas()}</div>`;
             } else {
                 preview.innerHTML = `<div class="ivp-hint">Preencha o valor para ver a projeção estimada de rendimento.</div>`;
             }
         };
 
+        if (prazoSel) prazoSel.addEventListener('change', atualizar);
         if (classeSel) classeSel.addEventListener('change', atualizar);
         if (idxSel) idxSel.addEventListener('change', atualizar);
         if (taxaInput) taxaInput.addEventListener('input', atualizar);

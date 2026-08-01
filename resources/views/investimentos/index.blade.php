@@ -236,7 +236,11 @@
 @php $reabreCreate = $errors->any() && old('_form') === 'create'; @endphp
 <div class="modal-scrim" id="invCreateModal" data-inv-modal
      data-reopen="{{ $reabreCreate ? '1' : '' }}"
-     data-idx-base='@json($idxBase)'>
+     data-idx-base='@json($idxBase)'
+     {{-- Tabelas de IOF e IR vêm do PHP (App\Support\TributosRendaFixa) para que a
+          prévia no cliente e qualquer cálculo no servidor NUNCA divirjam — esta tela já
+          teve o problema de o card mostrar um número e a prévia outro. --}}
+     data-tributos='@json(\App\Support\TributosRendaFixa::tabelasParaOFront())'>
     <div class="modal modal-lg">
         <div class="modal-head">
             <span class="modal-ico ico-in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7"/></svg></span>
@@ -324,6 +328,24 @@
                 <div class="field">
                     <label for="inv-c-date">Data <span class="hint">(opcional)</span></label>
                     <input class="input" type="date" id="inv-c-date" name="date" value="{{ $reabreCreate ? old('date') : '' }}">
+                </div>
+
+                {{-- Prazo da SIMULAÇÃO. Não é campo do investimento (não vai para o banco):
+                     serve para ver o efeito dos impostos, que mudam muito com o tempo.
+                     Os prazos curtos existem justamente para mostrar o IOF, que só incide
+                     nos primeiros 29 dias e é devastador no começo. --}}
+                <div class="field">
+                    <label for="inv-c-prazo">Simular resgate em <span class="hint">(só para a projeção)</span></label>
+                    <select class="input" id="inv-c-prazo" data-inv-prazo>
+                        <option value="1">1 dia</option>
+                        <option value="15">15 dias</option>
+                        <option value="29">29 dias (último com IOF)</option>
+                        <option value="30">30 dias (sem IOF)</option>
+                        <option value="180">6 meses</option>
+                        <option value="365" selected>12 meses</option>
+                        <option value="730">24 meses</option>
+                        <option value="1095">36 meses</option>
+                    </select>
                 </div>
 
                 {{-- Projeção ESTIMADA (recalculada em JS conforme classe/indexador/taxa/valor).
