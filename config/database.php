@@ -54,6 +54,27 @@ return [
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            /*
+             * Fuso da CONEXÃO, fixado de propósito — não é o fuso do app.
+             *
+             * O app grava datas já formatadas em America/Sao_Paulo (APP_TIMEZONE);
+             * o MySQL, ao gravar uma coluna TIMESTAMP (paid_at, created_at,
+             * updated_at, terms_accepted_at...), converte a string do fuso da SESSÃO
+             * para UTC e desconverte na leitura. Enquanto os dois lados não mudam, o
+             * round-trip fecha e ninguém percebe.
+             *
+             * Sem esta linha o fuso da sessão era `SYSTEM`, ou seja, o do SERVIDOR —
+             * UTC no container de hoje, mas provavelmente America/Sao_Paulo na VPS.
+             * No dia em que ele mudar, todo TIMESTAMP já gravado passa a ser lido com
+             * 3 horas de diferença (medido: 18:11:37 vira 15:11:37) — sem erro nenhum,
+             * só valores errados.
+             *
+             * '+00:00' é exatamente o que a sessão já resolvia hoje: fixar não
+             * reinterpreta um único dado existente, apenas congela o comportamento
+             * atual e o torna independente da máquina. Trocar para '-03:00' SIM
+             * deslocaria tudo o que já está gravado e exigiria migração de dados.
+             */
+            'timezone' => env('DB_TIMEZONE', '+00:00'),
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,

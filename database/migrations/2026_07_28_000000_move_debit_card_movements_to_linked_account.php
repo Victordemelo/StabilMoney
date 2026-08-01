@@ -55,13 +55,45 @@ return new class extends Migration
         }
     }
 
+    /**
+     * ORDEM IMPORTA: os 3 UPDATE primeiro, os 3 dropColumn depois.
+     *
+     * MySQL não tem DDL transacional. Na ordem antiga (update+drop por tabela)
+     * bastava UM `legacy_account_id` apontando para um cartão já apagado — nada
+     * impede, não há FK nessa coluna — para o UPDATE da 2ª tabela estourar FK
+     * DEPOIS de a 1ª já ter perdido a coluna: o mapeamento de `transactions`
+     * virava pó, `goal_contributions` ficava com `account_id` errado e a linha
+     * seguia em `migrations`, travando `migrate:rollback` para sempre ali.
+     *
+     * Fazendo todos os UPDATE antes, qualquer falha acontece com as 3 colunas
+     * ainda de pé — o mapeamento continua íntegro e dá para tentar de novo.
+     *
+     * Ponteiros mortos (cartão apagado) são deliberadamente IGNORADOS: não há
+     * para onde devolver, então o movimento fica na conta que ele já espelhava,
+     * que é exatamente o saldo que o usuário vê hoje.
+     *
+     * Cada passo é guardado por `hasColumn`, o que torna o down() reentrante:
+     * um banco que ficou meio-revertido pela versão antiga consegue concluir.
+     */
     public function down(): void
     {
+        // (1) Devolve cada movimento ao cartão de onde veio — todas as tabelas.
         foreach (self::TABELAS as $tabela) {
-            // Devolve cada movimento ao cartão de onde veio.
+            if (! Schema::hasColumn($tabela, 'legacy_account_id')) {
+                continue;
+            }
+
             DB::table($tabela)
                 ->whereNotNull('legacy_account_id')
+                ->whereIn('legacy_account_id', DB::table('accounts')->select('id'))
                 ->update(['account_id' => DB::raw('legacy_account_id')]);
+        }
+
+        // (2) Só então derruba as colunas.
+        foreach (self::TABELAS as $tabela) {
+            if (! Schema::hasColumn($tabela, 'legacy_account_id')) {
+                continue;
+            }
 
             Schema::table($tabela, function (Blueprint $table) {
                 $table->dropColumn('legacy_account_id');
