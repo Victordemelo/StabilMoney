@@ -73,7 +73,11 @@
                          do select (não se recebe dinheiro num cartão de crédito). --}}
                     <select class="input @error('account_id') input-error @enderror" id="account_id" name="account_id" required>
                         @foreach ($accounts as $conta)
-                            <option value="{{ $conta->id }}" data-card="{{ $conta->isCard() ? '1' : '0' }}" @selected((int) old('account_id', $transaction->account_id ?? 0) === $conta->id)>
+                            {{-- $accounts vem de Account::paymentOptions() e é Fluent:
+                                 `isCard` é PROPRIEDADE. Chamar isCard() cairia no __call
+                                 do Fluent, que devolve $this (truthy) e marcaria TODA
+                                 conta como cartão — em "Receita" o select ficava vazio. --}}
+                            <option value="{{ $conta->id }}" data-card="{{ $conta->isCard ? '1' : '0' }}" @selected((int) old('account_id', $transaction->account_id ?? 0) === $conta->id)>
                                 {{ trim(($conta->icon ?? '') . ' ' . $conta->name) }}
                             </option>
                         @endforeach
