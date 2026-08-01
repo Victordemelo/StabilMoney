@@ -109,7 +109,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/contas-fixas/{conta}', [FixedBillController::class, 'destroy'])->name('contas-fixas.destroy');
     // Paga UMA competência (mês), no formato AAAA-MM.
     Route::post('/contas-fixas/{conta}/pagar/{competencia}', [FixedBillController::class, 'pay'])
-        ->where('competencia', '\d{4}-\d{2}')
+        // Mês 01..12 de verdade: `\d{4}-\d{2}` aceitava 2026-13 e 2026-00, que o Carbon
+        // convertia por overflow em jan/2027 e dez/2025 — pagamento debitado num mês que
+        // não existe e invisível na tela.
+        ->where('competencia', '\d{4}-(0[1-9]|1[0-2])')
         ->name('contas-fixas.pagar');
 });
 

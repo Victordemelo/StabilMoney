@@ -11,8 +11,9 @@ use App\Models\Transaction;
 use App\Services\FundingService;
 use App\Support\Brl;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Contas fixas mensais. A LISTAGEM não tem rota própria: as ocorrências
@@ -80,7 +81,26 @@ class FixedBillController extends Controller
         $data = $request->validated();
 
         // "2026-07" → 01/07/2026. Competência é sempre o dia 1 do mês.
-        $competence = CarbonImmutable::createFromFormat('Y-m-d', $competencia . '-01')->startOfMonth();
+        // A rota já garante mês 01..12; o `!` reseta hora/minuto para não herdar "agora".
+        $competence = CarbonImmutable::createFromFormat('!Y-m-d', $competencia . '-01')->startOfMonth();
+
+        // Competência FUTURA não se paga: a cobrança ainda não existe. Sem esta guarda
+        // dava para pagar dezembro em julho — o dinheiro saía e a competência paga não
+        // aparecia em nenhuma tela (a projeção só lista até o mês corrente).
+        if ($competence->greaterThan(CarbonImmutable::now()->startOfMonth())) {
+            throw ValidationException::withMessages([
+                'amount' => 'Esta competência ainda não venceu — só é possível pagar o mês atual ou meses anteriores.',
+            ]);
+        }
+
+        // Anterior ao início da conta fixa: aquela competência nunca existiu.
+        if ($competence->lessThan(CarbonImmutable::parse($conta->starts_on)->startOfMonth())) {
+            throw ValidationException::withMessages([
+                'amount' => 'Esta conta fixa começou em '
+                    . CarbonImmutable::parse($conta->starts_on)->translatedFormat('F/Y')
+                    . ' — não há o que pagar antes disso.',
+            ]);
+        }
         $pagoEm = CarbonImmutable::parse($data['paid_on'] ?? now()->toDateString());
         $valor = round((float) $data['amount'], 2);
 
@@ -110,13 +130,13 @@ class FixedBillController extends Controller
                 // Conta fixa vencida é obrigação: sem fonte, negativa em vez de recusar.
                 obrigacao: true,
             );
-        } catch (QueryException $e) {
-            // Violação do UNIQUE = alguém já pagou esta competência (duplo
-            // clique / replay). Idempotente: segue como sucesso.
-            if (! str_contains($e->getMessage(), 'transactions_fixed_bill_competence_unique')) {
-                throw $e;
-            }
-
+        } catch (UniqueConstraintViolationException $e) {
+            // Violação do UNIQUE = alguém já pagou esta competência (duplo clique /
+            // replay). Idempotente: segue como sucesso.
+            //
+            // A exceção TIPADA é o que torna isto driver-agnóstico. Antes o código
+            // procurava o nome do índice na mensagem, que só o MySQL inclui: em sqlite
+            // (e nos testes) a exceção era relançada e o segundo clique virava HTTP 500.
             return redirect()->route('faturas.index')
                 ->with('status', 'Esta competência já estava paga.');
         }

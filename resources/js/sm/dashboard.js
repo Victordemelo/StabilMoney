@@ -78,10 +78,14 @@ function applyPeriod(data, period, drawCf, reduceMotion) {
             el.textContent = '—';
             return;
         }
-        // Para despesas, cair é bom (verde); para o resto, subir é bom
-        const up = (k === 'despesas') ? val < 0 : val >= 0;
-        el.className = 'trend ' + (up ? 'up' : 'down');
-        el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="${up ? ARROW_UP : ARROW_DOWN}"/></svg>${pct(val)}%`;
+        // Duas decisões separadas (espelha o Blade):
+        //  - `subiu` = o que aconteceu com o número → escolhe a FLECHA.
+        //  - `bom`   = se isso é bom → escolhe a COR (em despesas, cair é bom).
+        // Unificar as duas fazia a flecha apontar para baixo quando a despesa subia.
+        const subiu = val >= 0;
+        const bom = (k === 'despesas') ? val < 0 : val >= 0;
+        el.className = 'trend ' + (bom ? 'up' : 'down');
+        el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="${subiu ? ARROW_UP : ARROW_DOWN}"/></svg>${pct(val)}%`;
     });
 
     drawCf(period);

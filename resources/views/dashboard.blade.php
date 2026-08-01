@@ -75,8 +75,14 @@
             @php
                 $value = $initialStats[$card['key']];
                 $trend = $initialTrends[$card['key']];
-                // Para despesas, cair é bom (verde); para o resto, subir é bom
-                $isUp = $trend === null ? null : ($card['key'] === 'despesas' ? $trend < 0 : $trend >= 0);
+                // DUAS coisas diferentes, que antes eram uma só:
+                //  - `$subiu` decide a FLECHA: ela mostra o que aconteceu com o número.
+                //  - `$bom` decide a COR: para despesas, cair é bom (verde); no resto,
+                //    subir é bom.
+                // Com um único flag, "despesas subiram 1540%" desenhava flecha para BAIXO
+                // (porque era ruim), e o usuário lia exatamente o contrário do fato.
+                $subiu = $trend === null ? null : $trend >= 0;
+                $bom = $trend === null ? null : ($card['key'] === 'despesas' ? $trend < 0 : $trend >= 0);
                 $sparkVals = $payload['sparks'][$card['key']] ?? [];
             @endphp
             <div class="card stat span3" style="animation-delay:{{ $card['delay'] }}">
@@ -86,7 +92,7 @@
                     @if ($trend === null)
                         <span class="trend neutral" data-trend="{{ $card['key'] }}">—</span>
                     @else
-                        <span class="trend {{ $isUp ? 'up' : 'down' }}" data-trend="{{ $card['key'] }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="{{ $isUp ? $arrowUp : $arrowDown }}"/></svg>{{ $pct($trend) }}</span>
+                        <span class="trend {{ $bom ? 'up' : 'down' }}" data-trend="{{ $card['key'] }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="{{ $subiu ? $arrowUp : $arrowDown }}"/></svg>{{ $pct($trend) }}</span>
                     @endif
                 </div>
                 {{-- Valor negativo (ex.: saldo/economia no vermelho) ganha .neg --}}

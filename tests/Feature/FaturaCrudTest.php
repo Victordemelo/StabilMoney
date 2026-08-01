@@ -100,10 +100,13 @@ class FaturaCrudTest extends TestCase
         $this->assertSame([1, 2, 3], $parcelas->pluck('installment_no')->map(fn ($n) => (int) $n)->all());
         $this->assertTrue($parcelas->every(fn ($p) => (int) $p->installments === 3));
 
-        // Última parcela absorve o arredondamento: 1000/3 = 333,33 x2 + 333,34.
-        $this->assertSame('333.33', (string) $parcelas[0]->amount);
+        // O centavo que sobra vai nas PRIMEIRAS parcelas: 1000/3 = 333,34 + 333,33 x2.
+        // Antes a última absorvia a sobra, o que produzia parcela NEGATIVA quando o
+        // arredondamento subia (R$ 0,36 em 24x dava uma parcela de −R$ 0,10). Ver
+        // AuditoriaCorrecoesTest::test_achado_m1_*.
+        $this->assertSame('333.34', (string) $parcelas[0]->amount);
         $this->assertSame('333.33', (string) $parcelas[1]->amount);
-        $this->assertSame('333.34', (string) $parcelas[2]->amount);
+        $this->assertSame('333.33', (string) $parcelas[2]->amount);
 
         // Datas mensais: base, base+1mês, base+2meses.
         $this->assertSame($base->toDateString(), $parcelas[0]->date->toDateString());
@@ -151,13 +154,24 @@ class FaturaCrudTest extends TestCase
             ->post("/faturas/recorrente/{$atual->id}/pagar")
             ->assertRedirect(route('faturas.index'));
 
-        // A atual ficou paga; nasceu a próxima (em aberto), +1 mês, mesmo grupo.
+        // A recorrência é NO CARTÃO, então a atual continua EM ABERTO: quem a quita é a
+        // fatura. Marcar `paid_at` aqui tirava a despesa da fatura e devolvia o limite sem
+        // nenhum dinheiro sair do caixa (três cliques "quitavam" R$ 149,70 de graça).
+        // Ver AuditoriaCorrecoesTest::test_achado_c2_*.
         $atual->refresh();
-        $this->assertNotNull($atual->paid_at);
+        $this->assertNull(
+            $atual->paid_at,
+            'Despesa de cartão não pode ser declarada paga fora do pagamento da fatura.',
+        );
 
+        // Mas a próxima ocorrência nasce, para a recorrência seguir andando.
         $this->assertDatabaseCount('transactions', 2);
 
-        $proxima = Transaction::whereNull('paid_at')->where('recurring', true)->firstOrFail();
+        // As duas estão em aberto agora, então a "próxima" é identificada por exclusão
+        // da atual (antes bastava filtrar por paid_at null).
+        $proxima = Transaction::where('recurring', true)
+            ->whereKeyNot($atual->id)
+            ->firstOrFail();
         $this->assertSame($atual->group_id, $proxima->group_id);
         $this->assertSame('49.90', (string) $proxima->amount);
         $this->assertSame(

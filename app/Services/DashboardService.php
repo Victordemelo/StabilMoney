@@ -295,8 +295,12 @@ class DashboardService
         $investments = Investment::where('user_id', $userId)->orderByDesc('id')->get();
         $cards = $accounts->where('type', 'credit_card');
 
+        // "A pagar" usa `openInvoiceDue` (o que está EM ABERTO), não `currentInvoice`
+        // (soma do ciclo, que ignora `paid_at`). Com `currentInvoice` o card continuava
+        // cobrando a fatura pelo resto do ciclo depois de paga — e discordava do sino e
+        // da tela /faturas, que já a mostravam quitada.
         $faturasTop = $cards
-            ->map(fn ($c) => ['name' => $c->name, 'invoice' => $c->currentInvoice, 'due' => $c->dueDate?->format('d/m')])
+            ->map(fn ($c) => ['name' => $c->name, 'invoice' => $c->openInvoiceDue, 'due' => $c->dueDate?->format('d/m')])
             ->filter(fn ($f) => $f['invoice'] > 0)
             ->sortByDesc('invoice')
             ->take(3)->values()->all();
@@ -312,7 +316,7 @@ class DashboardService
                 ])->values()->all(),
             ],
             'faturasResumo' => [
-                'total' => round((float) $cards->sum(fn ($c) => $c->currentInvoice), 2),
+                'total' => round((float) $cards->sum(fn ($c) => $c->openInvoiceDue), 2),
                 'count' => count($faturasTop),
                 'top' => $faturasTop,
             ],

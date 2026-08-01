@@ -39,8 +39,14 @@ class Transaction extends Model
     {
         return [
             'amount' => 'decimal:2',
-            'date' => 'date',
-            'competence' => 'date',
+            // `date:Y-m-d` (e não só `date`) porque o cast padrão GRAVA "Y-m-d H:i:s".
+            // O MySQL trunca — a coluna é DATE —, mas o sqlite guarda a string inteira, e
+            // aí `whereBetween('date', [$de, $ate])` compara texto e EXCLUI as linhas
+            // datadas exatamente no último dia da janela. Efeito prático: em sqlite (onde
+            // a suíte roda) as transações de hoje não entravam nas sparklines, e as do
+            // dia 31 sumiam do mês. Os testes validavam número errado.
+            'date' => 'date:Y-m-d',
+            'competence' => 'date:Y-m-d',
             'installment_no' => 'integer',
             'installments' => 'integer',
             'recurring' => 'boolean',

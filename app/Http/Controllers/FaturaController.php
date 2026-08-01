@@ -160,21 +160,38 @@ class FaturaController extends Controller
             amount: $total,
             source: $data['funding_source'] ?? null,
             investmentId: isset($data['funding_investment_id']) ? (int) $data['funding_investment_id'] : null,
-            write: function (array $auditoria) use ($abertas, $ownerId, $request, $data, $account, $total, $pagoEm) {
-                // Relock e recheque: só marca o que continua em aberto.
-                $ids = Transaction::whereIn('id', $abertas->pluck('id'))
+            write: function (array $auditoria) use ($ownerId, $request, $data, $account, $pagoEm, $start, $end) {
+                // A LEITURA AUTORITATIVA é esta, sob lock e dentro da transação.
+                //
+                // Antes, a lista e o total vinham de fora e a saída de caixa era criada
+                // incondicionalmente: com 4 POSTs paralelos, uma fatura de R$ 300 gerava
+                // 4 pagamentos de R$ 300 (a conta ia a −R$ 1.100). O relock existia, mas
+                // só decidia o que MARCAR como pago — nunca se havia o que pagar.
+                $abertasAgora = Transaction::where('account_id', $account->id)
+                    ->where('type', 'expense')
                     ->whereNull('paid_at')
+                    ->whereDate('date', '>', $start->toDateString())
+                    ->whereDate('date', '<=', $end->toDateString())
                     ->lockForUpdate()
-                    ->pluck('id');
+                    ->get();
 
-                Transaction::whereIn('id', $ids)->update(['paid_at' => $pagoEm]);
+                $totalAgora = round((float) $abertasAgora->sum('amount'), 2);
+
+                // Outra requisição pagou primeiro: nada a fazer, e nada a debitar.
+                if ($totalAgora <= 0) {
+                    return null;
+                }
+
+                Transaction::whereIn('id', $abertasAgora->pluck('id'))
+                    ->update(['paid_at' => $pagoEm]);
 
                 return Transaction::create($auditoria + [
                     'user_id' => $ownerId,
                     'made_by_user_id' => $request->user()->id,
                     'account_id' => $data['pay_account_id'],
                     'type' => 'expense',
-                    'amount' => $total,
+                    // Valor do que foi REALMENTE marcado agora, não o lido antes do lock.
+                    'amount' => $totalAgora,
                     'date' => $pagoEm->toDateString(),
                     'paid_at' => $pagoEm,
                     'description' => 'Pagamento da fatura — ' . $account->name,
@@ -204,16 +221,27 @@ class FaturaController extends Controller
     private function createInstallments(array $common, float $total, CarbonImmutable $base, int $n): Transaction
     {
         $groupId = (string) Str::uuid();
-        $parcela = round($total / $n, 2);
         $primeira = null;
+
+        // Rateio em CENTAVOS INTEIROS. O jeito anterior — dividir, arredondar e jogar a
+        // sobra na última parcela — produzia parcela NEGATIVA quando o arredondamento
+        // subia: R$ 0,36 em 24x dava 0,02 por parcela (0,46 no total) e a última virava
+        // −R$ 0,10. Linha negativa devolve limite do cartão e viola "dinheiro nunca é
+        // negativo, o sinal vem do type".
+        //
+        // Aqui o resto é distribuído um centavo por vez nas PRIMEIRAS parcelas: a soma
+        // fecha exata, nenhuma parcela fica negativa, e a diferença entre a maior e a
+        // menor nunca passa de um centavo.
+        $centavos = (int) round($total * 100);
+        $porParcela = intdiv($centavos, $n);
+        $sobra = $centavos - ($porParcela * $n);   // 0 .. n-1
 
         // Atômico: as N parcelas entram juntas ou nenhuma — sem fatura "pela metade".
         // (Já roda dentro da transação do FundingService; aninhar é seguro.)
-        DB::transaction(function () use ($common, $total, $base, $n, $groupId, $parcela, &$primeira) {
+        DB::transaction(function () use ($common, $base, $n, $groupId, $porParcela, $sobra, &$primeira) {
             for ($i = 1; $i <= $n; $i++) {
-                $amount = $i < $n
-                    ? $parcela
-                    : round($total - $parcela * ($n - 1), 2); // última absorve o resto
+                // As `$sobra` primeiras parcelas levam 1 centavo a mais.
+                $amount = ($porParcela + ($i <= $sobra ? 1 : 0)) / 100;
 
                 $linha = Transaction::create($common + [
                     'amount' => $amount,
@@ -265,6 +293,28 @@ class FaturaController extends Controller
             return redirect()->route('faturas.index');
         }
 
+        // Recorrência NO CARTÃO não é quitada aqui: quem quita é a fatura.
+        //
+        // Marcar `paid_at` é justamente o que tira a despesa de `openInvoiceDue` e
+        // devolve o limite — sem nenhum dinheiro sair do caixa. Antes desta guarda, três
+        // cliques "quitavam" R$ 149,70 de dívida com R$ 0,00 de saída, e o limite do
+        // cartão voltava de graça. Em conta corrente/poupança o caso é outro: a despesa
+        // já descontou do saldo no lançamento, então marcar como paga é só registro.
+        $conta = $transaction->account;
+
+        if ($conta !== null && $conta->type === 'credit_card') {
+            // A recorrência precisa continuar andando, então a próxima ocorrência é
+            // lançada; a atual permanece EM ABERTO, dentro da fatura.
+            $proxima = $this->gerarProximaOcorrencia($transaction);
+
+            return redirect()->route('faturas.index')->with(
+                'status',
+                $proxima
+                    ? 'Próxima ocorrência lançada. Esta despesa é quitada junto com a fatura do cartão.'
+                    : 'A próxima ocorrência já estava lançada. No cartão, a cobrança é quitada com a fatura.',
+            );
+        }
+
         DB::transaction(function () use ($transaction) {
             // Update condicional ATÔMICO: marca como paga só se ainda estava em
             // aberto. Duas requisições simultâneas: só uma afeta a linha; a outra
@@ -278,22 +328,48 @@ class FaturaController extends Controller
                 return; // já estava paga (ou outra requisição venceu a corrida).
             }
 
-            // Gera a PRÓXIMA ocorrência (+1 mês, mesmo grupo, em aberto).
-            Transaction::create([
-                'user_id' => $transaction->user_id,
-                'made_by_user_id' => $transaction->made_by_user_id,
-                'account_id' => $transaction->account_id,
-                'category_id' => $transaction->category_id,
-                'type' => 'expense',
-                'description' => $transaction->description,
-                'amount' => $transaction->amount,
-                'date' => CarbonImmutable::parse($transaction->date)->addMonthNoOverflow()->toDateString(),
-                'group_id' => $transaction->group_id,
-                'recurring' => true,
-            ]);
+            $this->gerarProximaOcorrencia($transaction);
         });
 
         return redirect()->route('faturas.index')
             ->with('status', 'Recorrência paga — a próxima já foi lançada.');
+    }
+
+    /**
+     * Lança a próxima ocorrência de uma recorrência (+1 mês, mesmo grupo, em aberto).
+     *
+     * Idempotente: se a ocorrência daquele mês já existe no grupo, não cria outra — é o
+     * que permite chamar isto no caminho do cartão, onde não há `paid_at` para servir de
+     * trava contra o clique repetido.
+     *
+     * @return bool  true se criou, false se já existia
+     */
+    private function gerarProximaOcorrencia(Transaction $transaction): bool
+    {
+        $proxima = CarbonImmutable::parse($transaction->date)->addMonthNoOverflow();
+
+        $jaExiste = Transaction::where('group_id', $transaction->group_id)
+            ->whereNotNull('group_id')
+            ->whereDate('date', $proxima->toDateString())
+            ->exists();
+
+        if ($jaExiste) {
+            return false;
+        }
+
+        Transaction::create([
+            'user_id' => $transaction->user_id,
+            'made_by_user_id' => $transaction->made_by_user_id,
+            'account_id' => $transaction->account_id,
+            'category_id' => $transaction->category_id,
+            'type' => 'expense',
+            'description' => $transaction->description,
+            'amount' => $transaction->amount,
+            'date' => $proxima->toDateString(),
+            'group_id' => $transaction->group_id,
+            'recurring' => true,
+        ]);
+
+        return true;
     }
 }

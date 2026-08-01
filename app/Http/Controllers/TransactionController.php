@@ -171,8 +171,18 @@ class TransactionController extends Controller
         // reeditar uma despesa sem mudar o valor seria recusada por falta de saldo.
         // Só vale quando a conta continua a mesma; trocando de conta, a nova
         // precisa aguentar o valor inteiro.
+        //
+        // O sinal importa: se a linha era uma RECEITA que vai virar despesa, ela não
+        // libera folga — ela DESAPARECE do saldo, então o efeito é negativo. Tratando
+        // receita como 0.0 (que era o caso), o disponível consultado ainda continha a
+        // receita sendo destruída e a folga era contada duas vezes: uma conta com R$ 100
+        // e uma receita de R$ 500 aceitava virar despesa de R$ 600 e ia a −R$ 500 sem
+        // cheque especial.
         $mesmaConta = (int) $data['account_id'] === (int) $transaction->account_id;
-        $ignore = $mesmaConta && $transaction->type === 'expense' ? (float) $transaction->amount : 0.0;
+        $efeitoAtual = $transaction->type === 'expense'
+            ? (float) $transaction->amount        // despesa antiga: liberava esse valor
+            : -(float) $transaction->amount;      // receita antiga: some, então tira folga
+        $ignore = $mesmaConta ? $efeitoAtual : 0.0;
 
         $conta = Account::whereKey($data['account_id'])->firstOrFail();
 
