@@ -205,6 +205,11 @@ class FaturaService
     /**
      * Despesas avulsas: type=expense de contas que NÃO são cartão, no mês
      * corrente. Carregam category, account e madeBy (e o badge via accessor).
+     *
+     * A linha que QUITA uma fatura (settles_account_id) fica de fora: ela não é
+     * um gasto novo — as compras que ela pagou já estão listadas no cartão. Sem
+     * este filtro o mesmo dinheiro aparecia duas vezes na tela (igual ao que o
+     * DashboardService já evita) e ainda oferecia um "x" para excluí-la.
      */
     private function accountExpenses(int $userId): Collection
     {
@@ -213,6 +218,7 @@ class FaturaService
         return Transaction::with(['category', 'account', 'madeBy'])
             ->where('transactions.user_id', $userId)
             ->where('transactions.type', 'expense')
+            ->whereNull('transactions.settles_account_id')
             ->where('date', '>=', $today->startOfMonth()->toDateString())
             ->where('date', '<=', $today->endOfMonth()->toDateString())
             ->whereHas('account', fn ($q) => $q->where('type', '!=', 'credit_card'))

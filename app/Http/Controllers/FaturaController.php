@@ -100,6 +100,16 @@ class FaturaController extends Controller
     {
         $this->authorize('delete', $transaction);
 
+        // Quitação de fatura NÃO se apaga isolada. Pagar a fatura escreve N+1
+        // linhas (marca as compras do ciclo com paid_at + cria esta saída de
+        // caixa). Apagar só esta devolveria o dinheiro à conta E deixaria as
+        // compras quitadas — dinheiro criado em dobro (saldo + limite de volta).
+        if ($transaction->settles_account_id) {
+            return back()->withErrors([
+                'transaction' => 'Esta linha é o pagamento de uma fatura de cartão e não pode ser excluída sozinha — ela quitou as compras do ciclo.',
+            ]);
+        }
+
         if ($transaction->group_id) {
             // Parcelas JÁ PAGAS não são apagadas: o pagamento delas existe no extrato
             // (saiu dinheiro de verdade), e apagar a dívida deixaria a saída de caixa

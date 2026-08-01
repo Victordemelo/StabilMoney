@@ -152,7 +152,15 @@ class FixedBillController extends Controller
                     'type' => 'expense',
                     'amount' => $valor,
                     'date' => $pagoEm->toDateString(),
-                    'paid_at' => $pagoEm,
+                    // Em CONTA DE CAIXA o dinheiro sai na hora → a despesa já nasce
+                    // quitada. Em CARTÃO DE CRÉDITO não: a competência vira dívida na
+                    // fatura e precisa nascer EM ABERTO (paid_at null) para entrar no
+                    // `committed` (consumir limite) e no `openInvoiceDue` (ser cobrada
+                    // no pagamento da fatura). Marcá-la como paga aqui fazia a dívida
+                    // sumir: nenhum caixa era debitado e o limite nunca era consumido.
+                    // A competência continua contando como paga — FixedBillService
+                    // olha a EXISTÊNCIA da transação (fixed_bill_id + competence).
+                    'paid_at' => $caixa->isCash() ? $pagoEm : null,
                     'description' => $conta->name . ' — ' . $competence->translatedFormat('F/Y'),
                     'fixed_bill_id' => $conta->id,
                     'competence' => $competence->toDateString(),
@@ -177,10 +185,16 @@ class FixedBillController extends Controller
                 ->with('status', 'Esta competência já estava paga.');
         }
 
-        $saldo = $caixa->fresh()->available;
-        $aviso = $saldo < 0
+        // O aviso de saldo negativo só faz sentido para conta de CAIXA. Num cartão
+        // de crédito, `available` (saldo − reservado) não significa nada: o que
+        // importa é o limite, e a despesa entra na fatura em vez de sair do bolso.
+        $fresco = $caixa->fresh();
+        $saldo = $fresco->available;
+        $aviso = $fresco->isCash() && $saldo < 0
             ? $conta->name . ' pago. Atenção: a conta ' . $caixa->name . ' ficou em ' . Brl::format($saldo) . '.'
-            : $conta->name . ' pago. A próxima competência já aparece aqui.';
+            : ($fresco->isCard()
+                ? $conta->name . ' lançado na fatura do ' . $caixa->name . '. Entra no pagamento da fatura.'
+                : $conta->name . ' pago. A próxima competência já aparece aqui.');
 
         return redirect()->route('faturas.index')->with('status', $aviso);
     }

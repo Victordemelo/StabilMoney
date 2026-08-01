@@ -209,6 +209,16 @@ class TransactionController extends Controller
     {
         $this->authorize('delete', $transaction);
 
+        // Mesma trava do /faturas: a linha que QUITOU uma fatura não se apaga
+        // sozinha — ela é a contrapartida das compras marcadas como pagas.
+        // Apagá-la devolveria o dinheiro à conta e ainda deixaria a fatura
+        // quitada, criando dinheiro em dobro.
+        if ($transaction->settles_account_id) {
+            return back()->withErrors([
+                'transaction' => 'Esta linha é o pagamento de uma fatura de cartão e não pode ser excluída sozinha — ela quitou as compras do ciclo.',
+            ]);
+        }
+
         $transaction->delete();
 
         return redirect()->route('transactions.index')
