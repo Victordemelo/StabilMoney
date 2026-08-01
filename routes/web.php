@@ -101,6 +101,9 @@ Route::middleware('auth')->group(function () {
     // Marcar a fatura de um cartão de crédito como paga (desconta do caixa escolhido).
     Route::post('/faturas/cartao/{account}/pagar', [FaturaController::class, 'payInvoice'])
         ->name('faturas.fatura.pagar');
+    // Desfaz o pagamento: as compras voltam para a fatura e o dinheiro, para a conta.
+    Route::delete('/faturas/quitacao/{transaction}', [FaturaController::class, 'estornarFatura'])
+        ->name('faturas.fatura.estornar');
 
     // Contas fixas mensais (condomínio, aluguel, carro…). A listagem não tem
     // rota própria: as ocorrências aparecem como um bloco de /faturas.

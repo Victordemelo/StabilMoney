@@ -44,6 +44,11 @@ class StoreFaturaLaunchRequest extends FormRequest
         $userId = $this->user()->ownerId();
 
         return [
+            // Idempotência do clique: o mesmo formulário reenviado (duplo clique,
+            // botão "voltar", resposta perdida) chega com o MESMO uuid e o
+            // controller devolve o lançamento existente em vez de criar outro.
+            // Sem isto, um duplo clique num parcelado em 12x criava 24 linhas.
+            'client_uuid' => ['nullable', 'uuid'],
             'description' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0.01', 'max:9999999999999.99'],
             'date' => [

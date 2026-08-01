@@ -28,6 +28,9 @@ class Transaction extends Model
         // migration add_settles_account_id_to_transactions: é o que impede o dashboard
         // de contar a quitação como gasto novo (dobrando a despesa do período).
         'settles_account_id',
+        // Aponta para a transação de QUITAÇÃO que pagou esta compra. É o que
+        // torna o estorno da fatura exato (ver migration add_settled_by_id).
+        'settled_by_id',
         'competence',
         'installment_no',
         'installments',

@@ -34,9 +34,14 @@ class FundingService
      * Executa `$write` (que cria a despesa) com a garantia de que o saldo
      * aguenta. Devolve o que `$write` devolver.
      *
-     * @param  callable(array): Transaction  $write  recebe os campos de auditoria
-     *                                               (funding_source/funding_amount)
-     *                                               para gravar junto da despesa.
+     * `$write` pode devolver **null** quando, já sob o lock, descobre que não há
+     * nada a gravar (fatura quitada por outra requisição, ocorrência recorrente
+     * que já existe). Sem isso o caminho de corrida estourava TypeError em vez
+     * de sair em silêncio.
+     *
+     * @param  callable(array): ?Transaction  $write  recebe os campos de auditoria
+     *                                                (funding_source/funding_amount)
+     *                                                para gravar junto da despesa.
      *
      * @throws RequiresFundingChoice  quando falta escolher a fonte
      * @throws ValidationException    quando nenhuma fonte cobre
@@ -51,7 +56,7 @@ class FundingService
         ?int $madeByUserId = null,
         ?string $date = null,
         bool $obrigacao = false,
-    ): Transaction {
+    ): ?Transaction {
         return DB::transaction(function () use ($account, $amount, $source, $investmentId, $write, $ignore, $madeByUserId, $date, $obrigacao) {
             // 1. Relock da conta (o saldo é derivado de SUM sobre transactions,
             //    então travamos a linha da conta como ponto de serialização).
@@ -141,7 +146,7 @@ class FundingService
         callable $write,
         ?int $madeByUserId,
         ?string $date,
-    ): Transaction {
+    ): ?Transaction {
         if (! $investmentId) {
             throw ValidationException::withMessages([
                 'funding_investment_id' => 'Escolha de qual investimento resgatar.',
@@ -177,6 +182,12 @@ class FundingService
             'funding_amount' => $faltante,
         ]);
 
+        // Nada foi gravado (corrida): não resgata nada — senão o investimento
+        // encolheria sem despesa nenhuma do outro lado.
+        if (! $transacao) {
+            return null;
+        }
+
         $investimento->contributions()->create([
             'account_id' => $conta->id,
             'transaction_id' => $transacao->id,
@@ -187,6 +198,44 @@ class FundingService
         ]);
 
         return $transacao;
+    }
+
+    /**
+     * ESTORNO DA FONTE — desfaz o resgate que financiou uma despesa apagada.
+     *
+     * Quando o usuário escolhe "tirar do investimento", nascem DUAS linhas: a
+     * despesa e um `resgate` ligado a ela por `transaction_id`. Apagar só a
+     * despesa devolvia o dinheiro ao saldo mas deixava o resgate de pé: o
+     * aplicado do investimento encolhia para sempre, sem contrapartida nenhuma.
+     * O patrimônio total ficava certo e o investido, errado — e não havia como
+     * o usuário reconstituir o valor a não ser aportando de novo à mão.
+     *
+     * Chamado EXPLICITAMENTE por quem apaga transações, e não por um hook de
+     * model: `FaturaController::destroy` apaga as parcelas em massa
+     * (`->delete()` no builder), e delete em massa NÃO dispara eventos Eloquent.
+     * Um hook daria a falsa sensação de cobertura justamente no caminho que
+     * apaga mais linhas de uma vez.
+     *
+     * Deve rodar dentro da MESMA transação de banco que apaga as despesas —
+     * senão uma falha no meio deixa o resgate estornado e a despesa viva.
+     *
+     * @param  iterable<int>  $transactionIds
+     * @return int  quantas movimentações foram desfeitas
+     */
+    public function estornarFonte(iterable $transactionIds): int
+    {
+        $ids = collect($transactionIds)->filter()->unique()->values();
+
+        if ($ids->isEmpty()) {
+            return 0;
+        }
+
+        // Metas e investimentos: os dois gravam `transaction_id` no resgate.
+        // Hoje só o investimento é oferecido como fonte, mas a coluna existe nos
+        // dois — deixar a meta de fora criaria o mesmo buraco no dia em que ela
+        // virar opção de fonte.
+        return \App\Models\InvestmentContribution::whereIn('transaction_id', $ids)->delete()
+            + \App\Models\GoalContribution::whereIn('transaction_id', $ids)->delete();
     }
 
     /** Cartão de crédito: a compra não pode passar do limite disponível. */

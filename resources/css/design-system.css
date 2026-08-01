@@ -799,6 +799,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .fatura-paid { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--brand-600); font-weight: 700; font-size: 13px; }
 [data-theme="dark"] .fatura-paid { color: var(--brand-300); }
 .fatura-paid svg { width: 18px; height: 18px; stroke-width: 2; }
+/* Desfazer o pagamento da fatura: ação secundária, discreta, nunca competindo
+   visualmente com "Marcar como paga" — só existe para consertar um clique errado. */
+.fatura-estorno { display: inline-flex; }
+.fatura-estorno .btn { padding: 7px 12px; font-size: 12.5px; border-radius: 10px; }
 .pay-summary { font-size: 14px; color: var(--ink-2); margin-bottom: 6px; }
 .pay-summary b { color: var(--ink); }
 

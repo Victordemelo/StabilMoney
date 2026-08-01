@@ -174,8 +174,26 @@ class FaturaService
                     'limitUsedPct' => $usedPct,
                     'dueDate' => $card->dueDate,
                     'items' => $items,
+                    // Último pagamento de fatura deste cartão — é o que o botão
+                    // "Estornar" desfaz. Null quando nunca se pagou nada.
+                    'settlement' => $this->lastSettlement($card),
                 ]);
             });
+    }
+
+    /**
+     * A saída de caixa mais recente que quitou uma fatura deste cartão.
+     *
+     * Só a última: estornar é "desfazer o que acabei de fazer". Deixar todo o
+     * histórico de pagamentos estornável convidaria a desfazer um pagamento
+     * antigo cujas compras já foram reprocessadas em outros ciclos.
+     */
+    private function lastSettlement(Account $card): ?Transaction
+    {
+        return Transaction::where('settles_account_id', $card->id)
+            ->orderByDesc('paid_at')
+            ->orderByDesc('id')
+            ->first();
     }
 
     /**

@@ -234,6 +234,23 @@
                             </button>
                         @endif
                     @endif
+
+                    {{-- Desfazer o último pagamento: as compras voltam para a fatura
+                         e o dinheiro volta para a conta. É a saída para quem clicou
+                         em "Marcar como paga" no cartão ou na conta errada — antes
+                         disso, o clique era irreversível pela interface. --}}
+                    @if ($card->settlement)
+                        <form method="POST" action="{{ route('faturas.fatura.estornar', $card->settlement) }}"
+                              class="fatura-estorno"
+                              onsubmit="return confirm('Estornar o pagamento de {{ $brl($card->settlement->amount) }}? As compras voltam para a fatura em aberto e o valor volta para a conta.')">
+                            @csrf
+                            @method('DELETE')
+                            <button class="btn ghost" type="submit"
+                                    title="Pago em {{ optional($card->settlement->paid_at)->translatedFormat('d/m/Y') }}">
+                                Estornar pagamento
+                            </button>
+                        </form>
+                    @endif
                 </div>
 
                 @if ($limite > 0)
@@ -378,6 +395,13 @@
 
         <form method="POST" action="{{ route('faturas.lancar') }}" id="lancarForm">
             @csrf
+            {{-- Idempotência: identifica a COMPRA, não a requisição. Duplo clique,
+                 "voltar" e reenvio chegam com o mesmo uuid e o servidor devolve o
+                 lançamento existente em vez de criar outro (e, no parcelado, outras
+                 N parcelas). O `old()` preserva o uuid quando a validação falha e o
+                 modal reabre; um lançamento bem-sucedido recarrega a página e sorteia
+                 outro. --}}
+            <input type="hidden" name="client_uuid" value="{{ old('client_uuid', (string) \Illuminate\Support\Str::uuid()) }}">
             <div class="modal-body">
                 @if ($reabreLancar)
                     <div class="flash-error" role="alert">

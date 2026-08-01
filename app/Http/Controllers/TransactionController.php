@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\FundingService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TransactionController extends Controller
 {
@@ -205,7 +206,7 @@ class TransactionController extends Controller
             ->with('status', 'Transação atualizada.');
     }
 
-    public function destroy(Transaction $transaction)
+    public function destroy(Transaction $transaction, FundingService $funding)
     {
         $this->authorize('delete', $transaction);
 
@@ -215,11 +216,16 @@ class TransactionController extends Controller
         // quitada, criando dinheiro em dobro.
         if ($transaction->settles_account_id) {
             return back()->withErrors([
-                'transaction' => 'Esta linha é o pagamento de uma fatura de cartão e não pode ser excluída sozinha — ela quitou as compras do ciclo.',
+                'transaction' => 'Esta linha é o pagamento de uma fatura de cartão e não pode ser excluída sozinha. Para desfazer, use "Estornar" na tela Pagar despesas — assim as compras voltam a ficar em aberto.',
             ]);
         }
 
-        $transaction->delete();
+        DB::transaction(function () use ($transaction, $funding) {
+            // Se esta despesa foi financiada por resgate de investimento, o
+            // resgate morre junto — senão o aplicado encolhe sem contrapartida.
+            $funding->estornarFonte([$transaction->id]);
+            $transaction->delete();
+        });
 
         return redirect()->route('transactions.index')
             ->with('status', 'Transação removida.');

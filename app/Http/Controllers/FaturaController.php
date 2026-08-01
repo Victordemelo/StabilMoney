@@ -10,8 +10,10 @@ use App\Services\FaturaService;
 use App\Services\FundingService;
 use App\Support\Brl;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -44,6 +46,19 @@ class FaturaController extends Controller
         $mode = $data['mode'];
         $conta = Account::whereKey($data['account_id'])->firstOrFail();
 
+        // IDEMPOTÊNCIA. Este era o único caminho de escrita de despesa sem
+        // dedupe: um duplo clique lançava a compra duas vezes — e no parcelado,
+        // as N parcelas duas vezes. Vem ANTES do guard de propósito: o reenvio de
+        // algo já gravado não pode resgatar do investimento de novo.
+        $clientUuid = $data['client_uuid'] ?? null;
+        if ($clientUuid && Transaction::where('user_id', $ownerId)
+            ->where('client_uuid', $clientUuid)
+            ->exists()
+        ) {
+            return redirect()->route('faturas.index')
+                ->with('status', 'Esta despesa já tinha sido lançada.');
+        }
+
         $common = [
             'user_id' => $ownerId,
             'made_by_user_id' => $madeBy,
@@ -51,6 +66,9 @@ class FaturaController extends Controller
             'category_id' => $data['category_id'] ?? null,
             'type' => 'expense',
             'description' => $data['description'],
+            // Só a PRIMEIRA linha carrega o uuid: o índice é único em
+            // (user_id, client_uuid), então repetir nas 12 parcelas estouraria.
+            'client_uuid' => $clientUuid,
         ];
 
         // Todo lançamento passa pelo guard: em conta de caixa ele checa o saldo
@@ -59,28 +77,36 @@ class FaturaController extends Controller
         $fonte = $data['funding_source'] ?? null;
         $investimentoId = isset($data['funding_investment_id']) ? (int) $data['funding_investment_id'] : null;
 
-        $funding->spend(
-            account: $conta,
-            amount: $total,
-            source: $fonte,
-            investmentId: $investimentoId,
-            write: function (array $auditoria) use ($mode, $common, $total, $base, $data, $conta) {
-                if ($mode === 'parcelado') {
-                    return $this->createInstallments($common + $auditoria, $total, $base, (int) $data['installments']);
-                }
+        try {
+            $funding->spend(
+                account: $conta,
+                amount: $total,
+                source: $fonte,
+                investmentId: $investimentoId,
+                write: function (array $auditoria) use ($mode, $common, $total, $base, $data, $conta) {
+                    if ($mode === 'parcelado') {
+                        return $this->createInstallments($common + $auditoria, $total, $base, (int) $data['installments']);
+                    }
 
-                if ($mode === 'recorrente') {
-                    return $this->createRecurring($common + $auditoria, $total, $base, $conta);
-                }
+                    if ($mode === 'recorrente') {
+                        return $this->createRecurring($common + $auditoria, $total, $base, $conta);
+                    }
 
-                return Transaction::create($common + $auditoria + [
-                    'amount' => $total,
-                    'date' => $base->toDateString(),
-                ]);
-            },
-            madeByUserId: $madeBy,
-            date: $base->toDateString(),
-        );
+                    return Transaction::create($common + $auditoria + [
+                        'amount' => $total,
+                        'date' => $base->toDateString(),
+                    ]);
+                },
+                madeByUserId: $madeBy,
+                date: $base->toDateString(),
+            );
+        } catch (UniqueConstraintViolationException) {
+            // Duas requisições idênticas em paralelo passaram juntas pela checagem
+            // acima; o índice único (user_id, client_uuid) barrou a segunda. A
+            // transação inteira foi desfeita, então basta responder como duplicata.
+            return redirect()->route('faturas.index')
+                ->with('status', 'Esta despesa já tinha sido lançada.');
+        }
 
         $status = match ($mode) {
             'parcelado' => 'Despesa parcelada lançada na fatura.',
@@ -96,7 +122,7 @@ class FaturaController extends Controller
      * (parcelada/recorrente), apaga todas as linhas do grupo; senão, só ela.
      * Escopo de família garantido pela TransactionPolicy.
      */
-    public function destroy(Transaction $transaction)
+    public function destroy(Transaction $transaction, FundingService $funding)
     {
         $this->authorize('delete', $transaction);
 
@@ -106,30 +132,41 @@ class FaturaController extends Controller
         // compras quitadas — dinheiro criado em dobro (saldo + limite de volta).
         if ($transaction->settles_account_id) {
             return back()->withErrors([
-                'transaction' => 'Esta linha é o pagamento de uma fatura de cartão e não pode ser excluída sozinha — ela quitou as compras do ciclo.',
+                'transaction' => 'Esta linha é o pagamento de uma fatura de cartão e não pode ser excluída sozinha. Para desfazer, use "Estornar" no cartão — assim as compras voltam a ficar em aberto.',
             ]);
         }
 
-        if ($transaction->group_id) {
-            // Parcelas JÁ PAGAS não são apagadas: o pagamento delas existe no extrato
-            // (saiu dinheiro de verdade), e apagar a dívida deixaria a saída de caixa
-            // órfã — histórico financeiro não se reescreve. Some só o que ainda é dívida.
-            $apagadas = Transaction::where('user_id', $transaction->user_id)
-                ->where('group_id', $transaction->group_id)
-                ->whereNull('paid_at')
-                ->delete();
+        $status = DB::transaction(function () use ($transaction, $funding) {
+            if ($transaction->group_id) {
+                // Parcelas JÁ PAGAS não são apagadas: o pagamento delas existe no extrato
+                // (saiu dinheiro de verdade), e apagar a dívida deixaria a saída de caixa
+                // órfã — histórico financeiro não se reescreve. Some só o que ainda é dívida.
+                $emAberto = Transaction::where('user_id', $transaction->user_id)
+                    ->where('group_id', $transaction->group_id)
+                    ->whereNull('paid_at')
+                    ->pluck('id');
 
-            $restaram = Transaction::where('user_id', $transaction->user_id)
-                ->where('group_id', $transaction->group_id)
-                ->count();
+                // Estorna a fonte ANTES de apagar: o delete em massa abaixo não
+                // dispara evento nenhum, então este é o único momento em que os
+                // resgates que financiaram as parcelas podem ser desfeitos.
+                $funding->estornarFonte($emAberto);
 
-            $status = $restaram > 0
-                ? "Parcelas em aberto removidas ({$apagadas}). As já pagas foram mantidas no histórico."
-                : 'Compra removida (todas as parcelas).';
-        } else {
+                $apagadas = Transaction::whereIn('id', $emAberto)->delete();
+
+                $restaram = Transaction::where('user_id', $transaction->user_id)
+                    ->where('group_id', $transaction->group_id)
+                    ->count();
+
+                return $restaram > 0
+                    ? "Parcelas em aberto removidas ({$apagadas}). As já pagas foram mantidas no histórico."
+                    : 'Compra removida (todas as parcelas).';
+            }
+
+            $funding->estornarFonte([$transaction->id]);
             $transaction->delete();
-            $status = 'Despesa removida.';
-        }
+
+            return 'Despesa removida.';
+        });
 
         return redirect()->route('faturas.index')->with('status', $status);
     }
@@ -224,10 +261,11 @@ class FaturaController extends Controller
                     return null;
                 }
 
-                Transaction::whereIn('id', $abertasAgora->pluck('id'))
-                    ->update(['paid_at' => $pagoEm]);
-
-                return Transaction::create($auditoria + [
+                // A QUITAÇÃO é criada ANTES de marcar as compras, para que cada
+                // compra possa apontar para ela (settled_by_id). É esse vínculo
+                // que torna o estorno exato — sem ele o estorno teria de adivinhar
+                // quais compras pertenciam a este pagamento.
+                $quitacao = Transaction::create($auditoria + [
                     'user_id' => $ownerId,
                     'made_by_user_id' => $request->user()->id,
                     'account_id' => $data['pay_account_id'],
@@ -243,6 +281,11 @@ class FaturaController extends Controller
                     // despesa do período.
                     'settles_account_id' => $account->id,
                 ]);
+
+                Transaction::whereIn('id', $abertasAgora->pluck('id'))
+                    ->update(['paid_at' => $pagoEm, 'settled_by_id' => $quitacao->id]);
+
+                return $quitacao;
             },
             madeByUserId: $request->user()->id,
             date: $pagoEm->toDateString(),
@@ -259,6 +302,62 @@ class FaturaController extends Controller
             : 'Fatura marcada como paga.';
 
         return redirect()->route('faturas.index')->with('status', $aviso);
+    }
+
+    /**
+     * ESTORNA o pagamento de uma fatura — desfaz exatamente o que `payInvoice` fez.
+     *
+     * Marcar como paga era irreversível: quem clicava no cartão errado (ou na
+     * conta errada) ficava com uma saída de caixa que não dá para apagar (a
+     * trava do `destroy` existe justamente para não criar dinheiro em dobro) e
+     * com a fatura quitada sem ter pago nada. A única saída era mexer no banco.
+     *
+     * O estorno faz as três coisas juntas, numa transação só:
+     *  1. as compras daquele pagamento voltam a ficar EM ABERTO (`paid_at` null),
+     *     então voltam para a fatura e voltam a consumir limite;
+     *  2. o resgate de investimento que financiou o pagamento, se houve, é desfeito;
+     *  3. a saída de caixa é apagada — o dinheiro volta para a conta.
+     */
+    public function estornarFatura(Transaction $transaction, FundingService $funding)
+    {
+        $this->authorize('delete', $transaction);
+
+        if (! $transaction->settles_account_id) {
+            return back()->withErrors([
+                'transaction' => 'Esta linha não é o pagamento de uma fatura.',
+            ]);
+        }
+
+        $compras = Transaction::where('settled_by_id', $transaction->id)->pluck('id');
+
+        // Pagamentos feitos ANTES de existir o vínculo `settled_by_id` não têm
+        // como ser rastreados linha a linha; o par (cartão, instante do
+        // pagamento) é o que resta, e é exato — `payInvoice` grava o MESMO
+        // `paid_at` em todas as compras do lote.
+        if ($compras->isEmpty() && $transaction->paid_at) {
+            $compras = Transaction::where('account_id', $transaction->settles_account_id)
+                ->whereNull('settled_by_id')
+                ->where('paid_at', $transaction->paid_at)
+                ->pluck('id');
+        }
+
+        DB::transaction(function () use ($transaction, $compras, $funding) {
+            Transaction::whereIn('id', $compras)
+                ->update(['paid_at' => null, 'settled_by_id' => null]);
+
+            // Se o pagamento saiu de um resgate de investimento, o resgate volta
+            // atrás junto — senão o aplicado ficaria menor sem despesa nenhuma.
+            $funding->estornarFonte([$transaction->id]);
+
+            $transaction->delete();
+        });
+
+        return redirect()->route('faturas.index')->with(
+            'status',
+            $compras->isEmpty()
+                ? 'Pagamento estornado. O valor voltou para a conta.'
+                : 'Pagamento estornado: ' . $compras->count() . ' ' . ($compras->count() === 1 ? 'compra voltou' : 'compras voltaram') . ' para a fatura em aberto.',
+        );
     }
 
     /**
@@ -285,12 +384,16 @@ class FaturaController extends Controller
 
         // Atômico: as N parcelas entram juntas ou nenhuma — sem fatura "pela metade".
         // (Já roda dentro da transação do FundingService; aninhar é seguro.)
-        DB::transaction(function () use ($common, $base, $n, $groupId, $porParcela, $sobra, &$primeira) {
+        // Da 2ª parcela em diante o uuid sai: ele identifica a COMPRA, e o índice
+        // único (user_id, client_uuid) só admite uma linha por uuid.
+        $semUuid = Arr::except($common, 'client_uuid');
+
+        DB::transaction(function () use ($common, $semUuid, $base, $n, $groupId, $porParcela, $sobra, &$primeira) {
             for ($i = 1; $i <= $n; $i++) {
                 // As `$sobra` primeiras parcelas levam 1 centavo a mais.
                 $amount = ($porParcela + ($i <= $sobra ? 1 : 0)) / 100;
 
-                $linha = Transaction::create($common + [
+                $linha = Transaction::create(($i === 1 ? $common : $semUuid) + [
                     'amount' => $amount,
                     // NoOverflow: compra em 31/01 gera 28/02, não 03/03. Com o
                     // addMonths puro do Carbon, fevereiro ficava sem parcela e
@@ -394,7 +497,12 @@ class FaturaController extends Controller
     private function gerarProximaOcorrencia(Transaction $transaction, FundingService $funding): bool
     {
         $proxima = CarbonImmutable::parse($transaction->date)->addMonthNoOverflow();
+        $conta = $transaction->account;
 
+        // Caminho rápido (time-of-check): a ocorrência já está lá, então nem
+        // abrimos transação nem incomodamos o guard de limite. A checagem que
+        // VALE é a de dentro do write, sob lock — esta só evita erro de limite
+        // num clique repetido em cartão sem folga.
         $jaExiste = Transaction::where('group_id', $transaction->group_id)
             ->whereNotNull('group_id')
             ->where('date', $proxima->toDateString())
@@ -404,8 +512,6 @@ class FaturaController extends Controller
             return false;
         }
 
-        $conta = $transaction->account;
-
         // A ocorrência nova é uma DESPESA de verdade — e no modelo deste app despesa com
         // data futura já entra no saldo. Então ela passa pela trava como qualquer gasto:
         // era o único caminho de escrita que gravava com `Transaction::create` cru, e por
@@ -414,27 +520,44 @@ class FaturaController extends Controller
         // `obrigacao: false` de propósito: lançar a parcela do mês que vem é gasto novo,
         // não boleto vencido. Sem saldo, o usuário é avisado (ou escolhe a fonte) em vez
         // de a conta afundar em silêncio.
-        $funding->spend(
+        $criada = $funding->spend(
             account: $conta,
             amount: (float) $transaction->amount,
             source: null,
             investmentId: null,
-            write: fn (array $auditoria) => Transaction::create($auditoria + [
-                'user_id' => $transaction->user_id,
-                'made_by_user_id' => $transaction->made_by_user_id,
-                'account_id' => $transaction->account_id,
-                'category_id' => $transaction->category_id,
-                'type' => 'expense',
-                'description' => $transaction->description,
-                'amount' => $transaction->amount,
-                'date' => $proxima->toDateString(),
-                'group_id' => $transaction->group_id,
-                'recurring' => true,
-            ]),
+            // A checagem de "já existe" mora DENTRO do write, que roda sob o lock
+            // da conta (FundingService trava a linha antes de chamar). Fora dele,
+            // dois POSTs simultâneos liam "não existe" ao mesmo tempo e criavam
+            // duas ocorrências do mesmo mês — dívida em dobro no cartão, com a
+            // recorrência andando dois meses de uma vez.
+            write: function (array $auditoria) use ($transaction, $proxima) {
+                $jaExiste = Transaction::where('group_id', $transaction->group_id)
+                    ->whereNotNull('group_id')
+                    ->where('date', $proxima->toDateString())
+                    ->lockForUpdate()
+                    ->exists();
+
+                if ($jaExiste) {
+                    return null;
+                }
+
+                return Transaction::create($auditoria + [
+                    'user_id' => $transaction->user_id,
+                    'made_by_user_id' => $transaction->made_by_user_id,
+                    'account_id' => $transaction->account_id,
+                    'category_id' => $transaction->category_id,
+                    'type' => 'expense',
+                    'description' => $transaction->description,
+                    'amount' => $transaction->amount,
+                    'date' => $proxima->toDateString(),
+                    'group_id' => $transaction->group_id,
+                    'recurring' => true,
+                ]);
+            },
             madeByUserId: $transaction->made_by_user_id,
             date: $proxima->toDateString(),
         );
 
-        return true;
+        return $criada !== null;
     }
 }

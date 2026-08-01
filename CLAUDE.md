@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **290 testes / 969 asserções** verdes |
+| Suíte de testes | ✅ **474 testes / 1.801 asserções** verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | PWA (manifest + SW + lançamento offline com fila e Background Sync) | ✅ Instalável + offline (Fases 1-2) |
@@ -180,7 +180,7 @@ database/
 │                           # + 2026_07_28_*: cheque especial, funding_source, fixed_bills
 ├── factories/              # User, Account (states creditCard/overdraft/debitCard), Category, Transaction
 └── seeders/                # DatabaseSeeder (só roda em APP_ENV=local; credenciais via .env)
-tests/Feature/              # 290 testes: auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 474 testes: auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite) e FixedBillTest
 ```
 
@@ -251,7 +251,7 @@ tests/Feature/              # 290 testes: auth, dashboard, CRUD, validação, is
 | `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais **fora da `.card`** — ela tem `overflow:hidden`+animação `transform`, que prendia o `position:fixed`). Cada card mostra **foto** (avatar), nome/e-mail e **quanto gastou no mês** (`Σ` despesas do mês corrente com `made_by_user_id` da pessoa; titular incluso), com botões **editar** e **excluir**. No cadastro/edição define-se nome, e-mail, **foto** (avatar central clicável — a bolinha É o botão de upload, classe `.avatar-pick`), **parentesco** (select `User::RELATIONSHIPS`) e senha (Store/UpdateDependentRequest; senha opcional na edição). **Lançar em nome de um dependente** é feito no formulário de transação, pelo seletor "quem fez a compra" (suporta deep-link `transactions.create?autor=ID`). Só titular acessa (403 p/ dependente). |
 | `/metas` (`GoalController` index/store/update/destroy + aportes/resgates) | `metas/index` | **Metas (implementado).** Objetivos de poupança modelo "cofrinho": aporte reserva, resgate devolve à conta. Compartilhadas na família (`ownerId`). |
 | `/investimentos` (`InvestmentController` index/store/update/destroy + aportes/resgates) | `investimentos/index` | **Investimentos (implementado).** Cofrinho + metadados/projeções (indexador CDI/Selic/IPCA+/Prefixado, % do indexador, prévia de IR/IOF). Compartilhados na família. |
-| `/faturas` (**"Pagar despesas"**: `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy` + **`faturas.fatura.pagar`** + `faturas.recorrente.pagar`) | `faturas/index` | **Pagar despesas (implementado).** Três blocos: **contas fixas do mês** (topo — competências projetadas, badge de vencida, botão Pagar e "+ Nova conta fixa"), faturas por cartão (parcelas/recorrência, ciclo, limite) e despesas avulsas. **Marcar fatura como paga** usa `PayInvoiceRequest` (com **data do pagamento** informável) e passa pelo `FundingService` — respeita saldo e pergunta a fonte. `Account::openInvoiceDue` = fatura do ciclo aberto; **`closedInvoiceDue`/`overdueInvoice`** = a do ciclo fechado e vencida. A recorrência de cartão agora tem **botão "Pagar"** (a rota existia sem UI, então nunca avançava de mês). |
+| `/faturas` (**"Pagar despesas"**: `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy` + **`faturas.fatura.pagar`** + **`faturas.fatura.estornar`** + `faturas.recorrente.pagar`) | `faturas/index` | **Pagar despesas (implementado).** Três blocos: **contas fixas do mês** (topo — competências projetadas, badge de vencida, botão Pagar e "+ Nova conta fixa"), faturas por cartão (parcelas/recorrência, ciclo, limite) e despesas avulsas. **Marcar fatura como paga** usa `PayInvoiceRequest` (com **data do pagamento** informável) e passa pelo `FundingService` — respeita saldo e pergunta a fonte. `Account::openInvoiceDue` = fatura do ciclo aberto; **`closedInvoiceDue`/`overdueInvoice`** = a do ciclo fechado e vencida. A recorrência de cartão agora tem **botão "Pagar"** (a rota existia sem UI, então nunca avançava de mês). |
 | `/contas-fixas` (`FixedBillController` store/update/destroy + **`contas-fixas.pagar/{competencia}`**) | bloco em `faturas/index` | **Contas fixas mensais (implementado).** Condomínio, aluguel, parcela do carro. **Sem rota de listagem** — aparecem em `/faturas`. `due_day` aceita **1..31**. Pagar recebe o valor REAL (editável, vem preenchido com o previsto) e a data; idempotente pelo `unique(fixed_bill_id, competence)`. |
 | `routes/auth.php` | `auth/*` | Breeze: login, registro, esqueci/redefinir senha, confirmar senha, verificar e-mail. |
 
@@ -513,8 +513,39 @@ continua descartando o menos, porque valor digitado nunca é negativo.
 - Despesa com **data futura** e recorrência **não paga** já entram no saldo (`Account::balance`
   não olha `date` nem `paid_at`). Mudar isso era a proposta "R-SALDO", **descartada** quando as
   contas fixas passaram a ser calculadas — ver §8.2 e decisão D-4 da spec.
-- Falta implementar (§14 da spec): estorno de pagamento de fatura, guard de parcela isolada no
-  Histórico, bloqueio de excluir conta/investimento com saldo negativo.
+- Falta implementar (§14 da spec): guard de parcela isolada no Histórico, bloqueio de excluir
+  conta/investimento com saldo negativo. (O **estorno de pagamento de fatura** saiu da lista —
+  implementado em 01/08/2026, ver abaixo.)
+
+### Estorno e idempotência (01/08/2026) — `EstornoEIdempotenciaTest`
+
+Quatro buracos do mesmo tema: **escrever dinheiro era fácil, desescrever não existia.**
+
+- **`FundingService::estornarFonte(iterable $ids)`** desfaz o `resgate` que financiou uma
+  despesa apagada (ligado por `investment_contributions.transaction_id`). Antes, apagar a
+  despesa devolvia o saldo mas deixava o resgate de pé: o **aplicado do investimento encolhia
+  para sempre**, sem contrapartida. **Chame-o em todo caminho que apaga transação** —
+  explicitamente, nunca por hook de model: `FaturaController::destroy` apaga as parcelas com
+  `->delete()` no builder, e **delete em massa não dispara evento Eloquent**. Precisa rodar na
+  mesma `DB::transaction` do delete.
+- **`transactions.settled_by_id`** (migration `2026_08_01_000400`) liga cada COMPRA à quitação
+  que a pagou — sem FK de propósito (cascade apagaria o histórico de compras). `payInvoice`
+  agora cria a quitação **antes** de marcar as compras, para ter o id.
+- **`faturas.fatura.estornar`** (`DELETE /faturas/quitacao/{transaction}`) desfaz o pagamento:
+  compras voltam a `paid_at = null` (voltam para a fatura e voltam a consumir limite), o resgate
+  volta atrás e a saída de caixa é apagada. Botão "Estornar pagamento" no card do cartão
+  (`FaturaService` expõe `settlement` = a **última** quitação daquele cartão). Quitações antigas,
+  sem `settled_by_id`, caem no fallback `(settles_account_id, paid_at)` — o lote inteiro
+  compartilha o mesmo instante de pagamento.
+- **`client_uuid` em `faturas.lancar`** (era o único caminho de escrita de despesa sem dedupe):
+  duplo clique num parcelado em 12x criava **24 linhas**. O uuid identifica a COMPRA e vive **só
+  na primeira parcela** — o índice é único em `(user_id, client_uuid)`. `UniqueConstraintViolationException`
+  é capturada e respondida como duplicata (corrida entre dois POSTs simultâneos).
+- **`gerarProximaOcorrencia` decide sob lock**: a checagem "já existe" mora **dentro** do `write`
+  do `FundingService` (que roda com a linha da conta travada) + fast-path fora, para um clique
+  repetido em cartão sem folga sair em silêncio em vez de erro de limite.
+- **`FundingService::spend` devolve `?Transaction`**: o `write` pode devolver `null` quando, já
+  sob lock, descobre que não há o que gravar. Antes esse caminho de corrida era TypeError.
 
 ### Regras que a auditoria de 28/07 fixou (01/08/2026) — não regredir
 
@@ -655,6 +686,12 @@ sink hoje); revisão jurídica dos documentos legais. Detalhes e passo a passo n
   vale para os 6 caminhos: `transactions.store`/`update`, `faturas.lancar`, `faturas.fatura.pagar`,
   `faturas.recorrente.pagar` e `contas-fixas.pagar`. Um caminho novo que escape do guard reabre o
   buraco que a v3 fechou. Ver "💰 Modelo de dinheiro".
+- **🚨 Apagar despesa = `FundingService::estornarFonte()` ANTES do delete**, na mesma
+  `DB::transaction`. Senão o resgate que financiou a despesa sobrevive e o investido encolhe
+  sozinho. Vale inclusive (principalmente) nos deletes em massa, que não disparam eventos.
+- **Toda escrita de despesa disparada por clique leva `client_uuid`** (`nullable|uuid` no Form
+  Request + dedupe antes do guard). O índice único é `(user_id, client_uuid)`, então num
+  lançamento de N linhas o uuid fica **só na primeira**.
 - **Saldo exibido = `Account::available`**, não `balance`. O bruto é detalhe interno.
 - **Cartão de débito não é conta de lançamento:** os selects usam `Account::paymentOptions()`, que
   devolve **Fluent** — nas views, `$conta->isCard` (propriedade), nunca `$conta->isCard()`.
@@ -745,7 +782,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte completa (290 testes)
+docker compose exec app php artisan test                       # suíte completa (474 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan tinker                     # console interativo
 docker compose exec app php artisan view:cache                 # valida sintaxe de TODAS as views
