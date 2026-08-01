@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -74,6 +75,74 @@ class Account extends Model
     public function isCash(): bool
     {
         return in_array($this->type, ['checking', 'savings'], true);
+    }
+
+    /**
+     * "Classe" do tipo — o que define COMO o dinheiro é calculado:
+     *
+     * - `caixa`   (checking/savings): saldo próprio = inicial + receitas − despesas;
+     * - `credito` (credit_card):      não é caixa, tem limite/fatura/ciclo;
+     * - `debito`  (debit_card):       não tem saldo próprio, espelha as vinculadas.
+     *
+     * Trocar de classe muda a fórmula do dinheiro. Numa conta que já tem
+     * histórico isso faz saldo sumir (ou contar em dobro) — ver `travaDeClasse()`.
+     */
+    public static function classeDoTipo(?string $type): string
+    {
+        return match ($type) {
+            'checking', 'savings' => 'caixa',
+            'credit_card' => 'credito',
+            'debit_card' => 'debito',
+            default => 'desconhecida',
+        };
+    }
+
+    /** Classe desta conta (ver `classeDoTipo`). */
+    public function classe(): string
+    {
+        return self::classeDoTipo($this->type);
+    }
+
+    /**
+     * A conta já carrega dinheiro? (transações, aportes/resgates de metas ou de
+     * investimentos, ou um saldo inicial informado).
+     *
+     * É a mesma linha de defesa do `destroy` no controller, reaproveitada para
+     * proibir a troca de CLASSE de tipo: as duas operações destruiriam dinheiro
+     * que já existe.
+     */
+    public function hasMoneyHistory(): bool
+    {
+        return (float) $this->initial_balance > 0
+            || $this->transactions()->exists()
+            || $this->goalContributions()->exists()
+            || $this->investmentContributions()->exists();
+    }
+
+    /**
+     * Mensagem PT-BR quando a troca de tipo é proibida, ou null quando pode.
+     *
+     * Mudar de "Conta Corrente" para "Conta Poupança" é inofensivo (mesma
+     * classe, mesma fórmula). Mudar de conta para cartão (ou vice-versa) numa
+     * conta com histórico não é: o `initial_balance` viraria NULL e as
+     * transações ficariam órfãs, ou as despesas do ex-cartão passariam a
+     * descontar do patrimônio (e a fatura já paga, duas vezes).
+     */
+    public function travaDeClasse(?string $novoTipo): ?string
+    {
+        if ($novoTipo === null || self::classeDoTipo($novoTipo) === $this->classe()) {
+            return null;
+        }
+
+        if (! $this->hasMoneyHistory()) {
+            return null;
+        }
+
+        return 'Não dá para mudar o tipo de "' . $this->name . '" de ' . $this->typeLabel()
+            . ' para ' . (self::TYPES[$novoTipo] ?? $novoTipo) . ': esta conta já tem saldo, '
+            . 'lançamentos ou dinheiro guardado, e a troca faria esse dinheiro desaparecer '
+            . '(ou ser contado duas vezes). Crie um novo método de pagamento e mova o histórico, '
+            . 'se for o caso.';
     }
 
     /**
@@ -193,6 +262,123 @@ class Account extends Model
     private ?float $committedCache = null;
 
     /**
+     * `refresh()` recarrega a linha do banco — então os caches de dinheiro
+     * também precisam morrer. Sem isto, `$conta->balance; ...; $conta->refresh();`
+     * devolvia o valor VELHO (só `fresh()`, que cria outra instância, funcionava)
+     * — armadilha silenciosa em qualquer teste ou fluxo que edita e relê.
+     */
+    public function refresh(): static
+    {
+        parent::refresh();
+
+        return $this->forgetMoneyCache();
+    }
+
+    /**
+     * Pré-carrega, em 4 queries agregadas, o dinheiro de uma lista de contas —
+     * em vez das ~6 queries POR CONTA que os accessors disparam (2 SUM em
+     * `balance`, 4 em `reserved`, 1 em `committed`). Com 30 contas a tela de
+     * métodos de pagamento saía de 195 para pouco mais de 10 queries.
+     *
+     * Só preenche os CACHES dos accessors: a fórmula do dinheiro continua uma
+     * só, nos accessors. Quem não for pré-carregado calcula normalmente.
+     *
+     * As contas vinculadas já carregadas (cartão de débito → corrente/poupança)
+     * entram no lote, senão o débito voltaria a consultar uma por uma.
+     *
+     * @param  iterable<int, Account>  $contas
+     */
+    public static function preloadMoney(iterable $contas): void
+    {
+        /** @var array<int, list<Account>> $porId */
+        $porId = [];
+
+        foreach ($contas as $conta) {
+            if (! $conta instanceof self || ! $conta->exists) {
+                continue;
+            }
+
+            $porId[$conta->id][] = $conta;
+
+            foreach (['linkedChecking', 'linkedSavings'] as $relacao) {
+                $vinculada = $conta->relationLoaded($relacao) ? $conta->getRelation($relacao) : null;
+                if ($vinculada instanceof self && $vinculada->exists) {
+                    $porId[$vinculada->id][] = $vinculada;
+                }
+            }
+        }
+
+        if ($porId === []) {
+            return;
+        }
+
+        $ids = array_keys($porId);
+
+        // Receitas − despesas por conta (1 query).
+        $deltas = Transaction::whereIn('account_id', $ids)
+            ->groupBy('account_id')
+            ->selectRaw('account_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0) AS total")
+            ->pluck('total', 'account_id');
+
+        // Comprometido do cartão: tudo que ainda não foi pago, estornos abatendo (1 query).
+        $comprometidos = Transaction::whereIn('account_id', $ids)
+            ->whereNull('paid_at')
+            ->groupBy('account_id')
+            ->selectRaw('account_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE -amount END), 0) AS total")
+            ->pluck('total', 'account_id');
+
+        // Reservado: metas e investimentos, aportes − resgates (2 queries).
+        $metas = GoalContribution::whereIn('account_id', $ids)
+            ->groupBy('account_id')
+            ->selectRaw('account_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'aporte' THEN amount ELSE -amount END), 0) AS total")
+            ->pluck('total', 'account_id');
+
+        $investimentos = InvestmentContribution::whereIn('account_id', $ids)
+            ->groupBy('account_id')
+            ->selectRaw('account_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'aporte' THEN amount ELSE -amount END), 0) AS total")
+            ->pluck('total', 'account_id');
+
+        foreach ($porId as $id => $instancias) {
+            foreach ($instancias as $conta) {
+                // O cartão de débito não tem saldo próprio: o accessor soma as
+                // vinculadas (que já estão com o cache preenchido, sem query).
+                if (! $conta->isDebit()) {
+                    $conta->balanceCache = round(
+                        (float) $conta->initial_balance + (float) ($deltas[$id] ?? 0),
+                        2,
+                    );
+                }
+
+                $conta->reservedCache = round(
+                    (float) ($metas[$id] ?? 0) + (float) ($investimentos[$id] ?? 0),
+                    2,
+                );
+
+                $conta->committedCache = $conta->isCard()
+                    ? max(0.0, round((float) ($comprometidos[$id] ?? 0), 2))
+                    : 0.0;
+            }
+        }
+    }
+
+    /** Esquece os valores de dinheiro memoizados nesta instância. */
+    public function forgetMoneyCache(): static
+    {
+        $this->balanceCache = null;
+        $this->reservedCache = null;
+        $this->currentInvoiceCache = null;
+        $this->committedCache = null;
+        $this->openInvoiceDueCache = null;
+        $this->closedInvoiceDueCache = null;
+
+        return $this;
+    }
+
+    /**
      * Saldo atual. Cartão de débito ESPELHA as contas vinculadas (corrente +
      * poupança) — não tem saldo próprio. As demais: saldo inicial + receitas − despesas.
      */
@@ -210,16 +396,32 @@ class Account extends Model
         })();
     }
 
-    /** Saldo da conta corrente vinculada (0 se não houver) — para o cartão de débito. */
+    /** Saldo BRUTO da conta corrente vinculada (0 se não houver) — para o cartão de débito. */
     public function getCheckingBalanceAttribute(): float
     {
         return $this->linkedChecking ? $this->linkedChecking->balance : 0.0;
     }
 
-    /** Saldo da conta poupança vinculada (0 se não houver) — para o cartão de débito. */
+    /** Saldo BRUTO da conta poupança vinculada (0 se não houver) — para o cartão de débito. */
     public function getSavingsBalanceAttribute(): float
     {
         return $this->linkedSavings ? $this->linkedSavings->balance : 0.0;
+    }
+
+    /**
+     * DISPONÍVEL da conta corrente vinculada — é este o número que a UI mostra
+     * (o bruto inclui o que está guardado em metas/investimentos, que não é
+     * para gastar). Ver "regra de ouro da UI" no CLAUDE.md.
+     */
+    public function getAvailableCheckingAttribute(): float
+    {
+        return $this->linkedChecking ? $this->linkedChecking->available : 0.0;
+    }
+
+    /** DISPONÍVEL da conta poupança vinculada (0 se não houver). */
+    public function getAvailableSavingsAttribute(): float
+    {
+        return $this->linkedSavings ? $this->linkedSavings->available : 0.0;
     }
 
     /**
@@ -253,7 +455,24 @@ class Account extends Model
      */
     public function getAvailableAttribute(): float
     {
+        // Cartão de débito não tem saldo próprio: espelha o DISPONÍVEL das
+        // vinculadas. Espelhar o bruto mostrava, no cartão, dinheiro que já
+        // estava aplicado num investimento — R$ 6.000 onde havia R$ 4.000.
+        if ($this->isDebit()) {
+            return round($this->availableChecking + $this->availableSavings, 2);
+        }
+
         return round($this->balance - $this->reserved, 2);
+    }
+
+    /**
+     * Disponível ignorando `$ignore` — o valor ANTIGO da própria transação numa
+     * edição. Sem isso, editar uma despesa de R$ 2.000 para R$ 2.100 era
+     * avaliada como se a de R$ 2.000 continuasse ocupando o saldo.
+     */
+    public function availableWith(float $ignore = 0.0): float
+    {
+        return round($this->available + $ignore, 2);
     }
 
     // ======================= Cheque especial =======================
@@ -271,13 +490,29 @@ class Account extends Model
     /** Quanto do cheque especial já está sendo usado (0 enquanto o disponível é positivo). */
     public function getOverdraftUsedAttribute(): float
     {
-        return round(max(0.0, -$this->available), 2);
+        return $this->overdraftUsedWith();
+    }
+
+    /** Idem, ignorando `$ignore` (valor antigo da transação em edição). */
+    public function overdraftUsedWith(float $ignore = 0.0): float
+    {
+        return round(max(0.0, -$this->availableWith($ignore)), 2);
     }
 
     /** Quanto ainda resta do cheque especial. */
     public function getOverdraftAvailableAttribute(): float
     {
-        return round(max(0.0, $this->overdraftLimitValue - $this->overdraftUsed), 2);
+        return $this->overdraftAvailableWith();
+    }
+
+    /**
+     * Idem, ignorando `$ignore`. Sem o ignore aqui, editar uma despesa que já
+     * usava o cheque especial era recusada indevidamente: a própria despesa
+     * sendo editada contava como cheque especial "já gasto".
+     */
+    public function overdraftAvailableWith(float $ignore = 0.0): float
+    {
+        return round(max(0.0, $this->overdraftLimitValue - $this->overdraftUsedWith($ignore)), 2);
     }
 
     /**
@@ -286,7 +521,13 @@ class Account extends Model
      */
     public function getSpendableAttribute(): float
     {
-        return round(max(0.0, $this->available) + $this->overdraftAvailable, 2);
+        return $this->spendableWith();
+    }
+
+    /** Idem, ignorando `$ignore` (valor antigo da transação em edição). */
+    public function spendableWith(float $ignore = 0.0): float
+    {
+        return round(max(0.0, $this->availableWith($ignore)) + $this->overdraftAvailableWith($ignore), 2);
     }
 
     // ======================= Cartão de crédito =======================
@@ -344,8 +585,31 @@ class Account extends Model
     }
 
     /**
+     * Soma ASSINADA das transações de um cartão: despesa entra positiva (é
+     * dívida com o cartão) e receita entra negativa (é ESTORNO — devolve
+     * limite e abate a fatura).
+     *
+     * Antes somava só `type = 'expense'`: um estorno de R$ 300 no cartão não
+     * devolvia limite, não abatia a fatura e não entrava em saldo nenhum — mas
+     * aparecia como "receita do mês" no dashboard. Receita que não existia em
+     * bolso algum.
+     *
+     * O piso em 0 fica em quem chama: estorno maior que a dívida zera a fatura,
+     * não vira crédito nem aumenta o limite acima do teto do cartão.
+     */
+    private function somaAssinadaDoCartao(HasMany|EloquentBuilder $query): float
+    {
+        $total = $query
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE -amount END), 0) AS total")
+            ->value('total');
+
+        return round((float) $total, 2);
+    }
+
+    /**
      * Fatura atual: soma das despesas do cartão lançadas dentro do ciclo
-     * aberto — date em (cycleStart, cycleEnd]. Zero se não for cartão.
+     * aberto — date em (cycleStart, cycleEnd], abatidos os estornos do mesmo
+     * ciclo. Zero se não for cartão.
      */
     public function getCurrentInvoiceAttribute(): float
     {
@@ -357,13 +621,11 @@ class Account extends Model
 
             [$start, $end] = $cycle;
 
-            $total = $this->transactions()
-                ->where('type', 'expense')
-                ->whereDate('date', '>', $start->toDateString())
-                ->whereDate('date', '<=', $end->toDateString())
-                ->sum('amount');
-
-            return round((float) $total, 2);
+            return max(0.0, $this->somaAssinadaDoCartao(
+                $this->transactions()
+                    ->whereDate('date', '>', $start->toDateString())
+                    ->whereDate('date', '<=', $end->toDateString())
+            ));
         })();
     }
 
@@ -386,12 +648,11 @@ class Account extends Model
                 return 0.0;
             }
 
-            $total = $this->transactions()
-                ->where('type', 'expense')
-                ->whereNull('paid_at')
-                ->sum('amount');
-
-            return round((float) $total, 2);
+            // Estornos ainda não "usados" (paid_at null) abatem o comprometido:
+            // o limite volta na hora, como no cartão de verdade.
+            return max(0.0, $this->somaAssinadaDoCartao(
+                $this->transactions()->whereNull('paid_at')
+            ));
         })();
     }
 
@@ -428,14 +689,12 @@ class Account extends Model
 
             [$start, $end] = $cycle;
 
-            $total = $this->transactions()
-                ->where('type', 'expense')
-                ->whereNull('paid_at')
-                ->whereDate('date', '>', $start->toDateString())
-                ->whereDate('date', '<=', $end->toDateString())
-                ->sum('amount');
-
-            return round((float) $total, 2);
+            return max(0.0, $this->somaAssinadaDoCartao(
+                $this->transactions()
+                    ->whereNull('paid_at')
+                    ->whereDate('date', '>', $start->toDateString())
+                    ->whereDate('date', '<=', $end->toDateString())
+            ));
         })();
     }
 
@@ -510,14 +769,12 @@ class Account extends Model
 
             [$start, $end] = $cycle;
 
-            $total = $this->transactions()
-                ->where('type', 'expense')
-                ->whereNull('paid_at')
-                ->whereDate('date', '>', $start->toDateString())
-                ->whereDate('date', '<=', $end->toDateString())
-                ->sum('amount');
-
-            return round((float) $total, 2);
+            return max(0.0, $this->somaAssinadaDoCartao(
+                $this->transactions()
+                    ->whereNull('paid_at')
+                    ->whereDate('date', '>', $start->toDateString())
+                    ->whereDate('date', '<=', $end->toDateString())
+            ));
         })();
     }
 

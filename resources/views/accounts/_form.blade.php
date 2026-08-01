@@ -14,6 +14,10 @@
         ? number_format((float) $account->overdraft_limit, 2, ',', '.') : '');
     $checkingAtual = (int) old('checking_account_id', $account->checking_account_id ?? 0);
     $savingsAtual = (int) old('savings_account_id', $account->savings_account_id ?? 0);
+    // Conta que já tem dinheiro (saldo, lançamentos ou aportes) não troca de
+    // tipo: a fórmula do saldo mudaria e o dinheiro sumiria (ou contaria duas
+    // vezes). O servidor recusa; aqui o campo já aparece travado.
+    $tipoTravado = $editando && $account->hasMoneyHistory();
 @endphp
 
 <div class="grid">
@@ -53,11 +57,17 @@
                 {{-- Tipo --}}
                 <div class="field">
                     <label for="type">Tipo</label>
-                    <select class="input @error('type') input-error @enderror" id="type" name="type" data-type required>
+                    <select class="input @error('type') input-error @enderror" id="type" name="{{ $tipoTravado ? '_type_travado' : 'type' }}"
+                            data-type required @disabled($tipoTravado) @if ($tipoTravado) data-type-locked @endif>
                         @foreach ($types as $valor => $rotulo)
                             <option value="{{ $valor }}" @selected($tipoAtual === $valor)>{{ $rotulo }}</option>
                         @endforeach
                     </select>
+                    @if ($tipoTravado)
+                        {{-- Select desabilitado não envia valor: o tipo atual vai no hidden. --}}
+                        <input type="hidden" name="type" value="{{ $account->type }}">
+                        <p class="form-hint">O tipo não pode mudar: esta conta já tem saldo, lançamentos ou dinheiro guardado. Para mudar, crie um novo método de pagamento.</p>
+                    @endif
                     @error('type')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
 

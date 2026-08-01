@@ -232,22 +232,26 @@ class PerformanceQueryCountTest extends TestCase
         fwrite(STDERR, "\n[/accounts] 3 contas: {$com3} queries | 30 contas: {$com30} queries"
             ." | ~{$porConta} por conta adicional\n");
 
-        // ESTADO ATUAL: existe N+1 conhecido — `balance` faz 2 SUM e `reserved` faz 4 por
-        // conta, e a view itera as contas. Medido em 27/07/2026: ~6 queries por conta
-        // (3 contas = 33, 30 contas = 195). Ver docs/auditoria-completa-2026-07-28.md.
+        // HISTÓRICO: até 28/07/2026 havia N+1 — `balance` fazia 2 SUM e `reserved` 4 por
+        // conta, e a view itera as contas: ~6 queries por conta (3 contas = 33, 30 = 195).
+        // Ver docs/auditoria-completa-2026-07-28.md.
         //
-        // Não é corrigido aqui de propósito: a correção mexe nos accessors de saldo, e um
-        // erro ali corrompe dinheiro — risco maior que o da lentidão, num app que hoje tem
-        // poucas contas. A solução está detalhada no relatório (pré-carga em lote com 3
-        // queries agregadas por família).
+        // CORRIGIDO com `Account::preloadMoney()` (4 queries agregadas com GROUP BY
+        // account_id preenchendo os caches dos accessors), chamado no AccountController@index:
+        // medido em 01/08/2026 => 19 queries com 3 contas e 19 com 30, ou seja ZERO por
+        // conta adicional. A fórmula do dinheiro continua uma só, nos accessors.
         //
-        // Este assert é uma TRAVA DE NÃO-PIORAR: se passar de 8 queries por conta, algo
-        // novo entrou no laço.
+        // Este assert virou uma TRAVA DE NÃO-REGREDIR: qualquer consulta nova dentro do
+        // laço das contas volta a fazer o número crescer com o volume.
+        //
+        // Nota: o card de patrimônio da sidebar (SidebarService) ainda percorre as contas
+        // CORRENTES para somar o cheque especial usado — como as contas deste cenário não
+        // têm cheque especial, esse laço não aparece na medição.
         $this->assertLessThan(
-            8,
+            1,
             $porConta,
-            "O N+1 da tela de contas PIOROU: {$porConta} queries por conta adicional "
-                ."(3 contas: {$com3}, 30 contas: {$com30}). O limite histórico é ~6.",
+            "Voltou N+1 na tela de contas: {$porConta} queries por conta adicional "
+                ."(3 contas: {$com3}, 30 contas: {$com30}). Depois do preloadMoney o esperado é 0.",
         );
     }
 }

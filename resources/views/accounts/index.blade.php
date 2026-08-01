@@ -68,11 +68,14 @@
                         </div>
 
                         @if ($conta->isDebit())
+                            {{-- Cartão de débito espelha o DISPONÍVEL das vinculadas (não o
+                                 bruto): o que está guardado em metas/investimentos não pode
+                                 aparecer como saldo gastável no cartão. --}}
                             <div class="acct-sub">
-                                <span>Corrente <b>@brl($conta->checkingBalance)</b></span>
-                                <span>Poupança <b>@brl($conta->savingsBalance)</b></span>
+                                <span>Corrente <b>@brl($conta->availableChecking)</b></span>
+                                <span>Poupança <b>@brl($conta->availableSavings)</b></span>
                             </div>
-                            <div class="acct-balance {{ $conta->balance < 0 ? 'neg' : '' }}">@brl($conta->balance) <span class="acct-balance-lbl">total</span></div>
+                            <div class="acct-balance {{ $conta->available < 0 ? 'neg' : '' }}">@brl($conta->available) <span class="acct-balance-lbl">total disponível</span></div>
                         @elseif ($conta->isCard())
                             <div class="acct-balance">@brl($conta->availableLimitDisplay) <span class="acct-balance-lbl">limite disponível</span></div>
                         @else

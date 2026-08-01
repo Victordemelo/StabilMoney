@@ -19,6 +19,11 @@ class AccountController extends Controller
             ->orderBy('name')
             ->get();
 
+        // Saldo/reservado/comprometido de todas as contas em 4 queries agregadas.
+        // Sem isto, cada card da tela dispara ~6 consultas (2 SUM em `balance`,
+        // 4 em `reserved`, 1 em `committed`): 30 contas = ~195 queries.
+        Account::preloadMoney($accounts);
+
         return view('accounts.index', [
             'accounts' => $accounts,
         ]);
@@ -67,7 +72,25 @@ class AccountController extends Controller
     {
         $this->authorize('update', $account);
 
-        $account->update($request->validated());
+        $dados = $request->validated();
+
+        // Segunda linha de defesa (a 1ª é o UpdateAccountRequest): trocar a
+        // CLASSE do tipo — caixa ↔ cartão — numa conta que já tem dinheiro faz
+        // saldo desaparecer ou contar em dobro. Mesma trava do `destroy`.
+        if ($erro = $account->travaDeClasse($dados['type'] ?? null)) {
+            return back()->withInput()->withErrors(['type' => $erro]);
+        }
+
+        // Nunca apagar o saldo inicial de uma conta que já carrega dinheiro:
+        // `prepareForValidation` zera esse campo fora de corrente/poupança, e
+        // NULL aqui seria irreversível (o valor original se perde).
+        if ($account->hasMoneyHistory()
+            && ($dados['initial_balance'] ?? null) === null
+            && $account->initial_balance !== null) {
+            unset($dados['initial_balance']);
+        }
+
+        $account->update($dados);
 
         return redirect()->route('accounts.index')
             ->with('status', 'Conta atualizada.');
