@@ -101,10 +101,21 @@ class FaturaController extends Controller
         $this->authorize('delete', $transaction);
 
         if ($transaction->group_id) {
-            Transaction::where('user_id', $transaction->user_id)
+            // Parcelas JÁ PAGAS não são apagadas: o pagamento delas existe no extrato
+            // (saiu dinheiro de verdade), e apagar a dívida deixaria a saída de caixa
+            // órfã — histórico financeiro não se reescreve. Some só o que ainda é dívida.
+            $apagadas = Transaction::where('user_id', $transaction->user_id)
                 ->where('group_id', $transaction->group_id)
+                ->whereNull('paid_at')
                 ->delete();
-            $status = 'Compra removida (todas as parcelas).';
+
+            $restaram = Transaction::where('user_id', $transaction->user_id)
+                ->where('group_id', $transaction->group_id)
+                ->count();
+
+            $status = $restaram > 0
+                ? "Parcelas em aberto removidas ({$apagadas}). As já pagas foram mantidas no histórico."
+                : 'Compra removida (todas as parcelas).';
         } else {
             $transaction->delete();
             $status = 'Despesa removida.';
@@ -131,21 +142,37 @@ class FaturaController extends Controller
         // e registrar o dia certo). Default: hoje.
         $pagoEm = CarbonImmutable::parse($data['paid_on'] ?? now()->toDateString());
 
-        $cycle = $account->billingCycle();
+        // Qual fatura pagar: a do ciclo ABERTO (padrão) ou a do ciclo já FECHADO.
+        //
+        // A fatura fechada e vencida não tinha caminho de pagamento nenhum: `payInvoice`
+        // só conhecia `billingCycle()`, então respondia "já estava quitada" e a dívida
+        // ficava impagável — comendo o limite do cartão para sempre.
+        $cycle = ($data['ciclo'] ?? 'aberto') === 'fechado'
+            ? $account->closedCycle()
+            : $account->billingCycle();
+
         if (! $cycle) {
             return redirect()->route('faturas.index');
         }
         [$start, $end] = $cycle;
 
         // Despesas EM ABERTO do ciclo (trava para evitar corrida/duplo pagamento).
+        // Soma COM SINAL: estorno (income) lançado no cartão abate a fatura, como no
+        // mundo real. Somando tudo como despesa, uma compra de 1.000 com estorno de 300
+        // cobrava 1.300 do caixa — e o `committed` do cartão, que já considera o sinal,
+        // discordaria do valor cobrado.
         $abertas = Transaction::where('account_id', $account->id)
-            ->where('type', 'expense')
             ->whereNull('paid_at')
             ->whereDate('date', '>', $start->toDateString())
             ->whereDate('date', '<=', $end->toDateString())
             ->get();
 
-        $total = round((float) $abertas->sum('amount'), 2);
+        $total = round(
+            (float) $abertas->sum(fn (Transaction $t) => $t->type === 'expense'
+                ? (float) $t->amount
+                : -(float) $t->amount),
+            2,
+        );
         if ($total <= 0) {
             return redirect()->route('faturas.index')
                 ->with('status', 'Esta fatura já estava quitada.');
@@ -168,14 +195,19 @@ class FaturaController extends Controller
                 // 4 pagamentos de R$ 300 (a conta ia a −R$ 1.100). O relock existia, mas
                 // só decidia o que MARCAR como pago — nunca se havia o que pagar.
                 $abertasAgora = Transaction::where('account_id', $account->id)
-                    ->where('type', 'expense')
                     ->whereNull('paid_at')
                     ->whereDate('date', '>', $start->toDateString())
                     ->whereDate('date', '<=', $end->toDateString())
                     ->lockForUpdate()
                     ->get();
 
-                $totalAgora = round((float) $abertasAgora->sum('amount'), 2);
+                // Mesma soma com sinal da pré-checagem: o estorno abate.
+                $totalAgora = round(
+                    (float) $abertasAgora->sum(fn (Transaction $t) => $t->type === 'expense'
+                        ? (float) $t->amount
+                        : -(float) $t->amount),
+                    2,
+                );
 
                 // Outra requisição pagou primeiro: nada a fazer, e nada a debitar.
                 if ($totalAgora <= 0) {
@@ -195,6 +227,11 @@ class FaturaController extends Controller
                     'date' => $pagoEm->toDateString(),
                     'paid_at' => $pagoEm,
                     'description' => 'Pagamento da fatura — ' . $account->name,
+                    // Marca a linha como QUITAÇÃO, não gasto novo: o dinheiro sai (entra
+                    // no saldo e no extrato), mas o gasto já foi contado quando a compra
+                    // entrou no cartão. Sem isto o dashboard somava os dois e dobrava a
+                    // despesa do período.
+                    'settles_account_id' => $account->id,
                 ]);
             },
             madeByUserId: $request->user()->id,
@@ -284,7 +321,7 @@ class FaturaController extends Controller
      * recorrência nunca termina. Idempotente: pagar de novo uma ocorrência já
      * paga (ou uma não-recorrente) não gera nada.
      */
-    public function pay(Transaction $transaction)
+    public function pay(Transaction $transaction, FundingService $funding)
     {
         $this->authorize('update', $transaction);
 
@@ -305,7 +342,7 @@ class FaturaController extends Controller
         if ($conta !== null && $conta->type === 'credit_card') {
             // A recorrência precisa continuar andando, então a próxima ocorrência é
             // lançada; a atual permanece EM ABERTO, dentro da fatura.
-            $proxima = $this->gerarProximaOcorrencia($transaction);
+            $proxima = $this->gerarProximaOcorrencia($transaction, $funding);
 
             return redirect()->route('faturas.index')->with(
                 'status',
@@ -315,7 +352,7 @@ class FaturaController extends Controller
             );
         }
 
-        DB::transaction(function () use ($transaction) {
+        DB::transaction(function () use ($transaction, $funding) {
             // Update condicional ATÔMICO: marca como paga só se ainda estava em
             // aberto. Duas requisições simultâneas: só uma afeta a linha; a outra
             // recebe 0 e sai sem gerar uma 2ª próxima ocorrência (idempotente).
@@ -328,7 +365,7 @@ class FaturaController extends Controller
                 return; // já estava paga (ou outra requisição venceu a corrida).
             }
 
-            $this->gerarProximaOcorrencia($transaction);
+            $this->gerarProximaOcorrencia($transaction, $funding);
         });
 
         return redirect()->route('faturas.index')
@@ -344,7 +381,7 @@ class FaturaController extends Controller
      *
      * @return bool  true se criou, false se já existia
      */
-    private function gerarProximaOcorrencia(Transaction $transaction): bool
+    private function gerarProximaOcorrencia(Transaction $transaction, FundingService $funding): bool
     {
         $proxima = CarbonImmutable::parse($transaction->date)->addMonthNoOverflow();
 
@@ -357,18 +394,36 @@ class FaturaController extends Controller
             return false;
         }
 
-        Transaction::create([
-            'user_id' => $transaction->user_id,
-            'made_by_user_id' => $transaction->made_by_user_id,
-            'account_id' => $transaction->account_id,
-            'category_id' => $transaction->category_id,
-            'type' => 'expense',
-            'description' => $transaction->description,
-            'amount' => $transaction->amount,
-            'date' => $proxima->toDateString(),
-            'group_id' => $transaction->group_id,
-            'recurring' => true,
-        ]);
+        $conta = $transaction->account;
+
+        // A ocorrência nova é uma DESPESA de verdade — e no modelo deste app despesa com
+        // data futura já entra no saldo. Então ela passa pela trava como qualquer gasto:
+        // era o único caminho de escrita que gravava com `Transaction::create` cru, e por
+        // ele dava para derrubar a conta sem limite (disponível 0 → −100 → −200 → −300).
+        //
+        // `obrigacao: false` de propósito: lançar a parcela do mês que vem é gasto novo,
+        // não boleto vencido. Sem saldo, o usuário é avisado (ou escolhe a fonte) em vez
+        // de a conta afundar em silêncio.
+        $funding->spend(
+            account: $conta,
+            amount: (float) $transaction->amount,
+            source: null,
+            investmentId: null,
+            write: fn (array $auditoria) => Transaction::create($auditoria + [
+                'user_id' => $transaction->user_id,
+                'made_by_user_id' => $transaction->made_by_user_id,
+                'account_id' => $transaction->account_id,
+                'category_id' => $transaction->category_id,
+                'type' => 'expense',
+                'description' => $transaction->description,
+                'amount' => $transaction->amount,
+                'date' => $proxima->toDateString(),
+                'group_id' => $transaction->group_id,
+                'recurring' => true,
+            ]),
+            madeByUserId: $transaction->made_by_user_id,
+            date: $proxima->toDateString(),
+        );
 
         return true;
     }

@@ -38,10 +38,17 @@ class PayInvoiceRequest extends FormRequest
             'paid_on' => [
                 'nullable',
                 'date',
-                'after_or_equal:2000-01-01',
+                // Piso RELATIVO à dívida: não se paga uma fatura antes de a compra
+                // existir. Antes bastava ser >= 2000-01-01, então `paid_on=2001-03-04`
+                // era aceito numa compra de 2026: o saldo descontava hoje, mas a despesa
+                // sumia do fluxo de caixa e do "gasto do mês" (que olham a data).
+                'after_or_equal:' . $this->primeiraDespesaDoCartao(),
                 // Pagamento é fato consumado: não se paga no futuro.
                 'before_or_equal:' . now()->toDateString(),
             ],
+            // Qual fatura está sendo paga: a do ciclo aberto (padrão) ou a do ciclo já
+            // fechado e vencida — que antes não tinha caminho de pagamento nenhum.
+            'ciclo' => ['nullable', Rule::in(['aberto', 'fechado'])],
             // Se o caixa escolhido não cobrir, o FundingService pergunta a fonte.
             'funding_source' => ['nullable', Rule::in(FundingSource::TODAS)],
             'funding_investment_id' => [
@@ -50,6 +57,26 @@ class PayInvoiceRequest extends FormRequest
                 Rule::exists('investments', 'id')->where('user_id', $ownerId),
             ],
         ];
+    }
+
+    /**
+     * Data da despesa mais antiga EM ABERTO do cartão — o piso do `paid_on`.
+     * Sem despesa em aberto, cai no piso genérico (não há o que pagar mesmo).
+     */
+    protected function primeiraDespesaDoCartao(): string
+    {
+        $cartao = $this->route('account');
+
+        if (! $cartao instanceof \App\Models\Account) {
+            return '2000-01-01';
+        }
+
+        $primeira = \App\Models\Transaction::where('account_id', $cartao->id)
+            ->where('type', 'expense')
+            ->whereNull('paid_at')
+            ->min('date');
+
+        return $primeira ? \Illuminate\Support\Carbon::parse($primeira)->toDateString() : '2000-01-01';
     }
 
     public function attributes(): array
@@ -67,6 +94,7 @@ class PayInvoiceRequest extends FormRequest
             'pay_account_id.exists' => 'A conta de pagamento precisa ser uma conta corrente ou poupança sua.',
             'paid_on.date' => 'Data de pagamento inválida.',
             'paid_on.before_or_equal' => 'A data do pagamento não pode ser no futuro.',
+            'paid_on.after_or_equal' => 'A data do pagamento não pode ser anterior à compra mais antiga da fatura.',
             'funding_source.in' => 'Escolha de onde sai o dinheiro é inválida.',
             'funding_investment_id.required_if' => 'Escolha de qual investimento resgatar.',
             'funding_investment_id.exists' => 'O investimento escolhido não existe ou não é da sua família.',

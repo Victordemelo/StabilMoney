@@ -364,6 +364,10 @@ class AuditoriaCorrecoesTest extends TestCase
             $this->markTestSkipped('Contas fixas não disponíveis.');
         }
 
+        // Competência do mês PASSADO, portanto já vencida: a regra do app é que só se
+        // paga o que já venceu (ou está próximo do vencimento), então um cenário com
+        // vencimento distante seria recusado antes de chegar na trava de duplicidade —
+        // que é o que este teste quer exercitar.
         $conta = \App\Models\FixedBill::create([
             'user_id' => $this->user->id,
             'name' => 'Condomínio',
@@ -371,11 +375,11 @@ class AuditoriaCorrecoesTest extends TestCase
             'due_day' => 10,
             'account_id' => $this->corrente->id,
             'category_id' => $this->categoria->id,
-            'starts_on' => now()->startOfMonth()->toDateString(),
+            'starts_on' => now()->subMonth()->startOfMonth()->toDateString(),
             'active' => true,
         ]);
 
-        $competencia = now()->format('Y-m');
+        $competencia = now()->subMonth()->format('Y-m');
         $payload = ['account_id' => $this->corrente->id, 'amount' => '500,00'];
 
         $primeira = $this->post(url("/contas-fixas/{$conta->id}/pagar/{$competencia}"), $payload);

@@ -58,9 +58,25 @@ class DashboardService
             ->groupBy('account_id')
             ->pluck('delta', 'account_id');
 
+        // Reservado POR CONTA (metas + investimentos), em 2 queries agregadas — não uma
+        // por conta. A lista precisa disto porque exibe o DISPONÍVEL, não o saldo cru:
+        // antes o dashboard mostrava o cru e /accounts mostrava o disponível, então a
+        // mesma conta aparecia com dois valores diferentes, e a soma da lista não batia
+        // com o headline do próprio card.
+        $reservados = $this->reservedByAccount($userId);
+
         foreach ($accounts as $account) {
-            $account->current_balance = round((float) $account->initial_balance + (float) ($deltas[$account->id] ?? 0), 2);
-            $account->type_label = self::ACCOUNT_TYPES[$account->type] ?? Str::ucfirst($account->type);
+            $bruto = round((float) $account->initial_balance + (float) ($deltas[$account->id] ?? 0), 2);
+            // `gross_balance` = patrimônio (o dinheiro que está lá).
+            // `current_balance` = o que a LISTA exibe: disponível, já sem as reservas.
+            // Os dois precisam existir separados: o total do patrimônio soma o bruto e
+            // desconta as reservas UMA vez, no fim. Misturar os dois descontava duas
+            // vezes (1.000 − 300 − 300 = 400 no card que devia mostrar 700).
+            $account->gross_balance = $bruto;
+            $account->current_balance = round($bruto - (float) ($reservados[$account->id] ?? 0), 2);
+            // `typeLabel()` do model: a constante local ACCOUNT_TYPES é legado e não tem
+            // `checking` nem `debit_card`, então vazava "Checking"/"Debit_card" na tela.
+            $account->type_label = $account->typeLabel();
         }
 
         // Cartão de débito ESPELHA as contas vinculadas (corrente + poupança) só
@@ -82,7 +98,9 @@ class DashboardService
         $nonCardAccounts = $accounts->whereNotIn('type', $excludedTypes);
 
         $initialTotal = round((float) $nonCardAccounts->sum(fn ($a) => (float) $a->initial_balance), 2);
-        $totalBalance = round((float) $nonCardAccounts->sum('current_balance'), 2);
+        // Patrimônio soma o BRUTO: a subtração das reservas acontece uma única vez,
+        // logo abaixo, em `$saldoDisponivel`.
+        $totalBalance = round((float) $nonCardAccounts->sum('gross_balance'), 2);
 
         // O card do topo mostra o SALDO DISPONÍVEL: o que está nas contas menos
         // o que já está comprometido em metas e investimentos (modelo cofrinho —
@@ -134,6 +152,8 @@ class DashboardService
             : 'MONTH(date)';
 
         $yearRows = Transaction::where('user_id', $userId)
+            // Quitação de fatura não é gasto novo — ver `settles_account_id`.
+            ->whereNull('settles_account_id')
             ->whereBetween('date', [$yearStart->toDateString(), $yearEnd->toDateString()])
             ->selectRaw("{$monthExpr} AS month_num, type, SUM(amount) AS total")
             ->groupBy('month_num', 'type')
@@ -377,6 +397,45 @@ class DashboardService
      *
      * @return array{guardado: float, investido: float, total: float}
      */
+    /**
+     * Reservado (metas + investimentos) agrupado POR CONTA de origem.
+     *
+     * Duas queries agregadas para a família inteira — nunca uma por conta. É o que
+     * permite a lista de contas exibir o disponível sem cair no N+1 dos accessors.
+     *
+     * @return array<int, float>  [account_id => reservado]
+     */
+    public function reservedByAccount(int $userId): array
+    {
+        $metas = GoalContribution::query()
+            ->join('goals', 'goals.id', '=', 'goal_contributions.goal_id')
+            ->where('goals.user_id', $userId)
+            ->whereNotNull('goal_contributions.account_id')
+            ->groupBy('goal_contributions.account_id')
+            ->selectRaw('goal_contributions.account_id AS conta')
+            ->selectRaw("COALESCE(SUM(CASE WHEN goal_contributions.type = 'aporte' THEN goal_contributions.amount ELSE -goal_contributions.amount END), 0) AS reservado")
+            ->pluck('reservado', 'conta');
+
+        $investimentos = InvestmentContribution::query()
+            ->join('investments', 'investments.id', '=', 'investment_contributions.investment_id')
+            ->where('investments.user_id', $userId)
+            ->whereNotNull('investment_contributions.account_id')
+            ->groupBy('investment_contributions.account_id')
+            ->selectRaw('investment_contributions.account_id AS conta')
+            ->selectRaw("COALESCE(SUM(CASE WHEN investment_contributions.type = 'aporte' THEN investment_contributions.amount ELSE -investment_contributions.amount END), 0) AS reservado")
+            ->pluck('reservado', 'conta');
+
+        $total = [];
+
+        foreach ([$metas, $investimentos] as $fonte) {
+            foreach ($fonte as $contaId => $valor) {
+                $total[(int) $contaId] = round(($total[(int) $contaId] ?? 0) + (float) $valor, 2);
+            }
+        }
+
+        return $total;
+    }
+
     public function reservedTotals(int $userId, ?CarbonImmutable $until = null): array
     {
         $guardado = (float) GoalContribution::query()
@@ -500,7 +559,9 @@ class DashboardService
     public function saldoSpark(int $userId, float $initialTotal, CarbonImmutable $today, ?array $daily = null, array $excludeAccountIds = []): array
     {
         $start = $today->subDays(6);
-        $daily ??= $this->dailySums($userId, $start, $today, $excludeAccountIds);
+        // `incluirQuitacoes: true` — esta série é o SALDO, e o pagamento da fatura
+        // desconta do saldo de verdade.
+        $daily ??= $this->dailySums($userId, $start, $today, $excludeAccountIds, incluirQuitacoes: true);
         $balance = round($initialTotal + $this->signedSumUntil($userId, $start->subDay(), $excludeAccountIds), 2);
         $points = [];
 
@@ -533,6 +594,8 @@ class DashboardService
             ->leftJoin('categories', 'categories.id', '=', 'transactions.category_id')
             ->where('transactions.user_id', $userId)
             ->where('transactions.type', 'expense')
+            // Quitação de fatura não é gasto novo — ver `settles_account_id`.
+            ->whereNull('transactions.settles_account_id')
             ->whereBetween('transactions.date', [$monthStart->toDateString(), $monthEnd->toDateString()])
             ->groupBy('transactions.category_id', 'categories.name', 'categories.color', 'categories.is_locked')
             ->orderByDesc('total')
@@ -584,9 +647,18 @@ class DashboardService
      * $excludeAccountIds permite ignorar contas (ex.: cartões de crédito, que
      * não entram no cálculo de saldo/patrimônio).
      */
-    private function dailySums(int $userId, CarbonImmutable $from, CarbonImmutable $to, array $excludeAccountIds = []): array
-    {
+    private function dailySums(
+        int $userId,
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        array $excludeAccountIds = [],
+        bool $incluirQuitacoes = false,
+    ): array {
         $rows = Transaction::where('user_id', $userId)
+            // Quitação de fatura não é GASTO novo (o gasto foi a compra no cartão), mas
+            // É saída de caixa. Quem mede despesa a exclui; quem mede SALDO precisa dela,
+            // senão a linha do patrimônio ignora o dinheiro que saiu para pagar a fatura.
+            ->when(! $incluirQuitacoes, fn ($q) => $q->whereNull('settles_account_id'))
             ->when($excludeAccountIds, fn ($q) => $q->whereNotIn('account_id', $excludeAccountIds))
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->selectRaw('date, type, SUM(amount) AS total')
@@ -605,6 +677,8 @@ class DashboardService
     private function totals(int $userId, CarbonImmutable $from, CarbonImmutable $to): array
     {
         $row = Transaction::where('user_id', $userId)
+            // Quitação de fatura não é gasto novo — ver `settles_account_id`.
+            ->whereNull('settles_account_id')
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->selectRaw(
                 "COALESCE(SUM(CASE WHEN type = 'income' THEN amount END), 0) AS income_total, " .

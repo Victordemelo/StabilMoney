@@ -24,6 +24,10 @@ class Transaction extends Model
         'group_id',
         // Pagamento de conta fixa mensal: qual conta e qual mês foi quitado.
         'fixed_bill_id',
+        // Preenchido só na saída de caixa que quita a fatura de um cartão. Ver a
+        // migration add_settles_account_id_to_transactions: é o que impede o dashboard
+        // de contar a quitação como gasto novo (dobrando a despesa do período).
+        'settles_account_id',
         'competence',
         'installment_no',
         'installments',
