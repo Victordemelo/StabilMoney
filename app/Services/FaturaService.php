@@ -121,7 +121,7 @@ class FaturaService
             ->where('user_id', $userId)
             ->where('recurring', true)
             ->whereNull('paid_at')
-            ->whereDate('date', '<=', $limit->toDateString())
+            ->where('date', '<=', $limit->toDateString())
             ->get();
         foreach ($rec as $t) {
             $due = CarbonImmutable::parse($t->date);
@@ -195,8 +195,8 @@ class FaturaService
         return Transaction::with(['category', 'madeBy'])
             ->where('account_id', $card->id)
             ->where('type', 'expense')
-            ->whereDate('date', '>', $start->toDateString())
-            ->whereDate('date', '<=', $end->toDateString())
+            ->where('date', '>', $start->toDateString())
+            ->where('date', '<=', $end->toDateString())
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->get();
@@ -213,8 +213,8 @@ class FaturaService
         return Transaction::with(['category', 'account', 'madeBy'])
             ->where('transactions.user_id', $userId)
             ->where('transactions.type', 'expense')
-            ->whereDate('date', '>=', $today->startOfMonth()->toDateString())
-            ->whereDate('date', '<=', $today->endOfMonth()->toDateString())
+            ->where('date', '>=', $today->startOfMonth()->toDateString())
+            ->where('date', '<=', $today->endOfMonth()->toDateString())
             ->whereHas('account', fn ($q) => $q->where('type', '!=', 'credit_card'))
             ->orderByDesc('date')
             ->orderByDesc('id')

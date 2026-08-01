@@ -163,8 +163,8 @@ class FaturaController extends Controller
         // discordaria do valor cobrado.
         $abertas = Transaction::where('account_id', $account->id)
             ->whereNull('paid_at')
-            ->whereDate('date', '>', $start->toDateString())
-            ->whereDate('date', '<=', $end->toDateString())
+            ->where('date', '>', $start->toDateString())
+            ->where('date', '<=', $end->toDateString())
             ->get();
 
         $total = round(
@@ -196,8 +196,8 @@ class FaturaController extends Controller
                 // só decidia o que MARCAR como pago — nunca se havia o que pagar.
                 $abertasAgora = Transaction::where('account_id', $account->id)
                     ->whereNull('paid_at')
-                    ->whereDate('date', '>', $start->toDateString())
-                    ->whereDate('date', '<=', $end->toDateString())
+                    ->where('date', '>', $start->toDateString())
+                    ->where('date', '<=', $end->toDateString())
                     ->lockForUpdate()
                     ->get();
 
@@ -387,7 +387,7 @@ class FaturaController extends Controller
 
         $jaExiste = Transaction::where('group_id', $transaction->group_id)
             ->whereNotNull('group_id')
-            ->whereDate('date', $proxima->toDateString())
+            ->where('date', $proxima->toDateString())
             ->exists();
 
         if ($jaExiste) {

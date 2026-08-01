@@ -279,4 +279,108 @@ class CorrecoesFaturaDashboardTest extends TestCase
                 .'Os dois têm de mostrar o disponível.',
         );
     }
+    /**
+     * ACHADO A-9 — o card "Contas a pagar" só somava faturas de cartão, então o
+     * dashboard mostrava "Nada a pagar 🎉" com três meses de aluguel vencidos,
+     * enquanto o sino da mesma tela contava 3.
+     */
+    public function test_achado_a9_dashboard_conta_as_contas_fixas_em_aberto(): void
+    {
+        if (! class_exists(\App\Models\FixedBill::class)) {
+            $this->markTestSkipped('Contas fixas não disponíveis.');
+        }
+
+        \App\Models\FixedBill::create([
+            'user_id' => $this->user->id,
+            'name' => 'Aluguel',
+            'amount' => 1800.00,
+            'due_day' => 5,
+            'account_id' => $this->corrente->id,
+            'category_id' => $this->categoria->id,
+            'starts_on' => now()->subMonths(2)->startOfMonth()->toDateString(),
+            'active' => true,
+        ]);
+
+        $dados = app(DashboardService::class)->build($this->user->ownerId());
+
+        $this->assertGreaterThan(
+            0.0,
+            round((float) $dados['faturasResumo']['total'], 2),
+            'O card "Contas a pagar" ignora contas fixas vencidas — mostra "Nada a pagar" '
+                .'enquanto o sino avisa que há dívida.',
+        );
+    }
+    /**
+     * REGRESSÃO desta rodada — estorno lançado no cartão passou a abater a fatura
+     * (achado A-6), mas o pagamento somava tudo como despesa: uma compra de R$ 1.000 com
+     * estorno de R$ 300 cobrava R$ 1.300 do caixa. A soma do pagamento tem de usar o
+     * mesmo sinal que o `committed` do cartão.
+     */
+    public function test_pagar_fatura_com_estorno_cobra_o_valor_liquido(): void
+    {
+        Transaction::factory()->for($this->user)->create([
+            'account_id' => $this->cartao->id,
+            'category_id' => $this->categoria->id,
+            'type' => 'expense',
+            'amount' => 1000.00,
+            'date' => now()->toDateString(),
+        ]);
+
+        // Estorno da loja: entra como receita NO CARTÃO.
+        Transaction::factory()->for($this->user)->create([
+            'account_id' => $this->cartao->id,
+            'category_id' => null,
+            'type' => 'income',
+            'amount' => 300.00,
+            'date' => now()->toDateString(),
+        ]);
+
+        $caixaAntes = $this->disponivel();
+
+        $this->post(route('faturas.fatura.pagar', $this->cartao), [
+            'pay_account_id' => $this->corrente->id,
+        ])->assertSessionHasNoErrors();
+
+        $cobrado = round($caixaAntes - $this->disponivel(), 2);
+
+        $this->assertSame(
+            700.00,
+            $cobrado,
+            "A fatura era de R$ 1.000 com R$ 300 de estorno; foram cobrados R$ {$cobrado}.",
+        );
+    }
+
+    /**
+     * REGRESSÃO desta rodada — ao tirar a quitação das somas de DESPESA (achado C-4), ela
+     * saiu junto da série do SALDO, que usa a mesma consulta. Resultado: a linha do
+     * patrimônio ignorava o dinheiro que saiu para pagar a fatura. Quitação não é gasto
+     * novo, mas É saída de caixa.
+     */
+    public function test_spark_do_saldo_inclui_o_pagamento_da_fatura(): void
+    {
+        Transaction::factory()->for($this->user)->create([
+            'account_id' => $this->cartao->id,
+            'category_id' => $this->categoria->id,
+            'type' => 'expense',
+            'amount' => 500.00,
+            'date' => now()->toDateString(),
+        ]);
+
+        $this->post(route('faturas.fatura.pagar', $this->cartao), [
+            'pay_account_id' => $this->corrente->id,
+        ])->assertSessionHasNoErrors();
+
+        $dados = app(DashboardService::class)->build($this->user->ownerId());
+        $spark = $dados['payload']['sparks']['saldo'] ?? [];
+
+        $this->assertNotEmpty($spark, 'A sparkline do saldo deveria ter pontos.');
+
+        $ultimo = round((float) end($spark), 2);
+
+        $this->assertSame(
+            $this->disponivel(),
+            $ultimo,
+            'O último ponto da linha do saldo tem de bater com o saldo real depois do pagamento.',
+        );
+    }
 }

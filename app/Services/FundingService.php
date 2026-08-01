@@ -104,10 +104,12 @@ class FundingService
             if ($source === FundingSource::CHEQUE_ESPECIAL) {
                 // Numa obrigação, estourar o limite é permitido (a dívida é
                 // real); num gasto novo, não.
-                if (! $obrigacao && $faltante > $conta->overdraftAvailable + SpendingGuard::EPSILON) {
+                // Com `$ignore` (edição de despesa), o teto precisa refletir o cenário
+                // sem a linha antiga — igual ao time-of-check do SpendingGuard.
+                if (! $obrigacao && $faltante > $conta->overdraftAvailableWith($ignore) + SpendingGuard::EPSILON) {
                     throw ValidationException::withMessages([
                         'amount' => 'Não dá: faltam ' . Brl::format($faltante)
-                            . ' e o cheque especial disponível é ' . Brl::format($conta->overdraftAvailable) . '.',
+                            . ' e o cheque especial disponível é ' . Brl::format($conta->overdraftAvailableWith($ignore)) . '.',
                     ]);
                 }
 

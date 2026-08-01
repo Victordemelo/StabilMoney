@@ -336,7 +336,13 @@ class DashboardService
                 ])->values()->all(),
             ],
             'faturasResumo' => [
-                'total' => round((float) $cards->sum(fn ($c) => $c->openInvoiceDue), 2),
+                // Soma faturas de cartão EM ABERTO + contas fixas ainda não pagas. Antes
+                // só olhava cartão, então o card dizia "Nada a pagar 🎉" com três meses de
+                // aluguel vencidos — enquanto o sino da mesma tela contava 3.
+                'total' => round(
+                    (float) $cards->sum(fn ($c) => $c->openInvoiceDue) + $this->contasFixasEmAberto($userId),
+                    2,
+                ),
                 'count' => count($faturasTop),
                 'top' => $faturasTop,
             ],
@@ -398,6 +404,31 @@ class DashboardService
      * @return array{guardado: float, investido: float, total: float}
      */
     /**
+     * Soma das competências de contas fixas que ainda não foram pagas.
+     *
+     * Delega ao FixedBillService: a projeção das competências (e a regra do que já
+     * venceu) mora lá, e duplicar isso aqui foi exatamente o que fez o card e o sino
+     * discordarem no passado.
+     */
+    private function contasFixasEmAberto(int $userId): float
+    {
+        if (! class_exists(FixedBillService::class)) {
+            return 0.0;
+        }
+
+        // Sem type hint de propósito: `currentAndOverdue()` devolve `Fluent`, não array
+        // (mesma pegadinha de `Account::paymentOptions()` anotada no CLAUDE.md). O acesso
+        // por offset funciona nos dois.
+        return round(
+            (float) app(FixedBillService::class)
+                ->currentAndOverdue($userId)
+                ->reject(fn ($ocorrencia) => (bool) ($ocorrencia['paga'] ?? false))
+                ->sum(fn ($ocorrencia) => (float) ($ocorrencia['valor'] ?? 0)),
+            2,
+        );
+    }
+
+    /**
      * Reservado (metas + investimentos) agrupado POR CONTA de origem.
      *
      * Duas queries agregadas para a família inteira — nunca uma por conta. É o que
@@ -441,14 +472,14 @@ class DashboardService
         $guardado = (float) GoalContribution::query()
             ->join('goals', 'goals.id', '=', 'goal_contributions.goal_id')
             ->where('goals.user_id', $userId)
-            ->when($until, fn ($q) => $q->whereDate('goal_contributions.date', '<=', $until->toDateString()))
+            ->when($until, fn ($q) => $q->where('goal_contributions.date', '<=', $until->toDateString()))
             ->selectRaw("COALESCE(SUM(CASE WHEN goal_contributions.type = 'aporte' THEN goal_contributions.amount ELSE -goal_contributions.amount END), 0) AS reservado")
             ->value('reservado');
 
         $investido = (float) InvestmentContribution::query()
             ->join('investments', 'investments.id', '=', 'investment_contributions.investment_id')
             ->where('investments.user_id', $userId)
-            ->when($until, fn ($q) => $q->whereDate('investment_contributions.date', '<=', $until->toDateString()))
+            ->when($until, fn ($q) => $q->where('investment_contributions.date', '<=', $until->toDateString()))
             ->selectRaw("COALESCE(SUM(CASE WHEN investment_contributions.type = 'aporte' THEN investment_contributions.amount ELSE -investment_contributions.amount END), 0) AS aplicado")
             ->value('aplicado');
 

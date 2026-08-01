@@ -623,8 +623,8 @@ class Account extends Model
 
             return max(0.0, $this->somaAssinadaDoCartao(
                 $this->transactions()
-                    ->whereDate('date', '>', $start->toDateString())
-                    ->whereDate('date', '<=', $end->toDateString())
+                    ->where('date', '>', $start->toDateString())
+                    ->where('date', '<=', $end->toDateString())
             ));
         })();
     }
@@ -692,8 +692,8 @@ class Account extends Model
             return max(0.0, $this->somaAssinadaDoCartao(
                 $this->transactions()
                     ->whereNull('paid_at')
-                    ->whereDate('date', '>', $start->toDateString())
-                    ->whereDate('date', '<=', $end->toDateString())
+                    ->where('date', '>', $start->toDateString())
+                    ->where('date', '<=', $end->toDateString())
             ));
         })();
     }
@@ -772,8 +772,8 @@ class Account extends Model
             return max(0.0, $this->somaAssinadaDoCartao(
                 $this->transactions()
                     ->whereNull('paid_at')
-                    ->whereDate('date', '>', $start->toDateString())
-                    ->whereDate('date', '<=', $end->toDateString())
+                    ->where('date', '>', $start->toDateString())
+                    ->where('date', '<=', $end->toDateString())
             ));
         })();
     }

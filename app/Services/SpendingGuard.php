@@ -77,7 +77,11 @@ class SpendingGuard
         }
 
         $faltante = round($amount - max(0.0, $disponivel), 2);
-        $cobreCheque = $faltante <= $account->overdraftAvailable + self::EPSILON;
+        // `...With($ignore)`: o teto do cheque especial tem de enxergar o mesmo cenário
+        // que o disponível acima. Usando o accessor sem ignore, editar uma despesa de
+        // 2.000 para 2.100 numa conta no vermelho era recusado indevidamente, com a
+        // mensagem se contradizendo ("o máximo agora é R$ 500,00").
+        $cobreCheque = $faltante <= $account->overdraftAvailableWith($ignore) + self::EPSILON;
         $cobreResgate = $faltante <= $this->resgatavel($account) + self::EPSILON;
 
         return ($cobreCheque || $cobreResgate) ? self::PRECISA_FONTE : self::ESTOURA_LIMITE;
@@ -157,8 +161,8 @@ class SpendingGuard
             $fontes[] = [
                 'id' => \App\Support\FundingSource::CHEQUE_ESPECIAL,
                 'rotulo' => 'Usar o cheque especial',
-                'teto' => $account->overdraftAvailable,
-                'cobre' => $faltante <= $account->overdraftAvailable + self::EPSILON,
+                'teto' => $account->overdraftAvailableWith($ignore),
+                'cobre' => $faltante <= $account->overdraftAvailableWith($ignore) + self::EPSILON,
                 'detalhe' => 'Sua conta fica em ' . Brl::format($novoSaldo)
                     . ' — o limite é ' . Brl::format($account->overdraftLimitValue) . '.',
             ];
@@ -197,7 +201,7 @@ class SpendingGuard
     public function mensagemSemFonte(Account $account, float $amount, float $ignore = 0.0): string
     {
         $disponivel = round($account->available + $ignore, 2);
-        $gastavel = round(max(0.0, $disponivel) + $account->overdraftAvailable, 2);
+        $gastavel = $account->spendableWith($ignore);
         $resgatavel = $this->resgatavel($account);
 
         $msg = 'Saldo insuficiente: a conta ' . $account->name . ' tem '
