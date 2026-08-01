@@ -133,8 +133,62 @@ export function pedirFonte(payload) {
     });
 }
 
+/**
+ * Envia um formulário por AJAX já tratando o 409 "de onde sai esse dinheiro?".
+ *
+ * É o mesmo laço do modal global "Lançar", extraído para os pagamentos de
+ * fatura e de conta fixa não reimplementarem (achado A-2 da auditoria: eles
+ * eram POST comum e o 409 ficava sem consumidor — o clique não fazia nada).
+ *
+ * `redirect: 'manual'` de propósito: em sucesso o servidor responde 302 e não
+ * queremos que o fetch baixe a página inteira — pior, seguir o redirect
+ * CONSUMIRIA o flash de sucesso, e a mensagem sumiria do recarregamento.
+ *
+ * @returns {Promise<Response|null>} a resposta final, ou null se o usuário
+ *          cancelou a escolha da fonte.
+ */
+export async function enviarComFonte(url, formData) {
+    const enviar = () => fetch(url, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: formData,
+        redirect: 'manual',
+    });
+
+    let resp = await enviar();
+
+    if (resp.status === 409) {
+        const dados = await resp.json().catch(() => ({}));
+        const escolha = await pedirFonte(dados.fonte);
+        if (!escolha) return null; // cancelou: nada foi pago
+
+        Object.entries(escolha).forEach(([k, v]) => formData.set(k, v));
+        resp = await enviar();
+    }
+
+    return resp;
+}
+
+/** Sucesso: 2xx OU o 302 que o `redirect: 'manual'` deixa opaco. */
+export function respostaOk(resp) {
+    return !!resp && (resp.ok || resp.type === 'opaqueredirect');
+}
+
 /** Liga os botões do modal (chamado uma vez por página, via initContent). */
 export function initFunding() {
+    // Fallback sem JS renderizado pelo Blade (session('fonteNecessaria')):
+    // com JS presente, dá para fechar no véu/Esc como qualquer outro modal —
+    // o "Cancelar" continua sendo um link, que funciona sem JS nenhum.
+    const semJs = document.getElementById('fundingModalSemJs');
+    if (semJs && !semJs.dataset.fallbackBound) {
+        semJs.dataset.fallbackBound = '1';
+        const fecharFallback = () => semJs.classList.remove('open');
+        semJs.addEventListener('click', (e) => { if (e.target === semJs) fecharFallback(); });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && semJs.classList.contains('open')) fecharFallback();
+        });
+    }
+
     const el = document.getElementById('fundingModal');
     if (!el || el.dataset.fundingBound) return;
     el.dataset.fundingBound = '1';

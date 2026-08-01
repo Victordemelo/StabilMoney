@@ -37,3 +37,100 @@
         </div>
     </div>
 </div>
+
+{{-- ===================== FALLBACK SEM JS (session('fonteNecessaria')) =====================
+     O mesmo 409, pelo caminho de navegação normal: `RequiresFundingChoice` faz
+     `back()->with('fonteNecessaria', ...)` e este bloco renderiza a escolha como
+     FORMULÁRIO DE VERDADE, que reenvia a requisição original + `funding_source`.
+
+     Existe porque o app é PWA: se o fetch não rodar (JS desligado, erro de módulo,
+     navegador antigo), o usuário ainda tem como pagar. Sem ele, o clique em
+     "Confirmar pagamento" voltava para a tela sem mensagem nenhuma — o achado A-2. --}}
+{{-- `acao` é o que torna o replay possível; sem ela (payload antigo em sessão
+     de uma versão anterior) não há bloco a renderizar. --}}
+@if (is_array($smFonte = session('fonteNecessaria')) && ! empty($smFonte['acao']))
+    @php
+        $smFontes = collect($smFonte['fontes'] ?? [])->filter(fn ($f) => ! empty($f['id']));
+        $smAlgumCobre = $smFontes->contains(fn ($f) => ! empty($f['cobre']));
+        $smPrimeira = $smFontes->first(fn ($f) => ! empty($f['cobre']))['id'] ?? null;
+        $smResgate = $smFontes->firstWhere('id', 'resgate_investimento');
+    @endphp
+    <div class="modal-scrim open" id="fundingModalSemJs" data-funding-fallback>
+        <div class="modal">
+            <div class="modal-head">
+                <span class="modal-ico ico-out">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5h.01"/></svg>
+                </span>
+                <div>
+                    <h3>De onde sai esse dinheiro?</h3>
+                    <p>
+                        A conta {{ $smFonte['conta']['nome'] ?? '' }} tem @brl($smFonte['disponivel'] ?? 0)
+                        disponíveis e este pagamento é de @brl($smFonte['valor'] ?? 0).
+                        Faltam @brl($smFonte['faltante'] ?? 0).
+                    </p>
+                </div>
+            </div>
+
+            <form method="POST" action="{{ $smFonte['acao'] }}">
+                @csrf
+                {{-- O replay precisa do MÉTODO original: editar transação é PATCH, e
+                     postar POST na rota de update devolveria 405. O formulário HTML só
+                     fala GET/POST, então o verbo vai no _method (spoofing do Laravel). --}}
+                @if (($smFonte['metodo'] ?? 'POST') !== 'POST')
+                    @method($smFonte['metodo'])
+                @endif
+                {{-- Replay da requisição original: o usuário não redigita nada. --}}
+                @foreach ($smFonte['campos'] ?? [] as $smCampo => $smValor)
+                    <input type="hidden" name="{{ $smCampo }}" value="{{ $smValor }}">
+                @endforeach
+
+                <div class="modal-body">
+                    <div class="fonte-lista">
+                        @foreach ($smFontes as $smOpt)
+                            <label class="fonte-opt {{ empty($smOpt['cobre']) ? 'disabled' : '' }}">
+                                <input type="radio" name="funding_source" value="{{ $smOpt['id'] }}"
+                                       @checked($smOpt['id'] === $smPrimeira) @disabled(empty($smOpt['cobre']))>
+                                <div class="fonte-txt">
+                                    <strong>{{ $smOpt['rotulo'] }}</strong>
+                                    <span>
+                                        @if (! empty($smOpt['cobre']))
+                                            {{ $smOpt['detalhe'] }}
+                                        @else
+                                            Não cobre: o máximo por aqui é @brl($smOpt['teto'] ?? 0).
+                                        @endif
+                                    </span>
+
+                                    @if ($smOpt['id'] === 'resgate_investimento' && ! empty($smOpt['itens']))
+                                        <select class="input" name="funding_investment_id" @disabled(empty($smOpt['cobre']))>
+                                            @foreach ($smOpt['itens'] as $smItem)
+                                                <option value="{{ $smItem['id'] }}" @disabled(empty($smItem['cobre']))>
+                                                    {{ $smItem['nome'] }} — @brl($smItem['aplicado']) aplicados
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                        <small class="field-hint">
+                                            Vamos resgatar @brl($smFonte['faltante'] ?? 0) — o resto continua investido.
+                                        </small>
+                                    @endif
+                                </div>
+                            </label>
+                        @endforeach
+                    </div>
+
+                    @unless ($smAlgumCobre)
+                        <div class="flash-error" role="alert">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                            <span>Nenhuma fonte cobre este pagamento. Lance um recebimento para completar o valor, ou reduza o gasto.</span>
+                        </div>
+                    @endunless
+                </div>
+
+                <div class="modal-foot">
+                    {{-- Cancelar sem JS = recarregar a tela; o flash já foi consumido, o bloco some. --}}
+                    <a class="btn ghost" href="{{ url()->current() }}" data-funding-fallback-close>Cancelar</a>
+                    <button class="btn primary" type="submit" @disabled(! $smAlgumCobre)>Confirmar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+@endif
