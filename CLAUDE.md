@@ -516,6 +516,43 @@ continua descartando o menos, porque valor digitado nunca é negativo.
 - Falta implementar (§14 da spec): estorno de pagamento de fatura, guard de parcela isolada no
   Histórico, bloqueio de excluir conta/investimento com saldo negativo.
 
+### Regras que a auditoria de 28/07 fixou (01/08/2026) — não regredir
+
+Relatório: `docs/auditoria-completa-2026-07-28.md`. Testes: `AuditoriaCorrecoesTest`,
+`AuditoriaContasTest`, `AuditoriaMetasInvestimentosTest`, `ContasFixasCorrecoesTest`,
+`CorrecoesFaturaDashboardTest`, `EscolhaDeFonteNaTelaTest`, `MigracoesReversiveisTest`.
+
+- **Resgate só devolve o que a conta aportou** (`Goal/Investment::reservedFromAccount`),
+  validado no Form Request E no recheque sob lock. Sem isso, resgatar para outra conta criava
+  `reserved` negativo = dinheiro do nada.
+- **Ordem de lock: conta → pai, SEMPRE**, nos dois caminhos, com `attempts: 3`. (Antes o trait
+  fazia o contrário do `FundingService` — deadlock ABBA.)
+- **`settles_account_id`**: marca a saída de caixa que QUITA fatura. Ela conta no **saldo** e no
+  extrato, mas **não** nas somas de despesa (senão pagar o cartão dobra o gasto do período).
+  Corolário: `dailySums(..., incluirQuitacoes: true)` para séries de SALDO.
+- **Soma de fatura é COM SINAL**: estorno lançado no cartão abate. `committed`,
+  `currentInvoice` e as duas faturas usam `SUM(CASE WHEN type='expense' …)` com piso 0.
+- **Conta não muda de CLASSE** (caixa ↔ cartão) com histórico — trocar o tipo zerava
+  `initial_balance` e sumia com o patrimônio. Corrente ↔ poupança segue livre.
+- **`Account::preloadMoney()`** antes de iterar contas (3 contas: 33 → 19 queries; 30: 195 → 19).
+  Nunca ler `$conta->balance`/`reserved` dentro de laço.
+- **Toda despesa passa pelo `FundingService`** — inclusive a próxima ocorrência de recorrência,
+  que era o único `Transaction::create` cru fora da trava.
+- **Fatura de ciclo fechado é pagável** (`ciclo=fechado` no `payInvoice`); antes ficava
+  impagável, comendo o limite para sempre.
+- **O 409 de escolha de fonte tem consumidor** em `/faturas` e contas fixas: AJAX
+  (`funding.js::enviarComFonte`) + fallback server-rendered no `partials/funding-modal`
+  (que precisa do `_method` quando o verbo original não é POST).
+- **`whereDate()` está proibido** em coluna que já é `DATE` — anula os índices
+  `(account_id, date)` e `(account_id, paid_at, date)`. Use `where()` com `->toDateString()`.
+- **Contas fixas:** `decimal:0,2` nos valores (é o que barra `1e12`), teto de 3× o previsto,
+  `obrigacao: true` só quando a competência JÁ venceu, e competência descartada quando o
+  vencimento é anterior ao `starts_on`.
+- **IR/IOF:** tabela regressiva por prazo (12 meses = 17,5%, não 15%); IOF não é modelado e o
+  rótulo não promete que seja. A projeção é rotulada como estimativa na tela.
+- **`DB_TIMEZONE`** (default `+00:00`) fixa o fuso da conexão: sem isso, publicar na VPS
+  deslocaria em 3h todo `paid_at`/`created_at` já gravado.
+
 ---
 
 ## 🔒 Segurança (pentest de 27/07/2026 — ondas 1, 2 e 3 aplicadas)
