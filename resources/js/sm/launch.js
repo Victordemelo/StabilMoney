@@ -3,8 +3,26 @@
 // (receita/despesa) filtra as categorias; envia por AJAX (fetch → JSON) com
 // spinner no "Salvar"; sucesso recarrega a página (via pjax, se houver) para
 // refletir a transação; erro treme o modal e mostra a mensagem. Sem reload no erro.
+//
+// OFFLINE: sem internet o envio vai para a MESMA fila do formulário cheio
+// (offline-queue.js), em vez de morrer num "sem conexão" que fazia o usuário
+// perder o que digitou. Como o modal é o caminho mais usado do app (botão da
+// topbar + FAB), sem isso "lançar offline" praticamente não existia.
 
 import { pedirFonte } from './funding';
+import { enfileirarLancamento } from './offline-queue';
+
+// FormData → objeto simples, que é o formato que a fila reenvia (JSON).
+// `_token`/`_method` ficam de fora: são controle do Laravel, não do lançamento —
+// e o CSRF do reenvio é sempre o da sessão viva na hora de sincronizar.
+function paraJson(fd) {
+    const obj = {};
+    fd.forEach((valor, chave) => {
+        if (chave === '_token' || chave === '_method') return;
+        obj[chave] = valor;
+    });
+    return obj;
+}
 
 export function initLaunch() {
     const modal = document.getElementById('launchModal');
@@ -134,12 +152,37 @@ export function initLaunch() {
             body: payload,
         });
 
+        // Manda o lançamento para a fila offline e conta a VERDADE ao usuário:
+        // está pendente de envio, não salvo. Nada de "sucesso" aqui — o toast da
+        // fila diz "na fila" e o selo de pendências fica visível até sincronizar.
+        const enfileirar = async () => {
+            const guardou = await enfileirarLancamento(paraJson(payload));
+            setSaving(false);
+            if (!guardou) {
+                // IndexedDB indisponível/cheio: o lançamento se perderia em
+                // silêncio se a gente fechasse o modal — então fica na tela.
+                showError('Sem conexão e não deu para guardar no aparelho. Mantenha esta tela aberta e tente de novo.');
+                return;
+            }
+            clientUuid = novoUuid(); // este lançamento já tem chave própria na fila
+            form.reset();
+            applyType();
+            // Fecha: o .modal-scrim (z-index 90) cobre o toast da fila.
+            close();
+        };
+
+        // Sem rede: nem tenta o POST.
+        if (!navigator.onLine) {
+            await enfileirar();
+            return;
+        }
+
         let resp;
         try {
             resp = await enviar();
         } catch (_) {
-            setSaving(false);
-            showError('Sem conexão. Verifique sua internet e tente de novo.');
+            // A rede caiu no meio do envio: mesmo destino, nada se perde.
+            await enfileirar();
             return;
         }
 
@@ -156,8 +199,11 @@ export function initLaunch() {
             try {
                 resp = await enviar();
             } catch (_) {
-                setSaving(false);
-                showError('Sem conexão. Verifique sua internet e tente de novo.');
+                // Caiu a rede depois da escolha: enfileira JÁ COM a fonte
+                // escolhida. A fila só decide sozinha por cheque especial; um
+                // resgate de investimento nunca é automático — mas este aqui foi
+                // o próprio usuário quem pediu, então vai junto no payload.
+                await enfileirar();
                 return;
             }
         }

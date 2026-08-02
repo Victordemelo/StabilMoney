@@ -5,7 +5,13 @@
 @section('content')
 @php
     // Helpers locais de formatação (espelham o BRL e o pct do dashboard.js,
-    // para o server-render bater com o que o JS re-renderiza depois)
+    // para o server-render bater com o que o JS re-renderiza depois).
+    //
+    // $money formata SÓ o número dos 4 stat cards — sem "R$" e sem sinal, que
+    // vivem em spans próprios (.cur e .sign) para o dashboard.js poder reescrever
+    // o valor ao trocar de período sem remontar a linha inteira. Todo o RESTO da
+    // tela usa @brl.
+
     $money = fn ($v, $dec = 2) => number_format($v, $dec, ',', '.');
     $pct = fn ($v) => rtrim(rtrim(number_format(abs($v), 1, ',', '.'), '0'), ',') . '%';
     $initials = function (string $name) {
@@ -96,7 +102,10 @@
                     @endif
                 </div>
                 {{-- Valor negativo (ex.: saldo/economia no vermelho) ganha .neg --}}
-                <div class="value {{ $value < 0 ? 'neg' : '' }}"><span class="cur">R$</span><span class="num" data-count="{{ $value }}" data-dec="2">{{ $money($value) }}</span></div>
+                {{-- Sinal ANTES do "R$" (regra do app: −R$ 1.234,56, traço U+2212), num
+                     span próprio para o dashboard.js poder ligá-lo/desligá-lo ao trocar
+                     de período sem remontar o número. O .num anima o valor ABSOLUTO. --}}
+                <div class="value {{ $value < 0 ? 'neg' : '' }}"><span class="sign">{{ $value < 0 ? '−' : '' }}</span><span class="cur">R$</span><span class="num" data-count="{{ $value }}" data-dec="2">{{ $money(abs($value)) }}</span></div>
                 @if (count($sparkVals) > 1)
                     <svg class="spark" data-spark="{{ $card['key'] }}" preserveAspectRatio="none" viewBox="0 0 120 34"></svg>
                 @endif
@@ -183,7 +192,8 @@
                                 <div class="tx-name">{{ $transaction->description ?: ($transaction->category->name ?? ($isIncome ? 'Receita' : 'Despesa')) }}</div>
                                 <div class="tx-meta">{{ $transaction->category->name ?? 'Sem categoria' }} · {{ $transaction->date_human }}@if (! empty($showAuthor)) · {{ $transaction->madeBy?->name ?? 'Removido' }}@endif</div>
                             </div>
-                            <div class="tx-amt {{ $isIncome ? 'pos' : '' }}">{{ $isIncome ? '+' : '−' }} R$ {{ $money($transaction->amount) }}</div>
+                            {{-- O sinal aqui é o do TIPO (entrou/saiu); o valor é sempre positivo --}}
+                            <div class="tx-amt {{ $isIncome ? 'pos' : '' }}">{{ $isIncome ? '+' : '−' }} @brl($transaction->amount)</div>
                         </div>
                     @endforeach
                 </div>
@@ -203,12 +213,12 @@
                 <div class="cards-sum">
                     <div>
                         <span class="lbl">Gasto total das faturas</span>
-                        <b>R$ {{ $money($cartoesTotais['gasto']) }}</b>
+                        <b>@brl($cartoesTotais['gasto'])</b>
                     </div>
                     <div class="right">
                         <span class="lbl">Limite total livre</span>
-                        <b>R$ {{ $money($cartoesTotais['disponivel']) }}</b>
-                        <span class="sub">de R$ {{ $money($cartoesTotais['limite']) }}</span>
+                        <b>@brl($cartoesTotais['disponivel'])</b>
+                        <span class="sub">de @brl($cartoesTotais['limite'])</span>
                     </div>
                 </div>
 
@@ -227,10 +237,10 @@
                             <div class="cc-item-body">
                                 <div class="cc-item-top">
                                     <strong>{{ $c['nome'] }}</strong>
-                                    <b class="cc-item-free">R$ {{ $money($c['disponivel']) }}</b>
+                                    <b class="cc-item-free">@brl($c['disponivel'])</b>
                                 </div>
                                 <div class="cc-item-line">
-                                    <span>Gasto R$ {{ $money($c['gasto']) }}</span>
+                                    <span>Gasto @brl($c['gasto'])</span>
                                     <span class="cc-item-freelbl">livre</span>
                                 </div>
                                 <div class="dp-bar"><div class="dp-bar-fill {{ $c['usadoPct'] >= 90 ? 'over' : '' }}" style="width:{{ $c['usadoPct'] }}%"></div></div>
@@ -272,7 +282,9 @@
                                 <div class="an">{{ $account->name }}</div>
                                 <div class="at">{{ $account->type_label }}</div>
                             </div>
-                            <div class="av">R$ {{ $money($account->current_balance) }}</div>
+                            {{-- current_balance já é o DISPONÍVEL (sem as reservas) e pode ser
+                                 negativo — por isso @brl, que põe o sinal antes do "R$" --}}
+                            <div class="av">@brl($account->current_balance)</div>
                         </div>
                     @endforeach
                 </div>
@@ -288,14 +300,14 @@
             @if ($metasResumo['count'] > 0)
                 <div class="dash-kpi">
                     <div class="lbl">Guardado</div>
-                    <div class="dash-kpi-val">R$ {{ $money($metasResumo['total']) }} <span>· {{ $metasResumo['count'] }} {{ $metasResumo['count'] == 1 ? 'meta' : 'metas' }}</span></div>
+                    <div class="dash-kpi-val">@brl($metasResumo['total']) <span>· {{ $metasResumo['count'] }} {{ $metasResumo['count'] == 1 ? 'meta' : 'metas' }}</span></div>
                 </div>
                 <div style="margin-top:14px">
                     @foreach ($metasResumo['top'] as $m)
                         <div class="acct">
                             <div class="ab" style="background:var(--brand-500)">{{ $initials($m['name']) }}</div>
                             <div><div class="an">{{ $m['name'] }}</div><div class="at">{{ $m['progress'] }}% da meta</div></div>
-                            <div class="av">R$ {{ $money($m['saved']) }}</div>
+                            <div class="av">@brl($m['saved'])</div>
                         </div>
                     @endforeach
                 </div>
@@ -318,14 +330,14 @@
             @if ($faturasResumo['count'] > 0)
                 <div class="dash-kpi">
                     <div class="lbl">A pagar nas faturas</div>
-                    <div class="dash-kpi-val">R$ {{ $money($faturasResumo['total']) }}</div>
+                    <div class="dash-kpi-val">@brl($faturasResumo['total'])</div>
                 </div>
                 <div style="margin-top:14px">
                     @foreach ($faturasResumo['top'] as $f)
                         <div class="acct">
                             <div class="ab" style="background:var(--c-lazer)">{{ $initials($f['name']) }}</div>
                             <div><div class="an">{{ $f['name'] }}</div><div class="at">{{ $f['due'] ? 'Vence ' . $f['due'] : 'Fatura atual' }}</div></div>
-                            <div class="av">R$ {{ $money($f['invoice']) }}</div>
+                            <div class="av">@brl($f['invoice'])</div>
                         </div>
                     @endforeach
                 </div>
@@ -347,14 +359,14 @@
             @if ($investimentosResumo['count'] > 0)
                 <div class="dash-kpi">
                     <div class="lbl">Investido</div>
-                    <div class="dash-kpi-val">R$ {{ $money($investimentosResumo['total']) }} <span>· {{ $investimentosResumo['count'] }} {{ $investimentosResumo['count'] == 1 ? 'ativo' : 'ativos' }}</span></div>
+                    <div class="dash-kpi-val">@brl($investimentosResumo['total']) <span>· {{ $investimentosResumo['count'] }} {{ $investimentosResumo['count'] == 1 ? 'ativo' : 'ativos' }}</span></div>
                 </div>
                 <div style="margin-top:14px">
                     @foreach ($investimentosResumo['top'] as $i)
                         <div class="acct">
                             <div class="ab" style="background:var(--c-saude)">{{ $initials($i['name']) }}</div>
                             <div><div class="an">{{ $i['name'] }}</div><div class="at">{{ $i['classe'] }}</div></div>
-                            <div class="av">R$ {{ $money($i['aplicado']) }}</div>
+                            <div class="av">@brl($i['aplicado'])</div>
                         </div>
                     @endforeach
                 </div>

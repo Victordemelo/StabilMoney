@@ -56,6 +56,14 @@ class DependentController extends Controller
         $dependent->account_owner_id = $titular->id;
         $dependent->password = Hash::make($data['password']);
 
+        // Nasce com o e-mail JÁ verificado, sempre — inclusive quando o SMTP estiver
+        // configurado. Dependente não passa pelo `/register`, não dispara `Registered`
+        // e portanto NINGUÉM lhe envia link de confirmação: quem responde pelo endereço
+        // é o titular, que acabou de digitá-lo. Deixar o campo nulo trancaria todos os
+        // dependentes fora do app no dia em que alguma rota exigir `verified`
+        // (o User implementa MustVerifyEmail — ver o comentário no model).
+        $dependent->email_verified_at = now();
+
         if ($request->hasFile('avatar')) {
             $dependent->storeAvatar($request->file('avatar')); // sem metadados (EXIF/GPS)
         }

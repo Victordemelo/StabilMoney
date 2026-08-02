@@ -69,7 +69,17 @@ class StoreInvestmentContributionRequest extends FormRequest
                 'nullable',
                 'date',
                 'after_or_equal:2000-01-01',
-                'before_or_equal:' . now()->addYears(10)->toDateString(),
+                // Aporte/resgate NÃO aceita data futura. `Account::reserved` soma todas
+                // as contributions sem olhar data (igual ao `balance`, que também ignora
+                // `date`/`paid_at` — decisão D-4 da spec). Um aporte datado no mês que
+                // vem já derrubava o disponível de HOJE, e um resgate futuro já o
+                // levantava: dinheiro andando antes da hora, e o limite de gasto
+                // decidindo com um número que ainda não é verdade.
+                //
+                // A saída coerente com o modelo é não deixar entrar movimentação que
+                // ainda não aconteceu — tornar `reserved` sensível à data faria ele
+                // discordar do `balance`, que continua somando tudo.
+                'before_or_equal:' . now()->toDateString(),
             ],
         ];
     }
@@ -94,7 +104,7 @@ class StoreInvestmentContributionRequest extends FormRequest
             'account_id.required' => 'Escolha a conta de origem do aporte.',
             'account_id.exists' => 'Escolha uma conta corrente ou poupança sua — cartões não guardam dinheiro.',
             'date.date' => 'Data inválida.',
-            'date.before_or_equal' => 'A data está longe demais no futuro.',
+            'date.before_or_equal' => 'A data não pode ser no futuro — registre o aporte no dia em que ele acontecer.',
         ];
     }
 }

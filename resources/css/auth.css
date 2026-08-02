@@ -169,6 +169,19 @@
 .auth .btn-primary:active { transform: translateY(0); }
 .auth .btn-primary svg { width: 18px; height: 18px; }
 
+/* Telas sem a linha "Lembrar de mim / Esqueceu a senha?" (recuperar, redefinir e
+   confirmar senha) perdiam os 22px que o .row-between dava antes do botão. */
+.auth .btn-primary.spaced { margin-top: 8px; }
+
+/* Ação secundária dentro do card (ex.: "Sair" em verificar e-mail): tem peso de
+   link, para não disputar atenção com o .btn-primary logo acima. */
+.auth .btn-quiet {
+  width: 100%; margin-top: 12px; padding: 12px; border: 0; border-radius: 13px;
+  background: none; cursor: pointer; font-family: inherit;
+  font-size: 13.5px; font-weight: 600; color: var(--ink-3); transition: background .16s, color .16s;
+}
+.auth .btn-quiet:hover { background: var(--surface-2); color: var(--ink-2); }
+
 /* Estado de carregamento do botão "Entrar" (login por AJAX) */
 .auth .btn-primary:disabled { cursor: default; }
 .auth .btn-primary.is-loading:hover { transform: none; }
@@ -191,6 +204,10 @@
   font-size: 13.5px; font-weight: 500; line-height: 1.4;
 }
 .auth .auth-error svg { width: 18px; height: 18px; flex: none; stroke-width: 2; }
+/* Mensagem longa (ex.: "o app não está enviando e-mails" na recuperação de senha):
+   centralizar o ícone com um texto de 3 linhas o deixa boiando no meio. */
+.auth .auth-error.long { align-items: flex-start; }
+.auth .auth-error.long svg { margin-top: 1px; }
 
 /* "Tremida" na negação */
 @keyframes sm-shake {

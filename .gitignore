@@ -21,6 +21,10 @@
 /public/storage
 /storage/*.key
 /storage/pail
+# Dumps do banco: dados pessoais de TODOS os usuários em texto legível.
+# (O backup-db.sh já cria um .gitignore com "*" dentro da pasta; esta linha
+# documenta a intenção e protege caso a pasta seja recriada à mão.)
+/storage/backups
 /vendor
 Homestead.json
 Homestead.yaml

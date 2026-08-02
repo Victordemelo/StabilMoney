@@ -42,6 +42,10 @@ class DatabaseSeeder extends Seeder
                 'name' => env('SEED_USER_NAME', 'Victor'),
                 'password' => Hash::make(env('SEED_USER_PASSWORD', 'password')),
                 'is_admin' => true,
+                // O usuário de dev não passa pelo /register, então ninguém marca
+                // isto por ele — e no dia em que uma rota ganhar `verified`, ele
+                // ficaria trancado fora do próprio ambiente de desenvolvimento.
+                'email_verified_at' => now(),
             ],
         );
 

@@ -60,7 +60,7 @@ MAIL_MAILER=smtp   # e as credenciais do provedor
 
 **Por quê:** hoje é `log` — **nenhum e-mail sai**. Consequência prática: quem esquecer a
 senha **perde a conta**, porque o link de redefinição só vai para o arquivo de log. É
-também pré-requisito dos itens 12 e 13.
+também pré-requisito dos itens 13 e 14.
 
 ### 6. MySQL sem porta publicada
 
@@ -113,23 +113,108 @@ SESSION_DOMAIN=null
 Definir `.stabilmoney.com.br` faria o cookie de sessão do app ser enviado **para o n8n
 também**. Deixe `null` para o cookie ficar preso ao host que o emitiu.
 
-### 10. Caches de produção
+### 10. Caches de produção — **a ordem importa**
 
 ```bash
 php artisan config:cache
 php artisan route:cache
-php artisan view:cache
+php artisan view:cache     # ⚠️ ANTES do build, sempre
 npm run build
 ```
 
 `route:cache` falha se houver rota apontando para classe inexistente — é um bom teste de
 sanidade antes de subir.
 
-### 11. Backup do banco antes de qualquer coisa
+**Por que `view:cache` vem antes do `npm run build`** (medido em 02/08/2026): o
+`resources/css/app.css` declara
 
-Não existe rotina de backup hoje, e a Política de Privacidade é honesta sobre isso. Antes
-de ter usuários reais, configure pelo menos um `mysqldump` diário com retenção — de
-preferência **fora** da mesma VPS.
+```css
+@source '../../storage/framework/views/*.php';
+```
+
+ou seja, o Tailwind varre as views **já compiladas**, não os `.blade.php`. Num deploy
+limpo esse diretório está vazio — e o Tailwind não tem como saber que faltou alguma coisa.
+O build termina **verde**, com **~20 kB de CSS a menos** (110 kB em vez de 129 kB), e o
+site sobe **sem parte dos estilos**. Falha silenciosa: nenhum erro, nenhum aviso.
+
+Vale para toda máquina nova e para qualquer deploy que rode `view:clear` antes. Se
+desconfiar que aconteceu, compare o tamanho do CSS gerado em `public/build/assets/`.
+
+### 11. Backup do banco — automático, testado e fora da VPS
+
+Existem dois scripts prontos no repositório (feitos em 02/08/2026, depois do incidente de
+perda de dados de 28/07 — ver `storage/app/backup-incidente-2026-07-28/`):
+
+| Script | O que faz |
+|---|---|
+| `scripts/backup-db.sh` | `mysqldump` do container `db` → `.sql.gz` datado, com rotação. **Confere o dump depois de gravar** e descarta o arquivo se não achar nenhum `CREATE TABLE`. |
+| `scripts/restore-db.sh` | Restaura um backup. Valida o arquivo **antes** de apagar qualquer coisa, exige que você digite o nome do banco, e tira um backup de segurança do estado atual antes de sobrescrever. |
+
+```bash
+./scripts/backup-db.sh                    # backup em storage/backups/, guarda os 14 últimos
+./scripts/backup-db.sh --manter 30        # muda a retenção
+./scripts/backup-db.sh --saida /mnt/hd    # grava noutro lugar (disco externo, volume montado)
+
+./scripts/restore-db.sh                            # restaura o backup mais recente
+./scripts/restore-db.sh caminho/do/arquivo.sql.gz  # restaura um específico
+./scripts/restore-db.sh arq.sql.gz --banco stabil_ensaio   # ENSAIO: restaura noutro banco
+```
+
+**A senha do banco nunca vai para a linha de comando** (`ps` do host expõe a linha de
+comando de qualquer processo, e é por isso que `mysqldump -p$SENHA` está errado). Os
+scripts leem o `.env` e escrevem um `my.cnf` temporário, via STDIN, com `umask 077` dentro
+do container — apagado no final até se o script morrer no meio.
+
+**Cron na VPS** (backup diário às 3h, log próprio):
+
+```cron
+0 3 * * * cd /caminho/do/projeto && ./scripts/backup-db.sh >> /var/log/stabilmoney-backup.log 2>&1
+```
+
+**Periodicidade sugerida:** diária enquanto for só o Victor; de hora em hora quando houver
+usuários reais (um lançamento perdido é um lançamento que ninguém lembra de refazer).
+Retenção de 14 dias é o padrão do script — suficiente para perceber um erro que só
+aparece dias depois.
+
+**Onde guardar — fora da VPS, obrigatoriamente.** Backup que mora no mesmo servidor não
+protege contra o que mais acontece: o servidor sumir. Depois de gerar, copie para fora.
+Qualquer uma destas serve:
+
+```bash
+# 1. Puxar do seu computador (mais simples, nada a configurar no servidor)
+rsync -az usuario@vps:/caminho/do/projeto/storage/backups/ ~/Backups/stabilmoney/
+
+# 2. Empurrar para um bucket S3/R2/Backblaze com o rclone
+rclone copy storage/backups/ remoto:stabilmoney-backups --max-age 25h
+```
+
+> ⚠️ **Teste a restauração antes de precisar dela.** Rode
+> `./scripts/restore-db.sh <arquivo> --banco stabil_ensaio` uma vez: restaura num banco de
+> lado, sem tocar no de produção, e prova que o arquivo presta. Backup nunca testado é
+> só um arquivo grande.
+
+> ⚠️ O diretório `storage/backups/` contém **dados pessoais de todos os usuários**, em
+> texto legível depois de descompactar. Os arquivos nascem com permissão `600` e o
+> diretório com `700`, e o script grava um `.gitignore` com `*` lá dentro na primeira
+> execução — um `git add .` distraído não alcança os dumps. Ainda assim, acrescente
+> **`/storage/backups`** ao `.gitignore` da raiz: é a linha que documenta a intenção para
+> quem chegar depois.
+
+### 12. Cron do agendador (`schedule:run`)
+
+O `routes/console.php` tem tarefas agendadas — hoje a limpeza diária das sessões expiradas
+(`sessoes:limpar`, item da tabela verde abaixo). **Nada disso roda sozinho.** O scheduler
+do Laravel depende de uma única entrada de cron que acorda o artisan a cada minuto:
+
+```cron
+* * * * * cd /caminho/do/projeto && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Rodando em Docker na VPS, o `cd` é no host e o comando vira
+`docker compose exec -T app php artisan schedule:run`.
+
+Confira o que está agendado com `php artisan schedule:list` — se a saída vier vazia depois
+de um deploy, provavelmente sobrou um `config:cache` velho.
 
 ---
 
@@ -138,7 +223,7 @@ preferência **fora** da mesma VPS.
 Estes são os itens da "onda 3" do pentest que dependem de infraestrutura ou de decisão de
 produto, não de correção pontual.
 
-### 12. Verificação de e-mail
+### 13. Verificação de e-mail
 
 Depende do item 5 (mailer). Hoje `User` **não** implementa `MustVerifyEmail`, de propósito
 — ativar sem mailer trancaria todos os usuários fora do app.
@@ -153,14 +238,14 @@ Para ativar quando houver mailer:
 como o "esqueci a senha" manda o link para aquele endereço, **o dono do e-mail pode
 "recuperar" a conta e ver os lançamentos de quem a criou**.
 
-### 13. Confirmar a troca de e-mail
+### 14. Confirmar a troca de e-mail
 
 Também depende do mailer. Hoje trocar o e-mail no perfil exige a senha atual (feito na
 onda 2), mas o novo endereço não é confirmado — dá para apontar a conta para um e-mail que
 não se controla e perder o acesso. O padrão é guardar em `pending_email` e só efetivar
 quando o link enviado ao **novo** endereço for clicado.
 
-### 14. Avatares fora do disco público
+### 15. Avatares fora do disco público
 
 Hoje as fotos ficam em `storage/app/public/avatars` e são servidas **sem autenticação**.
 O nome é aleatório (40 caracteres), então não é enumerável, e o EXIF/GPS já é removido no
@@ -170,7 +255,7 @@ Para fechar: gravar no disco `local` (privado) e servir por uma rota sob `auth` 
 valide a família do dono, ajustando `User::avatarUrl()`. Requer **migrar os arquivos
 existentes** de `app/public/avatars` para `app/private/avatars`.
 
-### 15. Limpar a fila offline na troca de usuário
+### 16. Limpar a fila offline na troca de usuário
 
 O IndexedDB (`sm-offline`) guarda valor, descrição e o token CSRF dos lançamentos
 pendentes, e nada o limpa no logout — num aparelho compartilhado, o próximo usuário lê
@@ -185,7 +270,7 @@ buscar um token fresco em `/csrf-token` em vez de persistir o token.
 > incluímos `"storage"` de propósito: apagaria a fila offline e destruiria lançamentos não
 > sincronizados.
 
-### 16. Revisão jurídica dos Termos e da Política
+### 17. Revisão jurídica dos Termos e da Política
 
 Os documentos são completos e específicos ao app, mas não passaram por advogado. Antes de
 cadastro aberto ao público, vale a revisão — é barato comparado ao risco de tratar dado
@@ -203,7 +288,7 @@ financeiro de terceiros.
 | 2FA | tela de Segurança | Já está na interface como "em breve". |
 | `is_admin`/`account_owner_id` fora de `$fillable` | `app/Models/User.php` | Não é explorável hoje (nenhum `update($request->all())`), mas é armadilha para o futuro: um único uso descuidado viraria escalada de privilégio. |
 | Retenção/criptografia de IP | `sessions`, `terms_accepted_ip` | Se quiser proteger IPs em repouso, use o cast `encrypted` (reversível). **Não** use hash — quebraria a tela de dispositivos e a prova do aceite. |
-| Rotina de limpeza de sessões | agendador | `php artisan session:prune` (driver `database` não limpa sozinho as expiradas). |
+| ~~Rotina de limpeza de sessões~~ | ~~agendador~~ | ✅ **Feito** (02/08/2026): `php artisan sessoes:limpar`, agendado às 3h10 em `routes/console.php`. Só falta o cron do item 12. Cuidado: `session:prune` **não existe** no Laravel 12 — o framework limpa por loteria (2% das requisições), o que num app de pouco tráfego deixa IP e user-agent parados na tabela por meses. |
 
 ---
 

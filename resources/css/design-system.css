@@ -357,6 +357,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .stat .value { font-family: var(--font-head); font-size: 23px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
 .stat .value .cur { font-size: 14px; color: var(--ink-3); font-weight: 600; margin-right: 3px; }
+/* Sinal de menos ANTES do "R$" (−R$ 1.234,56). Vazio quando o valor é positivo,
+   então não ocupa espaço nem desalinha o card. */
+.stat .value .sign { font-size: 14px; color: var(--ink-3); font-weight: 600; }
+.stat .value.neg .sign { color: var(--neg); }
 /* Valor negativo (saldo/economia no vermelho) — inclui o "R$" */
 .stat .value.neg, .stat .value.neg .cur { color: var(--neg); }
 .stat .spark { height: 34px; margin-top: 12px; }

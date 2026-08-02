@@ -1,0 +1,99 @@
+name: CI
+
+# Roda a suíte de testes a cada push na main e em todo pull request.
+#
+# Por que NÃO tem MySQL aqui: o phpunit.xml força DB_CONNECTION=sqlite e
+# DB_DATABASE=:memory:. Subir um serviço MySQL só deixaria o CI mais lento sem
+# mudar o que é testado.
+#
+# Por que NÃO tem `npm run build`: o tests/TestCase.php chama withoutVite(),
+# então nenhuma view depende de public/build/manifest.json durante os testes.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Um push novo cancela a execução anterior do mesmo branch (economiza minutos).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testes:
+    name: Suíte de testes (PHP 8.4 · sqlite em memória)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          # As mesmas do Dockerfile + sqlite (o container usa MySQL; o CI usa sqlite).
+          extensions: mbstring, bcmath, exif, gd, pdo_sqlite, sqlite3, zip, curl, dom, fileinfo
+          coverage: none
+          ini-values: memory_limit=512M
+
+      # Precisa existir ANTES do composer install: os scripts do Composer chamam
+      # `artisan package:discover`, e o artisan carrega o .env.
+      - name: Preparar o .env
+        run: cp .env.example .env
+
+      - name: Descobrir o diretório de cache do Composer
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Restaurar o cache do Composer
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php8.4-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-php8.4-
+
+      # --no-progress deixa o log limpo; as dependências de DEV entram de propósito
+      # (phpunit, faker e collision vivem lá).
+      - name: Instalar dependências PHP
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Gerar a APP_KEY
+        run: php artisan key:generate
+
+      - name: Rodar a suíte
+        run: php artisan test
+
+      # Compila TODAS as views Blade: pega erro de sintaxe em tela que nenhum teste
+      # renderiza. Roda depois dos testes para não interferir neles.
+      - name: Validar a sintaxe das views
+        run: php artisan view:cache
+
+  # ------------------------------------------------------------------------
+  # Pint (formatação) NÃO tem passo aqui, de propósito — 02/08/2026.
+  #
+  # O baseline do repositório está sujo: `pint --test` reprova 88 de 225 arquivos,
+  # incluindo lang/pt_BR/*.php e lang/en/*.php, que são gerados pelo laravel-lang e
+  # ninguém edita à mão. Ligar o passo agora deixaria o CI vermelho para sempre e
+  # treinaria todo mundo a ignorar o resultado — o oposto do que um CI serve.
+  #
+  # Para ligar depois, em UM commit só de formatação:
+  #   1. docker compose exec app php ./vendor/bin/pint
+  #   2. rodar a suíte, conferir que segue verde e commitar como "style: pint"
+  #   3. criar um pint.json excluindo lang/ (arquivos de terceiros)
+  #   4. descomentar o job abaixo
+  #
+  # formatacao:
+  #   name: Formatação (Pint)
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: shivammathur/setup-php@v2
+  #       with:
+  #         php-version: '8.4'
+  #         coverage: none
+  #     - run: composer install --prefer-dist --no-interaction --no-progress
+  #     - run: ./vendor/bin/pint --test

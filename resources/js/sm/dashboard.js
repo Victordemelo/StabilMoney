@@ -23,8 +23,23 @@ const ARROW_DOWN = 'M7 7 17 17M17 17h-7M17 17v-7';
 
 /* ---------- Contadores animados ---------- */
 
+// O sinal de menos vive num <span class="sign"> ANTES do "R$", não colado no
+// número: a regra do app é `−R$ 1.234,56` (traço U+2212 antes do símbolo), nunca
+// `R$ -1.234,56`. Por isso o contador anima o valor ABSOLUTO e só liga/desliga o
+// sinal — senão o valor abria formatado certo pelo servidor e "pulava" para o
+// formato errado no primeiro clique do segmented.
+const MENOS = '\u2212';
+
+function pintarSinal(el, valor) {
+    const caixa = el.closest('.value');
+    const sinal = caixa && caixa.querySelector('.sign');
+    if (sinal) sinal.textContent = valor < 0 ? MENOS : '';
+    if (caixa) caixa.classList.toggle('neg', valor < 0);
+}
+
 function animateCount(el, to, dec, reduceMotion) {
-    if (reduceMotion) { el.textContent = BRL(to, dec); return; }
+    pintarSinal(el, to);
+    if (reduceMotion) { el.textContent = BRL(Math.abs(to), dec); return; }
     const from = parseFloat(el.dataset.from || '0');
     el.dataset.from = to;
     const dur = 1100, t0 = performance.now();
@@ -32,12 +47,16 @@ function animateCount(el, to, dec, reduceMotion) {
     let done = false;
     function step(now) {
         const p = Math.min(1, (now - t0) / dur);
-        el.textContent = BRL(from + (to - from) * ease(p), dec);
+        const atual = from + (to - from) * ease(p);
+        // O sinal acompanha a animação: um valor que cruza o zero troca de cor e
+        // de sinal no meio do caminho, em vez de mentir até o fim.
+        pintarSinal(el, atual);
+        el.textContent = BRL(Math.abs(atual), dec);
         if (p < 1) requestAnimationFrame(step); else done = true;
     }
     requestAnimationFrame(step);
     // Fallback: timers disparam mesmo com rAF estrangulado — garante o valor final
-    setTimeout(() => { if (!done) el.textContent = BRL(to, dec); }, dur + 80);
+    setTimeout(() => { if (!done) { pintarSinal(el, to); el.textContent = BRL(Math.abs(to), dec); } }, dur + 80);
 }
 
 function runCounters(scope, reduceMotion) {

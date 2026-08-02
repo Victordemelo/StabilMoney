@@ -20,12 +20,25 @@
 //  - O token CSRF guardado também é a trava por usuário: item de um usuário só
 //    "passa" na sessão dele (token de outra sessão → 419), então num aparelho
 //    compartilhado ninguém reenvia lançamento de outro.
-//  - Só a CRIAÇÃO entra na fila (form com data-offline-queue), nunca edição.
+//  - Cada item é CARIMBADO com o id de quem o criou (`userId`). Esse carimbo é a
+//    trava principal na troca de usuário: a página só reenvia o que é do usuário
+//    logado agora, e desarma (tira o csrf de) o que é de outro dono, o que também
+//    impede o reenvio pelo service worker. Ver `revisarFilaDeOutroDono()` no fim
+//    do arquivo — inclusive o porquê de NADA ser apagado sozinho.
+//  - Só a CRIAÇÃO entra na fila (form com data-offline-queue e modal "Lançar"),
+//    nunca edição.
 
 import { pedirFonte } from './funding';
 
 const DB_NAME = 'sm-offline';
 const STORE = 'lancamentos';
+
+// Mensagem única do enfileiramento. "na fila", nunca "salvo": enquanto não
+// sincroniza, o lançamento NÃO existe no servidor — dizer "salvo" seria mentir.
+export const MSG_NA_FILA = 'Sem conexão — lançamento na fila. Envio automático quando a internet voltar.';
+
+// Registro válido da fila (defensivo: item sem payload não é lançamento nenhum).
+const ehLancamento = (i) => !!(i && i.payload);
 
 function meta(name) {
     const el = document.querySelector(`meta[name="${name}"]`);
@@ -112,7 +125,10 @@ function renderBadge(count) {
 async function refreshBadge() {
     try {
         const userId = meta('sm-user');
-        const items = (await queueAll()).filter((i) => String(i.userId) === String(userId));
+        // Só conta o que é MEU: pendência de outro dono não é minha para resolver.
+        const items = (await queueAll())
+            .filter(ehLancamento)
+            .filter((i) => String(i.userId) === String(userId));
         renderBadge(items.length);
     } catch (_) { /* sem IndexedDB: ignora silenciosamente */ }
 }
@@ -128,7 +144,11 @@ async function drain() {
 
     draining = true;
     try {
+        // O filtro por `userId` é a trava da troca de usuário: lançamento de
+        // outro dono NUNCA é reenviado na sessão de quem está logado agora
+        // (iria para a família errada, com o autor errado).
         const items = (await queueAll())
+            .filter(ehLancamento)
             .filter((i) => String(i.userId) === String(userId) && !i.failed);
 
         for (const item of items) {
@@ -232,10 +252,13 @@ function serializeForm(form) {
 // claramente OFFLINE quanto quando o envio online cai na rede no meio (ou a
 // sessão expira de vez) — em todos os casos: nada se perde. `form` serve só
 // para resetar a tela; NÃO entra no que é gravado no IndexedDB.
+//
+// Devolve `true` se conseguiu enfileirar. Quem chama precisa saber: se o
+// IndexedDB falhou, o lançamento se perdeu e a tela tem que dizer isso.
 function enqueueOffline(payload, toastMsg, form) {
     return queueAdd({
         client_uuid: payload.client_uuid,
-        userId: meta('sm-user'),
+        userId: meta('sm-user'), // CARIMBO do dono — trava da troca de usuário
         csrf: meta('csrf-token'), // token p/ o service worker reenviar em background
         payload,
         createdAt: Date.now(),
@@ -244,9 +267,25 @@ function enqueueOffline(payload, toastMsg, form) {
         showToast(toastMsg);
         if (form && typeof form.reset === 'function') form.reset();
         refreshBadge();
+        return true;
     }).catch(() => {
-        showToast('Não foi possível salvar o lançamento offline neste aparelho.');
+        showToast('Não foi possível guardar o lançamento neste aparelho.');
+        return false;
     });
+}
+
+/**
+ * Enfileira um lançamento vindo de OUTRA tela (hoje: o modal global "Lançar").
+ *
+ * Existe para que todo caminho de criação use a MESMA fila: o modal é o botão
+ * mais usado do app (topbar + FAB) e, até aqui, mandava `fetch` direto — sem
+ * internet o usuário clicava em "Salvar" e perdia o que tinha digitado.
+ *
+ * `payload` já deve trazer o `client_uuid` (idempotência no servidor).
+ * Devolve Promise<boolean>.
+ */
+export function enfileirarLancamento(payload, toastMsg = MSG_NA_FILA) {
+    return enqueueOffline(payload, toastMsg, null);
 }
 
 // Renderiza/atualiza o bloco .flash-error no topo do .form-card com as mensagens
@@ -357,7 +396,7 @@ function attachForm(form) {
         if (!navigator.onLine) {
             enqueueOffline(
                 payload,
-                'Sem conexão — lançamento salvo; envio sozinho quando a internet voltar.',
+                MSG_NA_FILA,
                 form
             );
             return;
@@ -381,7 +420,7 @@ async function submitOnline(form, payload) {
         setSubmitting(btn, false);
         await enqueueOffline(
             payload,
-            'Sem conexão — lançamento salvo; envio sozinho quando a internet voltar.',
+            MSG_NA_FILA,
             form
         );
         return;
@@ -406,7 +445,7 @@ async function submitOnline(form, payload) {
             setSubmitting(btn, false);
             await enqueueOffline(
                 payload,
-                'Sem conexão — lançamento salvo; envio sozinho quando a internet voltar.',
+                MSG_NA_FILA,
                 form
             );
             return;
@@ -442,7 +481,7 @@ async function submitOnline(form, payload) {
             setSubmitting(btn, false);
             await enqueueOffline(
                 payload,
-                'Sem conexão — lançamento salvo; envio sozinho quando a internet voltar.',
+                MSG_NA_FILA,
                 form
             );
             return;
@@ -496,25 +535,127 @@ function purgeCachedFormIfUserChanged() {
     } catch (_) { /* sem storage */ }
 }
 
-/**
- * Apaga da fila os lançamentos que NÃO são do usuário logado agora.
- *
- * O IndexedDB é do navegador, não da sessão: os itens de quem usou o aparelho antes
- * sobreviviam ao logout e ficavam legíveis no DevTools por quem logasse depois — com
- * valor, descrição, conta e o token CSRF da sessão antiga.
- *
- * Roda só quando ALGUÉM ESTÁ LOGADO, de propósito. No logout puro a fila fica onde
- * está: o dono pode voltar e ainda tem lançamentos por sincronizar — apagar ali seria
- * destruir dado dele para resolver um problema que só existe quando OUTRA pessoa entra.
- */
-function purgeQueueFromOtherUsers() {
-    const current = meta('sm-user');
-    if (!current) return; // ninguém logado: nada a decidir agora
+// ---- Fila de OUTRO dono no mesmo aparelho ----------------------------------
+//
+// O IndexedDB é do NAVEGADOR, não da sessão: a fila sobrevive ao logout. Num
+// aparelho de casa, o Victor lança offline, sai, a esposa entra — e o lançamento
+// dele não pode virar despesa na conta dela.
+//
+// ESTRATÉGIA: SEGURAR, NUNCA APAGAR SOZINHO.
+// A versão anterior apagava os itens dos outros donos assim que alguém logava.
+// Resolvia o vazamento, mas destruía dinheiro: aquele lançamento aconteceu no
+// mundo real e ainda não chegou ao servidor — apagá-lo em silêncio some com uma
+// despesa que ninguém mais vai lembrar de refazer. Aqui o item FICA na fila,
+// trancado: o carimbo `userId` tira ele do reenvio da página, e o desarme (perder
+// o `csrf`) tira ele do reenvio do service worker. A pessoa que está usando o
+// aparelho recebe um AVISO VISÍVEL explicando o que há e como resolver. Descartar
+// existe, mas é decisão explícita dela, com confirmação — nunca efeito colateral
+// de um login.
+//
+// O que É descartado sem perguntar: o token CSRF do item de outro dono. É
+// credencial da sessão dele (já morta no logout), não é o lançamento. Sai do
+// aparelho; o dado do dinheiro fica.
 
-    queueAll().then((itens) => {
-        (itens || [])
-            .filter((i) => String(i.userId) !== String(current))
-            .forEach((i) => queueDelete(i.client_uuid).catch(() => {}));
+let avisoOutroDono;
+let dispensado = false; // "×" esconde só nesta visita, não apaga nada
+
+function renderAvisoOutroDono(itens) {
+    if (dispensado || !itens.length) {
+        if (avisoOutroDono) avisoOutroDono.style.display = 'none';
+        return;
+    }
+
+    if (!avisoOutroDono) {
+        avisoOutroDono = document.createElement('div');
+        avisoOutroDono.id = 'sm-fila-outro-dono';
+        avisoOutroDono.setAttribute('role', 'status');
+        avisoOutroDono.style.cssText = [
+            'position:fixed', 'left:50%', 'transform:translateX(-50%)',
+            'top:calc(12px + env(safe-area-inset-top,0px))', 'z-index:70',
+            'display:flex', 'align-items:center', 'gap:10px', 'flex-wrap:wrap',
+            'max-width:min(92vw,520px)', 'padding:10px 14px', 'border-radius:12px',
+            'font:500 13px/1.35 system-ui,sans-serif', 'color:#3A2A00', 'background:#FFD466',
+            'box-shadow:0 10px 30px rgba(0,0,0,.25)',
+        ].join(';');
+        document.body.appendChild(avisoOutroDono);
+    }
+
+    // textContent em tudo: nada de innerHTML com dado do usuário (regra do projeto).
+    avisoOutroDono.textContent = '';
+    const texto = document.createElement('span');
+    texto.style.flex = '1 1 220px';
+    texto.textContent = itens.length > 1
+        ? `${itens.length} lançamentos feitos offline por outra conta estão guardados neste aparelho. Eles não serão enviados agora — quem os criou precisa entrar para sincronizar.`
+        : 'Há 1 lançamento feito offline por outra conta guardado neste aparelho. Ele não será enviado agora — quem o criou precisa entrar para sincronizar.';
+    avisoOutroDono.appendChild(texto);
+
+    const descartar = document.createElement('button');
+    descartar.type = 'button';
+    descartar.textContent = 'Descartar';
+    descartar.style.cssText = 'border:0;border-radius:999px;padding:7px 12px;cursor:pointer;'
+        + 'font:600 12px/1 system-ui,sans-serif;color:#fff;background:#8A1C1C';
+    descartar.addEventListener('click', () => {
+        const pergunta = itens.length > 1
+            ? `Descartar ${itens.length} lançamentos de outra conta? Eles nunca chegaram ao servidor e serão perdidos para sempre.`
+            : 'Descartar o lançamento de outra conta? Ele nunca chegou ao servidor e será perdido para sempre.';
+        if (!window.confirm(pergunta)) return;
+        Promise.all(itens.map((i) => queueDelete(i.client_uuid).catch(() => {})))
+            .then(() => { dispensado = true; renderAvisoOutroDono([]); });
+    });
+    avisoOutroDono.appendChild(descartar);
+
+    const fechar = document.createElement('button');
+    fechar.type = 'button';
+    fechar.setAttribute('aria-label', 'Dispensar aviso');
+    fechar.textContent = '×';
+    fechar.style.cssText = 'border:0;background:transparent;cursor:pointer;'
+        + 'font:700 18px/1 system-ui,sans-serif;color:#3A2A00;padding:0 2px';
+    fechar.addEventListener('click', () => { dispensado = true; renderAvisoOutroDono([]); });
+    avisoOutroDono.appendChild(fechar);
+
+    avisoOutroDono.style.display = 'flex';
+}
+
+/**
+ * Roda no início de cada carga logada:
+ *
+ *  1. ARMA os itens do próprio usuário — grava neles o token CSRF da sessão atual.
+ *     Depois de um novo login o token guardado está morto; sem renovar, o
+ *     Background Sync bateria 419 para sempre e só o reenvio pela página funcionaria.
+ *  2. DESARMA os itens de outro dono — apaga o `csrf` deles. Duas coisas de uma vez:
+ *     tira do aparelho uma credencial que é da sessão de outra pessoa, e sinaliza
+ *     ao service worker (que não enxerga sessão nem localStorage) que aquele item
+ *     NÃO é para ser reenviado agora — lá a regra é "sem csrf, não envio".
+ *  3. AVISA na tela que existem lançamentos de outra conta guardados aqui.
+ *
+ * Nada é apagado. Ver o bloco de comentário acima.
+ */
+function revisarFilaDeOutroDono() {
+    const atual = meta('sm-user');
+    if (!atual) return Promise.resolve(); // ninguém logado: nada a decidir agora
+    const token = meta('csrf-token');
+
+    return queueAll().then((itens) => {
+        const fila = (itens || []).filter(ehLancamento);
+        const meus = fila.filter((i) => String(i.userId) === String(atual));
+        const alheios = fila.filter((i) => String(i.userId) !== String(atual));
+
+        const gravacoes = [];
+
+        // (1) token fresco nos meus (re-arma inclusive o que foi desarmado antes).
+        if (token) {
+            meus.filter((i) => i.csrf !== token)
+                .forEach((i) => gravacoes.push(queueAdd({ ...i, csrf: token }).catch(() => {})));
+        }
+
+        // (2) o lançamento do outro fica; a credencial dele, não.
+        alheios.filter((i) => i.csrf)
+            .forEach((i) => gravacoes.push(queueAdd({ ...i, csrf: null }).catch(() => {})));
+
+        // (3) aviso visível — a pessoa decide o que fazer, o app não decide por ela.
+        renderAvisoOutroDono(alheios);
+
+        return Promise.all(gravacoes);
     }).catch(() => {});
 }
 
@@ -524,7 +665,6 @@ export function initOfflineQueue() {
     if (!('indexedDB' in window)) return;
 
     purgeCachedFormIfUserChanged();
-    purgeQueueFromOtherUsers();
 
     const form = document.querySelector('form[data-offline-queue]');
     if (form) attachForm(form);
@@ -532,8 +672,13 @@ export function initOfflineQueue() {
     // Sincroniza quando a conexão volta e ao carregar uma página logada.
     window.addEventListener('online', () => drain());
     if (meta('sm-user')) {
-        refreshBadge();
-        if (navigator.onLine) drain();
-        else requestBackgroundSync(); // reabriu offline: re-arma o reenvio em background
+        // A revisão vem ANTES do reenvio, de propósito: é ela que decide o que
+        // pode ser enviado nesta sessão (e o que fica trancado). Encadeado para
+        // não haver corrida entre a regravação do item e o drain.
+        revisarFilaDeOutroDono().then(() => {
+            refreshBadge();
+            if (navigator.onLine) drain();
+            else requestBackgroundSync(); // reabriu offline: re-arma o reenvio em background
+        });
     }
 }

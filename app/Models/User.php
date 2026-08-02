@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\BrowserSessions;
 use App\Support\ImageMetadata;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,7 +14,28 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
-class User extends Authenticatable
+/**
+ * Verificação de e-mail — por que `MustVerifyEmail` pode estar ligado SEM mailer.
+ *
+ * Implementar este contrato não tranca ninguém sozinho: ele só habilita o fluxo
+ * (link assinado + rotas `verification.*`). Quem de fato exige a confirmação é o
+ * middleware `verified`, que HOJE não está em rota nenhuma — ver routes/web.php.
+ *
+ * A regra que evita o desastre está em quem CRIA usuário, não aqui:
+ *
+ *  - `RegisteredUserController::store` grava `email_verified_at` no ato quando
+ *    `App\Support\Mailer::entrega()` é falso. Na fase de testes o app não tem como
+ *    confirmar endereço nenhum, então ninguém nasce trancado. No dia em que o SMTP
+ *    entrar no `.env`, o cadastro volta a deixar o campo nulo e o listener
+ *    `SendEmailVerificationNotification` (evento `Registered`) manda o link sozinho
+ *    — só o usuário NOVO precisa confirmar; quem já estava dentro segue verificado.
+ *  - `DependentController::store` grava SEMPRE: dependente não passa pelo
+ *    `/register`, ninguém lhe envia link nenhum, e deixá-lo nulo trancaria toda a
+ *    família fora do app no dia em que alguma rota ganhar `verified`.
+ *
+ * Coberto por tests/Feature/VerificacaoDeEmailTest.php.
+ */
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
@@ -87,6 +108,12 @@ class User extends Authenticatable
             'pending_email_sent_at' => 'datetime',
             'is_admin' => 'boolean',
             'terms_accepted_at' => 'datetime',
+            // Prova do aceite (LGPD art. 8º, §1º) cifrada em repouso: um dump de
+            // backup vazado não entrega o IP de ninguém. `encrypted`, NUNCA hash —
+            // hash é mão única e prova ilegível não prova nada. A coluna virou
+            // `text` na migration 2026_08_02_000200 porque o cifrado tem 200-256
+            // caracteres e ela era varchar(45).
+            'terms_accepted_ip' => 'encrypted',
         ];
     }
 

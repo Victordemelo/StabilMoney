@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\Mailer;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -58,6 +59,22 @@ class RegisteredUserController extends Controller
         // Fora do mass assignment (ver $fillable no model): quem se cadastra pelo
         // formulário é sempre titular, e isso é decisão do servidor.
         $user->is_admin = true;
+
+        // O app só pode EXIGIR confirmação de e-mail se conseguir enviá-la. Enquanto o
+        // mailer não entrega (fase de testes, MAIL_MAILER=log), o usuário nasce já
+        // verificado: exigir uma confirmação que nunca chega trancaria todo mundo fora.
+        //
+        // Isso é o que deixa a verificação PRONTA para ligar sozinha — no dia em que o
+        // SMTP entrar no `.env`, este `if` para de valer, o campo fica nulo e o link sai
+        // no `Registered` abaixo (listener SendEmailVerificationNotification, registrado
+        // pelo próprio framework). Quem se cadastrou na fase de testes continua entrando,
+        // porque foi marcado como verificado no cadastro dele.
+        //
+        // A ordem importa: marcar ANTES do evento, senão o listener manda um link inútil.
+        if (! Mailer::entrega()) {
+            $user->email_verified_at = now();
+        }
+
         $user->save();
 
         event(new Registered($user));

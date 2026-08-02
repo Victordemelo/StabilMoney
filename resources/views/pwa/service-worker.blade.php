@@ -45,9 +45,15 @@ self.addEventListener('activate', (event) => {
 // fechado (Chromium/Android). Lemos a fila do IndexedDB (a mesma do
 // offline-queue.js) e reenviamos cada lançamento. O servidor é idempotente
 // (índice único user_id+client_uuid), então coincidir com o replay da página
-// NÃO duplica. O token CSRF guardado no item trava por sessão: só "passa" na
-// sessão do dono (token de outra sessão → 419), então item de um usuário não
-// entra na conta de outro num aparelho compartilhado.
+// NÃO duplica.
+//
+// Trava por usuário (aparelho compartilhado), em duas camadas:
+//  1. o item só é reenviado se estiver ARMADO, isto é, se tiver `csrf`. Quem arma
+//     e desarma é a página (offline-queue.js): ela grava o token da sessão nos
+//     itens do usuário logado e APAGA o token dos itens de outro dono. O SW não
+//     enxerga cookie, sessão nem localStorage — é por esse sinal que ele sabe o
+//     que pode reenviar;
+//  2. o próprio token: numa sessão diferente da que o criou, o servidor responde 419.
 const SYNC_TAG = 'sm-sync-lancamentos';
 const ODB_NAME = 'sm-offline';
 const ODB_STORE = 'lancamentos';
@@ -89,13 +95,14 @@ function odbPut(item) {
 }
 
 async function flushLancamentos() {
-  // Por que aqui NÃO se filtra por usuário: o service worker não enxerga a sessão nem o
-  // localStorage, então não tem como saber quem está logado. Quem garante que a fila só
-  // contém itens do dono atual é a página, no `purgeQueueFromOtherUsers()` do
-  // offline-queue.js — ela apaga os lançamentos de outros usuários assim que alguém
-  // loga. Como segunda linha, cada item leva o CSRF da sessão que o criou: numa sessão
-  // diferente o servidor responde 419 e nada é gravado na conta errada.
-  const items = await odbAll();
+  // A página não apaga mais a fila de quem trocou de usuário — apagar destruía um
+  // lançamento que existe no mundo real e nunca chegou ao servidor. Ela SEGURA os
+  // itens do outro dono e tira o `csrf` deles. Por isso o filtro abaixo: item
+  // DESARMADO (sem csrf) não é reenviado aqui. Sem esse filtro, o Background Sync
+  // mandaria o lançamento do dono anterior na sessão de quem está logado agora e a
+  // despesa cairia na família errada.
+  const items = (await odbAll()).filter((i) => i && i.payload && i.csrf);
+
   let retry = false; // sobrou item por falha passageira → pede novo sync (backoff do navegador)
   for (const item of items) {
     if (item.failed) continue;

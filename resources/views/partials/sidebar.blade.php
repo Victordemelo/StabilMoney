@@ -9,10 +9,15 @@
         : mb_substr($partesNome[0] ?? 'U', 0, 2);
     $iniciais = mb_strtoupper($iniciais);
 
-    // Formato pt-BR com os centavos separados (o v2 põe ",dd" num <span> menor)
+    // Formato pt-BR com os centavos separados (o v2 põe ",dd" num <span> menor).
+    // O sinal sai do número e vira prefixo do "R$": a regra do app é
+    // `−R$ 150,00` (traço U+2212 antes do símbolo), nunca `R$ -150,00`.
+    // Por isso o number_format recebe o valor ABSOLUTO.
+    $patSaldo = (float) ($patrimonio['saldoTotal'] ?? 0);
     [$patInteiro, $patCentavos] = $patrimonio
-        ? explode(',', number_format($patrimonio['saldoTotal'], 2, ',', '.'))
+        ? explode(',', number_format(abs($patSaldo), 2, ',', '.'))
         : ['0', '00'];
+    $patSinal = $patSaldo < 0 ? '−' : '';
 @endphp
 <aside class="sidebar scroll" id="sidebar">
     <div class="brand">
@@ -63,7 +68,7 @@
                 <span class="sb-label">Patrimônio total</span>
                 <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18v12H3zM3 7l2-3h14l2 3M16 13h2"/></svg>
             </div>
-            <div class="sb-value {{ ($patrimonio['saldoTotal'] ?? 0) < 0 ? 'neg' : '' }}">R$ {{ $patInteiro }}<span>,{{ $patCentavos }}</span></div>
+            <div class="sb-value {{ $patSaldo < 0 ? 'neg' : '' }}">{{ $patSinal }}R$ {{ $patInteiro }}<span>,{{ $patCentavos }}</span></div>
             <div class="sb-subline {{ $patrimonio['disponivel'] < 0 ? 'neg' : '' }}">Disponível para gastar: @brl($patrimonio['disponivel'])</div>
             <div class="sb-subline">Guardado em metas: @brl($patrimonio['guardado'])</div>
             <div class="sb-subline">Investido: @brl($patrimonio['investido'])</div>

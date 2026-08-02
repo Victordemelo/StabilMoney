@@ -284,8 +284,9 @@ de fallback no `href` e como página cheia). Abre/fecha com a animação do `.mo
 AJAX (`sm/launch.js` → `transactions.store` com `Accept: json`), spinner no "Salvar", erro treme +
 banner, sucesso recarrega via `smPjaxReload`. Gera **`client_uuid`** por abertura (idempotência —
 antes o caminho mais usado do app não tinha) e trata **409** abrindo o modal de escolha de fonte.
-**Nuance:** o modal usa `fetch` direto (não passa pela fila offline do `offline-queue.js`); lançar
-**offline** ainda funciona pela página cheia `transactions.create`.
+**Offline (02/08/2026):** o modal AGORA passa pela fila (`enfileirarLancamento`) — sem rede ele nem
+tenta o POST, enfileira, e o toast diz "na fila", nunca "salvo". Antes usava `fetch` direto, então o
+caminho mais usado do app perdia o lançamento feito sem internet.
 
 **Modal "De onde sai esse dinheiro?" (global):** `partials/funding-modal.blade.php` + `sm/funding.js`,
 no shell. Consome o **409** e devolve a escolha para quem chamou — serve o modal de lançar, o
@@ -565,6 +566,53 @@ Quatro buracos do mesmo tema: **escrever dinheiro era fácil, desescrever não e
 - **`FundingService::spend` devolve `?Transaction`**: o `write` pode devolver `null` quando, já
   sob lock, descobre que não há o que gravar. Antes esse caminho de corrida era TypeError.
 
+### Rodada de pré-lançamento (02/08/2026) — não regredir
+
+Testes: `VerificacaoDeEmailTest`, `LimpezaDeSessoesTest`, `FilaOfflineNaTrocaDeUsuarioTest`,
+`DesignV2SecundariasTest`, `SinalDeDinheiroNaTelaTest`, `AporteResgateSemDataFuturaTest`.
+
+- **`MustVerifyEmail` está LIGADO, e é seguro porque ninguém nasce trancado.** Sem mailer
+  (`Mailer::entrega()` falso) o cadastro grava `email_verified_at` — **antes** do
+  `event(new Registered)`, senão o listener do framework dispara um link inútil. **Dependente
+  nasce verificado SEMPRE** (não passa pelo `/register`, ninguém lhe envia link). Uma migration
+  fez o backfill de quem já existia. **Nenhuma rota usa o middleware `verified`** — ao adicionar
+  a primeira, confira que o backfill cobre todo mundo.
+- **`terms_accepted_ip` tem cast `encrypted`** e a coluna virou `text`: o cifrado tem 200–256
+  caracteres e ela era `varchar(45)`. Em MySQL isso é erro 1406 no `/register` — e como a suíte
+  roda em **sqlite, que não aplica o limite**, ficaria verde escondendo o defeito. ⚠️ Rotacionar
+  `APP_KEY` sem `APP_PREVIOUS_KEYS` torna a prova do aceite ilegível.
+- **`SESSION_ENCRYPT=true`** (o default de `config/session.php` já era `true`; quem desligava era
+  o `.env`). Ligar/desligar invalida as sessões existentes.
+- **`php artisan sessoes:limpar`**, agendado 03:10. `session:prune` **não existe no Laravel 12** —
+  a limpeza nativa é o `gc()` por loteria (2% das requisições), e a tabela guarda IP/user-agent.
+  ⚠️ O agendador só roda com uma entrada de cron chamando `schedule:run`.
+- **Fila offline: item de outro dono é SEGURADO, nunca apagado.** Existia uma
+  `purgeQueueFromOtherUsers()` que, ao alguém logar, apagava em silêncio os lançamentos offline
+  dos outros — resolvia o vazamento destruindo dinheiro que nunca chegou ao servidor. Agora o
+  lançamento fica, o **CSRF é apagado** (é isso que impede o service worker de reenviar: ele
+  filtra por `i.csrf`), e um banner avisa, com descarte protegido por confirmação. **Não use bump
+  de versão do IndexedDB nem registro-marcador** — os dois quebram `tests/e2e/offline-lancamento.spec.js`.
+- **Aporte/resgate não aceitam data futura.** `Account::reserved` soma tudo sem olhar data (igual
+  ao `balance` — decisão D-4), então aporte futuro derrubava o disponível de HOJE e resgate futuro
+  o levantava. Barrar a entrada é a saída coerente: tornar só o `reserved` sensível à data o faria
+  discordar do `balance`.
+- **Sinal do dinheiro na tela:** `−R$ 150,00`, traço U+2212 **antes** do símbolo. Nos 4 stat cards
+  e no card Patrimônio o valor é montado à mão (o design separa "R$" e centavos em `<span>`), então
+  o sinal vive num `<span class="sign">` próprio e o `.num` anima o **valor absoluto** — senão o
+  formato "pulava" no primeiro clique do segmented, que é quando o `dashboard.js` reescreve o número.
+- **Telas secundárias de auth** (esqueci/redefinir/confirmar senha, verificar e-mail) usam
+  `layouts/auth.blade.php`. **`layouts/guest.blade.php` ficou órfão** — candidato a remoção.
+- **Bottom-nav tem teto de 4 destinos + FAB**: com 5 rótulos a barra passa de ~388px e quebra num
+  aparelho de 360px. Hoje: Início · Extrato · [FAB] · Pagar · Metas.
+- **CSP com nonce continua PENDENTE, e o motivo mudou.** O obstáculo NÃO é o pjax: `DOMParser`
+  preserva o atributo `nonce`, então o `nav.js` consegue re-carimbar seletivamente (XSS armazenado
+  não tem nonce, não casa, não executa). ⚠️ No documento já ativo o navegador esconde o nonce do
+  atributo — leia `elemento.nonce`, nunca `getAttribute('nonce')`. O que falta é carimbar **9 views
+  com script inline**, uma delas (`partials/cookie-consent`) presente em 100% das páginas. `style-src`
+  fica com `'unsafe-inline'`: são 71 atributos `style="..."` e **nonce não existe para atributo de estilo**.
+- **`same_site=strict` foi DESCARTADO**: o cookie não viaja em navegação vinda de fora, e é
+  exatamente isso que um link de confirmação de e-mail é. `lax` já barra requisição de estado cross-site.
+
 ### Auditoria de integridade (02/08/2026) — os 7 críticos, não regredir
 
 Testes: `GuardsDeEdicaoNoHistoricoTest`, `ExclusaoComDividaTest`, `FaturaAtrasadaTest`,
@@ -708,15 +756,11 @@ dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypt
   `storage` no header.
 - **`config/filesystems.php`:** `'serve' => false` no disco `local` (o default `true` registra
   `GET|PUT /storage/{path}` fora de auth; não é explorável, mas é superfície morta).
-- **`docs/checklist-de-publicacao.md`** — 16 itens de deploy priorizados, com o "por quê" e o
+- **`docs/checklist-de-publicacao.md`** — 17 itens de deploy priorizados, com o "por quê" e o
   valor de config de cada um. **Consulte antes de publicar.**
 
-**Pendências (não são código — infra ou decisão):** avatares ainda no disco `public` sem auth
-(o EXIF já sai; falta rota autenticada + migrar arquivos); IndexedDB não é limpo na troca de
-usuário no cliente; **verificação de e-mail bloqueada por `MAIL_MAILER=log`** — ativar
-`MustVerifyEmail` sem mailer trancaria todos fora do app, e é o mesmo bloqueio que faz a
-**recuperação de senha não funcionar hoje**; `is_admin`/`account_owner_id` em `$fillable` (sem
-sink hoje); revisão jurídica dos documentos legais. Detalhes e passo a passo no checklist.
+**Pendências (não são código — infra ou decisão):** **credenciais SMTP** (`MAIL_MAILER=log` ainda);
+CSP com nonce (ver abaixo); revisão jurídica dos documentos legais. Detalhes no checklist.
 
 ---
 
