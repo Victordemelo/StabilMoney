@@ -1,3 +1,10 @@
+@php
+    // Consentimento informado: o que fica pendente no mundo real quando a conta
+    // some. A MESMA regra roda no servidor (ProfileController::pendenciasDe,
+    // que exige o aceite quando `tem` é true) — aqui é só a exibição.
+    $pendencias = \App\Http\Controllers\ProfileController::pendenciasDe($user ?? auth()->user());
+@endphp
+
 {{-- Card "Excluir conta": ação destrutiva com confirmação por senha em modal --}}
 <div class="card-head">
     <h3>Excluir conta</h3>
@@ -33,6 +40,45 @@
         <form method="POST" action="{{ route('profile.destroy') }}" class="grid gap-4">
             @csrf
             @method('delete')
+
+            {{-- Pendências financeiras: aparecem ANTES da senha, porque é o que
+                 pode fazer a pessoa desistir. Não bloqueiam a exclusão (ver o
+                 porquê em ProfileController::pendenciasDe) — mas passam a exigir
+                 um segundo aceite, validado no servidor. --}}
+            @if ($pendencias['tem'])
+                <div class="flash-error" style="margin-bottom: 0;" role="alert">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M12 9v4.5M12 17h.01"/><path d="M10.3 3.9 2.4 17.1A2 2 0 0 0 4.1 20h15.8a2 2 0 0 0 1.7-2.9L13.7 3.9a2 2 0 0 0-3.4 0Z"/>
+                    </svg>
+                    <div>
+                        <strong>Estas pendências continuam existindo depois da exclusão:</strong>
+                        <ul style="margin-top: 6px;">
+                            @foreach ($pendencias['contasNegativas'] as $conta)
+                                <li>{{ $conta['nome'] }}: saldo em conta de @brl($conta['valor'])</li>
+                            @endforeach
+                            @foreach ($pendencias['faturas'] as $cartao)
+                                <li>{{ $cartao['nome'] }}: @brl($cartao['valor']) de fatura em aberto</li>
+                            @endforeach
+                            @foreach ($pendencias['contasFixas'] as $fixa)
+                                <li>{{ $fixa['nome'] }}: @brl($fixa['valor']) vencidos em {{ $fixa['vencimento']->format('d/m/Y') }}</li>
+                            @endforeach
+                        </ul>
+                        <p style="margin-top: 8px; font-weight: 500;">
+                            Apagar a conta apaga só os seus registros aqui. O que você deve ao
+                            banco, ao cartão ou a quem cobra a conta fixa continua igual.
+                        </p>
+                    </div>
+                </div>
+
+                <label class="check" style="align-items: flex-start;">
+                    <input type="checkbox" id="confirmo_pendencias" name="confirmo_pendencias" value="1" required />
+                    <span class="box" style="margin-top: 1px;"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
+                    <span>Entendi que apagar minha conta não quita nada disso.</span>
+                </label>
+                @error('confirmo_pendencias', 'userDeletion')
+                    <p class="field-error" style="margin-top: -10px;">{{ $message }}</p>
+                @enderror
+            @endif
 
             {{-- Senha de confirmação --}}
             <div class="field">

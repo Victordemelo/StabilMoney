@@ -41,13 +41,30 @@ class SecurityHeaders
     }
 
     /**
-     * Monta a política. `'unsafe-inline'` em script-src é uma concessão consciente:
-     * o app usa scripts inline (anti-flash de tema, dados de view) e o `nav.js` recria
-     * `<script>` do conteúdo carregado por pjax. Trocar por nonce exigiria refatorar
-     * essas três coisas — fica para depois. Mesmo com `unsafe-inline`, a política já
-     * entrega o que importa contra exfiltração: `connect-src`/`img-src` restritos à
-     * própria origem, `frame-ancestors 'none'` (clickjacking), `object-src 'none'`,
-     * `base-uri` e `form-action` travados.
+     * Monta a política.
+     *
+     * ## Por que `script-src` ainda tem `'unsafe-inline'` (e não nonce)
+     *
+     * Avaliado em 02/08/2026 e adiado com motivo concreto, não por preguiça: **com o
+     * pjax atual, nonce quebra o app ou vira teatro**. O `nav.js::runScripts()` recria os
+     * `<script>` inline do HTML carregado por fetch, copiando os atributos. Só que:
+     *
+     *  - o HTML novo chega com o nonce da requisição DELE (N2), enquanto a CSP que vale
+     *    é a do documento aberto (N1) → o script recriado é **bloqueado**, e toda tela
+     *    navegada por pjax perde seus scripts inline;
+     *  - "resolver" fazendo o `nav.js` carimbar o nonce atual (N1) seria pior que hoje:
+     *    ele daria nonce VÁLIDO a qualquer `<script>` presente no HTML recebido —
+     *    inclusive a um XSS armazenado, que hoje não executa justamente por não ter
+     *    nonce. Trocaríamos proteção real por uma sensação de proteção.
+     *
+     * O caminho certo é **eliminar os scripts inline do conteúdo** (hoje 12 blocos),
+     * migrando-os para módulos que o `initContent()` do `app.js` já reinicia após o pjax.
+     * O anti-flash de tema é a única exceção legítima — roda antes do primeiro paint —,
+     * e para ele um hash SHA-256 na política resolve, já que o conteúdo é fixo.
+     *
+     * Enquanto isso, a política entrega o que importa contra exfiltração:
+     * `connect-src`/`img-src` restritos à própria origem, `frame-ancestors 'none'`
+     * (clickjacking), `object-src 'none'`, `base-uri` e `form-action` travados.
      */
     protected function csp(): string
     {

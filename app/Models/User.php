@@ -31,13 +31,28 @@ class User extends Authenticatable
         'avatar_path',
         'password',
         'password_changed_at',
-        'is_admin',
-        'account_owner_id',
+        // ATENÇÃO: `is_admin` e `account_owner_id` NÃO entram aqui de propósito.
+        // São os dois campos que definem PRIVILÉGIO (titular × dependente) e a que
+        // família a pessoa pertence. Hoje nenhum caminho HTTP os preenche, mas
+        // bastaria um `$user->update($request->all())` futuro para virar escalada de
+        // privilégio ou sequestro de família. Quem os grava faz isso explicitamente:
+        // RegisteredUserController::store e DependentController::store.
         'relationship',
+        // `pending_email` fica FORA: quem o define é o ProfileController, depois de
+        // exigir a senha atual. Nunca vem direto de um formulário.
         'terms_accepted_at',
         'terms_version',
         'terms_accepted_ip',
     ];
+
+    /**
+     * Disco onde a foto de perfil é guardada.
+     *
+     * `local` (privado), NÃO `public`: o avatar sai só pela rota `avatar.show`, que
+     * exige sessão e valida a família. No disco público ele era servido pelo symlink
+     * sem passar pelo Laravel — quem tivesse a URL via a foto para sempre.
+     */
+    public const AVATAR_DISK = 'local';
 
     /** Graus de parentesco de um dependente (valor no banco => rótulo PT-BR). */
     public const RELATIONSHIPS = [
@@ -69,6 +84,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'password_changed_at' => 'datetime',
+            'pending_email_sent_at' => 'datetime',
             'is_admin' => 'boolean',
             'terms_accepted_at' => 'datetime',
         ];
@@ -101,9 +117,14 @@ class User extends Authenticatable
     /** Apaga o arquivo da foto de perfil do disco (não mexe na coluna). */
     public function purgeStoredAvatar(): void
     {
-        if ($this->avatar_path) {
-            Storage::disk('public')->delete($this->avatar_path);
+        if (! $this->avatar_path) {
+            return;
         }
+
+        Storage::disk(self::AVATAR_DISK)->delete($this->avatar_path);
+        // Também no disco antigo: contas criadas antes da mudança para o disco privado
+        // têm o arquivo lá, e excluir a conta precisa levar os dois.
+        Storage::disk('public')->delete($this->avatar_path);
     }
 
     /**
@@ -123,7 +144,7 @@ class User extends Authenticatable
         $limpo = ImageMetadata::strip((string) file_get_contents($arquivo->getRealPath()));
         $caminho = 'avatars/'.Str::random(40).'.'.$arquivo->extension();
 
-        Storage::disk('public')->put($caminho, $limpo);
+        Storage::disk(self::AVATAR_DISK)->put($caminho, $limpo);
 
         $this->avatar_path = $caminho;
     }
@@ -188,9 +209,43 @@ class User extends Authenticatable
         return self::RELATIONSHIPS[$this->relationship] ?? null;
     }
 
-    /** URL pública da foto de perfil (ou null se não houver — a view cai nas iniciais). */
+    /** Há um e-mail novo esperando confirmação no próprio endereço novo? */
+    public function temEmailPendente(): bool
+    {
+        return $this->pending_email !== null;
+    }
+
+    /**
+     * Envia ao ENDEREÇO NOVO o link que confirma a troca.
+     *
+     * A URL é assinada e expira: quem não tiver acesso à caixa nova não confirma, que é
+     * exatamente o ponto. O link vai para `pending_email`, não para o e-mail atual.
+     */
+    public function sendPendingEmailVerification(): void
+    {
+        if (! $this->temEmailPendente()) {
+            return;
+        }
+
+        $url = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+            'profile.email.confirm',
+            now()->addHours(2),
+            ['user' => $this->getKey(), 'hash' => sha1($this->pending_email)],
+        );
+
+        \Illuminate\Support\Facades\Mail::to($this->pending_email)
+            ->send(new \App\Mail\ConfirmarNovoEmail($this, $this->pending_email, $url));
+    }
+
+    /**
+     * URL da foto de perfil (ou null se não houver — a view cai nas iniciais).
+     *
+     * Aponta para uma ROTA AUTENTICADA, não para o arquivo: quem não estiver logado na
+     * mesma família recebe 403. Continua sendo um `<img src>` normal do ponto de vista
+     * da view — o navegador manda o cookie de sessão junto.
+     */
     public function avatarUrl(): ?string
     {
-        return $this->avatar_path ? Storage::disk('public')->url($this->avatar_path) : null;
+        return $this->avatar_path ? route('avatar.show', $this) : null;
     }
 }

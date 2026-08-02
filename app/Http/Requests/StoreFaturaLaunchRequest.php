@@ -50,7 +50,10 @@ class StoreFaturaLaunchRequest extends FormRequest
             // Sem isto, um duplo clique num parcelado em 12x criava 24 linhas.
             'client_uuid' => ['nullable', 'uuid'],
             'description' => ['required', 'string', 'max:255'],
-            'amount' => ['required', 'numeric', 'min:0.01', 'max:9999999999999.99'],
+            // Travas do campo de dinheiro (decimal:0,2 + teto seguro) no trait:
+            // `numeric` sozinho aceitava "1e12" e a terceira casa decimal — e
+            // aqui o estrago é multiplicado pelas parcelas.
+            'amount' => $this->regrasDeDinheiro(),
             'date' => [
                 'required',
                 'date',
@@ -150,8 +153,9 @@ class StoreFaturaLaunchRequest extends FormRequest
             'description.max' => 'A descrição pode ter no máximo 255 caracteres.',
             'amount.required' => 'Informe o valor da despesa.',
             'amount.numeric' => 'O valor deve ser um número. Use vírgula para os centavos, ex.: 25,90.',
+            'amount.decimal' => 'Use no máximo duas casas decimais, ex.: 25,90.',
             'amount.min' => 'O valor mínimo é R$ 0,01.',
-            'amount.max' => 'O valor informado é alto demais.',
+            'amount.max' => 'O valor informado é alto demais (o máximo é R$ 999.999.999.999,99).',
             'date.required' => 'Informe a data da despesa.',
             'date.date' => 'Data inválida.',
             'date.after_or_equal' => 'A data deve ser a partir de 01/01/2000.',

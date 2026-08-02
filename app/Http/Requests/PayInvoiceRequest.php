@@ -14,13 +14,27 @@ use Illuminate\Validation\Rule;
  * e a DATA DO PAGAMENTO é informável: quitar uma fatura em atraso registra o
  * dia em que o dinheiro saiu, não o dia do clique.
  *
- * A posse do cartão é verificada pela AccountPolicy no controller.
+ * A posse do cartão é verificada aqui E pela AccountPolicy no controller (defesa em
+ * profundidade — ver o `authorize()` abaixo).
  */
 class PayInvoiceRequest extends FormRequest
 {
+    /**
+     * Posse do cartão ANTES da validação.
+     *
+     * Sem isto, quem tentasse pagar a fatura de outra família era barrado pelo FK da
+     * conta de pagamento — 302 com erro de validação em vez de 403. Funcionava, mas por
+     * efeito colateral da ordem dos middlewares, e a mensagem contava mais do que devia.
+     */
     public function authorize(): bool
     {
-        return true;
+        $cartao = $this->route('account');
+
+        if (! $cartao instanceof \App\Models\Account) {
+            return false;
+        }
+
+        return $cartao->user_id === $this->user()?->ownerId();
     }
 
     public function rules(): array
@@ -84,6 +98,7 @@ class PayInvoiceRequest extends FormRequest
         return [
             'pay_account_id' => 'conta de pagamento',
             'paid_on' => 'data do pagamento',
+            'ciclo' => 'fatura',
         ];
     }
 
@@ -95,6 +110,7 @@ class PayInvoiceRequest extends FormRequest
             'paid_on.date' => 'Data de pagamento inválida.',
             'paid_on.before_or_equal' => 'A data do pagamento não pode ser no futuro.',
             'paid_on.after_or_equal' => 'A data do pagamento não pode ser anterior à compra mais antiga da fatura.',
+            'ciclo.in' => 'Escolha qual fatura pagar: a do ciclo aberto ou a que já fechou.',
             'funding_source.in' => 'Escolha de onde sai o dinheiro é inválida.',
             'funding_investment_id.required_if' => 'Escolha de qual investimento resgatar.',
             'funding_investment_id.exists' => 'O investimento escolhido não existe ou não é da sua família.',

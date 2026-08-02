@@ -7,7 +7,9 @@ use App\Http\Requests\StoreInvestmentRequest;
 use App\Http\Requests\UpdateInvestmentRequest;
 use App\Models\Account;
 use App\Models\Investment;
+use App\Models\InvestmentContribution;
 use App\Models\User;
+use App\Support\Brl;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -119,12 +121,81 @@ class InvestmentController extends Controller
     {
         $this->authorize('delete', $investimento);
 
+        if ($erro = $this->travaDeExclusaoComContaNoVermelho($investimento)) {
+            return back()->withErrors(['investimento' => $erro]);
+        }
+
         // As contributions caem junto (cascadeOnDelete) — o dinheiro volta a ficar
         // disponível nas contas, já que deixa de estar reservado.
         $investimento->delete();
 
         return redirect()->route('investimentos.index')
             ->with('status', 'Investimento removido.');
+    }
+
+    /**
+     * Trava de INTENÇÃO E AUDITORIA — não de criação de dinheiro.
+     *
+     * Excluir o investimento e resgatá-lo por inteiro têm efeito IDÊNTICO sobre
+     * o disponível da conta: os dois derrubam o `reserved` dela no mesmo valor.
+     * Nenhum dos dois inventa dinheiro, e não é isso que estamos evitando.
+     *
+     * O que a exclusão destrói é o REGISTRO. Sai de cena a linha de resgate que
+     * diria "foi o CDB que cobriu o cheque especial", e some com ela a única
+     * pista de como aquele saldo negativo virou positivo. Somado a isso,
+     * "excluir" é um caminho ACIDENTAL: quem clica ali está limpando uma lista,
+     * não decidindo quitar dívida com a poupança. Então, quando há dinheiro
+     * aplicado E a conta de origem está no vermelho, exigimos o caminho
+     * explícito (resgatar), que deixa rastro.
+     *
+     * Investimento vazio, ou contas todas no azul: nada a proteger — libera.
+     *
+     * Devolve a mensagem PT-BR do bloqueio, ou null quando pode excluir.
+     */
+    private function travaDeExclusaoComContaNoVermelho(Investment $investimento): ?string
+    {
+        // Nada aplicado: excluir não mexe no disponível de conta nenhuma.
+        if ($investimento->aplicado <= 0.001) {
+            return null;
+        }
+
+        // Quanto CADA conta ainda tem aplicado aqui (aportes − resgates), numa
+        // query só. Conta que já resgatou tudo não é afetada pela exclusão.
+        $reservadoPorConta = InvestmentContribution::where('investment_id', $investimento->id)
+            ->groupBy('account_id')
+            ->selectRaw('account_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'aporte' THEN amount ELSE -amount END), 0) AS total")
+            ->pluck('total', 'account_id')
+            ->filter(fn ($total) => (float) $total > 0.001);
+
+        if ($reservadoPorConta->isEmpty()) {
+            return null;
+        }
+
+        // Escopado na família do próprio investimento: um dado cruzado jamais
+        // pode fazer a mensagem de erro citar o nome da conta de outra pessoa.
+        $contas = Account::where('user_id', $investimento->user_id)
+            ->whereIn('id', $reservadoPorConta->keys())
+            ->orderBy('name')
+            ->get();
+
+        // Sem isto seriam ~6 queries POR conta dentro do laço abaixo
+        // (regra do CLAUDE.md: nunca ler available/reserved iterando).
+        Account::preloadMoney($contas);
+
+        $negativa = $contas->first(fn (Account $conta) => $conta->available < -0.001);
+
+        if (! $negativa) {
+            return null;
+        }
+
+        $aplicadoDela = (float) $reservadoPorConta->get($negativa->id, 0);
+
+        return 'A conta “' . $negativa->name . '” está em ' . Brl::format($negativa->available)
+            . ' e este investimento tem ' . Brl::format($aplicadoDela) . ' aplicados a partir dela. '
+            . 'Excluir aqui zeraria esse saldo negativo em silêncio, sem deixar registrado que foi '
+            . 'a aplicação que o cobriu. Faça um resgate para a conta “' . $negativa->name . '” '
+            . '(aí fica gravado de onde saiu o dinheiro) ou deixe o saldo dela positivo antes de excluir.';
     }
 
     /**

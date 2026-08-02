@@ -44,10 +44,9 @@ class WithdrawInvestmentContributionRequest extends FormRequest
 
         return [
             'amount' => [
-                'required',
-                'numeric',
-                'min:0.01',
-                'max:9999999999999.99',
+                // Travas padrão do campo de dinheiro (inclui `decimal:0,2`, que é o
+                // que barra "1e12" e a terceira casa decimal) + o teto seguro.
+                ...$this->regrasDeDinheiro(),
                 // Não pode resgatar mais do que ESTA conta aplicou no ativo
                 // (o recheque final, sob lock, está em HandlesContributions).
                 function (string $attribute, mixed $value, Closure $fail) use ($userId) {
@@ -107,8 +106,9 @@ class WithdrawInvestmentContributionRequest extends FormRequest
         return [
             'amount.required' => 'Informe o valor do resgate.',
             'amount.numeric' => 'O valor deve ser um número. Use vírgula para os centavos, ex.: 50,00.',
+            'amount.decimal' => 'Use no máximo duas casas decimais, ex.: 50,00.',
             'amount.min' => 'O valor mínimo é R$ 0,01.',
-            'amount.max' => 'O valor informado é alto demais.',
+            'amount.max' => 'O valor informado é alto demais (o máximo é R$ 999.999.999.999,99).',
             'account_id.required' => 'Escolha a conta de destino do resgate.',
             'account_id.exists' => 'Escolha uma conta corrente ou poupança sua — cartões não guardam dinheiro.',
             'date.date' => 'Data inválida.',

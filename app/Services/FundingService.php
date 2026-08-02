@@ -104,23 +104,31 @@ class FundingService
                 );
             }
 
+            // Duas contas diferentes de propósito (ver SpendingGuard):
+            // - `faltante`  = o que o RESGATE traz para a conta terminar em zero,
+            //                 incluindo o vermelho que ela já tinha;
+            // - `doCheque`  = o cheque especial ADICIONAL que a despesa consome —
+            //                 o vermelho atual já saiu do `overdraftAvailable`, e
+            //                 contá-lo de novo recusaria despesa que cabe.
             $faltante = $this->guard->faltante($conta, $amount, $ignore);
+            $doCheque = $this->guard->chequeNecessario($conta, $amount, $ignore);
 
             if ($source === FundingSource::CHEQUE_ESPECIAL) {
                 // Numa obrigação, estourar o limite é permitido (a dívida é
                 // real); num gasto novo, não.
                 // Com `$ignore` (edição de despesa), o teto precisa refletir o cenário
                 // sem a linha antiga — igual ao time-of-check do SpendingGuard.
-                if (! $obrigacao && $faltante > $conta->overdraftAvailableWith($ignore) + SpendingGuard::EPSILON) {
+                if (! $obrigacao && $doCheque > $conta->overdraftAvailableWith($ignore) + SpendingGuard::EPSILON) {
                     throw ValidationException::withMessages([
-                        'amount' => 'Não dá: faltam ' . Brl::format($faltante)
+                        'amount' => 'Não dá: faltam ' . Brl::format($doCheque)
                             . ' e o cheque especial disponível é ' . Brl::format($conta->overdraftAvailableWith($ignore)) . '.',
                     ]);
                 }
 
                 return $write([
                     'funding_source' => FundingSource::CHEQUE_ESPECIAL,
-                    'funding_amount' => $faltante,
+                    // Auditoria: quanto de cheque especial ESTA despesa passou a usar.
+                    'funding_amount' => $doCheque,
                 ]);
             }
 
@@ -138,6 +146,10 @@ class FundingService
      * Resgata do investimento o que FALTA (não o total da despesa) e só então
      * grava a despesa — nesta ordem, para o disponível já estar reposto.
      * O piso de R$ 0,00 do investido é garantido pelo recheque sob lock.
+     *
+     * "O que falta" inclui o vermelho que a conta já tinha (`SpendingGuard::faltante`):
+     * é o que faz o disponível terminar em zero, como o modal promete. Com o
+     * clamp antigo a conta saía do resgate ainda negativa.
      */
     private function comResgate(
         Account $conta,
@@ -170,10 +182,14 @@ class FundingService
         $resgatavel = $this->guard->resgatavelDe($conta, $investimento);
 
         if ($faltante > $resgatavel + SpendingGuard::EPSILON) {
+            // A mensagem tem de apontar a SAÍDA: só dizer "não cobre" para quem
+            // tem dinheiro aplicado de sobra (só que espalhado em vários
+            // investimentos) é o beco sem saída que esta rodada veio fechar.
             throw ValidationException::withMessages([
                 'funding_investment_id' => 'O investimento ' . $investimento->name . ' tem só '
                     . Brl::format($resgatavel) . ' aplicados a partir desta conta — não cobre '
-                    . Brl::format($faltante) . '.',
+                    . Brl::format($faltante) . '. O resgate sai de um investimento por vez: '
+                    . 'escolha outro, ou resgate mais de um em Investimentos e lance a despesa depois.',
             ]);
         }
 

@@ -733,9 +733,29 @@ class Account extends Model
     }
 
     /**
-     * Ciclo imediatamente ANTERIOR ao aberto — a fatura que já fechou e deveria
-     * ter sido paga. Calculado a partir do startOfMonth, nunca com subMonth()
-     * sobre uma data já posicionada no dia X (estouraria mês curto).
+     * Piso da janela do "já fechado". Não é um ciclo: é uma data anterior a
+     * qualquer lançamento possível, usada como início aberto do intervalo.
+     */
+    private const INICIO_DOS_TEMPOS = '1970-01-01';
+
+    /**
+     * Janela de TUDO que já fechou e continua em aberto — não apenas o mês
+     * anterior. Vai do início dos tempos (exclusivo) até o início do ciclo
+     * aberto (inclusivo).
+     *
+     * ⚠️ Apesar do nome, isto NÃO é "um ciclo". Antes era: `[fechamento de dois
+     * meses atrás, fechamento anterior]`, exatamente um mês para trás. Com dois
+     * ou mais ciclos sem pagar (fecha dia 10, hoje 15/09, compras de 15/06 e
+     * 15/07), as compras mais antigas não caíam nem no ciclo aberto nem no
+     * fechado: sumiam de `/faturas`, sumiam do sino, não tinham caminho de
+     * pagamento — e continuavam comendo o limite para sempre, porque
+     * `committed` conta tudo que não foi pago, sem olhar data.
+     *
+     * No cartão de verdade o saldo não pago ROLA para a fatura seguinte. Esta
+     * janela é essa rolagem: a "fatura fechada" é a dívida inteira já fechada.
+     * O FIM continua sendo o início do ciclo aberto, então `dueDateForCycle()`
+     * segue devolvendo o vencimento da última fatura fechada — o vencimento que
+     * de fato interessa a quem vai pagar hoje.
      *
      * @return array{0: CarbonImmutable, 1: CarbonImmutable}|null
      */
@@ -747,17 +767,17 @@ class Account extends Model
         }
 
         [$start] = $cycle;
-        $day = max(1, (int) $this->closing_day);
 
-        return [$this->dayInMonth($start->startOfMonth()->subMonth(), $day), $start];
+        return [CarbonImmutable::parse(self::INICIO_DOS_TEMPOS), $start];
     }
 
     private ?float $closedInvoiceDueCache = null;
 
     /**
-     * Fatura do ciclo JÁ FECHADO que continua sem pagamento. Sem isto, a dívida
-     * do mês anterior sumia da tela no dia em que o ciclo virava: o
-     * `openInvoiceDue` só enxerga o ciclo aberto.
+     * Fatura JÁ FECHADA que continua sem pagamento — a dívida acumulada de
+     * todos os ciclos que já viraram, não só a do mês passado (ver
+     * `closedCycle()`). Sem isto, a dívida sumia da tela no dia em que o ciclo
+     * virava: o `openInvoiceDue` só enxerga o ciclo aberto.
      */
     public function getClosedInvoiceDueAttribute(): float
     {
@@ -779,12 +799,55 @@ class Account extends Model
     }
 
     /**
-     * Fatura VENCIDA: existe dívida do ciclo fechado e o vencimento dela já
-     * passou. Null quando está tudo em dia.
+     * Vencimento da fatura fechada MAIS ANTIGA que continua sem pagamento —
+     * derivado da despesa em aberto mais antiga dentro da janela.
      *
-     * @return array{valor: float, vencimento: CarbonImmutable, diasAtraso: int}|null
+     * É esta data que responde "desde quando estou devendo?". Usar o vencimento
+     * da janela consolidada (a última fatura a fechar) dizia que uma dívida de
+     * junho estava "em dia" só porque a fatura de setembro fecha dia 10 e vence
+     * dia 20 — entre esses dois dias, três meses de atraso apareciam como zero.
+     *
+     * @param  CarbonImmutable  $fimDaJanela  o fechamento mais recente (fim do `closedCycle`)
      */
-    public function getOverdueInvoiceAttribute(): ?array
+    private function vencimentoMaisAntigoEmAberto(CarbonImmutable $fimDaJanela): ?CarbonImmutable
+    {
+        if (! $this->due_day || ! $this->closing_day) {
+            return null;
+        }
+
+        $primeira = $this->transactions()
+            ->whereNull('paid_at')
+            ->where('type', 'expense')
+            ->where('date', '<=', $fimDaJanela->toDateString())
+            ->min('date');
+
+        if (! $primeira) {
+            return null;
+        }
+
+        $data = CarbonImmutable::parse($primeira);
+        $day = max(1, (int) $this->closing_day);
+
+        // Ciclo é (start, end]: a compra pertence ao PRIMEIRO fechamento >= a data dela.
+        $fechamento = $this->dayInMonth($data, $day);
+        if ($data->greaterThan($fechamento)) {
+            $fechamento = $this->dayInMonth($data->startOfMonth()->addMonth(), $day);
+        }
+
+        return $this->dueDateForCycle($fechamento);
+    }
+
+    /**
+     * Fatura FECHADA em aberto: quanto se deve do que já fechou, quando vence e
+     * se o vencimento já passou. Null quando não há dívida fechada.
+     *
+     * É o que a tela precisa para oferecer "pagar a fatura fechada". Uma fatura
+     * que fechou dia 10 e vence dia 20 é pagável desde o dia 10 — esperar ela
+     * vencer para dar um botão seria transformar a UI em multa.
+     *
+     * @return array{valor: float, vencimento: ?CarbonImmutable, vencida: bool, diasAtraso: int}|null
+     */
+    public function getClosedInvoiceAttribute(): ?array
     {
         $valor = $this->closedInvoiceDue;
         if ($valor <= 0.001) {
@@ -792,17 +855,36 @@ class Account extends Model
         }
 
         $cycle = $this->closedCycle();
-        $vencimento = $cycle ? $this->dueDateForCycle($cycle[1]) : null;
+        $vencimento = $cycle ? $this->vencimentoMaisAntigoEmAberto($cycle[1]) : null;
         $hoje = CarbonImmutable::today();
-
-        if (! $vencimento || $vencimento->greaterThanOrEqualTo($hoje)) {
-            return null; // fechou, mas ainda está no prazo
-        }
+        $vencida = $vencimento !== null && $vencimento->lessThan($hoje);
 
         return [
             'valor' => $valor,
             'vencimento' => $vencimento,
-            'diasAtraso' => (int) $vencimento->diffInDays($hoje),
+            'vencida' => $vencida,
+            'diasAtraso' => $vencida ? (int) $vencimento->diffInDays($hoje) : 0,
+        ];
+    }
+
+    /**
+     * Fatura VENCIDA: a fatura fechada cujo vencimento já passou. Null quando
+     * está tudo em dia (ou quando fechou mas ainda está no prazo).
+     *
+     * @return array{valor: float, vencimento: CarbonImmutable, diasAtraso: int}|null
+     */
+    public function getOverdueInvoiceAttribute(): ?array
+    {
+        $fechada = $this->closedInvoice;
+
+        if (! $fechada || ! $fechada['vencida']) {
+            return null;
+        }
+
+        return [
+            'valor' => $fechada['valor'],
+            'vencimento' => $fechada['vencimento'],
+            'diasAtraso' => $fechada['diasAtraso'],
         ];
     }
 }

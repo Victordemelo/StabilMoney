@@ -136,6 +136,18 @@ class FaturaController extends Controller
             ]);
         }
 
+        // Compra de CARTÃO já quitada também não se apaga. O ramo do grupo já
+        // protegia as parcelas pagas (`whereNull('paid_at')`), mas a compra
+        // avulsa caía direto no `delete()`: a saída de caixa que pagou aquela
+        // fatura continuava lá, sem a compra que a originou — dívida apagada,
+        // dinheiro debitado, e o estorno do pagamento deixaria de reencontrar a
+        // compra. A saída correta é estornar o pagamento e só então excluir.
+        if ($this->cartaoComTudoQuitado($transaction)) {
+            return back()->withErrors([
+                'transaction' => 'Esta compra já foi paga junto com a fatura do cartão e não pode ser excluída. Use "Estornar pagamento" no cartão primeiro — a compra volta a ficar em aberto e aí sim pode ser removida.',
+            ]);
+        }
+
         $status = DB::transaction(function () use ($transaction, $funding) {
             if ($transaction->group_id) {
                 // Parcelas JÁ PAGAS não são apagadas: o pagamento delas existe no extrato
@@ -172,6 +184,32 @@ class FaturaController extends Controller
     }
 
     /**
+     * A exclusão não tem mais nada a apagar porque está tudo quitado no cartão?
+     *
+     * Vale para a compra avulsa (ela mesma paga) e para o parcelado cujas
+     * parcelas já foram todas pagas — neste último, o `whereNull('paid_at')` do
+     * `destroy` apagaria zero linhas e ainda anunciaria "Parcelas em aberto
+     * removidas (0)". Fora do cartão o caso é outro: em conta corrente a despesa
+     * já descontou do saldo no lançamento, `paid_at` ali é só registro, e apagar
+     * devolve o dinheiro corretamente.
+     */
+    private function cartaoComTudoQuitado(Transaction $transaction): bool
+    {
+        if ($transaction->account?->type !== 'credit_card') {
+            return false;
+        }
+
+        if ($transaction->group_id) {
+            return ! Transaction::where('user_id', $transaction->user_id)
+                ->where('group_id', $transaction->group_id)
+                ->whereNull('paid_at')
+                ->exists();
+        }
+
+        return $transaction->paid_at !== null || $transaction->settled_by_id !== null;
+    }
+
+    /**
      * Marca a fatura EM ABERTO de um cartão de crédito como paga: as despesas
      * não pagas do ciclo ganham `paid_at`, e uma despesa do valor total é criada
      * na conta de caixa escolhida (corrente/poupança) — é o que DESCONTA do saldo.
@@ -189,11 +227,15 @@ class FaturaController extends Controller
         // e registrar o dia certo). Default: hoje.
         $pagoEm = CarbonImmutable::parse($data['paid_on'] ?? now()->toDateString());
 
-        // Qual fatura pagar: a do ciclo ABERTO (padrão) ou a do ciclo já FECHADO.
+        // Qual fatura pagar: a do ciclo ABERTO (padrão) ou TUDO que já fechou.
         //
         // A fatura fechada e vencida não tinha caminho de pagamento nenhum: `payInvoice`
         // só conhecia `billingCycle()`, então respondia "já estava quitada" e a dívida
         // ficava impagável — comendo o limite do cartão para sempre.
+        //
+        // `closedCycle()` hoje devolve a janela do que já fechou INTEIRA (ver o
+        // model): com dois ou três ciclos sem pagar, um pagamento quita a dívida
+        // acumulada, como a fatura de verdade — em que o saldo rola de mês a mês.
         $cycle = ($data['ciclo'] ?? 'aberto') === 'fechado'
             ? $account->closedCycle()
             : $account->billingCycle();

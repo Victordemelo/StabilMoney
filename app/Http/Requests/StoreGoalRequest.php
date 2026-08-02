@@ -41,7 +41,7 @@ class StoreGoalRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:80'],
-            'target_amount' => ['required', 'numeric', 'min:0.01', 'max:9999999999999.99'],
+            'target_amount' => $this->regrasDeDinheiro(),
             'target_date' => [
                 'nullable',
                 'date',
@@ -71,8 +71,9 @@ class StoreGoalRequest extends FormRequest
             'name.max' => 'O nome pode ter no máximo 80 caracteres.',
             'target_amount.required' => 'Informe o valor-alvo da meta.',
             'target_amount.numeric' => 'O valor-alvo deve ser um número. Use vírgula para os centavos, ex.: 1.500,00.',
+            'target_amount.decimal' => 'Use no máximo duas casas decimais, ex.: 1.500,00.',
             'target_amount.min' => 'O valor-alvo mínimo é R$ 0,01.',
-            'target_amount.max' => 'O valor-alvo informado é alto demais.',
+            'target_amount.max' => 'O valor-alvo informado é alto demais (o máximo é R$ 999.999.999.999,99).',
             'target_date.date' => 'Data-alvo inválida.',
             'target_date.after_or_equal' => 'A data-alvo deve ser de hoje em diante.',
             'target_date.before_or_equal' => 'A data-alvo está longe demais no futuro.',

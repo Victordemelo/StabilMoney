@@ -36,10 +36,9 @@ class StoreGoalContributionRequest extends FormRequest
 
         return [
             'amount' => [
-                'required',
-                'numeric',
-                'min:0.01',
-                'max:9999999999999.99',
+                // Travas padrão do campo de dinheiro (inclui `decimal:0,2`, que é o
+                // que barra "1e12" e a terceira casa decimal) + o teto seguro.
+                ...$this->regrasDeDinheiro(),
                 // Não pode aportar mais do que está disponível na conta de origem.
                 function (string $attribute, mixed $value, Closure $fail) use ($userId) {
                     $account = Account::where('id', $this->input('account_id'))
@@ -89,8 +88,9 @@ class StoreGoalContributionRequest extends FormRequest
         return [
             'amount.required' => 'Informe o valor do aporte.',
             'amount.numeric' => 'O valor deve ser um número. Use vírgula para os centavos, ex.: 50,00.',
+            'amount.decimal' => 'Use no máximo duas casas decimais, ex.: 50,00.',
             'amount.min' => 'O valor mínimo é R$ 0,01.',
-            'amount.max' => 'O valor informado é alto demais.',
+            'amount.max' => 'O valor informado é alto demais (o máximo é R$ 999.999.999.999,99).',
             'account_id.required' => 'Escolha a conta de origem do aporte.',
             'account_id.exists' => 'Escolha uma conta corrente ou poupança sua — cartões não guardam dinheiro.',
             'date.date' => 'Data inválida.',

@@ -186,7 +186,8 @@ class FamilyAccountTest extends TestCase
 
     public function test_titular_adds_dependent_with_photo(): void
     {
-        Storage::fake('public');
+        // Avatar no disco privado — ver AvatarPrivadoTest.
+        Storage::fake(\App\Models\User::AVATAR_DISK);
         $titular = User::factory()->create();
 
         $this->actingAs($titular)->post('/dependentes', [
@@ -198,7 +199,7 @@ class FamilyAccountTest extends TestCase
         $dependent = User::where('email', 'bia@familia.test')->first();
         $this->assertNotNull($dependent);
         $this->assertNotNull($dependent->avatar_path);
-        Storage::disk('public')->assertExists($dependent->avatar_path);
+        Storage::disk(\App\Models\User::AVATAR_DISK)->assertExists($dependent->avatar_path);
     }
 
     public function test_dependent_relationship_is_saved_and_shown(): void

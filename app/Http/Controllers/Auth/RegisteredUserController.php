@@ -48,13 +48,17 @@ class RegisteredUserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'is_admin' => true,
             // Prova do aceite (LGPD art. 8º, §1º): quando, qual versão do documento
             // e de qual IP. Sem isso não há como comprovar o consentimento depois.
             'terms_accepted_at' => now(),
             'terms_version' => config('legal.version'),
             'terms_accepted_ip' => $request->ip(),
         ]);
+
+        // Fora do mass assignment (ver $fillable no model): quem se cadastra pelo
+        // formulário é sempre titular, e isso é decisão do servidor.
+        $user->is_admin = true;
+        $user->save();
 
         event(new Registered($user));
 

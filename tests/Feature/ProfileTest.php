@@ -14,7 +14,9 @@ class ProfileTest extends TestCase
 
     public function test_avatar_can_be_uploaded(): void
     {
-        Storage::fake('public');
+        // Avatar vive no disco PRIVADO (User::AVATAR_DISK): ele sai só pela rota
+        // autenticada `avatar.show`, nunca pelo symlink público.
+        Storage::fake(\App\Models\User::AVATAR_DISK);
         $user = User::factory()->create();
 
         $this->actingAs($user)->patch('/meu-perfil', [
@@ -25,7 +27,7 @@ class ProfileTest extends TestCase
 
         $user->refresh();
         $this->assertNotNull($user->avatar_path);
-        Storage::disk('public')->assertExists($user->avatar_path);
+        Storage::disk(\App\Models\User::AVATAR_DISK)->assertExists($user->avatar_path);
     }
 
     public function test_profile_page_is_displayed(): void
@@ -58,9 +60,14 @@ class ProfileTest extends TestCase
         $user->refresh();
 
         $this->assertSame('Test User', $user->name);
-        $this->assertSame('test@example.com', $user->email);
         $this->assertSame('(11) 98888-7777', $user->phone);
-        $this->assertNull($user->email_verified_at);
+
+        // O e-mail NÃO troca na hora quando o app consegue enviar e-mail: ele fica
+        // pendente até ser confirmado no próprio endereço novo. A senha atual prova que
+        // é você, mas não prova que o endereço digitado é seu — e é o e-mail que
+        // recupera a conta. Ver TrocaDeEmailConfirmadaTest.
+        $this->assertSame('test@example.com', $user->pending_email);
+        $this->assertNotSame('test@example.com', $user->email, 'A troca valeu sem confirmação.');
     }
 
     public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged(): void

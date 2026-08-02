@@ -63,17 +63,20 @@ class StoreAccountRequest extends FormRequest
             'bank' => ['required', Rule::in(array_keys(Account::BANKS))],
 
             // Saldo inicial: obrigatório p/ conta corrente/poupança; ausente nos cartões.
+            // As travas do campo de dinheiro (decimal:0,2 + teto seguro) vêm do
+            // trait — `numeric` sozinho aceitava "1e12" e a terceira casa decimal,
+            // e um saldo inicial errado contamina TODO o cálculo de dinheiro da conta.
             'initial_balance' => $isAccount
-                ? ['required', 'numeric', 'min:0', 'max:9999999999999.99']
-                : ['nullable', 'numeric'],
+                ? $this->regrasDeDinheiro(min: '0')
+                : $this->regrasDeDinheiro(obrigatorio: false, min: '0'),
 
             // Cheque especial: quanto o saldo pode ficar negativo nesta conta.
-            'overdraft_limit' => ['nullable', 'numeric', 'min:0', 'max:9999999999999.99'],
+            'overdraft_limit' => $this->regrasDeDinheiro(obrigatorio: false, min: '0'),
 
             // Cartão de crédito: limite + dias.
             'credit_limit' => $isCredit
-                ? ['required', 'numeric', 'min:0.01', 'max:9999999999999.99']
-                : ['nullable', 'numeric'],
+                ? $this->regrasDeDinheiro()
+                : $this->regrasDeDinheiro(obrigatorio: false, min: '0'),
             'closing_day' => $isCredit ? ['required', 'integer', 'between:1,28'] : ['nullable', 'integer'],
             'due_day' => $isCredit ? ['required', 'integer', 'between:1,28'] : ['nullable', 'integer'],
 
@@ -123,15 +126,18 @@ class StoreAccountRequest extends FormRequest
             'bank.in' => 'Banco inválido.',
             'initial_balance.required' => 'Informe o saldo inicial (pode ser 0,00).',
             'initial_balance.numeric' => 'O saldo inicial deve ser um número. Use vírgula para os centavos, ex.: 150,00.',
+            'initial_balance.decimal' => 'Use no máximo duas casas decimais no saldo inicial, ex.: 150,00.',
             'initial_balance.min' => 'O saldo inicial não pode ser negativo.',
-            'initial_balance.max' => 'O saldo inicial informado é alto demais.',
+            'initial_balance.max' => 'O saldo inicial informado é alto demais (o máximo é R$ 999.999.999.999,99).',
             'overdraft_limit.numeric' => 'O limite do cheque especial deve ser um número. Use vírgula para os centavos, ex.: 2.500,00.',
+            'overdraft_limit.decimal' => 'Use no máximo duas casas decimais no limite do cheque especial, ex.: 2.500,00.',
             'overdraft_limit.min' => 'O limite do cheque especial não pode ser negativo.',
-            'overdraft_limit.max' => 'O limite do cheque especial informado é alto demais.',
+            'overdraft_limit.max' => 'O limite do cheque especial informado é alto demais (o máximo é R$ 999.999.999.999,99).',
             'credit_limit.required' => 'Informe o limite do cartão.',
             'credit_limit.numeric' => 'O limite deve ser um número. Use vírgula para os centavos, ex.: 5.000,00.',
+            'credit_limit.decimal' => 'Use no máximo duas casas decimais no limite do cartão, ex.: 5.000,00.',
             'credit_limit.min' => 'O limite do cartão deve ser maior que zero.',
-            'credit_limit.max' => 'O limite informado é alto demais.',
+            'credit_limit.max' => 'O limite informado é alto demais (o máximo é R$ 999.999.999.999,99).',
             'closing_day.required' => 'Informe o dia de fechamento da fatura.',
             'closing_day.between' => 'O dia de fechamento deve ser entre 1 e 28.',
             'due_day.required' => 'Informe o dia de vencimento da fatura.',

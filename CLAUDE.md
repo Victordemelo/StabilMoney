@@ -461,8 +461,22 @@ o servidor responde **409** e o usuário escolhe. Enquanto não escolher, nada �
    (`partials/funding-modal.blade.php`, no shell) e resolve com a escolha.
 4. Front **reenvia o mesmo payload** + `funding_source` (+ `funding_investment_id`), com o
    **mesmo `client_uuid`** — por isso não duplica.
-5. `resgate_investimento` resgata só o **FALTANTE** (`amount − max(0, disponível)`), não o total,
-   e a despesa + o resgate nascem na mesma transação de banco.
+5. `resgate_investimento` resgata só o **FALTANTE**, não o total, e a despesa + o resgate nascem
+   na mesma transação de banco.
+
+**Duas contas diferentes, de propósito** (02/08/2026 — não unifique):
+
+| Método | Fórmula | Para quê |
+|---|---|---|
+| `SpendingGuard::faltante()` | `amount − disponível` (**sem clamp**) | o que o **resgate** traz para a conta terminar em zero — inclui o vermelho que ela já tinha. Com o clamp antigo, resgatar numa conta em −100 deixava ela em −100, enquanto o modal prometia que o saldo não ficaria negativo. |
+| `SpendingGuard::chequeNecessario()` | `amount − max(0, disponível)` (**com clamp**) | o cheque especial **adicional** que a despesa consome, e o que vai para `funding_amount`. Aqui o clamp é obrigatório: o vermelho atual já saiu do `overdraftAvailable`, e contá-lo de novo recusaria despesa que cabe. |
+
+**`cobre` da opção de resgate olha o MAIOR investimento, nunca a soma** — `comResgate()` aceita
+**um** `funding_investment_id`. Medindo pela soma, a opção dizia "cobre", o usuário escolhia e o
+servidor recusava: beco sem saída. Os itens que não cobrem sozinhos vêm desabilitados no modal,
+com o `motivo` PT-BR apontando a saída real (resgatar de mais de um em Investimentos e lançar
+depois). Consequência aceita: quando só a soma cobriria e não há cheque especial, o veredito é
+`ESTOURA_LIMITE` (recusa explicada) em vez de um 409 sem saída.
 
 Consumidores do 409: `sm/launch.js` (modal global), `sm/offline-queue.js` (form cheio) e, sem
 JS, o Blade via `session('fonteNecessaria')`. **Fila offline e service worker**: no 409
@@ -478,8 +492,13 @@ investimento nunca é automático. Se ainda falhar, marcam `failed` com a mensag
   `availableLimitDisplay` é o clampado em 0 — use este na view.
 - `dueDateForCycle($cycleEnd)`: vencimento **derivado do ciclo**. Se `due_day > closing_day`,
   cai no mês do fechamento; senão, no seguinte.
-- `closedCycle()` / `closedInvoiceDue` / `overdueInvoice`: a fatura do ciclo **já fechado** e não
-  paga. Sem isso ela sumia da tela no dia em que o ciclo virava.
+- `closedCycle()` / `closedInvoiceDue` / `closedInvoice` / `overdueInvoice`: **tudo que já fechou
+  e continua em aberto** — não um único mês. A janela é `(início dos tempos, início do ciclo
+  aberto]`, porque no cartão real o saldo não pago **rola** para a fatura seguinte. Olhando um
+  ciclo só, a dívida de dois meses atrás não estava em `openInvoiceDue` nem em `closedInvoiceDue`:
+  sumia da tela e do sino e comia o limite para sempre. O **vencimento exibido** é o da fatura
+  fechada mais antiga ainda não paga (`vencimentoMaisAntigoEmAberto()`) — derivar do fim da janela
+  faria uma dívida de junho aparecer "em dia" em setembro.
 
 ### Contas fixas — as competências NÃO são materializadas
 
@@ -513,9 +532,8 @@ continua descartando o menos, porque valor digitado nunca é negativo.
 - Despesa com **data futura** e recorrência **não paga** já entram no saldo (`Account::balance`
   não olha `date` nem `paid_at`). Mudar isso era a proposta "R-SALDO", **descartada** quando as
   contas fixas passaram a ser calculadas — ver §8.2 e decisão D-4 da spec.
-- Falta implementar (§14 da spec): guard de parcela isolada no Histórico, bloqueio de excluir
-  conta/investimento com saldo negativo. (O **estorno de pagamento de fatura** saiu da lista —
-  implementado em 01/08/2026, ver abaixo.)
+- A §14 da spec foi **zerada em 02/08/2026**: estorno de fatura (01/08), guard de parcela isolada
+  no Histórico e bloqueio de excluir investimento/meta com a conta negativa (02/08, abaixo).
 
 ### Estorno e idempotência (01/08/2026) — `EstornoEIdempotenciaTest`
 
@@ -546,6 +564,39 @@ Quatro buracos do mesmo tema: **escrever dinheiro era fácil, desescrever não e
   repetido em cartão sem folga sair em silêncio em vez de erro de limite.
 - **`FundingService::spend` devolve `?Transaction`**: o `write` pode devolver `null` quando, já
   sob lock, descobre que não há o que gravar. Antes esse caminho de corrida era TypeError.
+
+### Auditoria de integridade (02/08/2026) — os 7 críticos, não regredir
+
+Testes: `GuardsDeEdicaoNoHistoricoTest`, `ExclusaoComDividaTest`, `FaturaAtrasadaTest`,
+`ContasFixasEndsOnTest`, `EscolhaDeFonteCobreOBuracoTest`, `EstornoNoCartaoNoDashboardTest`,
+`ValidacaoDeValoresTest`.
+
+- **🚨 `transactions.update` tem guardas, e elas ficam no TOPO do método** — antes do ramo
+  `type !== 'expense'`, que grava com `$transaction->update()` cru, fora do `FundingService`.
+  Guarda que more dentro do ramo de despesa é contornável virando a linha em receita.
+  Recusam: quitação de fatura, parcela isolada, compra de cartão já paga, pagamento de conta fixa
+  mudando de tipo, e **mover linha já paga para um cartão** (`committed` ignora `paid_at`, então
+  o cartão nunca cobraria e o dinheiro voltaria para a conta).
+- **Editar despesa financiada por resgate RECONCILIA**, não recusa: `estornarFonte()` + `spend()`
+  recalcula do zero, com a **conta travada antes do estorno** (ordem conta → pai). Zera também a
+  auditoria de cheque especial — senão uma despesa de R$ 100 ficava marcada "cheque especial R$ 300".
+- **Excluir meta/investimento com a conta no vermelho é bloqueado.** Não porque crie dinheiro
+  (excluir e resgatar por inteiro têm efeito IDÊNTICO no disponível), mas porque quita o cheque
+  especial **sem registro** de que a poupança cobriu. Excluir o **perfil** NÃO é bloqueado: seria
+  brigar com o direito de eliminação da LGPD que a própria Política promete — em vez disso, as
+  pendências são listadas e há aceite explícito.
+- **Conta fixa: `ends_on` e a janela de 12 meses valem no PAGAMENTO**, não só na projeção. A regra
+  é copiada de `FixedBillService::occurrences` (fronteira pelo MÊS, inclusive) — divergir faz a
+  tela oferecer "Pagar" num botão que o servidor recusa.
+- **Estorno lançado em cartão ABATE a despesa do período**, não vira receita, nas quatro fontes do
+  dashboard (dailySums semana/mês, query do ano, totals, sparks). Piso 0.
+- **Todo campo de dinheiro usa `NormalizesMoneyInput::regrasDeDinheiro()`** (`decimal:0,2` +
+  `TETO_MONETARIO`). `numeric` sozinho aceita **`1e12`**. E o teto antigo (`9999999999999.99`) era
+  pior que inútil: com `precision=14` do PHP ele vira `"10000000000000"` no bind e o MySQL responde
+  **erro 500**, não erro de validação. ⚠️ Ponto + 3 dígitos é separador de MILHAR: `800.123` é
+  oitocentos mil; a terceira casa decimal se escreve `800,123`.
+- **Reduzir `overdraft_limit` abaixo do que já está EM USO é recusado** — deixaria a conta abaixo
+  do piso que o modelo promete (`−overdraft_limit`).
 
 ### Regras que a auditoria de 28/07 fixou (01/08/2026) — não regredir
 
@@ -767,6 +818,13 @@ npm install
 npm run dev      # hot reload (Vite em http://localhost:5173)
 npm run build    # produção (gera public/build — necessário p/ páginas sem `npm run dev`)
 ```
+
+> ⚠️ **`view:cache` ANTES de `npm run build`, sempre.** O `app.css` tem
+> `@source '../../storage/framework/views/*.php'`: o Tailwind escaneia as views **compiladas**,
+> não só os `.blade.php`. Com `storage/framework/views/` vazio (máquina nova, logo após um
+> `view:clear`, ou um deploy limpo) o build sai com **~20 kB de CSS a menos** — 110 kB em vez de
+> 129 kB — e não avisa nada: o site simplesmente perde estilos. Medido em 02/08/2026.
+> Ordem correta no deploy: `php artisan view:cache` → `npm run build`.
 
 ### Portas (host) e troubleshooting
 - **App:** http://localhost:8001 · **MySQL (host):** 3307 · **Vite:** 5173.

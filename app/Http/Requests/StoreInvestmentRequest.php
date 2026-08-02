@@ -49,7 +49,7 @@ class StoreInvestmentRequest extends FormRequest
             'taxa' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
 
             // Aporte inicial opcional.
-            'valor_inicial' => ['nullable', 'numeric', 'min:0', 'max:9999999999999.99'],
+            'valor_inicial' => $this->regrasDeDinheiro(obrigatorio: false, min: '0'),
 
             'account_id' => [
                 // Só obrigatória se houver aporte inicial.
@@ -115,8 +115,9 @@ class StoreInvestmentRequest extends FormRequest
             'taxa.numeric' => 'A taxa deve ser um número. Use vírgula para os decimais, ex.: 110,00.',
             'taxa.min' => 'A taxa não pode ser negativa.',
             'valor_inicial.numeric' => 'O valor inicial deve ser um número. Use vírgula para os centavos, ex.: 1.000,00.',
+            'valor_inicial.decimal' => 'Use no máximo duas casas decimais, ex.: 1.000,00.',
             'valor_inicial.min' => 'O valor inicial não pode ser negativo.',
-            'valor_inicial.max' => 'O valor inicial informado é alto demais.',
+            'valor_inicial.max' => 'O valor inicial informado é alto demais (o máximo é R$ 999.999.999.999,99).',
             'account_id.required' => 'Escolha a conta de origem do valor inicial.',
             'account_id.exists' => 'Escolha uma conta corrente ou poupança sua — cartões não guardam dinheiro.',
             'date.date' => 'Data inválida.',

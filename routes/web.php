@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\AvatarController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DependentController;
@@ -48,6 +49,10 @@ Route::middleware('auth')->group(function () {
     Route::resource('accounts', AccountController::class)->except('show');
     Route::resource('categories', CategoryController::class)->except('show');
 
+    // Foto de perfil — servida pelo app, não pelo symlink de storage/. Fica atrás de
+    // `auth` e só entrega a foto de quem é da MESMA família (ver AvatarController).
+    Route::get('/avatar/{user}', [AvatarController::class, 'show'])->name('avatar.show');
+
     // Meu perfil (dados pessoais: nome, e-mail, telefone, foto)
     Route::get('/meu-perfil', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/meu-perfil', [ProfileController::class, 'update'])->name('profile.update');
@@ -55,6 +60,11 @@ Route::middleware('auth')->group(function () {
     Route::delete('/meu-perfil', [ProfileController::class, 'destroy'])
         ->middleware('throttle:senha')
         ->name('profile.destroy');
+
+    // Confirmação do e-mail NOVO (link assinado enviado ao próprio endereço novo).
+    Route::get('/meu-perfil/confirmar-email/{user}', [ProfileController::class, 'confirmEmail'])
+        ->middleware('signed')
+        ->name('profile.email.confirm');
 
     // Configurações (subabas: Segurança / Conta)
     Route::get('/configuracoes/{tab?}', [SettingsController::class, 'index'])->name('settings');

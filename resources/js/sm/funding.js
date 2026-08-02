@@ -54,14 +54,18 @@ function montarOpcao(fonte, faltante) {
     titulo.textContent = fonte.rotulo;
 
     const detalhe = document.createElement('span');
+    // `motivo` é a explicação PT-BR do servidor (o teto sozinho não conta a
+    // história: no resgate ele é o MAIOR investimento, não o total aplicado).
     detalhe.textContent = fonte.cobre
         ? fonte.detalhe
-        : 'Não cobre: o máximo por aqui é ' + brl(fonte.teto) + '.';
+        : (fonte.motivo || 'Não cobre: o máximo por aqui é ' + brl(fonte.teto) + '.');
 
     texto.append(titulo, detalhe);
     wrap.append(radio, texto);
 
-    // Resgate: precisa escolher de qual investimento.
+    // Resgate: precisa escolher de qual investimento. O servidor aceita UM
+    // `funding_investment_id`, então cada item traz seu próprio `cobre` — os que
+    // não cobrem sozinhos ficam desabilitados, com o porquê no rótulo.
     if (fonte.id === 'resgate_investimento' && Array.isArray(fonte.itens)) {
         const select = document.createElement('select');
         select.className = 'input';
@@ -71,14 +75,22 @@ function montarOpcao(fonte, faltante) {
         fonte.itens.forEach((item) => {
             const opt = document.createElement('option');
             opt.value = item.id;
-            opt.textContent = item.nome + ' — ' + brl(item.aplicado) + ' aplicados';
+            opt.textContent = item.nome + ' — ' + brl(item.aplicado) + ' aplicados'
+                + (item.cobre ? '' : ' (não cobre sozinho)');
             opt.disabled = !item.cobre;
             select.appendChild(opt);
         });
 
+        // O navegador seleciona a 1ª option mesmo desabilitada; sem isto o
+        // usuário confirmaria um investimento que o servidor vai recusar.
+        const viavel = fonte.itens.find((item) => item.cobre);
+        if (viavel) select.value = String(viavel.id);
+
         const dica = document.createElement('small');
         dica.className = 'field-hint';
-        dica.textContent = 'Vamos resgatar ' + brl(faltante) + ' — o resto continua investido.';
+        dica.textContent = fonte.cobre
+            ? 'Vamos resgatar ' + brl(faltante) + ' — o resto continua investido.'
+            : 'Para juntar mais de um investimento, resgate na tela de Investimentos e lance a despesa depois.';
 
         texto.append(select, dica);
     }
@@ -120,8 +132,12 @@ export function pedirFonte(payload) {
         semSaida.hidden = alguemCobre;
         const msg = semSaida.querySelector('[data-funding-sem-saida-msg]');
         if (msg && !alguemCobre) {
-            msg.textContent = 'Nenhuma fonte cobre esta despesa. Lance um recebimento '
-                + 'para completar o valor, ou reduza o gasto.';
+            // O motivo do resgate é o que aponta a saída (resgatar mais de um em
+            // Investimentos); sem ele o usuário fica só com "não dá".
+            const resgate = fontes.find((f) => f.id === 'resgate_investimento');
+            msg.textContent = 'Nenhuma fonte cobre esta despesa sozinha. '
+                + (resgate?.motivo ? resgate.motivo + ' ' : '')
+                + 'Lance um recebimento para completar o valor, ou reduza o gasto.';
         }
     }
     if (confirmar) confirmar.disabled = !alguemCobre;
@@ -216,6 +232,9 @@ export function initFunding() {
             if (marcado.value === 'resgate_investimento') {
                 const select = marcado.closest('.fonte-opt')?.querySelector('[data-funding-investimento]');
                 if (!select || !select.value) return;
+                // Cinto e suspensório: um investimento que não cobre sozinho
+                // seria recusado pelo servidor, e o modal fecharia à toa.
+                if (select.options[select.selectedIndex]?.disabled) return;
                 escolha.funding_investment_id = select.value;
             }
 

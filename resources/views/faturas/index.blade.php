@@ -217,6 +217,40 @@
                     </div>
                 </div>
 
+                {{-- ---- Fatura JÁ FECHADA e não paga ----
+                     Bloco próprio, acima da fatura do mês: ela tem vencimento
+                     próprio e é paga por outra rota (ciclo=fechado). O ramo do
+                     servidor existia desde a auditoria, mas nenhuma tela o
+                     acionava — a fatura que fechava ficava sem botão nenhum e a
+                     dívida comia o limite do cartão para sempre. --}}
+                @php $fechada = $card->closedInvoice; @endphp
+                @if ($fechada)
+                    <div class="fatura-pay">
+                        <span class="fatura-due">
+                            @if ($fechada['vencida'])
+                                Fatura fechada e <b class="neg">vencida</b>: <b class="neg">{{ $brl($fechada['valor']) }}</b>
+                                — venceu em {{ $fechada['vencimento']->translatedFormat('d/m/Y') }},
+                                há {{ $fechada['diasAtraso'] }} {{ $fechada['diasAtraso'] === 1 ? 'dia' : 'dias' }}
+                            @else
+                                Fatura fechada: <b>{{ $brl($fechada['valor']) }}</b>
+                                @if ($fechada['vencimento']) — vence em {{ $fechada['vencimento']->translatedFormat('d/m/Y') }}@endif
+                            @endif
+                        </span>
+                        @if ($cashAccounts->isEmpty())
+                            <span class="field-hint">Cadastre uma conta corrente/poupança para pagar.</span>
+                        @else
+                            <button class="btn primary" type="button" data-pay-open
+                                    data-action="{{ route('faturas.fatura.pagar', $card->account) }}"
+                                    data-name="{{ $card->account->name }}"
+                                    data-amount="{{ $brl($fechada['valor']) }}"
+                                    data-ciclo="fechado"
+                                    data-min="{{ $card->payFloor }}">
+                                {{ $fechada['vencida'] ? 'Pagar fatura vencida' : 'Pagar fatura fechada' }}
+                            </button>
+                        @endif
+                    </div>
+                @endif
+
                 {{-- Pagar / status da fatura (só cartão de crédito) --}}
                 <div class="fatura-pay">
                     @if ($card->isPaid)
@@ -229,7 +263,9 @@
                             <button class="btn primary" type="button" data-pay-open
                                     data-action="{{ route('faturas.fatura.pagar', $card->account) }}"
                                     data-name="{{ $card->account->name }}"
-                                    data-amount="{{ $brl($card->invoiceDue) }}">
+                                    data-amount="{{ $brl($card->invoiceDue) }}"
+                                    data-ciclo="aberto"
+                                    data-min="{{ $card->payFloor }}">
                                 Marcar como paga
                             </button>
                         @endif
@@ -756,15 +792,30 @@
         </div>
         <form method="POST" action="" data-pay-form>
             @csrf
+            {{-- Qual fatura está sendo paga: a do ciclo aberto ou a que já
+                 fechou. Preenchido pelo botão clicado (data-ciclo). --}}
+            <input type="hidden" name="ciclo" value="aberto" data-pay-ciclo>
             <div class="modal-body">
                 <p class="pay-summary">Fatura de <b data-pay-name></b> — <b data-pay-amount></b></p>
-                <div class="field">
-                    <label for="pay-account">Debitar de</label>
-                    <select class="input" id="pay-account" name="pay_account_id" required>
-                        @foreach ($cashAccounts as $acc)
-                            <option value="{{ $acc->id }}">{{ $acc->name }}</option>
-                        @endforeach
-                    </select>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="pay-account">Debitar de</label>
+                        <select class="input" id="pay-account" name="pay_account_id" required>
+                            @foreach ($cashAccounts as $acc)
+                                <option value="{{ $acc->id }}">{{ $acc->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    {{-- Data do pagamento: o servidor já aceitava `paid_on`
+                         (PayInvoiceRequest), mas nenhum campo o enviava — todo
+                         pagamento gravava HOJE, e quitar uma fatura em atraso
+                         registrando o dia certo era impossível pela interface. --}}
+                    <div class="field">
+                        <label for="pay-data">Data do pagamento</label>
+                        <input class="input" type="date" id="pay-data" name="paid_on"
+                               value="{{ now()->format('Y-m-d') }}" max="{{ now()->format('Y-m-d') }}">
+                        <small class="field-hint">Pagou em outro dia? Ajuste aqui.</small>
+                    </div>
                 </div>
             </div>
             <div class="modal-foot">

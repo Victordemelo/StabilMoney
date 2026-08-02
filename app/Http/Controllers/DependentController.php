@@ -48,10 +48,12 @@ class DependentController extends Controller
         $dependent = new User([
             'name' => $data['name'],
             'email' => $data['email'],
-            'is_admin' => false,
-            'account_owner_id' => $titular->id,
             'relationship' => $data['relationship'] ?? null,
         ]);
+        // Fora do mass assignment de propósito (ver $fillable no model): são os campos
+        // de privilégio, e quem decide o valor deles é o servidor, nunca o formulário.
+        $dependent->is_admin = false;
+        $dependent->account_owner_id = $titular->id;
         $dependent->password = Hash::make($data['password']);
 
         if ($request->hasFile('avatar')) {

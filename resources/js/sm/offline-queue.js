@@ -496,12 +496,35 @@ function purgeCachedFormIfUserChanged() {
     } catch (_) { /* sem storage */ }
 }
 
+/**
+ * Apaga da fila os lançamentos que NÃO são do usuário logado agora.
+ *
+ * O IndexedDB é do navegador, não da sessão: os itens de quem usou o aparelho antes
+ * sobreviviam ao logout e ficavam legíveis no DevTools por quem logasse depois — com
+ * valor, descrição, conta e o token CSRF da sessão antiga.
+ *
+ * Roda só quando ALGUÉM ESTÁ LOGADO, de propósito. No logout puro a fila fica onde
+ * está: o dono pode voltar e ainda tem lançamentos por sincronizar — apagar ali seria
+ * destruir dado dele para resolver um problema que só existe quando OUTRA pessoa entra.
+ */
+function purgeQueueFromOtherUsers() {
+    const current = meta('sm-user');
+    if (!current) return; // ninguém logado: nada a decidir agora
+
+    queueAll().then((itens) => {
+        (itens || [])
+            .filter((i) => String(i.userId) !== String(current))
+            .forEach((i) => queueDelete(i.client_uuid).catch(() => {}));
+    }).catch(() => {});
+}
+
 // ---- Init ------------------------------------------------------------------
 
 export function initOfflineQueue() {
     if (!('indexedDB' in window)) return;
 
     purgeCachedFormIfUserChanged();
+    purgeQueueFromOtherUsers();
 
     const form = document.querySelector('form[data-offline-queue]');
     if (form) attachForm(form);

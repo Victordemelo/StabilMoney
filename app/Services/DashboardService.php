@@ -95,6 +95,9 @@ class DashboardService
         // (stat "saldo", trend, sparkline). Continuam na LISTA de contas (exibição).
         $excludedTypes = ['credit_card', 'debit_card'];
         $cardIds = $accounts->whereIn('type', $excludedTypes)->pluck('id')->all();
+        // Só CARTÃO DE CRÉDITO: nele um `income` é estorno de compra, não receita.
+        // (O de débito não recebe lançamento — o select manda a conta que ele espelha.)
+        $creditCardIds = $accounts->where('type', 'credit_card')->pluck('id')->all();
         $nonCardAccounts = $accounts->whereNotIn('type', $excludedTypes);
 
         $initialTotal = round((float) $nonCardAccounts->sum(fn ($a) => (float) $a->initial_balance), 2);
@@ -113,7 +116,7 @@ class DashboardService
         // ----- Semana atual (Seg..Dom) -----
         $weekStart = $today->startOfWeek(CarbonImmutable::MONDAY);
         $weekEnd = $weekStart->addDays(6);
-        $weekDaily = $this->dailySums($userId, $weekStart, $weekEnd);
+        $weekDaily = $this->dailySums($userId, $weekStart, $weekEnd, refundAccountIds: $creditCardIds);
 
         $weekIncome = [];
         $weekExpense = [];
@@ -122,13 +125,13 @@ class DashboardService
             $weekIncome[] = $weekDaily[$key]['income'] ?? 0.0;
             $weekExpense[] = $weekDaily[$key]['expense'] ?? 0.0;
         }
-        $weekPrev = $this->totals($userId, $weekStart->subWeek(), $weekStart->subDay());
+        $weekPrev = $this->totals($userId, $weekStart->subWeek(), $weekStart->subDay(), $creditCardIds);
 
         // ----- Mês atual (buckets Sem 1..Sem N, dias 1-7, 8-14, ...) -----
         $monthStart = $today->startOfMonth();
         $monthEnd = $today->endOfMonth();
         $bucketCount = (int) ceil($today->daysInMonth / 7);
-        $monthDaily = $this->dailySums($userId, $monthStart, $monthEnd);
+        $monthDaily = $this->dailySums($userId, $monthStart, $monthEnd, refundAccountIds: $creditCardIds);
 
         $monthIncome = array_fill(0, $bucketCount, 0.0);
         $monthExpense = array_fill(0, $bucketCount, 0.0);
@@ -138,7 +141,7 @@ class DashboardService
             $monthExpense[$idx] = round($monthExpense[$idx] + ($sums['expense'] ?? 0.0), 2);
         }
         $monthLabels = array_map(fn ($i) => 'Sem ' . ($i + 1), range(0, $bucketCount - 1));
-        $monthPrev = $this->totals($userId, $monthStart->subMonth(), $monthStart->subDay());
+        $monthPrev = $this->totals($userId, $monthStart->subMonth(), $monthStart->subDay(), $creditCardIds);
 
         // ----- Ano atual (Jan..Dez, agregado por mês direto no SQL) -----
         $yearStart = $today->startOfYear();
@@ -151,25 +154,33 @@ class DashboardService
             ? "CAST(strftime('%m', date) AS INTEGER)"
             : 'MONTH(date)';
 
+        // A soma sai separada em três colunas para que o ESTORNO no cartão (income numa
+        // conta de crédito) abata a despesa do mês em vez de virar receita — a mesma
+        // regra de `dailySums`/`totals`. Sem isto, devolver uma compra de R$ 1.000
+        // aparecia como R$ 1.000 de "receita" no gráfico do ano.
+        $emCartao = $this->emCartaoSql($creditCardIds);
         $yearRows = Transaction::where('user_id', $userId)
             // Quitação de fatura não é gasto novo — ver `settles_account_id`.
             ->whereNull('settles_account_id')
             ->whereBetween('date', [$yearStart->toDateString(), $yearEnd->toDateString()])
-            ->selectRaw("{$monthExpr} AS month_num, type, SUM(amount) AS total")
-            ->groupBy('month_num', 'type')
+            ->selectRaw(
+                "{$monthExpr} AS month_num, " .
+                "COALESCE(SUM(CASE WHEN type = 'income' AND NOT ({$emCartao}) THEN amount END), 0) AS income_total, " .
+                "COALESCE(SUM(CASE WHEN type = 'expense' THEN amount END), 0) AS expense_total, " .
+                "COALESCE(SUM(CASE WHEN type = 'income' AND {$emCartao} THEN amount END), 0) AS refund_total",
+            )
+            ->groupBy('month_num')
             ->get();
 
         $yearIncome = array_fill(0, 12, 0.0);
         $yearExpense = array_fill(0, 12, 0.0);
         foreach ($yearRows as $row) {
             $idx = ((int) $row->month_num) - 1;
-            if ($row->type === 'income') {
-                $yearIncome[$idx] = round((float) $row->total, 2);
-            } else {
-                $yearExpense[$idx] = round((float) $row->total, 2);
-            }
+            $yearIncome[$idx] = round((float) $row->income_total, 2);
+            // Piso 0: estorno maior que as compras do mês significa gasto zero.
+            $yearExpense[$idx] = max(0.0, round((float) $row->expense_total - (float) $row->refund_total, 2));
         }
-        $yearPrev = $this->totals($userId, $yearStart->subYear(), $yearStart->subDay());
+        $yearPrev = $this->totals($userId, $yearStart->subYear(), $yearStart->subDay(), $creditCardIds);
 
         // ----- Períodos no formato do contrato -----
         $periods = [
@@ -200,7 +211,7 @@ class DashboardService
         ];
 
         // ----- Sparklines (últimos 7 dias) -----
-        $sparks = $this->sparks($userId, $hasData, $initialTotal, $today, $cardIds);
+        $sparks = $this->sparks($userId, $hasData, $initialTotal, $today, $cardIds, $creditCardIds);
 
         // ----- Gastos do mês por categoria (top 5 + "Outros") -----
         $cats = $this->categoryBreakdown($userId, $monthStart, $monthEnd);
@@ -551,7 +562,7 @@ class DashboardService
      * - economia: (receitas - despesas) diárias acumuladas na janela.
      * Arrays vazios quando o usuário ainda não tem transações.
      */
-    private function sparks(int $userId, bool $hasData, float $initialTotal, CarbonImmutable $today, array $cardIds = []): array
+    private function sparks(int $userId, bool $hasData, float $initialTotal, CarbonImmutable $today, array $cardIds = [], array $creditCardIds = []): array
     {
         $sparks = ['saldo' => [], 'receitas' => [], 'despesas' => [], 'economia' => []];
         if (! $hasData) {
@@ -560,7 +571,7 @@ class DashboardService
 
         $start = $today->subDays(6);
         // Cashflow (receitas/despesas/economia) inclui cartões — é gasto real.
-        $daily = $this->dailySums($userId, $start, $today);
+        $daily = $this->dailySums($userId, $start, $today, refundAccountIds: $creditCardIds);
         $saved = 0.0;
 
         // Saldo (patrimônio) NÃO inclui cartões: deixa o saldoSpark montar a própria
@@ -677,6 +688,7 @@ class DashboardService
      * Somas diárias por tipo no intervalo: ['Y-m-d' => ['income' => x, 'expense' => y]].
      * $excludeAccountIds permite ignorar contas (ex.: cartões de crédito, que
      * não entram no cálculo de saldo/patrimônio).
+     * $refundAccountIds: contas onde `income` é ESTORNO, não receita — ver `abaterEstornos()`.
      */
     private function dailySums(
         int $userId,
@@ -684,6 +696,7 @@ class DashboardService
         CarbonImmutable $to,
         array $excludeAccountIds = [],
         bool $incluirQuitacoes = false,
+        array $refundAccountIds = [],
     ): array {
         $rows = Transaction::where('user_id', $userId)
             // Quitação de fatura não é GASTO novo (o gasto foi a compra no cartão), mas
@@ -692,20 +705,52 @@ class DashboardService
             ->when(! $incluirQuitacoes, fn ($q) => $q->whereNull('settles_account_id'))
             ->when($excludeAccountIds, fn ($q) => $q->whereNotIn('account_id', $excludeAccountIds))
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
-            ->selectRaw('date, type, SUM(amount) AS total')
-            ->groupBy('date', 'type')
+            // account_id entra no group by só quando há cartão a tratar: sem isso a
+            // consulta ficaria mais larga do que precisa nas séries de saldo.
+            ->when(
+                $refundAccountIds,
+                fn ($q) => $q->selectRaw('date, type, account_id, SUM(amount) AS total')->groupBy('date', 'type', 'account_id'),
+                fn ($q) => $q->selectRaw('date, type, SUM(amount) AS total')->groupBy('date', 'type'),
+            )
             ->get();
 
         $out = [];
         foreach ($rows as $row) {
-            $out[$row->date->toDateString()][$row->type] = round((float) $row->total, 2);
+            $dia = $row->date->toDateString();
+            $valor = round((float) $row->total, 2);
+
+            // Estorno no cartão ABATE a despesa do dia em vez de virar receita.
+            $estorno = $row->type === 'income'
+                && $refundAccountIds
+                && in_array((int) $row->account_id, $refundAccountIds, true);
+
+            $chave = $estorno ? 'expense' : $row->type;
+            $delta = $estorno ? -$valor : $valor;
+
+            $out[$dia][$chave] = round(($out[$dia][$chave] ?? 0.0) + $delta, 2);
+        }
+
+        // Piso 0 por dia: um estorno maior que as compras daquele dia significa que não
+        // se gastou nada — não que se "ganhou" com despesa negativa (o gráfico de barras
+        // não representa valor negativo). Mesmo piso que `committed`/`currentInvoice` usam.
+        foreach ($out as $dia => $sums) {
+            if (isset($sums['expense'])) {
+                $out[$dia]['expense'] = max(0.0, $sums['expense']);
+            }
         }
 
         return $out;
     }
 
-    /** Totais de receitas e despesas do intervalo (uma query). */
-    private function totals(int $userId, CarbonImmutable $from, CarbonImmutable $to): array
+    /**
+     * Totais de receitas e despesas do intervalo (uma query).
+     *
+     * $refundAccountIds: contas de CARTÃO DE CRÉDITO. Um `income` lançado num cartão é
+     * ESTORNO de compra, não dinheiro entrando — contá-lo como receita inflava as
+     * "receitas do mês" e a "economia" com dinheiro que nunca existiu. É a mesma regra
+     * de sinal que `committed` e `currentInvoice` já aplicam na fatura.
+     */
+    private function totals(int $userId, CarbonImmutable $from, CarbonImmutable $to, array $refundAccountIds = []): array
     {
         $row = Transaction::where('user_id', $userId)
             // Quitação de fatura não é gasto novo — ver `settles_account_id`.
@@ -713,14 +758,31 @@ class DashboardService
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->selectRaw(
                 "COALESCE(SUM(CASE WHEN type = 'income' THEN amount END), 0) AS income_total, " .
-                "COALESCE(SUM(CASE WHEN type = 'expense' THEN amount END), 0) AS expense_total",
+                "COALESCE(SUM(CASE WHEN type = 'expense' THEN amount END), 0) AS expense_total, " .
+                'COALESCE(SUM(CASE WHEN type = ' . "'income'" . ' AND ' . $this->emCartaoSql($refundAccountIds) . ' THEN amount END), 0) AS refund_total',
             )
             ->first();
 
+        $estornos = round((float) ($row->refund_total ?? 0), 2);
+
         return [
-            'income' => round((float) ($row->income_total ?? 0), 2),
-            'expense' => round((float) ($row->expense_total ?? 0), 2),
+            'income' => round(round((float) ($row->income_total ?? 0), 2) - $estornos, 2),
+            'expense' => max(0.0, round(round((float) ($row->expense_total ?? 0), 2) - $estornos, 2)),
         ];
+    }
+
+    /**
+     * Fragmento SQL "a linha está num destes cartões". Sem cartão nenhum devolve uma
+     * condição sempre falsa — `IN ()` é sintaxe inválida nos dois bancos. Os ids vêm de
+     * `Account::pluck('id')`, nunca do usuário, e são forçados a inteiro aqui.
+     */
+    private function emCartaoSql(array $accountIds): string
+    {
+        if (! $accountIds) {
+            return '1 = 0';
+        }
+
+        return 'account_id IN (' . implode(',', array_map('intval', $accountIds)) . ')';
     }
 
     /**

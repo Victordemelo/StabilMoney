@@ -29,7 +29,14 @@ class FaturaService
         $accountExpenses = $this->accountExpenses($userId);
 
         $stats = [
-            'totalFaturas' => round($cards->sum(fn ($c) => $c['currentInvoice']), 2),
+            // Fatura do ciclo aberto + o que já fechou e não foi pago. Somar só
+            // o ciclo aberto anunciava "R$ 0,00" a quem devia três faturas
+            // atrasadas — a mesma dívida que sumia dos cards sumia do topo.
+            // As duas janelas são disjuntas, então não há dupla contagem.
+            'totalFaturas' => round(
+                $cards->sum(fn ($c) => (float) $c['currentInvoice'] + (float) ($c['closedInvoice']['valor'] ?? 0)),
+                2,
+            ),
             'numCartoes' => $cards->count(),
             'limiteDisponivel' => round($cards->sum(fn ($c) => max(0.0, (float) $c['availableLimit'])), 2),
         ];
@@ -71,17 +78,22 @@ class FaturaService
         $cards = Account::where('user_id', $userId)->where('type', 'credit_card')->get();
 
         foreach ($cards as $card) {
-            // (1) Fatura JÁ VENCIDA (ciclo fechado, não paga, vencimento no
-            // passado). Sem este ramo a dívida do mês anterior sumia do sino no
-            // dia em que o ciclo virava — o oposto de avisar que venceu.
-            if ($atrasada = $card->overdueInvoice) {
+            // (1) Fatura JÁ FECHADA e não paga: entra no sino se já venceu ou se
+            // vence dentro da janela. Sem este ramo a dívida sumia do sino no dia
+            // em que o ciclo virava — o oposto de avisar que venceu.
+            $fechada = $card->closedInvoice;
+            $vencFechada = $fechada['vencimento'] ?? null;
+
+            if ($fechada && $vencFechada && ($fechada['vencida'] || $vencFechada->lessThanOrEqualTo($limit))) {
                 $itens->push(new Fluent([
                     'tipo' => 'fatura',
                     'nome' => 'Fatura ' . $card->name,
-                    'valor' => $atrasada['valor'],
-                    'due' => $atrasada['vencimento'],
-                    'diasRestantes' => -$atrasada['diasAtraso'],
-                    'vencida' => true,
+                    'valor' => $fechada['valor'],
+                    'due' => $vencFechada,
+                    'diasRestantes' => $fechada['vencida']
+                        ? -$fechada['diasAtraso']
+                        : (int) $today->diffInDays($vencFechada, false),
+                    'vencida' => $fechada['vencida'],
                 ]));
             }
 
@@ -116,12 +128,19 @@ class FaturaService
             ]));
         }
 
-        // (4) Recorrências legadas de cartão (em aberto, data <= limite).
+        // (4) Recorrências legadas FORA do cartão (em aberto, data <= limite).
+        //
+        // Recorrência lançada num CARTÃO já foi contada no bloco (1)/(2): ela é
+        // uma despesa do cartão como outra qualquer e entra em `openInvoiceDue`
+        // /`overdueInvoice`. Sem este filtro, a mesma dívida aparecia duas vezes
+        // no sino — uma como "Fatura Nubank", outra como "Streaming" — e o total
+        // avisado ao usuário vinha inflado.
         $rec = Transaction::with('account')
             ->where('user_id', $userId)
             ->where('recurring', true)
             ->whereNull('paid_at')
             ->where('date', '<=', $limit->toDateString())
+            ->whereDoesntHave('account', fn ($q) => $q->where('type', 'credit_card'))
             ->get();
         foreach ($rec as $t) {
             $due = CarbonImmutable::parse($t->date);
@@ -144,41 +163,80 @@ class FaturaService
     /** Um objeto por cartão de crédito, com a fatura do ciclo aberto e seus itens. */
     private function cards(int $userId): Collection
     {
-        return Account::where('user_id', $userId)
+        $cartoes = Account::where('user_id', $userId)
             ->where('type', 'credit_card')
             ->orderBy('name')
-            ->get()
-            ->map(function (Account $card) {
-                $cycle = $card->billingCycle();
-                $items = $this->cycleItems($card, $cycle);
+            ->get();
 
-                $limit = (float) $card->credit_limit;
-                $available = $card->availableLimit;
-                $used = round($limit - $available, 2);
-                $usedPct = $limit > 0 ? (int) min(100, round($used / $limit * 100)) : 0;
+        // Dinheiro de todos os cartões em queries agregadas (regra do projeto:
+        // nunca ler `committed` conta a conta dentro do laço).
+        Account::preloadMoney($cartoes);
 
-                // Valor EM ABERTO (a pagar) e estado da fatura do ciclo.
-                $devido = $card->openInvoiceDue;
-                $temFatura = $card->currentInvoice > 0.001;
+        $pisosDePagamento = $this->pisosDePagamento($cartoes);
 
-                // Fluent: a view acessa por -> (objeto) e os testes por []
-                // (array) — Fluent suporta ambos (ArrayAccess + __get).
-                return new Fluent([
-                    'account' => $card,
-                    'currentInvoice' => $card->currentInvoice,
-                    'invoiceDue' => $devido,          // o que falta pagar do ciclo
-                    'isPaid' => $temFatura && $devido <= 0.001,
-                    'canPay' => $devido > 0.001,
-                    'committed' => $card->committed,
-                    'availableLimit' => $available,
-                    'limitUsedPct' => $usedPct,
-                    'dueDate' => $card->dueDate,
-                    'items' => $items,
-                    // Último pagamento de fatura deste cartão — é o que o botão
-                    // "Estornar" desfaz. Null quando nunca se pagou nada.
-                    'settlement' => $this->lastSettlement($card),
-                ]);
-            });
+        return $cartoes->map(function (Account $card) use ($pisosDePagamento) {
+            $cycle = $card->billingCycle();
+            $items = $this->cycleItems($card, $cycle);
+
+            $limit = (float) $card->credit_limit;
+            $available = $card->availableLimit;
+            $used = round($limit - $available, 2);
+            $usedPct = $limit > 0 ? (int) min(100, round($used / $limit * 100)) : 0;
+
+            // Valor EM ABERTO (a pagar) e estado da fatura do ciclo.
+            $devido = $card->openInvoiceDue;
+            $temFatura = $card->currentInvoice > 0.001;
+
+            // Fluent: a view acessa por -> (objeto) e os testes por []
+            // (array) — Fluent suporta ambos (ArrayAccess + __get).
+            return new Fluent([
+                'account' => $card,
+                'currentInvoice' => $card->currentInvoice,
+                'invoiceDue' => $devido,          // o que falta pagar do ciclo
+                'isPaid' => $temFatura && $devido <= 0.001,
+                'canPay' => $devido > 0.001,
+                'committed' => $card->committed,
+                'availableLimit' => $available,
+                'limitUsedPct' => $usedPct,
+                'dueDate' => $card->dueDate,
+                'items' => $items,
+                // Fatura JÁ FECHADA e não paga (valor, vencimento, se venceu e
+                // há quantos dias). O ramo `ciclo=fechado` do payInvoice existia
+                // desde a auditoria, mas NENHUMA tela o acionava: a fatura que
+                // fechava ficava sem botão nenhum, impagável pela interface.
+                'closedInvoice' => $card->closedInvoice,
+                // Piso do campo "data do pagamento" (mesma regra do
+                // PayInvoiceRequest: não se paga antes de a compra existir).
+                'payFloor' => $pisosDePagamento[$card->id] ?? null,
+                // Último pagamento de fatura deste cartão — é o que o botão
+                // "Estornar" desfaz. Null quando nunca se pagou nada.
+                'settlement' => $this->lastSettlement($card),
+            ]);
+        });
+    }
+
+    /**
+     * Data da despesa mais antiga EM ABERTO de cada cartão, numa query só —
+     * é o piso que o `PayInvoiceRequest` aplica ao `paid_on`. Serve para o
+     * `min` do input de data não oferecer o que o servidor vai recusar.
+     *
+     * @param  Collection<int, Account>  $cartoes
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    private function pisosDePagamento(Collection $cartoes): Collection
+    {
+        if ($cartoes->isEmpty()) {
+            return collect();
+        }
+
+        return Transaction::whereIn('account_id', $cartoes->pluck('id'))
+            ->where('type', 'expense')
+            ->whereNull('paid_at')
+            ->groupBy('account_id')
+            ->selectRaw('account_id')
+            ->selectRaw('MIN(date) AS primeira')
+            ->pluck('primeira', 'account_id')
+            ->map(fn ($data) => CarbonImmutable::parse($data)->toDateString());
     }
 
     /**

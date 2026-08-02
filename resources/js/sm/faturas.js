@@ -206,6 +206,9 @@ export function initFaturas() {
         const payForm = payModal.querySelector('[data-pay-form]');
         const payName = payModal.querySelector('[data-pay-name]');
         const payAmount = payModal.querySelector('[data-pay-amount]');
+        // Qual fatura: "aberto" (a do mês) ou "fechado" (a que já fechou/venceu).
+        const payCiclo = payModal.querySelector('[data-pay-ciclo]');
+        const payData = payModal.querySelector('#pay-data');
         const abrirPay = () => payModal.classList.add('open');
         const fecharPay = () => payModal.classList.remove('open');
 
@@ -216,6 +219,17 @@ export function initFaturas() {
             if (payForm) payForm.setAttribute('action', btn.dataset.action || '');
             if (payName) payName.textContent = btn.dataset.name || '';
             if (payAmount) payAmount.textContent = btn.dataset.amount || '';
+            // O mesmo modal serve às duas faturas do cartão: sem isto, clicar em
+            // "Pagar fatura vencida" pagaria a do ciclo aberto.
+            if (payCiclo) payCiclo.value = btn.dataset.ciclo || 'aberto';
+            if (payData) {
+                // Piso da data = compra mais antiga em aberto (o mesmo do
+                // PayInvoiceRequest), para o campo não oferecer o que o
+                // servidor recusa. E a data volta para hoje a cada abertura.
+                if (btn.dataset.min) payData.min = btn.dataset.min;
+                else payData.removeAttribute('min');
+                payData.value = payData.max || payData.value;
+            }
             abrirPay();
         }));
         payModal.addEventListener('click', (e) => { if (e.target === payModal) fecharPay(); });

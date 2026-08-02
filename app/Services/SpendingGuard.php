@@ -70,30 +70,67 @@ class SpendingGuard
         }
 
         $amount = round($amount, 2);
-        $disponivel = round($account->available + $ignore, 2);
+        $disponivel = $account->availableWith($ignore);
 
         if ($amount <= $disponivel + self::EPSILON) {
             return self::OK;
         }
 
-        $faltante = round($amount - max(0.0, $disponivel), 2);
+        // As duas fontes medem coisas DIFERENTES — ver `faltante()` (o que o
+        // resgate precisa trazer) e `chequeNecessario()` (o cheque adicional).
         // `...With($ignore)`: o teto do cheque especial tem de enxergar o mesmo cenário
         // que o disponível acima. Usando o accessor sem ignore, editar uma despesa de
         // 2.000 para 2.100 numa conta no vermelho era recusado indevidamente, com a
         // mensagem se contradizendo ("o máximo agora é R$ 500,00").
-        $cobreCheque = $faltante <= $account->overdraftAvailableWith($ignore) + self::EPSILON;
-        $cobreResgate = $faltante <= $this->resgatavel($account) + self::EPSILON;
+        $cobreCheque = $this->chequeNecessario($account, $amount, $ignore)
+            <= $account->overdraftAvailableWith($ignore) + self::EPSILON;
+
+        // O resgate sai de UM investimento (o request carrega um
+        // `funding_investment_id` só), então quem manda é o MAIOR resgatável e
+        // nunca a soma. Medir pela soma abria um beco sem saída: o modal dizia
+        // que a fonte cobria, o usuário escolhia, e o `FundingService` recusava
+        // com "o investimento X tem só R$ 300,00" — sem nenhuma outra opção.
+        $cobreResgate = $this->faltante($account, $amount, $ignore)
+            <= $this->maiorResgatavel($account) + self::EPSILON;
 
         return ($cobreCheque || $cobreResgate) ? self::PRECISA_FONTE : self::ESTOURA_LIMITE;
     }
 
     /**
-     * Quanto falta para a despesa caber no disponível (0 quando cabe).
-     * É este valor — não o total da despesa — que é resgatado do investimento.
+     * Quanto o RESGATE precisa trazer para a despesa caber E a conta terminar
+     * em zero ou acima (0 quando já cabe no disponível).
+     *
+     * Inclui o buraco que a conta JÁ tem: com disponível em −100 e despesa de
+     * 300, são 400 — não 300. O clamp antigo (`max(0, $disponivel)`) tratava
+     * conta no vermelho como conta zerada: resgatava 300, a despesa consumia os
+     * 300 e a conta continuava em −100, enquanto o modal prometia "seu saldo não
+     * fica negativo". Ou a promessa era falsa, ou o número estava errado — o
+     * número estava errado, porque "tirar do investimento" existe justamente
+     * para não ficar no vermelho.
+     *
+     * Com este cálculo o disponível final é sempre exatamente 0
+     * (`disponivel + faltante − amount`), e o resgate segue limitado pelo que
+     * aquela conta aportou (`resgatavelDe`), então não cria dinheiro do nada.
      */
     public function faltante(Account $account, float $amount, float $ignore = 0.0): float
     {
-        $disponivel = round($account->available + $ignore, 2);
+        return round(max(0.0, round($amount, 2) - $account->availableWith($ignore)), 2);
+    }
+
+    /**
+     * Quanto de cheque especial ADICIONAL esta despesa passa a consumir.
+     *
+     * Aqui o clamp em zero é obrigatório, e é por isso que este número existe
+     * separado do `faltante()`: o vermelho que a conta já tem foi descontado do
+     * `overdraftAvailable`, então somá-lo de novo contaria o mesmo buraco duas
+     * vezes e recusaria despesa que cabe no limite (disponível −100, limite 500,
+     * despesa 350: cabe, e a conta a compararia com 450 > 400).
+     *
+     * É este valor — o incremento — que vai para `funding_amount` na auditoria.
+     */
+    public function chequeNecessario(Account $account, float $amount, float $ignore = 0.0): float
+    {
+        $disponivel = $account->availableWith($ignore);
 
         return round(max(0.0, round($amount, 2) - max(0.0, $disponivel)), 2);
     }
@@ -105,7 +142,39 @@ class SpendingGuard
      */
     public function resgatavel(Account $account): float
     {
-        return round((float) $this->investimentosResgataveis($account)->sum('resgatavel'), 2);
+        return $this->agregadosResgataveis($this->investimentosResgataveis($account))['total'];
+    }
+
+    /**
+     * O maior valor resgatável de UM ÚNICO investimento para esta conta.
+     *
+     * É este — e não a soma — o teto real de um resgate, porque o pedido carrega
+     * um `funding_investment_id` só. Dois CDBs de R$ 300 não pagam um faltante
+     * de R$ 500 numa tacada: para isso o usuário resgata na tela de
+     * Investimentos e lança a despesa depois.
+     */
+    public function maiorResgatavel(Account $account): float
+    {
+        return $this->agregadosResgataveis($this->investimentosResgataveis($account))['maior'];
+    }
+
+    /**
+     * Soma e máximo dos resgatáveis, com os valores já em float.
+     *
+     * O alias `resgatavel` vem cru do SELECT (string no sqlite), então converter
+     * antes de somar/comparar evita comparação de string em cenário de centavos.
+     *
+     * @param  \Illuminate\Support\Collection<int, \App\Models\Investment>  $investimentos
+     * @return array{total: float, maior: float}
+     */
+    private function agregadosResgataveis($investimentos): array
+    {
+        $valores = $investimentos->map(fn ($i) => round((float) $i->resgatavel, 2));
+
+        return [
+            'total' => round((float) $valores->sum(), 2),
+            'maior' => round((float) ($valores->max() ?? 0), 2),
+        ];
     }
 
     /**
@@ -145,53 +214,97 @@ class SpendingGuard
 
     /**
      * Payload que o front usa para montar o modal "de onde sai esse dinheiro?".
-     * Só entram as fontes que existem; a que não cobre vem com `cobre: false`
-     * para aparecer desabilitada com o motivo, em vez de sumir.
+     * Só entram as fontes que existem; a que não cobre vem com `cobre: false` e
+     * um `motivo` PT-BR, para aparecer desabilitada com a explicação em vez de
+     * sumir (ou, pior, de prometer o que o servidor vai recusar).
      */
     public function opcoesDeFonte(Account $account, float $amount, float $ignore = 0.0): array
     {
+        $amount = round($amount, 2);
+        $disponivel = $account->availableWith($ignore);
         $faltante = $this->faltante($account, $amount, $ignore);
+        $doCheque = $this->chequeNecessario($account, $amount, $ignore);
+
         $investimentos = $this->investimentosResgataveis($account);
-        $totalResgatavel = round((float) $investimentos->sum('resgatavel'), 2);
+        ['total' => $totalResgatavel, 'maior' => $maiorResgatavel] = $this->agregadosResgataveis($investimentos);
 
         $fontes = [];
 
         if ($account->overdraftLimitValue > 0) {
-            $novoSaldo = round($account->available + $ignore - $amount, 2);
+            $tetoCheque = $account->overdraftAvailableWith($ignore);
+            $cobreCheque = $doCheque <= $tetoCheque + self::EPSILON;
+            $novoSaldo = round($disponivel - $amount, 2);
+
             $fontes[] = [
                 'id' => \App\Support\FundingSource::CHEQUE_ESPECIAL,
+                // Teto do cheque = o que RESTA do limite; o vermelho atual já
+                // saiu daqui, por isso a comparação é com o incremento.
+                'teto' => $tetoCheque,
                 'rotulo' => 'Usar o cheque especial',
-                'teto' => $account->overdraftAvailableWith($ignore),
-                'cobre' => $faltante <= $account->overdraftAvailableWith($ignore) + self::EPSILON,
+                'cobre' => $cobreCheque,
                 'detalhe' => 'Sua conta fica em ' . Brl::format($novoSaldo)
                     . ' — o limite é ' . Brl::format($account->overdraftLimitValue) . '.',
+                'motivo' => $cobreCheque ? null : 'Passa do limite: esta despesa usaria '
+                    . Brl::format($doCheque) . ' de cheque especial e ainda restam '
+                    . Brl::format($tetoCheque) . '.',
             ];
         }
 
         if ($totalResgatavel > 0) {
+            // `cobre` pelo MAIOR investimento, nunca pela soma — ver `check()`.
+            $cobreResgate = $faltante <= $maiorResgatavel + self::EPSILON;
+
+            $detalhe = 'Vamos resgatar ' . Brl::format($faltante) . ' — sua conta não fica negativa.';
+            if ($disponivel < -self::EPSILON) {
+                // Sem isto, resgatar 400 para uma despesa de 300 parece defeito.
+                $detalhe .= ' Inclui os ' . Brl::format(abs($disponivel))
+                    . ' que a conta já está devendo.';
+            }
+
             $fontes[] = [
                 'id' => \App\Support\FundingSource::RESGATE_INVESTIMENTO,
                 'rotulo' => 'Resgatar de um investimento',
-                'teto' => $totalResgatavel,
-                'cobre' => $faltante <= $totalResgatavel + self::EPSILON,
-                'detalhe' => 'Vamos resgatar ' . Brl::format($faltante)
-                    . ' — seu saldo não fica negativo.',
+                'teto' => $maiorResgatavel,
+                'total' => $totalResgatavel,
+                'cobre' => $cobreResgate,
+                'detalhe' => $detalhe,
+                'motivo' => $cobreResgate ? null
+                    : $this->motivoDoResgate($faltante, $maiorResgatavel, $totalResgatavel),
                 'itens' => $investimentos->map(fn ($i) => [
                     'id' => $i->id,
                     'nome' => $i->name,
                     'aplicado' => round((float) $i->resgatavel, 2),
-                    'cobre' => $faltante <= (float) $i->resgatavel + self::EPSILON,
+                    'cobre' => $faltante <= round((float) $i->resgatavel, 2) + self::EPSILON,
                 ])->values()->all(),
             ];
         }
 
         return [
             'conta' => ['id' => $account->id, 'nome' => $account->name],
-            'valor' => round($amount, 2),
-            'disponivel' => round($account->available + $ignore, 2),
+            'valor' => $amount,
+            'disponivel' => $disponivel,
             'faltante' => $faltante,
             'fontes' => $fontes,
         ];
+    }
+
+    /**
+     * Por que o resgate não cobre — e, quando os investimentos somados dariam,
+     * qual é a saída de verdade (resgatar mais de um na tela de Investimentos).
+     * Sem esta segunda frase o usuário só vê "não cobre" tendo dinheiro aplicado
+     * de sobra, que é exatamente a sensação de beco sem saída.
+     */
+    private function motivoDoResgate(float $faltante, float $maior, float $total): string
+    {
+        $msg = 'Não cobre: o resgate sai de um investimento por vez, e o maior desta conta tem '
+            . Brl::format($maior) . ' — faltam ' . Brl::format($faltante) . '.';
+
+        if ($total > $maior + self::EPSILON && $total >= $faltante - self::EPSILON) {
+            $msg .= ' Somando todos daria (' . Brl::format($total)
+                . '): resgate de mais de um em Investimentos e lance a despesa depois.';
+        }
+
+        return $msg;
     }
 
     /**
@@ -200,9 +313,11 @@ class SpendingGuard
      */
     public function mensagemSemFonte(Account $account, float $amount, float $ignore = 0.0): string
     {
-        $disponivel = round($account->available + $ignore, 2);
+        $disponivel = $account->availableWith($ignore);
         $gastavel = $account->spendableWith($ignore);
-        $resgatavel = $this->resgatavel($account);
+        ['total' => $total, 'maior' => $maior] = $this->agregadosResgataveis(
+            $this->investimentosResgataveis($account)
+        );
 
         $msg = 'Saldo insuficiente: a conta ' . $account->name . ' tem '
             . Brl::format($disponivel) . ' disponíveis e esta despesa é de '
@@ -212,9 +327,17 @@ class SpendingGuard
             $msg .= ' Somando o cheque especial, o máximo agora é ' . Brl::format($gastavel) . '.';
         }
 
-        if ($resgatavel > 0) {
-            $msg .= ' Resgatando tudo o que está investido nesta conta ('
-                . Brl::format($resgatavel) . ') ainda não dá.';
+        if ($total > 0) {
+            // O resgate sai de UM investimento, então o que importa é o maior —
+            // dizer "resgatando tudo" prometeria uma soma que o app não faz numa
+            // tacada só.
+            $msg .= ' Resgatando o maior investimento desta conta (' . Brl::format($maior)
+                . ') ainda não dá.';
+
+            if ($total > $maior + self::EPSILON) {
+                $msg .= ' Somando todos são ' . Brl::format($total)
+                    . ': dá para resgatar mais de um em Investimentos e lançar a despesa depois.';
+            }
         }
 
         return $msg . ' Lance um recebimento para completar o valor.';

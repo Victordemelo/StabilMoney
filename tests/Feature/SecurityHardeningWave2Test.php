@@ -87,7 +87,7 @@ class SecurityHardeningWave2Test extends TestCase
     /** O caminho real: upload de avatar grava a versão sem EXIF no disco. */
     public function test_uploaded_avatar_is_stored_without_exif(): void
     {
-        Storage::fake('public');
+        Storage::fake(\App\Models\User::AVATAR_DISK);
 
         $user = User::factory()->create();
 
@@ -100,7 +100,7 @@ class SecurityHardeningWave2Test extends TestCase
         $caminho = $user->fresh()->avatar_path;
         $this->assertNotNull($caminho, 'O avatar deveria ter sido gravado.');
 
-        $gravado = Storage::disk('public')->get($caminho);
+        $gravado = Storage::disk(\App\Models\User::AVATAR_DISK)->get($caminho);
         $this->assertStringNotContainsString('GPS-LAT-SECRETA', $gravado);
         $this->assertStringContainsString('dados-da-imagem', $gravado);
     }
@@ -140,6 +140,11 @@ class SecurityHardeningWave2Test extends TestCase
         $this->assertSame('dono@example.com', $user->fresh()->email);
     }
 
+    /**
+     * Com a senha certa a troca é ACEITA — mas hoje ela fica pendente de confirmação no
+     * endereço novo (ver TrocaDeEmailConfirmadaTest). O que este teste garante é que a
+     * senha correta não é barrada.
+     */
     public function test_changing_email_works_with_correct_password(): void
     {
         $user = User::factory()->create(['email' => 'dono@example.com', 'password' => 'senha-real']);
@@ -152,7 +157,8 @@ class SecurityHardeningWave2Test extends TestCase
             ])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame('novo@example.com', $user->fresh()->email);
+        $user->refresh();
+        $this->assertSame('novo@example.com', $user->pending_email ?? $user->email);
     }
 
     /** Mudar só o nome NÃO deve pedir senha — senão a tela vira um pedágio. */

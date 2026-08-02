@@ -96,20 +96,36 @@
                                         @if (! empty($smOpt['cobre']))
                                             {{ $smOpt['detalhe'] }}
                                         @else
-                                            Não cobre: o máximo por aqui é @brl($smOpt['teto'] ?? 0).
+                                            {{-- `motivo` vem do servidor: no resgate, o teto é o MAIOR
+                                                 investimento (o pedido carrega um id só), então o número
+                                                 sozinho não explica nada. --}}
+                                            {{ $smOpt['motivo'] ?? 'Não cobre: o máximo por aqui é ' . \App\Support\Brl::format($smOpt['teto'] ?? 0) . '.' }}
                                         @endif
                                     </span>
 
                                     @if ($smOpt['id'] === 'resgate_investimento' && ! empty($smOpt['itens']))
+                                        @php
+                                            // O 1º que cobre nasce selecionado; sem isso o navegador
+                                            // marca o primeiro da lista, mesmo desabilitado.
+                                            $smItemViavel = collect($smOpt['itens'])->firstWhere('cobre', true)['id'] ?? null;
+                                        @endphp
                                         <select class="input" name="funding_investment_id" @disabled(empty($smOpt['cobre']))>
                                             @foreach ($smOpt['itens'] as $smItem)
-                                                <option value="{{ $smItem['id'] }}" @disabled(empty($smItem['cobre']))>
+                                                <option value="{{ $smItem['id'] }}"
+                                                        @selected($smItem['id'] === $smItemViavel)
+                                                        @disabled(empty($smItem['cobre']))>
                                                     {{ $smItem['nome'] }} — @brl($smItem['aplicado']) aplicados
+                                                    @if (empty($smItem['cobre'])) (não cobre sozinho) @endif
                                                 </option>
                                             @endforeach
                                         </select>
                                         <small class="field-hint">
-                                            Vamos resgatar @brl($smFonte['faltante'] ?? 0) — o resto continua investido.
+                                            @if (! empty($smOpt['cobre']))
+                                                Vamos resgatar @brl($smFonte['faltante'] ?? 0) — o resto continua investido.
+                                            @else
+                                                Para juntar mais de um investimento, resgate na tela de Investimentos
+                                                e lance a despesa depois.
+                                            @endif
                                         </small>
                                     @endif
                                 </div>
@@ -120,7 +136,10 @@
                     @unless ($smAlgumCobre)
                         <div class="flash-error" role="alert">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
-                            <span>Nenhuma fonte cobre este pagamento. Lance um recebimento para completar o valor, ou reduza o gasto.</span>
+                            {{-- Quando há investimento, o motivo dele é que aponta a saída
+                                 (resgatar mais de um em Investimentos) — repetir só
+                                 "nenhuma fonte cobre" deixaria o usuário sem caminho. --}}
+                            <span>Nenhuma fonte cobre este pagamento sozinha. {{ $smResgate['motivo'] ?? '' }} Lance um recebimento para completar o valor, ou reduza o gasto.</span>
                         </div>
                     @endunless
                 </div>

@@ -133,6 +133,14 @@ class FixedBillController extends Controller
                     . ' — não há o que pagar antes disso.',
             ]);
         }
+
+        // As outras duas bordas da competência — `ends_on` (conta ENCERRADA) e o
+        // piso de FixedBillService::MAX_MESES_ATRAS — são validadas antes daqui,
+        // no PayFixedBillRequest::validarJanelaDaCompetencia(). Estão lá porque
+        // dependem só da conta fixa e da URL, e é lá que moram as mensagens
+        // PT-BR. Se for mexer na regra de "qual competência é pagável", leia os
+        // dois lugares.
+
         $pagoEm = CarbonImmutable::parse($data['paid_on'] ?? now()->toDateString());
         $valor = round((float) $data['amount'], 2);
 

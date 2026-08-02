@@ -38,7 +38,9 @@ class StoreTransactionRequest extends FormRequest
             // Idempotência da fila offline: gerado no cliente, opcional (web normal não usa).
             'client_uuid' => ['nullable', 'uuid'],
             'type' => ['required', 'in:income,expense'],
-            'amount' => ['required', 'numeric', 'min:0.01', 'max:9999999999999.99'],
+            // Travas do campo de dinheiro (decimal:0,2 + teto seguro) no trait:
+            // `numeric` sozinho aceitava "1e12" e a terceira casa decimal.
+            'amount' => $this->regrasDeDinheiro(),
             'account_id' => [
                 'required',
                 // CRÍTICO: a conta precisa pertencer ao usuário logado.
@@ -117,8 +119,9 @@ class StoreTransactionRequest extends FormRequest
             'type.in' => 'Tipo de transação inválido.',
             'amount.required' => 'Informe o valor da transação.',
             'amount.numeric' => 'O valor deve ser um número. Use vírgula para os centavos, ex.: 25,90.',
+            'amount.decimal' => 'Use no máximo duas casas decimais, ex.: 25,90.',
             'amount.min' => 'O valor mínimo é R$ 0,01.',
-            'amount.max' => 'O valor informado é alto demais.',
+            'amount.max' => 'O valor informado é alto demais (o máximo é R$ 999.999.999.999,99).',
             'account_id.required' => 'Escolha a conta da transação.',
             'account_id.exists' => 'A conta escolhida não existe ou não pertence a você. Cartão de débito não tem saldo próprio — escolha a conta que ele usa.',
             'category_id.exists' => 'A categoria escolhida não existe ou não pertence a você.',

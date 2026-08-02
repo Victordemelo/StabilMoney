@@ -89,6 +89,12 @@ function odbPut(item) {
 }
 
 async function flushLancamentos() {
+  // Por que aqui NÃO se filtra por usuário: o service worker não enxerga a sessão nem o
+  // localStorage, então não tem como saber quem está logado. Quem garante que a fila só
+  // contém itens do dono atual é a página, no `purgeQueueFromOtherUsers()` do
+  // offline-queue.js — ela apaga os lançamentos de outros usuários assim que alguém
+  // loga. Como segunda linha, cada item leva o CSRF da sessão que o criou: numa sessão
+  // diferente o servidor responde 419 e nada é gravado na conta errada.
   const items = await odbAll();
   let retry = false; // sobrou item por falha passageira → pede novo sync (backoff do navegador)
   for (const item of items) {

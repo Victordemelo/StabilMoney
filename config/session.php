@@ -47,7 +47,15 @@ return [
     |
     */
 
-    'encrypt' => env('SESSION_ENCRYPT', false),
+    // Default `true`: o payload da sessão vai criptografado para a tabela `sessions`.
+    // Defesa em profundidade — quem conseguir ler o banco (dump, backup vazado, acesso
+    // de leitura ao MySQL) não lê o conteúdo da sessão sem a APP_KEY. O custo é alguns
+    // milissegundos por requisição.
+    //
+    // ⚠️ Trocar este valor INVALIDA as sessões existentes (o payload gravado no formato
+    // anterior deixa de ser legível): todo mundo é deslogado uma vez. É inofensivo, mas
+    // convém fazer junto de um deploy, não no meio do expediente.
+    'encrypt' => env('SESSION_ENCRYPT', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -199,6 +207,17 @@ return [
     |
     */
 
+    // Mantido em `lax` DE PROPÓSITO, e não elevado a `strict`.
+    //
+    // `strict` faria o navegador NÃO enviar o cookie quando o usuário chega de fora do
+    // site — e o app depende exatamente disso em dois lugares: o link de confirmação de
+    // e-mail (que a pessoa abre no cliente de e-mail) e qualquer link compartilhado para
+    // uma tela do app. Com `strict` a pessoa clicaria e cairia no login, parecendo
+    // deslogada mesmo com a sessão viva.
+    //
+    // O que `strict` acrescentaria contra CSRF já é coberto: o Laravel valida token CSRF
+    // em todo POST/PUT/PATCH/DELETE do grupo `web`, sem nenhuma rota isenta, e `lax` já
+    // impede o envio do cookie em requisições cross-site que não sejam navegação GET.
     'same_site' => env('SESSION_SAME_SITE', 'lax'),
 
     /*
