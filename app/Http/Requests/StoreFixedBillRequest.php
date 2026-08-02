@@ -34,8 +34,10 @@ class StoreFixedBillRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             // `decimal:0,2` barra notação científica ("1e12", que é `numeric`
-            // para o PHP) e mais de duas casas — auditoria 28/07/2026.
-            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:9999999999999.99'],
+            // para o PHP) e mais de duas casas — auditoria 28/07/2026. O teto vem
+            // do trait: o antigo (9999999999999.99) virava 1e13 no bind e o MySQL
+            // devolvia erro 500 em vez de erro de validação (02/08/2026).
+            'amount' => $this->regrasDeDinheiro(),
             'due_day' => ['required', 'integer', 'between:1,31'],
             'account_id' => [
                 'nullable',

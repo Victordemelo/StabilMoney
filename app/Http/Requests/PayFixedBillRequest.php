@@ -88,8 +88,11 @@ class PayFixedBillRequest extends FormRequest
                     ->where('user_id', $ownerId)
                     ->where('type', '!=', 'debit_card')),
             ],
-            // `decimal:0,2` é o que barra "1e12" e "800.123" — `numeric` aceita ambos.
-            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:9999999999999.99'],
+            // `decimal:0,2` é o que barra "1e12" — `numeric` o aceita. (Já "800.123"
+            // é OITOCENTOS MIL: ponto + 3 dígitos é separador de milhar no pt-BR;
+            // a terceira casa decimal se escreve "800,123".) O teto vem do trait:
+            // o antigo (9999999999999.99) virava 1e13 no bind e dava erro 500.
+            'amount' => $this->regrasDeDinheiro(),
             'paid_on' => [
                 'nullable',
                 'date',

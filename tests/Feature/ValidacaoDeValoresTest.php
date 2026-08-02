@@ -601,4 +601,64 @@ class ValidacaoDeValoresTest extends TestCase
 
         $this->assertSame(0, Investment::count(), 'Investimento com taxa negativa não pode ser criado.');
     }
+
+    /**
+     * O teto antigo (9999999999999.99) sobrevivia à validação e MORRIA no banco:
+     * com `precision=14` do PHP ele vira "10000000000000" no bind e o MySQL
+     * responde "Out of range" — erro 500 em vez de erro de validação. Os campos
+     * de conta fixa foram os últimos a herdar o teto seguro do trait.
+     */
+    public function test_conta_fixa_recusa_o_teto_venenoso_em_vez_de_estourar(): void
+    {
+        $user = User::factory()->create();
+        $conta = Account::factory()->for($user)->create([
+            'type' => 'checking', 'initial_balance' => 100,
+        ]);
+
+        $this->actingAs($user)->post(route('contas-fixas.store'), [
+            'name' => 'Aluguel',
+            'amount' => '9.999.999.999.999,99',
+            'due_day' => 10,
+            'account_id' => $conta->id,
+            'starts_on' => now()->startOfMonth()->toDateString(),
+        ])->assertSessionHasErrors('amount');
+
+        $this->assertDatabaseCount('fixed_bills', 0);
+    }
+
+    public function test_conta_fixa_aceita_o_teto_seguro_e_grava_exato(): void
+    {
+        $user = User::factory()->create();
+        $conta = Account::factory()->for($user)->create([
+            'type' => 'checking', 'initial_balance' => 100,
+        ]);
+
+        $this->actingAs($user)->post(route('contas-fixas.store'), [
+            'name' => 'Aluguel',
+            'amount' => '999.999.999.999,99',
+            'due_day' => 10,
+            'account_id' => $conta->id,
+            'starts_on' => now()->startOfMonth()->toDateString(),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('999999999999.99', \App\Models\FixedBill::firstOrFail()->amount);
+    }
+
+    public function test_conta_fixa_recusa_notacao_cientifica(): void
+    {
+        $user = User::factory()->create();
+        $conta = Account::factory()->for($user)->create([
+            'type' => 'checking', 'initial_balance' => 100,
+        ]);
+
+        $this->actingAs($user)->post(route('contas-fixas.store'), [
+            'name' => 'Aluguel',
+            'amount' => '1e12',
+            'due_day' => 10,
+            'account_id' => $conta->id,
+            'starts_on' => now()->startOfMonth()->toDateString(),
+        ])->assertSessionHasErrors('amount');
+
+        $this->assertDatabaseCount('fixed_bills', 0);
+    }
 }
