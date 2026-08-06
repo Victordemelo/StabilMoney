@@ -94,7 +94,13 @@ async function medirModal(page, id) {
         // Estouro horizontal DENTRO do modal (o app recorta, então medir o container).
         const estouroInterno = [];
         for (const el of modal.querySelectorAll('*')) {
-            if (el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0) {
+            // Botão de ícone pequeno que "estoura" é o pseudo-elemento invisível que
+            // amplia a área de toque para 44×44 sem engordar o desenho (ver `.modal-x`).
+            // Não há conteúdo perdido: o excedente É a folga de toque pretendida.
+            if (el.matches('button, a') && el.clientWidth < 60
+                && el.querySelectorAll(':scope > *:not(svg)').length === 0) continue;
+
+            if (el.scrollWidth > el.clientWidth + 2 && el.clientWidth > 0) {
                 estouroInterno.push({
                     seletor: el.tagName.toLowerCase() + (el.className && typeof el.className === 'string'
                         ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : ''),

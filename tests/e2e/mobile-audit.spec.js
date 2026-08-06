@@ -112,6 +112,31 @@ async function medirEstouro(page) {
             // Texto de uma linha com reticências é truncamento DESENHADO, não defeito:
             // o usuário vê o "…" e sabe que há mais. Sem reticências, o corte é mudo.
             if (estilo.textOverflow === 'ellipsis' && estilo.whiteSpace === 'nowrap') continue;
+
+            // Botão de ícone pequeno que "estoura" é, neste projeto, o pseudo-elemento
+            // invisível que amplia a ÁREA DE TOQUE para 44×44 sem engordar o desenho
+            // (ver `.modal-x`, `.cc-del`, `.meta-act`). Não há conteúdo perdido ali —
+            // o excedente é justamente a folga de toque que se quis criar.
+            const ehBotaoDeIcone = el.matches('button, a')
+                && el.clientWidth < 60
+                && el.querySelectorAll(':scope > *:not(svg)').length === 0;
+            if (ehBotaoDeIcone) continue;
+
+            // Decoração posicionada de propósito PARA FORA e recortada pelo card:
+            // é a técnica do brilho de fundo (ver `.sb-glow`, um círculo em
+            // `right: -55px` dentro de um card `overflow: hidden`). Sai da fluidez
+            // do layout, então não há conteúdo perdido — o recorte é o efeito.
+            // Só ignora quando TODO o excedente vem de filhos absolutos.
+            const excedentes = [...el.children].filter((f) => {
+                const rf = f.getBoundingClientRect();
+                const re = el.getBoundingClientRect();
+
+                return rf.right > re.right + 1 || rf.left < re.left - 1;
+            });
+            if (excedentes.length
+                && excedentes.every((f) => ['absolute', 'fixed'].includes(getComputedStyle(f).position))) {
+                continue;
+            }
             // Container que ROLA de propósito (abas, tabela com scroll) não é defeito:
             // ali o usuário alcança o conteúdo deslizando.
             if (['auto', 'scroll'].includes(estilo.overflowX)) continue;

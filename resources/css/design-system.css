@@ -63,7 +63,12 @@
   --bg: #07140E;
   --surface: #0E211A;
   --surface-2: #122A20;
-  --surface-3: #16332765;
+  /* Opaco. Estava `#16332765` — 8 dígitos, ou seja, ~40% de alpha, enquanto o
+     valor do tema claro (`#EEF4F0`) é sólido. Parecia dois caracteres a mais por
+     engano, e o efeito era visível: o seletor Semana/Mês/Ano, as barras de
+     progresso das metas e as abas ficavam translúcidos e deixavam a animação de
+     fundo (`.sm-falling`, z-index -1) vazar por trás de componentes sólidos. */
+  --surface-3: #163327;
   --ink: #EAF5EF;
   --ink-2: #A7BEB4;
   --ink-3: #6F877C;
@@ -181,9 +186,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .side-foot { position: relative; z-index: 1; display: flex; align-items: center; gap: 11px; padding: 8px; }
 .side-foot .avatar { width: 38px; height: 38px; border-radius: 50%; flex: none; }
-.side-foot-text { line-height: 1.25; overflow: hidden; transition: opacity .2s var(--ease); }
-.side-foot-text strong { font-size: 13.5px; display: block; white-space: nowrap; }
-.side-foot-text span { font-size: 12px; color: var(--side-muted); white-space: nowrap; }
+/* `text-overflow: ellipsis`: já havia `overflow: hidden` + `nowrap`, mas sem as
+   reticências — então nome e e-mail eram cortados NO MEIO DA LETRA, sem sinal de
+   que havia mais. Medido em 360px: 172px de texto num espaço de 154px. */
+.side-foot-text { line-height: 1.25; overflow: hidden; min-width: 0; transition: opacity .2s var(--ease); }
+.side-foot-text strong { font-size: 13.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-foot-text span { font-size: 12px; color: var(--side-muted); white-space: nowrap; display: block; overflow: hidden; text-overflow: ellipsis; }
 
 /* ============ Main ============ */
 .main { display: flex; flex-direction: column; min-width: 0; height: 100vh; }
@@ -450,9 +458,16 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   background: var(--surface-3); color: var(--ink-2); font-size: 19px;
 }
 .tx .tx-ico svg { width: 20px; height: 20px; stroke-width: 1.9; }
-.tx .tx-name { font-size: 14px; font-weight: 600; }
-.tx .tx-meta { font-size: 12px; color: var(--ink-3); margin-top: 1px; }
-.tx .tx-amt { margin-left: auto; font-family: var(--font-head); font-weight: 700; font-size: 14.5px; text-align: right; }
+/* `min-width: 0` no bloco do meio: sem ele o texto não encolhe abaixo do
+   min-content e empurra o valor para fora do card, que então o recorta. É a
+   mesma proteção que `.fi-txt`, `.invr-main` e `.dp-id` já tinham. */
+.tx > div:not([class]), .tx .tx-txt { min-width: 0; }
+.tx .tx-name { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx .tx-meta { font-size: 12px; color: var(--ink-3); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* `flex: none` + `nowrap`: sem eles o valor era espremido pelo `.tx-meta` (que é
+   longo — "Categoria · Conta · data · Autor") e "− R$ 1.590,00" quebrava em duas
+   linhas, "− R$" em cima e o número embaixo. Acontecia a partir de mil reais. */
+.tx .tx-amt { margin-left: auto; flex: none; white-space: nowrap; font-family: var(--font-head); font-weight: 700; font-size: 14.5px; text-align: right; }
 .tx .tx-amt.pos { color: var(--pos); }
 .tx .tx-amt small { display: block; font-family: var(--font-body); font-size: 11px; color: var(--ink-3); font-weight: 500; }
 
@@ -546,7 +561,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .inv-spark { height: 44px; margin: 6px 0 2px; }
 
 /* ============ Mobile chrome ============ */
-.scrim { position: fixed; inset: 0; background: rgba(7,20,14,.5); backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity .3s var(--ease); z-index: 39; }
+/* z-index 46 e não 39: a `.bottom-nav` do celular é 45, então com o véu em 39 o
+   menu abria, o conteúdo escurecia — e a barra de baixo continuava acesa E
+   clicável por cima dele. Dava para tocar em "Extrato" ou no FAB com o drawer
+   aberto. O véu tem de cobrir tudo que não é o drawer (que subiu para 47). */
+.scrim { position: fixed; inset: 0; background: rgba(7,20,14,.5); backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity .3s var(--ease); z-index: 46; }
 .scrim.show { opacity: 1; pointer-events: auto; }
 .mobile-top { display: none; }
 .bottom-nav { display: none; }
@@ -680,7 +699,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* Modal destrutivo: o ícone da cabeça usa o vermelho de dívida, não o verde da
    marca — a cor precisa dizer o que está prestes a acontecer. */
 .modal-ico.perigo { background: color-mix(in srgb, var(--neg) 12%, transparent); color: var(--neg); }
-.modal-x { margin-left: auto; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: var(--ink-3); transition: all .15s; flex: none; }
+.modal-x { margin-left: auto; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: var(--ink-3); transition: all .15s; flex: none; position: relative; }
+/* Área de toque de 44×44 no celular sem engordar o botão: é o controle mais usado
+   de qualquer modal (fechar) e fica no canto, a região mais difícil de acertar com
+   o polegar. Cresce o alvo, não o desenho — o pseudo-elemento é invisível. */
+@media (max-width: 640px) {
+  .modal-x::after { content: ""; position: absolute; inset: -5px; }
+}
 .modal-x:hover { background: var(--surface-2); color: var(--ink); }
 .modal-x svg { width: 18px; height: 18px; stroke-width: 2; }
 /* É ELE quem rola. `min-height: 0` é obrigatório: sem isso um filho flex se recusa
@@ -904,7 +929,21 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .cookie-txt p { font-size: 12.5px; color: var(--ink-3); line-height: 1.4; margin-top: 2px; }
 .cookie-txt a { color: var(--brand-600); font-weight: 600; }
 .cookie-accept { flex: none; white-space: nowrap; }
-@media (max-width: 700px) { .cookie-bar { bottom: 84px; } }   /* livra a bottom-nav no mobile */
+/* Livra a bottom-nav. O breakpoint tem de ser o MESMO em que a barra inferior
+   aparece (920px) — estava em 700px, então entre 701 e 920 a barra de cookies
+   caía em cima da navegação inteira. E a folga soma a safe-area do iPhone: sem
+   ela, os 84px fixos ficavam 17px DENTRO da nav (que ali tem 101px de altura),
+   bem onde o FAB sobe. */
+@media (max-width: 920px) {
+  .cookie-bar { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* Espaço reservado enquanto o aviso está na tela (classe posta pelo script do
+   partial). A barra é `position: fixed` e não empurra nada: sem esta reserva ela
+   fica POR CIMA do que estiver embaixo — no login, exatamente sobre o "Entrar".
+   Some junto com a barra, então não sobra buraco depois do aceite. */
+.tem-aviso-cookie .content { padding-bottom: 224px; }
+@media (min-width: 921px) { .tem-aviso-cookie .content { padding-bottom: 140px; } }
 @media (max-width: 480px) { .cookie-bar { flex-direction: column; align-items: stretch; } .cookie-accept { width: 100%; } }
 
 /* ============ Dependentes (portado do styles.css v2) ============ */
@@ -1097,7 +1136,12 @@ body.pjax-loading #content { opacity: .5; }
 
 /* ============ Categorias: drag columns ============ */
 .cat-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.cat-col { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px; }
+/* `min-width: 0`: item de grid tem `min-width: auto` por padrão, então a trilha
+   `1fr` NÃO encolhe abaixo do min-content do chip mais largo — a coluna estourava
+   328px de espaço em 360px e era recortada em silêncio pelo `overflow-x: hidden`
+   do `.content`. Pior: o `text-overflow: ellipsis` do nome da categoria, que
+   existe justamente para truncar, nunca chegava a atuar. */
+.cat-col { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px; }
 .cat-col-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; padding: 0 4px; }
 .cat-col-head .cch-dot { width: 10px; height: 10px; border-radius: 3px; }
 .cat-col-head h3 { font-family: var(--font-head); font-size: 14.5px; font-weight: 600; }
@@ -1152,6 +1196,20 @@ body.pjax-loading #content { opacity: .5; }
   .sidebar {
     position: fixed; top: 0; bottom: 0; left: 0; width: 280px; z-index: 50;
     transform: translateX(-100%); transition: transform .35s var(--ease);
+    /* O `.sidebar` base é `overflow: hidden`, e a classe `.scroll` da view só
+       estiliza a barra de rolagem — não define overflow nenhum. Resultado: num
+       aparelho de 844px de altura (iPhone 14/15, Pixel, Galaxy) o conteúdo do
+       drawer soma ~880px e o flex ESPREMIA os itens, porque não tinha para onde
+       rolar. Havia um remendo escondendo o card de patrimônio abaixo de 800px de
+       altura — teto baixo demais para os aparelhos atuais. Deixar rolar resolve
+       em qualquer altura. */
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* Respiro para o notch e para a barra de gestos: sem isto o botão de perfil
+       (único caminho para "Sair") fica dentro da faixa da home indicator, e o
+       toque vira gesto do sistema. */
+    padding-top: calc(22px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
   }
   .sidebar.open { transform: none; box-shadow: var(--shadow-lg); }
   .collapsed .brand-name, .collapsed .nav-label, .collapsed .nav-group-label,
@@ -1284,13 +1342,21 @@ body.pjax-loading #content { opacity: .5; }
   transition: border-color .18s ease, background .18s ease;
 }
 .fonte-opt:hover:not(.disabled) { border-color: var(--brand-400); }
-.fonte-opt:has(input:checked) { border-color: var(--brand-500); background: var(--brand-50, var(--surface-3)); }
+.fonte-opt:has(input:checked) { border-color: var(--brand-500); background: var(--brand-50); }
+/* Sem este par, escolher a fonte do dinheiro no tema escuro pintava a opção
+   selecionada de `#EEF8F3` — um retângulo quase branco no meio de um modal
+   escuro — e o título ficava com contraste 1,01:1, ou seja, SUMIA. Justamente
+   na tela em que a pessoa precisa conferir de onde o dinheiro vai sair. */
+[data-theme="dark"] .fonte-opt:has(input:checked) { background: rgba(28,154,112,.16); }
 .fonte-opt.disabled { opacity: .55; cursor: not-allowed; }
 
 .fonte-opt input[type="radio"] { margin-top: 3px; accent-color: var(--brand-500); flex: none; }
 
 .fonte-txt { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
-.fonte-txt strong { font-size: 14px; font-weight: 700; color: var(--ink-1); }
+/* `--ink-1` NÃO EXISTE (os tokens são --ink, --ink-2, --ink-3). A declaração era
+   inválida e a cor caía por herança — o que, no tema escuro, dava texto quase
+   branco sobre fundo quase branco. */
+.fonte-txt strong { font-size: 14px; font-weight: 700; color: var(--ink); }
 .fonte-txt span { font-size: 12.5px; color: var(--ink-3); line-height: 1.45; }
 .fonte-txt .input { margin-top: 8px; }
 .fonte-txt .field-hint { font-size: 11.5px; color: var(--ink-3); }

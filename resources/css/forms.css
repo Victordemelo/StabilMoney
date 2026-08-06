@@ -798,7 +798,9 @@ a.tx { text-decoration: none; color: inherit; }
 .fi-rm svg { width: 15px; height: 15px; stroke-width: 2; }
 
 /* Variante "editar" do mesmo botãozinho: hover neutro (o vermelho é só p/ excluir) */
-.fi-rm.fi-ed:hover { background: var(--surface-2, rgba(0,0,0,.05)); color: var(--ink-1); }
+/* `--ink-1` não existe no design system (os tokens são --ink, --ink-2, --ink-3):
+   a declaração era inválida e a cor do hover não mudava. */
+.fi-rm.fi-ed:hover { background: var(--surface-2, rgba(0,0,0,.05)); color: var(--ink); }
 [data-theme="dark"] .fi-rm.fi-ed:hover { background: rgba(255,255,255,.08); }
 
 /* Lista vazia do cartão */

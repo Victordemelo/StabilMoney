@@ -222,6 +222,23 @@
 .auth .ac-alt a { color: var(--brand-600); font-weight: 700; text-decoration: none; }
 .auth .ac-alt a:hover { text-decoration: underline; }
 
+/* ===== Aviso de cookies vai para o TOPO nas telas de auth ===== */
+/* Esta era a pior falha de mobile do app: a barra de consentimento é
+   `position: fixed` no rodapé e, num celular de 360px, caía exatamente em cima do
+   botão "Entrar" (medido: barra 493→656, botão 585→636). O toque no centro do
+   botão acertava o "Aceitar" da barra — a porta de entrada ficava intransponível
+   até a pessoa aceitar cookies, sem nada na tela ligando uma coisa à outra.
+
+   Por que mover em vez de reservar espaço embaixo: a barra é FIXA, então reservar
+   espaço só permitiria ROLAR o botão para fora de baixo dela — na primeira tela
+   ela continuaria por cima. Aqui em cima ela cobre apenas o painel de vídeo, que
+   é decorativo, e ainda fica mais visível (o que interessa a um aviso de LGPD).
+   Nas telas do app ela segue no rodapé: lá o topo tem a barra de navegação. */
+.auth-body .cookie-bar { top: 16px; bottom: auto; }
+@media (max-width: 600px) {
+  .auth-body .cookie-bar { top: calc(12px + env(safe-area-inset-top, 0px)); left: 12px; right: 12px; }
+}
+
 /* ===== Desafio de 2FA (código do autenticador) ===== */
 /* Campo de código: fonte de título, grande e espaçada. Digitar 6 dígitos é uma
    transcrição — o olho precisa conferir dígito a dígito com a tela do celular. */
