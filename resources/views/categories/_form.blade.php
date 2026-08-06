@@ -4,11 +4,8 @@
 --}}
 @php
     $editando = $category !== null;
-    $icones = ['🍽️', '🚗', '🏠', '💊', '🎮', '📚', '🛒', '🧾', '💰', '💼', '📈', '🎁', '📦', '✨'];
-    // Sem vermelho: o #E5604D (--neg) é reservado para "está devendo" (saldo
-    // negativo, a pagar, vencido). Cores variadas para as categorias não
-    // ficarem todas parecidas.
-    $cores = ['#0F6B47', '#1FA06E', '#59C497', '#18B6BE', '#0EA5B5', '#3B82C4', '#6366F1', '#8B5CF6', '#EC4899', '#F0A93B', '#64748B', '#78716C'];
+    // $icones/$cores vêm do CategoryController (constantes ICONES/CORES) — a
+    // mesma fonte que alimenta o modal da listagem, para os dois não divergirem.
     $tipoPrefill = in_array(request('type'), ['income', 'expense'], true) ? request('type') : 'expense';
     $tipoAtual = old('type', $category->type ?? $tipoPrefill);
     $iconeAtual = old('icon', $category->icon ?? '✨');

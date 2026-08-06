@@ -257,9 +257,9 @@ tests/Feature/              # 755 testes: auth, dashboard, CRUD, validação, is
 | Rota (name) | View | O que mostra |
 |---|---|---|
 | `GET /` (`dashboard`) | `dashboard.blade.php` | Stats com sparklines, segmented semana/mês/ano, fluxo de caixa, donut por categoria, transações recentes, "Meu cartão" (rótulo "Limite disponível" p/ crédito) + contas, e cards **com dados reais** de Metas / Contas a pagar (faturas de cartão em aberto) / Investimentos — resumos via `DashboardService::featureResumos`. |
-| `/transactions` (resource, sem `show`) | `transactions/*` | Lista com filtros GET (tipo/conta), paginação; form com type-toggle, valor com vírgula, conta, categoria filtrada por tipo. |
+| `/transactions` (resource, sem `show`) | `transactions/*` | Lista com filtros GET (**tipo/conta/período `de`+`ate`**), paginação. Data inválida no filtro é IGNORADA (vem pela URL; não pode derrubar a lista) e datas invertidas são TROCADAS. ⚠️ A leitura é ESTRITA — `createFromFormat` é tolerante e transformava `2026-13-45` em `2027-02-14` em silêncio, então a data é reformatada e comparada com a entrada. "Nova transação" abre o **modal global**, não outra tela; form com type-toggle, valor com vírgula, conta, categoria filtrada por tipo. |
 | `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"**. 5 tipos (Conta Corrente/Poupança, Cartão de Débito/Crédito, **Pix**) + **banco** com logo (imagem `public/assets/banks/`, preview no form). Form com campos condicionais por tipo (JS): conta = saldo inicial; **corrente = + limite do cheque especial**; crédito = limite + fechamento/vencimento; débito = vincula corrente/poupança que ele espelha. **Sem picker de ícone/cor.** O card mostra a imagem do banco e o **"Saldo em conta" = `available`** (vermelho quando negativo), com barra de uso do cheque especial; débito mostra corrente/poupança separados + total. |
-| `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
+| `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **criar/editar abre MODAL** na própria tela (página cheia de fallback); **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
 | `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais em **dois cards lado a lado** (mesmo grid das Configurações, largura cheia): "Quem é você" (foto com preview, nome, **data de nascimento**, **sexo**) e "Como falamos com você" (e-mail, telefone). Nascimento e sexo são **opcionais** — minimização de dados; `User::GENEROS` traz "Prefiro não informar". O campo de **senha atual** só aparece quando o e-mail muda (mesma regra do `ProfileUpdateRequest`). **Acesso pelo popover do perfil** (sidebar). |
 | `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security|two-factor|conta`) | **Três subabas-pílula** (Segurança · **2FA** · Conta) numa coluna de 1120px, com o corpo em grid de 12 colunas — cada aba tem DOIS cards lado a lado (`span6`/`span7`+`span5`), de altura igual, e cabe sem rolar. **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), (lista com **teto de 4 itens** e rolagem interna — sem isso o card esticava além do de Senha e a página voltava a rolar). **2FA** = card de ação + card "Como funciona" ao lado. **O SWITCH é o controle**: a linha inteira é um `<summary>` (`.tfa-toggle`) que abre a confirmação por senha DENTRO do card — ligar e desligar seguem exigindo senha, sem botão-gatilho separado empurrando o conteúdo. No rodapé, **"Autenticadores da família"** lista quem já protegeu o próprio login (nome, papel, desde quando) — só status, nunca segredo: `two_factor_secret` é `encrypted` e não chega à view. **Conta** = resumo real da conta (e-mail, desde quando, dependentes, estado do 2FA) + zona de perigo. |
 | `POST/DELETE /configuracoes/2fa` (`settings.2fa.ativar` / `.desativar`), `POST /configuracoes/2fa/confirmar` (`.confirmar`), `POST /configuracoes/2fa/codigos` (`.codigos`) → `TwoFactorController` | bloco em `settings/partials/two-factor` | **2FA (opcional).** Ligar/desligar/trocar códigos exigem a **senha atual** (`throttle:senha`); confirmar o setup exige o **código** (`throttle:dois-fatores`). Sem rota de listagem — tudo acontece no card da aba Segurança. |
@@ -293,6 +293,20 @@ existe no mobile** (a `.topbar` some em ≤920px; sem ele o celular não recebia
 PWA-first). **Saldo negativo:** a sidebar mostra "Disponível para gastar" em vermelho e uma linha
 de cheque especial usado.
 
+**Cadastro de categoria e de método de pagamento abre em MODAL** (06/08/2026), na própria tela,
+com a página cheia (`create`/`edit`) mantida como fallback sem JS — o `href` continua no gatilho.
+O `accounts/_form.blade.php` é o MESMO arquivo nas duas molduras (`$modal` troca só o invólucro),
+para não existir uma segunda cópia dos campos condicionais para ficar para trás.
+
+**⚠️ Com N modais na mesma página, os ids têm de ser ÚNICOS.** `/accounts` renderiza um modal por
+conta, e `querySelector('[data-account-form]')` pegava sempre o primeiro: cada modal editava os
+campos do vizinho. Todo `id` leva sufixo (`name-c194`, `acct-form-novo`) e o script se acha por id.
+
+**⚠️ `.modal-scrim` fechado é `visibility: hidden`, não só `opacity: 0`.** Sem isso o modal fechado
+continua na ORDEM DE TABULAÇÃO e na árvore de acessibilidade — quem navega por teclado atravessa
+formulários invisíveis antes de chegar à página. A transição usa `visibility 0s .25s` no fechado
+(atrasa até o fade terminar) e `0s` no aberto.
+
 **⚠️ `animation-fill-mode` é `backwards`, NUNCA `both`, em `.card` e `.view`.** Com `both` a
 propriedade continua "animada" depois de terminar, e um `transform: none` animado computa como
 **matriz identidade** — sem efeito visual, mas o elemento vira o **bloco de contenção** de qualquer
@@ -309,6 +323,15 @@ aberto por cima do resultado, escondendo o lançamento que acabou de entrar.
 shell), mas há gatilhos DENTRO do `#content` — o "Nova transação" do Histórico — e o pjax troca o
 `#content` inteiro. Com bind elemento a elemento o botão funcionava no primeiro carregamento e
 virava link comum depois de qualquer navegação.
+
+**Modal "Lançar" — abre SEMPRE zerado e em RECEITA.** O `checked` está no HTML (vale sem JS) e o
+JS reforça a cada abertura: reabrir não herda valor digitado, tipo trocado nem categoria da vez
+anterior. **Trocar receita ↔ despesa zera o valor** — são naturezas diferentes de dinheiro, e
+herdar o número convida a salvar um valor que era de outra coisa. Abaixo do select de método, o
+modal mostra o **saldo daquele método** (`data-saldo` na option, de `Account::paymentOptions()`):
+é o que evita a surpresa de digitar, salvar e só então receber o 409 perguntando a fonte. Em
+receita a linha some. ⚠️ `paymentOptions()` passou a ler saldo por conta — mantenha o
+`preloadMoney()` dela, senão são N queries.
 
 **Modal "Lançar" (global):** o botão da topbar, o FAB e o "Nova transação" do Histórico
 (`data-launch-open`) abrem um modal de
@@ -1240,7 +1263,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte completa (850 testes)
+docker compose exec app php artisan test                       # suíte completa (901 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan tinker                     # console interativo
 docker compose exec app php artisan view:cache                 # valida sintaxe de TODAS as views

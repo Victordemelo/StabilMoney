@@ -633,9 +633,22 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .modal-scrim {
   position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 20px;
   background: rgba(7,20,14,.55); backdrop-filter: blur(3px);
-  opacity: 0; pointer-events: none; transition: opacity .25s var(--ease);
+  opacity: 0; pointer-events: none;
+  /* `visibility: hidden` além do opacity: sem ela o modal fechado continua na ORDEM
+     DE TABULAÇÃO e na árvore de acessibilidade — quem navega por teclado ou leitor
+     de tela atravessa formulários invisíveis antes de chegar à página. Passou a
+     doer em /accounts, que tem um modal escondido POR CONTA.
+     O `0s .25s` atrasa a troca até a animação de opacidade terminar; sem esse
+     atraso o modal sumiria de uma vez, sem transição. */
+  visibility: hidden;
+  transition: opacity .25s var(--ease), visibility 0s .25s;
 }
-.modal-scrim.open { opacity: 1; pointer-events: auto; }
+/* Ao abrir, a visibilidade volta NA HORA (0s sem atraso), senão o fade-in
+   aconteceria com o elemento ainda invisível. */
+.modal-scrim.open {
+  opacity: 1; pointer-events: auto; visibility: visible;
+  transition: opacity .25s var(--ease), visibility 0s;
+}
 .modal {
   width: 100%; max-width: 440px; background: var(--surface); color: var(--ink);
   border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--shadow-lg);
@@ -832,6 +845,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    visualmente com "Marcar como paga" — só existe para consertar um clique errado. */
 .fatura-estorno { display: inline-flex; }
 .fatura-estorno .btn { padding: 7px 12px; font-size: 12.5px; border-radius: 10px; }
+/* Saldo do método escolhido, sob o select do modal de lançar. */
+.lm-saldo { display: block; margin-top: 6px; font-size: 12px; color: var(--ink-3); }
+.lm-saldo.neg { color: var(--neg); font-weight: 600; }
+
 /* Rodapé do stat card: contexto curto sob o número (ex.: "3 em aberto · valor
    previsto"). Fica em uma linha; se não couber, corta com reticências. */
 .stat-nota {

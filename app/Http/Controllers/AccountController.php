@@ -15,6 +15,11 @@ class AccountController extends Controller
     public function index(Request $request)
     {
         $accounts = Account::with(['linkedChecking', 'linkedSavings'])
+            // Cada conta já vem sabendo se tem histórico: são 3 subconsultas
+            // DENTRO da mesma query, e é isso que trava o tipo no modal de edição.
+            // Perguntar `hasMoneyHistory()` card a card seriam 3 queries por conta
+            // dentro do laço — exatamente o N+1 que o `preloadMoney` matou.
+            ->withExists(['transactions', 'goalContributions', 'investmentContributions'])
             ->where('user_id', $request->user()->ownerId())
             ->orderBy('name')
             ->get();
@@ -26,7 +31,32 @@ class AccountController extends Controller
 
         return view('accounts.index', [
             'accounts' => $accounts,
+            // A tela agora traz os formulários (um modal para criar, um por conta
+            // para editar), então precisa dos mesmos dados de `formData()`. As
+            // opções de vínculo (débito/Pix) saem das contas já carregadas — sem
+            // query nova, e na mesma ordem alfabética.
+            'types' => Account::TYPES,
+            'banks' => Account::BANKS,
+            'checkingAccounts' => $accounts->where('type', 'checking')->values(),
+            'savingsAccounts' => $accounts->where('type', 'savings')->values(),
+            'travados' => $accounts
+                ->filter(fn (Account $conta) => $this->temHistorico($conta))
+                ->pluck('id')
+                ->all(),
         ]);
+    }
+
+    /**
+     * Mesma pergunta do `Account::hasMoneyHistory()`, respondida com o que o
+     * `withExists` do index já trouxe — para o laço dos cards não disparar
+     * consulta nenhuma.
+     */
+    private function temHistorico(Account $conta): bool
+    {
+        return (float) $conta->initial_balance > 0
+            || (bool) $conta->transactions_exists
+            || (bool) $conta->goal_contributions_exists
+            || (bool) $conta->investment_contributions_exists;
     }
 
     public function create(Request $request)
@@ -39,7 +69,19 @@ class AccountController extends Controller
         $data = $request->validated();
         $data['user_id'] = $request->user()->ownerId();
 
-        Account::create($data);
+        $account = Account::create($data);
+
+        // O modal da lista envia por AJAX (Accept: application/json) e recarrega
+        // o conteúdo sozinho; a página cheia continua redirecionando. Os erros de
+        // validação já saem em 422 JSON pelo próprio Form Request.
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'id' => $account->id,
+                'message' => 'Conta criada com sucesso.',
+                'redirect' => route('accounts.index'),
+            ], 201);
+        }
 
         return redirect()->route('accounts.index')
             ->with('status', 'Conta criada com sucesso.');
@@ -78,6 +120,15 @@ class AccountController extends Controller
         // CLASSE do tipo — caixa ↔ cartão — numa conta que já tem dinheiro faz
         // saldo desaparecer ou contar em dobro. Mesma trava do `destroy`.
         if ($erro = $account->travaDeClasse($dados['type'] ?? null)) {
+            if ($request->expectsJson()) {
+                // Mesmo formato do 422 do Form Request: quem envia pelo modal lê
+                // `errors` sem precisar saber de onde a recusa veio.
+                return response()->json([
+                    'message' => $erro,
+                    'errors' => ['type' => [$erro]],
+                ], 422);
+            }
+
             return back()->withInput()->withErrors(['type' => $erro]);
         }
 
@@ -91,6 +142,15 @@ class AccountController extends Controller
         }
 
         $account->update($dados);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'id' => $account->id,
+                'message' => 'Conta atualizada.',
+                'redirect' => route('accounts.index'),
+            ]);
+        }
 
         return redirect()->route('accounts.index')
             ->with('status', 'Conta atualizada.');

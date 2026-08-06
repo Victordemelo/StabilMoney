@@ -10,6 +10,7 @@ use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\FundingService;
+use Carbon\CarbonImmutable;
 use App\Support\Brl;
 use App\Support\FundingSource;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -42,6 +43,24 @@ class TransactionController extends Controller
             $query->where('account_id', $accountId);
         }
 
+        // Período: "de" e "até", os dois opcionais e independentes.
+        //
+        // ⚠️ `where()` com `->toDateString()`, NUNCA `whereDate()`: a coluna já é
+        // DATE, e `whereDate()` embrulha em função e anula os índices
+        // `(account_id, date)` — regra do CLAUDE.md.
+        //
+        // Data inválida é IGNORADA em vez de estourar: o filtro chega pela URL e
+        // qualquer um pode digitar `?de=ontem`. Filtro é conveniência, não deve
+        // derrubar a listagem do histórico inteiro.
+        [$de, $ate] = $this->periodoDoFiltro($request);
+
+        if ($de) {
+            $query->where('date', '>=', $de->toDateString());
+        }
+        if ($ate) {
+            $query->where('date', '<=', $ate->toDateString());
+        }
+
         $transactions = $query
             ->orderByDesc('date')
             ->orderByDesc('id')
@@ -51,7 +70,54 @@ class TransactionController extends Controller
         // Exibe "quem fez a compra" só quando a família tem dependentes.
         $showAuthor = User::where('account_owner_id', $userId)->exists();
 
-        return view('transactions.index', compact('transactions', 'accounts', 'showAuthor'));
+        return view('transactions.index', [
+            'transactions' => $transactions,
+            'accounts' => $accounts,
+            'showAuthor' => $showAuthor,
+            // Devolvidas normalizadas (Y-m-d) para reabastecer os inputs de data.
+            'filtroDe' => $de?->toDateString(),
+            'filtroAte' => $ate?->toDateString(),
+        ]);
+    }
+
+    /**
+     * Lê "de"/"até" da query string, tolerando lixo.
+     *
+     * Se vierem invertidos (de > até), são TROCADOS em vez de devolver lista
+     * vazia: quem digita 30/09 no "de" e 01/09 no "até" quis setembro, e uma tela
+     * em branco não ajuda a perceber o erro.
+     *
+     * @return array{0: ?CarbonImmutable, 1: ?CarbonImmutable}
+     */
+    private function periodoDoFiltro(Request $request): array
+    {
+        $ler = function (?string $valor): ?CarbonImmutable {
+            $valor = trim((string) $valor);
+            if ($valor === '') {
+                return null;
+            }
+
+            // ⚠️ `createFromFormat` é TOLERANTE: "2026-13-45" não estoura, ele
+            // transborda para 2027-02-14. Um mês 13 digitado por engano viraria um
+            // filtro silenciosamente errado. Por isso a data é reformatada e
+            // comparada com a entrada — só passa o que for exatamente Y-m-d válido.
+            try {
+                $data = CarbonImmutable::createFromFormat('Y-m-d', $valor);
+            } catch (\Throwable) {
+                return null;
+            }
+
+            return $data && $data->format('Y-m-d') === $valor ? $data->startOfDay() : null;
+        };
+
+        $de = $ler($request->query('de'));
+        $ate = $ler($request->query('ate'));
+
+        if ($de && $ate && $de->greaterThan($ate)) {
+            return [$ate, $de];
+        }
+
+        return [$de, $ate];
     }
 
     public function create(Request $request)

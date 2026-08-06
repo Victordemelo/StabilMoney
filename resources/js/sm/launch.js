@@ -52,9 +52,30 @@ export function initLaunch() {
         shake();
     };
 
+    /**
+     * Estado inicial do modal: formulário em branco, RECEITA marcada, data de hoje.
+     *
+     * O `form.reset()` sozinho não basta: ele devolve os campos aos valores do HTML,
+     * e o `checked` do HTML é o que o servidor renderizou. Marcar a receita aqui,
+     * explicitamente, é o que garante o padrão pedido — e `applyType()` em seguida
+     * ajusta categorias e contas ao tipo (receita não entra em cartão de crédito).
+     */
+    const zerar = () => {
+        form.reset();
+        const receita = form.querySelector('input[name="type"][value="income"]');
+        if (receita) receita.checked = true;
+        const valor = form.querySelector('#lm-amount');
+        if (valor) valor.value = '';
+        applyType();
+    };
+
     const open = () => {
         hideError();
         setSaving(false);
+        // Reabrir NUNCA herda o que sobrou da vez anterior: valor digitado e não
+        // salvo, tipo trocado, categoria escolhida. Quem abre o modal está começando
+        // um lançamento novo.
+        zerar();
         modal.classList.add('open');
         const amount = modal.querySelector('#lm-amount');
         if (amount) setTimeout(() => amount.focus(), 80);
@@ -94,6 +115,29 @@ export function initLaunch() {
     const radios = form.querySelectorAll('input[name="type"]');
     const select = form.querySelector('#lm-category');
     const contaSel = form.querySelector('#lm-account');
+    /**
+     * Mostra o saldo do método escolhido embaixo do select.
+     *
+     * Em RECEITA a linha some: o número ali é "quanto dá para gastar", que não diz
+     * nada sobre dinheiro entrando — deixá-lo visível só confundiria.
+     */
+    const mostrarSaldo = () => {
+        const alvo = modal.querySelector('[data-lm-saldo]');
+        if (!alvo || !contaSel) return;
+
+        const marcado = form.querySelector('input[name="type"]:checked');
+        const opt = contaSel.selectedOptions[0];
+
+        if (!opt || (marcado && marcado.value === 'income')) {
+            alvo.hidden = true;
+            return;
+        }
+
+        alvo.textContent = `${opt.dataset.saldo} ${opt.dataset.saldoRotulo}`;
+        alvo.classList.toggle('neg', opt.dataset.negativo === '1');
+        alvo.hidden = false;
+    };
+
     const applyType = () => {
         const marcado = form.querySelector('input[name="type"]:checked');
         const tipo = marcado ? marcado.value : 'expense';
@@ -127,8 +171,21 @@ export function initLaunch() {
                 if (valida) contaSel.value = valida.value;
             }
         }
+
+        mostrarSaldo();
     };
-    radios.forEach((r) => r.addEventListener('change', applyType));
+
+    // Trocar o método atualiza o saldo mostrado.
+    if (contaSel) contaSel.addEventListener('change', mostrarSaldo);
+    radios.forEach((r) => r.addEventListener('change', () => {
+        // Trocar receita ↔ despesa ZERA o valor. Os dois lados são naturezas
+        // diferentes de dinheiro; herdar o número digitado para o outro convida a
+        // salvar um valor que era de outra coisa — e num app de dinheiro isso vira
+        // lançamento errado, não só incômodo.
+        const valor = form.querySelector('#lm-amount');
+        if (valor) valor.value = '';
+        applyType();
+    }));
     applyType();
 
     // Idempotência: o mesmo lançamento pode ser reenviado (duplo toque, retry de

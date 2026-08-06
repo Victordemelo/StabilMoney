@@ -170,6 +170,9 @@ class Account extends Model
     public static function paymentOptions(int $ownerId): Collection
     {
         $contas = self::where('user_id', $ownerId)->orderBy('name')->get();
+        // Sem isto, ler `available`/`availableLimitDisplay` de cada conta dispara
+        // uma leva de queries por conta dentro do map (regra do CLAUDE.md).
+        self::preloadMoney($contas);
 
         return $contas
             ->map(function (Account $conta) use ($contas) {
@@ -180,6 +183,14 @@ class Account extends Model
                         'icon' => $conta->icon,
                         'type' => $conta->type,
                         'isCard' => $conta->isCard(),
+                        // Quanto ainda dá para gastar por este método. No cartão é o
+                        // limite livre; nas contas, o DISPONÍVEL (já fora metas e
+                        // investimentos). Serve para a tela de lançamento avisar
+                        // ANTES de o servidor recusar com o 409 da escolha de fonte.
+                        'saldo' => $conta->isCard()
+                            ? $conta->availableLimitDisplay
+                            : $conta->available,
+                        'saldoRotulo' => $conta->isCard() ? 'limite livre' : 'disponível',
                     ]);
                 }
 
@@ -196,6 +207,9 @@ class Account extends Model
                     'icon' => $conta->icon,
                     'type' => $conta->type,
                     'isCard' => false,
+                    // Método espelho: o dinheiro é o da conta vinculada.
+                    'saldo' => $destino->available,
+                    'saldoRotulo' => 'disponível',
                 ]);
             })
             ->filter()

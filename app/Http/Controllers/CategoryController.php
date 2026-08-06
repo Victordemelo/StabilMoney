@@ -15,6 +15,29 @@ class CategoryController extends Controller
     use AuthorizesRequests;
     use RespondsToAjax;
 
+    /**
+     * Emojis oferecidos no picker. Fonte ÚNICA: o formulário de página cheia
+     * (`categories/_form`) e o modal da listagem leem daqui — duplicar as duas
+     * listas faria o modal e a página divergirem com o tempo.
+     *
+     * @var list<string>
+     */
+    public const ICONES = ['🍽️', '🚗', '🏠', '💊', '🎮', '📚', '🛒', '🧾', '💰', '💼', '📈', '🎁', '📦', '✨'];
+
+    /**
+     * Cores do picker. Sem vermelho: o #E5604D (--neg) é reservado para "está
+     * devendo" (saldo negativo, a pagar, vencido).
+     *
+     * @var list<string>
+     */
+    public const CORES = ['#0F6B47', '#1FA06E', '#59C497', '#18B6BE', '#0EA5B5', '#3B82C4', '#6366F1', '#8B5CF6', '#EC4899', '#F0A93B', '#64748B', '#78716C'];
+
+    /** Dados dos pickers, compartilhados pela listagem (modal) e pelo formulário cheio. */
+    private function opcoesDoFormulario(): array
+    {
+        return ['icones' => self::ICONES, 'cores' => self::CORES];
+    }
+
     public function index(Request $request)
     {
         // Fixas primeiro (são as de uso recorrente), depois as demais — cada
@@ -27,12 +50,13 @@ class CategoryController extends Controller
         return view('categories.index', [
             'incomeCategories' => $categories->where('type', 'income'),
             'expenseCategories' => $categories->where('type', 'expense'),
+            ...$this->opcoesDoFormulario(),
         ]);
     }
 
     public function create()
     {
-        return view('categories.create');
+        return view('categories.create', $this->opcoesDoFormulario());
     }
 
     public function store(StoreCategoryRequest $request)
@@ -40,7 +64,14 @@ class CategoryController extends Controller
         $data = $request->validated();
         $data['user_id'] = $request->user()->ownerId();
 
-        Category::create($data);
+        $category = Category::create($data);
+
+        // O modal da listagem envia por fetch (JSON) e só precisa do OK: ele
+        // fecha e manda a página recarregar por pjax. Sem isto o AJAX receberia
+        // um redirect e baixaria a listagem inteira à toa.
+        if ($this->wantsJsonResponse($request)) {
+            return response()->json(['ok' => true, 'id' => $category->id], 201);
+        }
 
         return redirect()->route('categories.index')
             ->with('status', 'Categoria criada com sucesso.');
@@ -50,7 +81,10 @@ class CategoryController extends Controller
     {
         $this->authorize('update', $category);
 
-        return view('categories.edit', compact('category'));
+        return view('categories.edit', [
+            'category' => $category,
+            ...$this->opcoesDoFormulario(),
+        ]);
     }
 
     public function update(UpdateCategoryRequest $request, Category $category)

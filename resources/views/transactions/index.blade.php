@@ -39,7 +39,24 @@
                         @endforeach
                     </select>
                 </div>
+                <div class="field">
+                    <label for="f-de">De</label>
+                    <input class="input" type="date" id="f-de" name="de" value="{{ $filtroDe }}"
+                           max="{{ now()->addYears(10)->format('Y-m-d') }}">
+                </div>
+                <div class="field">
+                    <label for="f-ate">Até</label>
+                    <input class="input" type="date" id="f-ate" name="ate" value="{{ $filtroAte }}"
+                           max="{{ now()->addYears(10)->format('Y-m-d') }}">
+                </div>
+
                 <button class="btn-ghost" type="submit">Filtrar</button>
+
+                {{-- Só aparece quando há filtro ativo: um "limpar" permanente vira
+                     ruído numa barra que na maioria das visitas está vazia. --}}
+                @if (request()->hasAny(['type', 'account', 'de', 'ate']) && collect(request()->only(['type', 'account', 'de', 'ate']))->filter()->isNotEmpty())
+                    <a class="btn-ghost filtro-limpar" href="{{ route('transactions.index') }}">Limpar</a>
+                @endif
             </form>
         </div>
 

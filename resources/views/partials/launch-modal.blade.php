@@ -3,7 +3,7 @@
      Envia por AJAX (fetch → JSON); abre/fecha com a animação do .modal-scrim. --}}
 @php($hoje = now()->format('Y-m-d'))
 <div class="modal-scrim" id="launchModal" data-close>
-    <div class="modal modal-wide" data-type="expense">
+    <div class="modal modal-wide" data-type="income">
         <div class="modal-head">
             <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span>
             <div>
@@ -35,7 +35,7 @@
                 <span data-lm-error-msg></span>
             </div>
 
-            <form method="POST" action="{{ route('transactions.store') }}" data-launch-form data-type="expense">
+            <form method="POST" action="{{ route('transactions.store') }}" data-launch-form data-type="income">
                 @csrf
                 <div class="modal-body">
                     {{-- Tipo --}}
@@ -43,12 +43,12 @@
                         <label>Tipo</label>
                         <div class="type-toggle">
                             <span class="tt-pill" aria-hidden="true"></span>
-                            <input type="radio" id="lm-tt-income" name="type" value="income">
+                            <input type="radio" id="lm-tt-income" name="type" value="income" checked>
                             <label class="tt-income" for="lm-tt-income">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17 17 7M17 7h-7M17 7v7"/></svg>
                                 Receita
                             </label>
-                            <input type="radio" id="lm-tt-expense" name="type" value="expense" checked>
+                            <input type="radio" id="lm-tt-expense" name="type" value="expense">
                             <label class="tt-expense" for="lm-tt-expense">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7 17 17M17 17h-7M17 17v-7"/></svg>
                                 Despesa
@@ -79,9 +79,17 @@
                                          `isCard` é PROPRIEDADE, não método. Chamar isCard() aqui
                                          cairia no __call do Fluent, que devolve $this (truthy) e
                                          marcaria TODA conta como cartão. --}}
-                                    <option value="{{ $conta->id }}" data-card="{{ $conta->isCard ? '1' : '0' }}">{{ $conta->name }}</option>
+                                    <option value="{{ $conta->id }}" data-card="{{ $conta->isCard ? '1' : '0' }}"
+                                            data-saldo="{{ \App\Support\Brl::format($conta->saldo ?? 0) }}"
+                                            data-saldo-rotulo="{{ $conta->saldoRotulo ?? 'disponível' }}"
+                                            data-negativo="{{ ($conta->saldo ?? 0) < 0 ? '1' : '0' }}">{{ $conta->name }}</option>
                                 @endforeach
                             </select>
+                            {{-- Quanto ainda dá para gastar por este método, atualizado ao
+                                 trocar o select. É a informação que evita a surpresa: sem
+                                 ela a pessoa digita o valor, salva, e só então o servidor
+                                 responde 409 perguntando de onde sai o dinheiro. --}}
+                            <span class="lm-saldo" data-lm-saldo hidden></span>
                         </div>
                         <div class="field">
                             <label for="lm-category">Categoria</label>
