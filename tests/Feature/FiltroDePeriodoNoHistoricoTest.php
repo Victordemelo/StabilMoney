@@ -7,6 +7,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Tests\TestCase;
 
 /**
@@ -39,7 +40,7 @@ class FiltroDePeriodoNoHistoricoTest extends TestCase
             Transaction::factory()->for($this->user)->for($this->conta)->expense()->create([
                 'amount' => 100,
                 'date' => $data,
-                'description' => 'Gasto ' . $data,
+                'description' => 'Gasto '.$data,
             ]);
         }
     }
@@ -50,7 +51,7 @@ class FiltroDePeriodoNoHistoricoTest extends TestCase
         parent::tearDown();
     }
 
-    private function listar(array $filtros = []): \Illuminate\Support\Collection
+    private function listar(array $filtros = []): Collection
     {
         return $this->actingAs($this->user)
             ->get(route('transactions.index', $filtros))

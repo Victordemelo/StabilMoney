@@ -146,7 +146,7 @@ class DashboardService
             $monthIncome[$idx] = round($monthIncome[$idx] + ($sums['income'] ?? 0.0), 2);
             $monthExpense[$idx] = round($monthExpense[$idx] + ($sums['expense'] ?? 0.0), 2);
         }
-        $monthLabels = array_map(fn ($i) => 'Sem ' . ($i + 1), range(0, $bucketCount - 1));
+        $monthLabels = array_map(fn ($i) => 'Sem '.($i + 1), range(0, $bucketCount - 1));
         $monthPrev = $this->totals($userId, $monthStart->subMonth(), $monthStart->subDay(), $creditCardIds);
 
         // ----- Ano atual (Jan..Dez, agregado por mês direto no SQL) -----
@@ -170,9 +170,9 @@ class DashboardService
             ->whereNull('settles_account_id')
             ->whereBetween('date', [$yearStart->toDateString(), $yearEnd->toDateString()])
             ->selectRaw(
-                "{$monthExpr} AS month_num, " .
-                "COALESCE(SUM(CASE WHEN type = 'income' AND NOT ({$emCartao}) THEN amount END), 0) AS income_total, " .
-                "COALESCE(SUM(CASE WHEN type = 'expense' THEN amount END), 0) AS expense_total, " .
+                "{$monthExpr} AS month_num, ".
+                "COALESCE(SUM(CASE WHEN type = 'income' AND NOT ({$emCartao}) THEN amount END), 0) AS income_total, ".
+                "COALESCE(SUM(CASE WHEN type = 'expense' THEN amount END), 0) AS expense_total, ".
                 "COALESCE(SUM(CASE WHEN type = 'income' AND {$emCartao} THEN amount END), 0) AS refund_total",
             )
             ->groupBy('month_num')
@@ -199,7 +199,7 @@ class DashboardService
                 $userId, $hasData, $saldoDisponivel, $initialTotal, $weekStart->subDay(), $cardIds,
             ),
             'mes' => $this->period(
-                Str::ucfirst($today->translatedFormat('F')) . ' de ' . $today->year,
+                Str::ucfirst($today->translatedFormat('F')).' de '.$today->year,
                 $monthLabels,
                 $monthIncome,
                 $monthExpense,
@@ -426,7 +426,7 @@ class DashboardService
      *    Antes ele contava só cartões: quem devia três aluguéis e não tinha cartão
      *    via "Nada a pagar 🎉" — com o total já somado, mas nunca renderizado.
      *
-     * @param  \Illuminate\Support\Collection<int, Account>  $cards
+     * @param  Collection<int, Account>  $cards
      * @return Collection<int, array{name: string, invoice: float, due: ?string, vencida: bool}>
      */
     private function obrigacoesEmAberto(int $userId, $cards): Collection
@@ -495,7 +495,7 @@ class DashboardService
      * Duas queries agregadas para a família inteira — nunca uma por conta. É o que
      * permite a lista de contas exibir o disponível sem cair no N+1 dos accessors.
      *
-     * @return array<int, float>  [account_id => reservado]
+     * @return array<int, float> [account_id => reservado]
      */
     public function reservedByAccount(int $userId): array
     {
@@ -807,9 +807,9 @@ class DashboardService
             ->whereNull('settles_account_id')
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->selectRaw(
-                "COALESCE(SUM(CASE WHEN type = 'income' THEN amount END), 0) AS income_total, " .
-                "COALESCE(SUM(CASE WHEN type = 'expense' THEN amount END), 0) AS expense_total, " .
-                'COALESCE(SUM(CASE WHEN type = ' . "'income'" . ' AND ' . $this->emCartaoSql($refundAccountIds) . ' THEN amount END), 0) AS refund_total',
+                "COALESCE(SUM(CASE WHEN type = 'income' THEN amount END), 0) AS income_total, ".
+                "COALESCE(SUM(CASE WHEN type = 'expense' THEN amount END), 0) AS expense_total, ".
+                'COALESCE(SUM(CASE WHEN type = '."'income'".' AND '.$this->emCartaoSql($refundAccountIds).' THEN amount END), 0) AS refund_total',
             )
             ->first();
 
@@ -832,7 +832,7 @@ class DashboardService
             return '1 = 0';
         }
 
-        return 'account_id IN (' . implode(',', array_map('intval', $accountIds)) . ')';
+        return 'account_id IN ('.implode(',', array_map('intval', $accountIds)).')';
     }
 
     /**

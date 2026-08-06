@@ -73,7 +73,7 @@ class GoalCrudTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $goal = Goal::where('name', 'Entrada do apê')->firstOrFail();
-        $this->assertSame(now()->addYear()->format('Y-m') . '-01', $goal->target_date->format('Y-m-d'));
+        $this->assertSame(now()->addYear()->format('Y-m').'-01', $goal->target_date->format('Y-m-d'));
     }
 
     public function test_goal_creation_validates_required_fields(): void

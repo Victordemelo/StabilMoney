@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Account;
 use App\Models\Goal;
+use App\Models\GoalContribution;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  * Nos testes, passe a mesma meta/conta da família, ex.:
  * GoalContribution::factory()->for($goal)->for($account)->create();
  *
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\GoalContribution>
+ * @extends Factory<GoalContribution>
  */
 class GoalContributionFactory extends Factory
 {

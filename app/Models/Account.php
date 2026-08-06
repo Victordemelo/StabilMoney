@@ -147,11 +147,11 @@ class Account extends Model
             return null;
         }
 
-        return 'Não dá para mudar o tipo de "' . $this->name . '" de ' . $this->typeLabel()
-            . ' para ' . (self::TYPES[$novoTipo] ?? $novoTipo) . ': esta conta já tem saldo, '
-            . 'lançamentos ou dinheiro guardado, e a troca faria esse dinheiro desaparecer '
-            . '(ou ser contado duas vezes). Crie um novo método de pagamento e mova o histórico, '
-            . 'se for o caso.';
+        return 'Não dá para mudar o tipo de "'.$this->name.'" de '.$this->typeLabel()
+            .' para '.(self::TYPES[$novoTipo] ?? $novoTipo).': esta conta já tem saldo, '
+            .'lançamentos ou dinheiro guardado, e a troca faria esse dinheiro desaparecer '
+            .'(ou ser contado duas vezes). Crie um novo método de pagamento e mova o histórico, '
+            .'se for o caso.';
     }
 
     /**
@@ -165,7 +165,7 @@ class Account extends Model
      *
      * Cartão de débito sem vínculo é omitido: não há de onde tirar o dinheiro.
      *
-     * @return \Illuminate\Support\Collection<int, \Illuminate\Support\Fluent>
+     * @return Collection<int, Fluent>
      */
     public static function paymentOptions(int $ownerId): Collection
     {
@@ -203,7 +203,7 @@ class Account extends Model
 
                 return new Fluent([
                     'id' => $destino->id,
-                    'name' => $conta->name . ' → ' . $destino->name,
+                    'name' => $conta->name.' → '.$destino->name,
                     'icon' => $conta->icon,
                     'type' => $conta->type,
                     'isCard' => false,

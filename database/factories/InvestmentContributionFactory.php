@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Account;
 use App\Models\Investment;
+use App\Models\InvestmentContribution;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  * Nos testes, passe o mesmo investimento/conta da família, ex.:
  * InvestmentContribution::factory()->for($investment)->for($account)->create();
  *
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\InvestmentContribution>
+ * @extends Factory<InvestmentContribution>
  */
 class InvestmentContributionFactory extends Factory
 {

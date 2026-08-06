@@ -32,7 +32,7 @@ class StoreGoalRequest extends FormRequest
             if ($prazo === '') {
                 $this->merge(['target_date' => null]);
             } elseif (preg_match('/^\d{4}-\d{2}$/', $prazo)) {
-                $this->merge(['target_date' => $prazo . '-01']);
+                $this->merge(['target_date' => $prazo.'-01']);
             }
         }
     }
@@ -45,8 +45,8 @@ class StoreGoalRequest extends FormRequest
             'target_date' => [
                 'nullable',
                 'date',
-                'after_or_equal:' . now()->toDateString(),
-                'before_or_equal:' . now()->addYears(10)->toDateString(),
+                'after_or_equal:'.now()->toDateString(),
+                'before_or_equal:'.now()->addYears(10)->toDateString(),
             ],
             'emoji' => ['required', 'string', 'max:8'],
             'color' => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],

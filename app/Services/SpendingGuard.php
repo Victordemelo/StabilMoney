@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Account;
 use App\Models\Investment;
 use App\Support\Brl;
+use App\Support\FundingSource;
+use Illuminate\Support\Collection;
 
 /**
  * Fonte única de verdade do que pode ser gasto numa conta.
@@ -164,7 +166,7 @@ class SpendingGuard
      * O alias `resgatavel` vem cru do SELECT (string no sqlite), então converter
      * antes de somar/comparar evita comparação de string em cenário de centavos.
      *
-     * @param  \Illuminate\Support\Collection<int, \App\Models\Investment>  $investimentos
+     * @param  Collection<int, Investment>  $investimentos
      * @return array{total: float, maior: float}
      */
     private function agregadosResgataveis($investimentos): array
@@ -181,7 +183,7 @@ class SpendingGuard
      * Investimentos da família com valor resgatável para esta conta, do maior
      * para o menor. Cada item traz `id`, `name`, `classe` e `resgatavel`.
      *
-     * @return \Illuminate\Support\Collection<int, \App\Models\Investment>
+     * @return Collection<int, Investment>
      */
     public function investimentosResgataveis(Account $account)
     {
@@ -191,7 +193,7 @@ class SpendingGuard
             ->where('ic.account_id', $account->id)
             ->groupBy('investments.id', 'investments.name', 'investments.classe')
             ->selectRaw('investments.id, investments.name, investments.classe, '
-                . "COALESCE(SUM(CASE WHEN ic.type = 'aporte' THEN ic.amount ELSE -ic.amount END), 0) AS resgatavel")
+                ."COALESCE(SUM(CASE WHEN ic.type = 'aporte' THEN ic.amount ELSE -ic.amount END), 0) AS resgatavel")
             ->havingRaw('resgatavel > 0')
             ->orderByDesc('resgatavel')
             ->get();
@@ -236,17 +238,17 @@ class SpendingGuard
             $novoSaldo = round($disponivel - $amount, 2);
 
             $fontes[] = [
-                'id' => \App\Support\FundingSource::CHEQUE_ESPECIAL,
+                'id' => FundingSource::CHEQUE_ESPECIAL,
                 // Teto do cheque = o que RESTA do limite; o vermelho atual já
                 // saiu daqui, por isso a comparação é com o incremento.
                 'teto' => $tetoCheque,
                 'rotulo' => 'Usar o cheque especial',
                 'cobre' => $cobreCheque,
-                'detalhe' => 'Sua conta fica em ' . Brl::format($novoSaldo)
-                    . ' — o limite é ' . Brl::format($account->overdraftLimitValue) . '.',
+                'detalhe' => 'Sua conta fica em '.Brl::format($novoSaldo)
+                    .' — o limite é '.Brl::format($account->overdraftLimitValue).'.',
                 'motivo' => $cobreCheque ? null : 'Passa do limite: esta despesa usaria '
-                    . Brl::format($doCheque) . ' de cheque especial e ainda restam '
-                    . Brl::format($tetoCheque) . '.',
+                    .Brl::format($doCheque).' de cheque especial e ainda restam '
+                    .Brl::format($tetoCheque).'.',
             ];
         }
 
@@ -254,15 +256,15 @@ class SpendingGuard
             // `cobre` pelo MAIOR investimento, nunca pela soma — ver `check()`.
             $cobreResgate = $faltante <= $maiorResgatavel + self::EPSILON;
 
-            $detalhe = 'Vamos resgatar ' . Brl::format($faltante) . ' — sua conta não fica negativa.';
+            $detalhe = 'Vamos resgatar '.Brl::format($faltante).' — sua conta não fica negativa.';
             if ($disponivel < -self::EPSILON) {
                 // Sem isto, resgatar 400 para uma despesa de 300 parece defeito.
-                $detalhe .= ' Inclui os ' . Brl::format(abs($disponivel))
-                    . ' que a conta já está devendo.';
+                $detalhe .= ' Inclui os '.Brl::format(abs($disponivel))
+                    .' que a conta já está devendo.';
             }
 
             $fontes[] = [
-                'id' => \App\Support\FundingSource::RESGATE_INVESTIMENTO,
+                'id' => FundingSource::RESGATE_INVESTIMENTO,
                 'rotulo' => 'Resgatar de um investimento',
                 'teto' => $maiorResgatavel,
                 'total' => $totalResgatavel,
@@ -297,11 +299,11 @@ class SpendingGuard
     private function motivoDoResgate(float $faltante, float $maior, float $total): string
     {
         $msg = 'Não cobre: o resgate sai de um investimento por vez, e o maior desta conta tem '
-            . Brl::format($maior) . ' — faltam ' . Brl::format($faltante) . '.';
+            .Brl::format($maior).' — faltam '.Brl::format($faltante).'.';
 
         if ($total > $maior + self::EPSILON && $total >= $faltante - self::EPSILON) {
-            $msg .= ' Somando todos daria (' . Brl::format($total)
-                . '): resgate de mais de um em Investimentos e lance a despesa depois.';
+            $msg .= ' Somando todos daria ('.Brl::format($total)
+                .'): resgate de mais de um em Investimentos e lance a despesa depois.';
         }
 
         return $msg;
@@ -319,36 +321,36 @@ class SpendingGuard
             $this->investimentosResgataveis($account)
         );
 
-        $msg = 'Saldo insuficiente: a conta ' . $account->name . ' tem '
-            . Brl::format($disponivel) . ' disponíveis e esta despesa é de '
-            . Brl::format($amount) . '.';
+        $msg = 'Saldo insuficiente: a conta '.$account->name.' tem '
+            .Brl::format($disponivel).' disponíveis e esta despesa é de '
+            .Brl::format($amount).'.';
 
         if ($account->overdraftLimitValue > 0) {
-            $msg .= ' Somando o cheque especial, o máximo agora é ' . Brl::format($gastavel) . '.';
+            $msg .= ' Somando o cheque especial, o máximo agora é '.Brl::format($gastavel).'.';
         }
 
         if ($total > 0) {
             // O resgate sai de UM investimento, então o que importa é o maior —
             // dizer "resgatando tudo" prometeria uma soma que o app não faz numa
             // tacada só.
-            $msg .= ' Resgatando o maior investimento desta conta (' . Brl::format($maior)
-                . ') ainda não dá.';
+            $msg .= ' Resgatando o maior investimento desta conta ('.Brl::format($maior)
+                .') ainda não dá.';
 
             if ($total > $maior + self::EPSILON) {
-                $msg .= ' Somando todos são ' . Brl::format($total)
-                    . ': dá para resgatar mais de um em Investimentos e lançar a despesa depois.';
+                $msg .= ' Somando todos são '.Brl::format($total)
+                    .': dá para resgatar mais de um em Investimentos e lançar a despesa depois.';
             }
         }
 
-        return $msg . ' Lance um recebimento para completar o valor.';
+        return $msg.' Lance um recebimento para completar o valor.';
     }
 
     /** Mensagem PT-BR de quando o cartão de crédito não tem limite para a compra. */
     public function mensagemLimiteCartao(Account $card, float $amount): string
     {
-        return 'Esta compra passa do limite do cartão ' . $card->name . ': restam '
-            . Brl::format($card->availableLimitDisplay) . ' de '
-            . Brl::format((float) $card->credit_limit) . ', e a compra é de '
-            . Brl::format($amount) . '.';
+        return 'Esta compra passa do limite do cartão '.$card->name.': restam '
+            .Brl::format($card->availableLimitDisplay).' de '
+            .Brl::format((float) $card->credit_limit).', e a compra é de '
+            .Brl::format($amount).'.';
     }
 }

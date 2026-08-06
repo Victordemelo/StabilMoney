@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Mail\ConfirmarNovoEmail;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -70,8 +71,8 @@ class TrocaDeEmailConfirmadaTest extends TestCase
         // O destinatário TEM de ser o endereço novo — mandar para o antigo não provaria
         // nada sobre quem controla a caixa nova.
         Mail::assertSent(
-            \App\Mail\ConfirmarNovoEmail::class,
-            fn (\App\Mail\ConfirmarNovoEmail $mail) => $mail->hasTo('novo@example.com')
+            ConfirmarNovoEmail::class,
+            fn (ConfirmarNovoEmail $mail) => $mail->hasTo('novo@example.com')
                 && ! $mail->hasTo('antigo@example.com'),
         );
     }
@@ -112,7 +113,7 @@ class TrocaDeEmailConfirmadaTest extends TestCase
 
         // URL montada na mão, sem assinatura.
         $this->actingAs($user)
-            ->get("/meu-perfil/confirmar-email/{$user->id}?hash=" . sha1('novo@example.com'))
+            ->get("/meu-perfil/confirmar-email/{$user->id}?hash=".sha1('novo@example.com'))
             ->assertForbidden();
 
         $this->assertSame('antigo@example.com', $user->fresh()->email);

@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\FixedBill;
 use App\Models\User;
 use App\Services\FaturaService;
+use App\Services\FixedBillService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -79,7 +80,7 @@ class ContasAPagarNoTopoTest extends TestCase
         );
         // O total tem de bater com a soma das ocorrências abertas, não com o
         // cadastro: uma conta pode ter mais de um mês pendente.
-        $abertas = app(\App\Services\FixedBillService::class)
+        $abertas = app(FixedBillService::class)
             ->currentAndOverdue($this->user->id)
             ->where('paga', false);
 

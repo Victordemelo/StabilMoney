@@ -316,7 +316,7 @@ class FaturaController extends Controller
                     'amount' => $totalAgora,
                     'date' => $pagoEm->toDateString(),
                     'paid_at' => $pagoEm,
-                    'description' => 'Pagamento da fatura — ' . $account->name,
+                    'description' => 'Pagamento da fatura — '.$account->name,
                     // Marca a linha como QUITAÇÃO, não gasto novo: o dinheiro sai (entra
                     // no saldo e no extrato), mas o gasto já foi contado quando a compra
                     // entrou no cartão. Sem isto o dashboard somava os dois e dobrava a
@@ -340,7 +340,7 @@ class FaturaController extends Controller
 
         $saldo = $caixa->fresh()->available;
         $aviso = $saldo < 0
-            ? 'Fatura paga. Atenção: a conta ' . $caixa->name . ' ficou em ' . Brl::format($saldo) . '.'
+            ? 'Fatura paga. Atenção: a conta '.$caixa->name.' ficou em '.Brl::format($saldo).'.'
             : 'Fatura marcada como paga.';
 
         return redirect()->route('faturas.index')->with('status', $aviso);
@@ -398,7 +398,7 @@ class FaturaController extends Controller
             'status',
             $compras->isEmpty()
                 ? 'Pagamento estornado. O valor voltou para a conta.'
-                : 'Pagamento estornado: ' . $compras->count() . ' ' . ($compras->count() === 1 ? 'compra voltou' : 'compras voltaram') . ' para a fatura em aberto.',
+                : 'Pagamento estornado: '.$compras->count().' '.($compras->count() === 1 ? 'compra voltou' : 'compras voltaram').' para a fatura em aberto.',
         );
     }
 
@@ -534,7 +534,7 @@ class FaturaController extends Controller
      * que permite chamar isto no caminho do cartão, onde não há `paid_at` para servir de
      * trava contra o clique repetido.
      *
-     * @return bool  true se criou, false se já existia
+     * @return bool true se criou, false se já existia
      */
     private function gerarProximaOcorrencia(Transaction $transaction, FundingService $funding): bool
     {

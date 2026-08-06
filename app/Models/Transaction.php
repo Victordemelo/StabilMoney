@@ -99,7 +99,7 @@ class Transaction extends Model
     public function getBadgeAttribute(): string
     {
         if ($this->installments) {
-            return $this->installment_no . '/' . $this->installments;
+            return $this->installment_no.'/'.$this->installments;
         }
 
         if ($this->recurring) {

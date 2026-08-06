@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 /**
  * Fábrica de contas/carteiras para os testes.
  *
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Account>
+ * @extends Factory<Account>
  */
 class AccountFactory extends Factory
 {
@@ -30,7 +30,7 @@ class AccountFactory extends Factory
         // sorteio. Quem testa saldo/limite informa `initial_balance` explícito.
         return [
             'user_id' => User::factory(),
-            'name' => fake()->randomElement(['Conta Corrente', 'Banco Azul', 'Banco Roxo', 'Poupança']) . ' ' . fake()->unique()->numberBetween(1, 9999),
+            'name' => fake()->randomElement(['Conta Corrente', 'Banco Azul', 'Banco Roxo', 'Poupança']).' '.fake()->unique()->numberBetween(1, 9999),
             'type' => 'checking',
             'bank' => fake()->randomElement(array_keys(Account::BANKS)),
             'initial_balance' => 100000,

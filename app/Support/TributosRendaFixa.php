@@ -98,7 +98,7 @@ class TributosRendaFixa
      * @param  float  $rendimento  o ganho bruto (só o que rendeu, sem o principal)
      * @param  int  $dias  dias corridos entre a aplicação e o resgate
      * @return array{iof: float, ir: float, aliquotaIof: float, aliquotaIr: float, liquido: float}
-     *                                                         `liquido` = rendimento após IOF e IR
+     *                                                                                             `liquido` = rendimento após IOF e IR
      */
     public static function decompor(float $rendimento, int $dias, ?string $classe = null): array
     {

@@ -10,9 +10,9 @@ use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\FundingService;
-use Carbon\CarbonImmutable;
 use App\Support\Brl;
 use App\Support\FundingSource;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -328,17 +328,17 @@ class TransactionController extends Controller
         //    limite do cartão seguindo livre): sobra dinheiro dos dois lados.
         if ($transaction->settles_account_id) {
             return 'Esta linha é o pagamento de uma fatura de cartão e não pode ser editada. '
-                . 'Para corrigir, use "Estornar pagamento" na tela Pagar despesas — as compras voltam a '
-                . 'ficar em aberto e você paga de novo com o valor certo.';
+                .'Para corrigir, use "Estornar pagamento" na tela Pagar despesas — as compras voltam a '
+                .'ficar em aberto e você paga de novo com o valor certo.';
         }
 
         // 2) PARCELA ISOLADA de uma compra parcelada. Editar a 2/6 deixaria as
         //    outras cinco com o valor antigo, todas dizendo "de 6", e a soma da
         //    compra deixaria de bater com o que foi comprado.
         if ($transaction->group_id && $transaction->installments) {
-            return 'Esta despesa é a parcela ' . $transaction->badge . ' de uma compra parcelada e não pode '
-                . 'ser editada sozinha — as outras parcelas continuariam com o valor antigo e a soma da '
-                . 'compra ficaria errada. Para mexer na compra inteira, use a tela Pagar despesas.';
+            return 'Esta despesa é a parcela '.$transaction->badge.' de uma compra parcelada e não pode '
+                .'ser editada sozinha — as outras parcelas continuariam com o valor antigo e a soma da '
+                .'compra ficaria errada. Para mexer na compra inteira, use a tela Pagar despesas.';
         }
 
         // 3) COMPRA DE CARTÃO JÁ PAGA. `committed` (e o limite do cartão) ignoram
@@ -346,9 +346,9 @@ class TransactionController extends Controller
         //    foi quitada sem o cartão registrar nada — e a quitação que a pagou
         //    continua com o valor velho.
         if ($transaction->paid_at && $transaction->account?->isCard()) {
-            return 'Esta compra já foi paga na fatura do cartão ' . $transaction->account->name
-                . ' e não pode ser editada. Estorne o pagamento da fatura na tela Pagar despesas, '
-                . 'corrija a compra e pague de novo.';
+            return 'Esta compra já foi paga na fatura do cartão '.$transaction->account->name
+                .' e não pode ser editada. Estorne o pagamento da fatura na tela Pagar despesas, '
+                .'corrija a compra e pague de novo.';
         }
 
         // 4) PAGAMENTO DE CONTA FIXA virando RECEITA: o dinheiro voltaria para o
@@ -357,8 +357,8 @@ class TransactionController extends Controller
         //    seguem editáveis de propósito: conta de luz varia.
         if ($transaction->fixed_bill_id && $novoTipo !== null && $novoTipo !== $transaction->type) {
             return 'Esta linha é o pagamento de uma conta fixa e precisa continuar sendo uma despesa — '
-                . 'é ela que marca a competência como paga. Você pode corrigir o valor e a data; '
-                . 'para desfazer o pagamento, exclua a linha.';
+                .'é ela que marca a competência como paga. Você pode corrigir o valor e a data; '
+                .'para desfazer o pagamento, exclua a linha.';
         }
 
         // 5) MUDAR UMA LINHA JÁ PAGA PARA UM CARTÃO. A guarda 3 só pega quem JÁ
@@ -372,9 +372,9 @@ class TransactionController extends Controller
             $novaConta = Account::whereKey($novaContaId)->first();
 
             if ($novaConta?->isCard() && ! $transaction->account?->isCard()) {
-                return 'Esta despesa já está paga e não pode ser movida para o cartão ' . $novaConta->name
-                    . ' — ela entraria na fatura já quitada, então o cartão nunca cobraria o valor. '
-                    . 'Exclua esta linha e lance a compra no cartão.';
+                return 'Esta despesa já está paga e não pode ser movida para o cartão '.$novaConta->name
+                    .' — ela entraria na fatura já quitada, então o cartão nunca cobraria o valor. '
+                    .'Exclua esta linha e lance a compra no cartão.';
             }
         }
 
@@ -423,13 +423,13 @@ class TransactionController extends Controller
         $diferenca = round($resgateAntigo - $resgateNovo, 2);
 
         if ($diferenca > 0.001) {
-            return 'Transação atualizada. ' . Brl::format($diferenca)
-                . ' voltaram para o investimento — o resgate foi recalculado para o novo valor.';
+            return 'Transação atualizada. '.Brl::format($diferenca)
+                .' voltaram para o investimento — o resgate foi recalculado para o novo valor.';
         }
 
         if ($diferenca < -0.001) {
-            return 'Transação atualizada. Resgatamos mais ' . Brl::format(abs($diferenca))
-                . ' do investimento para cobrir o novo valor.';
+            return 'Transação atualizada. Resgatamos mais '.Brl::format(abs($diferenca))
+                .' do investimento para cobrir o novo valor.';
         }
 
         return 'Transação atualizada.';
@@ -455,9 +455,9 @@ class TransactionController extends Controller
         // tela Pagar despesas (`faturas.compra.destroy`).
         if ($transaction->group_id && $transaction->installments) {
             return back()->withErrors([
-                'transaction' => 'Esta despesa é a parcela ' . $transaction->badge . ' de uma compra parcelada '
-                    . 'e não pode ser excluída sozinha — as outras continuariam no histórico dizendo "de '
-                    . $transaction->installments . '". Para remover a compra inteira, use a tela Pagar despesas.',
+                'transaction' => 'Esta despesa é a parcela '.$transaction->badge.' de uma compra parcelada '
+                    .'e não pode ser excluída sozinha — as outras continuariam no histórico dizendo "de '
+                    .$transaction->installments.'". Para remover a compra inteira, use a tela Pagar despesas.',
             ]);
         }
 
@@ -467,9 +467,9 @@ class TransactionController extends Controller
         // dívida do outro lado. Mesma família das guardas 1 e 3 da edição.
         if ($transaction->paid_at && $transaction->account?->isCard()) {
             return back()->withErrors([
-                'transaction' => 'Esta compra já foi paga na fatura do cartão ' . $transaction->account->name
-                    . ' e não pode ser excluída — o pagamento continuaria no extrato sem a compra que o '
-                    . 'originou. Use "Estornar pagamento" na tela Pagar despesas primeiro.',
+                'transaction' => 'Esta compra já foi paga na fatura do cartão '.$transaction->account->name
+                    .' e não pode ser excluída — o pagamento continuaria no extrato sem a compra que o '
+                    .'originou. Use "Estornar pagamento" na tela Pagar despesas primeiro.',
             ]);
         }
 

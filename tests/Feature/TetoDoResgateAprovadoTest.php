@@ -8,6 +8,7 @@ use App\Models\Investment;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -82,7 +83,7 @@ class TetoDoResgateAprovadoTest extends TestCase
         ]);
     }
 
-    private function lancar(array $extra = []): \Illuminate\Testing\TestResponse
+    private function lancar(array $extra = []): TestResponse
     {
         return $this->postJson(route('transactions.store'), array_merge([
             'type' => 'expense',

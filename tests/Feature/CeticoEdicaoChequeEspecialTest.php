@@ -64,17 +64,17 @@ class CeticoEdicaoChequeEspecialTest extends TestCase
     /** Os números crus dos dois cálculos, medidos no banco. */
     public function test_aritmetica_do_head_versus_a_atual(): void
     {
-        [, $conta, ,] = $this->cenario();
+        [, $conta] = $this->cenario();
 
         $ignore = 1400.0;
         $disponivelComIgnore = round($conta->available + $ignore, 2);
         $faltante = round(140.0 - max(0.0, $disponivelComIgnore), 2);
 
-        fwrite(STDERR, "\n[aritmetica] available=" . $conta->available
-            . " | disponivel+ignore=" . $disponivelComIgnore
-            . " | faltante=" . $faltante
-            . " | teto HEAD (overdraftAvailable)=" . $conta->overdraftAvailable
-            . " | teto atual (overdraftAvailableWith(1400))=" . $conta->overdraftAvailableWith($ignore) . "\n");
+        fwrite(STDERR, "\n[aritmetica] available=".$conta->available
+            .' | disponivel+ignore='.$disponivelComIgnore
+            .' | faltante='.$faltante
+            .' | teto HEAD (overdraftAvailable)='.$conta->overdraftAvailable
+            .' | teto atual (overdraftAvailableWith(1400))='.$conta->overdraftAvailableWith($ignore)."\n");
 
         // O disponível já devolveu os R$ 1.400; o teto do HEAD ainda os considera gastos.
         $this->assertSame(0.0, $disponivelComIgnore);
@@ -96,8 +96,8 @@ class CeticoEdicaoChequeEspecialTest extends TestCase
             ->put(route('transactions.update', $t), $this->payload($conta, $cat, '140,00'));
 
         $erro = session('errors')?->first('amount');
-        fwrite(STDERR, "[HEAD] status={$r->status()} erro=" . $erro . "\n");
-        fwrite(STDERR, "[HEAD] valor gravado=" . $t->fresh()->amount . "\n");
+        fwrite(STDERR, "[HEAD] status={$r->status()} erro=".$erro."\n");
+        fwrite(STDERR, '[HEAD] valor gravado='.$t->fresh()->amount."\n");
 
         $r->assertSessionHasErrors('amount');
         $this->assertSame(1400.0, (float) $t->fresh()->amount, 'o valor errado continua gravado');
@@ -111,7 +111,7 @@ class CeticoEdicaoChequeEspecialTest extends TestCase
         // E trocar só a descrição/data, mantendo o valor, também é recusado.
         $r3 = $this->actingAs($u)->from(route('transactions.edit', $t))
             ->put(route('transactions.update', $t), $this->payload($conta, $cat, '1400,00'));
-        fwrite(STDERR, "[HEAD] editar mantendo o valor: erro=" . session('errors')?->first('amount') . "\n");
+        fwrite(STDERR, '[HEAD] editar mantendo o valor: erro='.session('errors')?->first('amount')."\n");
         $r3->assertSessionHasErrors('amount');
     }
 
@@ -131,8 +131,8 @@ class CeticoEdicaoChequeEspecialTest extends TestCase
             ->put(route('transactions.update', $t), $this->payload($conta, $cat, '140,00', 'cheque_especial'));
         $r2->assertRedirect(route('transactions.index'));
 
-        fwrite(STDERR, "[ATUAL] valor gravado=" . $t->fresh()->amount
-            . " | saldo=" . $conta->fresh()->available . "\n");
+        fwrite(STDERR, '[ATUAL] valor gravado='.$t->fresh()->amount
+            .' | saldo='.$conta->fresh()->available."\n");
         $this->assertSame(140.0, (float) $t->fresh()->amount);
         $this->assertSame(-140.0, $conta->fresh()->available);
     }
@@ -166,14 +166,14 @@ class HeadSpendingGuard extends SpendingGuard
         $disponivel = round($account->available + $ignore, 2);
         $gastavel = round(max(0.0, $disponivel) + $account->overdraftAvailable, 2);
 
-        $msg = 'Saldo insuficiente: a conta ' . $account->name . ' tem '
-            . Brl::format($disponivel) . ' disponíveis e esta despesa é de '
-            . Brl::format($amount) . '.';
+        $msg = 'Saldo insuficiente: a conta '.$account->name.' tem '
+            .Brl::format($disponivel).' disponíveis e esta despesa é de '
+            .Brl::format($amount).'.';
 
         if ($account->overdraftLimitValue > 0) {
-            $msg .= ' Somando o cheque especial, o máximo agora é ' . Brl::format($gastavel) . '.';
+            $msg .= ' Somando o cheque especial, o máximo agora é '.Brl::format($gastavel).'.';
         }
 
-        return $msg . ' Lance um recebimento para completar o valor.';
+        return $msg.' Lance um recebimento para completar o valor.';
     }
 }

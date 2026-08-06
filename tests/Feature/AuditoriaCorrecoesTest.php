@@ -4,9 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\FixedBill;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\DashboardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -298,7 +301,7 @@ class AuditoriaCorrecoesTest extends TestCase
             'paid_at' => now(),   // já paga
         ]);
 
-        $dados = app(\App\Services\DashboardService::class)->build($this->user->ownerId());
+        $dados = app(DashboardService::class)->build($this->user->ownerId());
 
         $this->assertSame(
             0.0,
@@ -315,11 +318,11 @@ class AuditoriaCorrecoesTest extends TestCase
      */
     public function test_achado_media1_competencia_invalida_e_recusada(): void
     {
-        if (! \Illuminate\Support\Facades\Route::has('contas-fixas.pagar')) {
+        if (! Route::has('contas-fixas.pagar')) {
             $this->markTestSkipped('Contas fixas não disponíveis.');
         }
 
-        $conta = \App\Models\FixedBill::create([
+        $conta = FixedBill::create([
             'user_id' => $this->user->id,
             'name' => 'Aluguel',
             'amount' => 1800.00,
@@ -360,7 +363,7 @@ class AuditoriaCorrecoesTest extends TestCase
      */
     public function test_achado_media2_pagar_a_mesma_competencia_duas_vezes_nao_da_500(): void
     {
-        if (! \Illuminate\Support\Facades\Route::has('contas-fixas.pagar')) {
+        if (! Route::has('contas-fixas.pagar')) {
             $this->markTestSkipped('Contas fixas não disponíveis.');
         }
 
@@ -368,7 +371,7 @@ class AuditoriaCorrecoesTest extends TestCase
         // paga o que já venceu (ou está próximo do vencimento), então um cenário com
         // vencimento distante seria recusado antes de chegar na trava de duplicidade —
         // que é o que este teste quer exercitar.
-        $conta = \App\Models\FixedBill::create([
+        $conta = FixedBill::create([
             'user_id' => $this->user->id,
             'name' => 'Condomínio',
             'amount' => 500.00,

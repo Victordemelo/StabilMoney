@@ -165,7 +165,7 @@ class FilaOfflineNaTrocaDeUsuarioTest extends TestCase
         $user = User::factory()->create();
 
         $this->actingAs($user)->get('/')
-            ->assertSee('name="sm-user" content="' . $user->id . '"', false);
+            ->assertSee('name="sm-user" content="'.$user->id.'"', false);
     }
 
     /**
@@ -197,7 +197,7 @@ class FilaOfflineNaTrocaDeUsuarioTest extends TestCase
         // …e a pessoa que está no aparelho é avisada.
         $this->assertStringContainsString('renderAvisoOutroDono', $fila);
         // Só o próprio dono reenvia: o carimbo é comparado antes de qualquer POST.
-        $this->assertStringContainsString("String(i.userId) === String(userId)", $fila);
+        $this->assertStringContainsString('String(i.userId) === String(userId)', $fila);
     }
 
     /** O modal "Lançar" (topbar + FAB) usa a MESMA fila do formulário cheio. */

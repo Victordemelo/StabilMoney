@@ -62,7 +62,7 @@ class FixedBillService
         $pagos = Transaction::whereIn('fixed_bill_id', $bills->pluck('id'))
             ->whereNotNull('competence')
             ->get(['id', 'fixed_bill_id', 'competence', 'amount', 'paid_at'])
-            ->keyBy(fn ($t) => $t->fixed_bill_id . ':' . CarbonImmutable::parse($t->competence)->format('Y-m'));
+            ->keyBy(fn ($t) => $t->fixed_bill_id.':'.CarbonImmutable::parse($t->competence)->format('Y-m'));
 
         $hoje = CarbonImmutable::today();
         $itens = collect();
@@ -79,7 +79,7 @@ class FixedBillService
             }
 
             while ($competencia->lessThanOrEqualTo($ultima)) {
-                $chave = $bill->id . ':' . $competencia->format('Y-m');
+                $chave = $bill->id.':'.$competencia->format('Y-m');
                 $pagamento = $pagos->get($chave);
                 $vencimento = $bill->dueDateFor($competencia);
 

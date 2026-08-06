@@ -45,6 +45,6 @@ class Mailer
     public static function avisoDeIndisponibilidade(): string
     {
         return 'No momento o aplicativo não está enviando e-mails (fase de testes). '
-            . 'Para recuperar o acesso, fale com ' . config('legal.contact_email') . '.';
+            .'Para recuperar o acesso, fale com '.config('legal.contact_email').'.';
     }
 }

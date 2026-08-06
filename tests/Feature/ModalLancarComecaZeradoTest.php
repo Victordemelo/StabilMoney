@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -79,7 +81,7 @@ class ModalLancarComecaZeradoTest extends TestCase
         $conta = Account::factory()->for($this->user)->create([
             'type' => 'checking', 'initial_balance' => 100, 'overdraft_limit' => 500,
         ]);
-        \App\Models\Transaction::factory()->for($this->user)->for($conta)->expense()
+        Transaction::factory()->for($this->user)->for($conta)->expense()
             ->create(['amount' => 300, 'date' => now()->toDateString()]);
 
         $html = $this->actingAs($this->user)->get(route('dashboard'))->assertOk()->getContent();
@@ -98,10 +100,10 @@ class ModalLancarComecaZeradoTest extends TestCase
 
         // `paymentOptions` passou a ler saldo de cada conta; sem o `preloadMoney`
         // isso viraria uma leva de queries por conta dentro do map.
-        \Illuminate\Support\Facades\DB::enableQueryLog();
+        DB::enableQueryLog();
         Account::paymentOptions($this->user->id);
-        $queries = count(\Illuminate\Support\Facades\DB::getQueryLog());
-        \Illuminate\Support\Facades\DB::disableQueryLog();
+        $queries = count(DB::getQueryLog());
+        DB::disableQueryLog();
 
         $this->assertLessThan(10, $queries, "8 contas não podem custar {$queries} queries");
     }

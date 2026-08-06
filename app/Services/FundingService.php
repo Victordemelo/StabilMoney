@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Exceptions\RequiresFundingChoice;
 use App\Models\Account;
+use App\Models\GoalContribution;
 use App\Models\Investment;
+use App\Models\InvestmentContribution;
 use App\Models\Transaction;
 use App\Support\Brl;
 use App\Support\FundingSource;
@@ -26,9 +28,7 @@ use Illuminate\Validation\ValidationException;
  */
 class FundingService
 {
-    public function __construct(private SpendingGuard $guard)
-    {
-    }
+    public function __construct(private SpendingGuard $guard) {}
 
     /**
      * Executa `$write` (que cria a despesa) com a garantia de que o saldo
@@ -43,8 +43,8 @@ class FundingService
      *                                                (funding_source/funding_amount)
      *                                                para gravar junto da despesa.
      *
-     * @throws RequiresFundingChoice  quando falta escolher a fonte
-     * @throws ValidationException    quando nenhuma fonte cobre
+     * @throws RequiresFundingChoice quando falta escolher a fonte
+     * @throws ValidationException quando nenhuma fonte cobre
      */
     public function spend(
         Account $account,
@@ -121,8 +121,8 @@ class FundingService
                 // sem a linha antiga — igual ao time-of-check do SpendingGuard.
                 if (! $obrigacao && $doCheque > $conta->overdraftAvailableWith($ignore) + SpendingGuard::EPSILON) {
                     throw ValidationException::withMessages([
-                        'amount' => 'Não dá: faltam ' . Brl::format($doCheque)
-                            . ' e o cheque especial disponível é ' . Brl::format($conta->overdraftAvailableWith($ignore)) . '.',
+                        'amount' => 'Não dá: faltam '.Brl::format($doCheque)
+                            .' e o cheque especial disponível é '.Brl::format($conta->overdraftAvailableWith($ignore)).'.',
                     ]);
                 }
 
@@ -187,7 +187,6 @@ class FundingService
             ]);
         }
 
-
         // Lock do investimento DEPOIS da conta (ordem fixa: conta → pai).
         $investimento = Investment::whereKey($investmentId)
             ->where('user_id', $conta->user_id)
@@ -209,10 +208,10 @@ class FundingService
             // tem dinheiro aplicado de sobra (só que espalhado em vários
             // investimentos) é o beco sem saída que esta rodada veio fechar.
             throw ValidationException::withMessages([
-                'funding_investment_id' => 'O investimento ' . $investimento->name . ' tem só '
-                    . Brl::format($resgatavel) . ' aplicados a partir desta conta — não cobre '
-                    . Brl::format($faltante) . '. O resgate sai de um investimento por vez: '
-                    . 'escolha outro, ou resgate mais de um em Investimentos e lance a despesa depois.',
+                'funding_investment_id' => 'O investimento '.$investimento->name.' tem só '
+                    .Brl::format($resgatavel).' aplicados a partir desta conta — não cobre '
+                    .Brl::format($faltante).'. O resgate sai de um investimento por vez: '
+                    .'escolha outro, ou resgate mais de um em Investimentos e lance a despesa depois.',
             ]);
         }
 
@@ -259,7 +258,7 @@ class FundingService
      * senão uma falha no meio deixa o resgate estornado e a despesa viva.
      *
      * @param  iterable<int>  $transactionIds
-     * @return int  quantas movimentações foram desfeitas
+     * @return int quantas movimentações foram desfeitas
      */
     public function estornarFonte(iterable $transactionIds): int
     {
@@ -273,8 +272,8 @@ class FundingService
         // Hoje só o investimento é oferecido como fonte, mas a coluna existe nos
         // dois — deixar a meta de fora criaria o mesmo buraco no dia em que ela
         // virar opção de fonte.
-        return \App\Models\InvestmentContribution::whereIn('transaction_id', $ids)->delete()
-            + \App\Models\GoalContribution::whereIn('transaction_id', $ids)->delete();
+        return InvestmentContribution::whereIn('transaction_id', $ids)->delete()
+            + GoalContribution::whereIn('transaction_id', $ids)->delete();
     }
 
     /** Cartão de crédito: a compra não pode passar do limite disponível. */

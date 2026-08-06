@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Mail\ConfirmarNovoEmail;
 use App\Support\BrowserSessions;
 use App\Support\ImageMetadata;
+use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +13,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
 /**
@@ -39,7 +43,7 @@ use Illuminate\Support\Str;
  */
 class User extends Authenticatable implements MustVerifyEmail
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     /**
@@ -319,14 +323,14 @@ class User extends Authenticatable implements MustVerifyEmail
             return;
         }
 
-        $url = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+        $url = URL::temporarySignedRoute(
             'profile.email.confirm',
             now()->addHours(2),
             ['user' => $this->getKey(), 'hash' => sha1($this->pending_email)],
         );
 
-        \Illuminate\Support\Facades\Mail::to($this->pending_email)
-            ->send(new \App\Mail\ConfirmarNovoEmail($this, $this->pending_email, $url));
+        Mail::to($this->pending_email)
+            ->send(new ConfirmarNovoEmail($this, $this->pending_email, $url));
     }
 
     /**

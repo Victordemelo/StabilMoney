@@ -96,7 +96,7 @@ class WithdrawGoalContributionRequest extends FormRequest
                 // A saída coerente com o modelo é não deixar entrar movimentação que
                 // ainda não aconteceu — tornar `reserved` sensível à data faria ele
                 // discordar do `balance`, que continua somando tudo.
-                'before_or_equal:' . now()->toDateString(),
+                'before_or_equal:'.now()->toDateString(),
             ],
         ];
     }

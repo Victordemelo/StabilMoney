@@ -71,7 +71,7 @@ class StoreInvestmentRequest extends FormRequest
 
                     if ($account && (float) $this->input('valor_inicial') > $account->available + 0.001) {
                         $fail('O valor inicial é maior que o saldo disponível na conta de origem (R$ '
-                            . number_format($account->available, 2, ',', '.') . ').');
+                            .number_format($account->available, 2, ',', '.').').');
                     }
                 },
             ],
@@ -95,7 +95,7 @@ class StoreInvestmentRequest extends FormRequest
                 // derrubava o disponível de HOJE e fazia o app recusar despesa que
                 // cabe. Esta era a 5ª porta para o mesmo buraco, deixada aberta quando
                 // as outras quatro foram fechadas.
-                'before_or_equal:' . now()->toDateString(),
+                'before_or_equal:'.now()->toDateString(),
             ],
         ];
     }

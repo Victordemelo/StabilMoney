@@ -187,7 +187,7 @@ class FamilyAccountTest extends TestCase
     public function test_titular_adds_dependent_with_photo(): void
     {
         // Avatar no disco privado — ver AvatarPrivadoTest.
-        Storage::fake(\App\Models\User::AVATAR_DISK);
+        Storage::fake(User::AVATAR_DISK);
         $titular = User::factory()->create();
 
         $this->actingAs($titular)->post('/dependentes', [
@@ -199,7 +199,7 @@ class FamilyAccountTest extends TestCase
         $dependent = User::where('email', 'bia@familia.test')->first();
         $this->assertNotNull($dependent);
         $this->assertNotNull($dependent->avatar_path);
-        Storage::disk(\App\Models\User::AVATAR_DISK)->assertExists($dependent->avatar_path);
+        Storage::disk(User::AVATAR_DISK)->assertExists($dependent->avatar_path);
     }
 
     public function test_dependent_relationship_is_saved_and_shown(): void
@@ -242,7 +242,7 @@ class FamilyAccountTest extends TestCase
         $hashOriginal = $dependent->password;
 
         $this->actingAs($titular)->patch("/dependentes/{$dependent->id}", [
-            '_form' => 'edit-' . $dependent->id,
+            '_form' => 'edit-'.$dependent->id,
             'name' => 'Novo Nome', 'email' => 'novo@familia.test',
         ])->assertRedirect();
 
@@ -261,7 +261,7 @@ class FamilyAccountTest extends TestCase
         ]);
 
         $this->actingAs($titular)->patch("/dependentes/{$dependent->id}", [
-            '_form' => 'edit-' . $dependent->id,
+            '_form' => 'edit-'.$dependent->id,
             'name' => $dependent->name, 'email' => $dependent->email,
             'password' => 'nova-senha-forte-456',
         ])->assertRedirect();
@@ -276,7 +276,7 @@ class FamilyAccountTest extends TestCase
         $depDeB = User::factory()->create(['account_owner_id' => $titularB->id]);
 
         $this->actingAs($titularA)->patch("/dependentes/{$depDeB->id}", [
-            '_form' => 'edit-' . $depDeB->id,
+            '_form' => 'edit-'.$depDeB->id,
             'name' => 'Invadido', 'email' => 'invadido@x.test',
         ])->assertForbidden();
     }
@@ -287,7 +287,7 @@ class FamilyAccountTest extends TestCase
         $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
 
         $this->actingAs($dependent)->patch("/dependentes/{$dependent->id}", [
-            '_form' => 'edit-' . $dependent->id,
+            '_form' => 'edit-'.$dependent->id,
             'name' => 'X', 'email' => 'x@familia.test',
         ])->assertForbidden();
     }
@@ -328,7 +328,7 @@ class FamilyAccountTest extends TestCase
             ->getContent();
 
         // O <option> do dependente vem com "selected" (espaços/quebras de linha variam).
-        $this->assertMatchesRegularExpression('/value="' . $dependent->id . '"\s*selected/', $content);
+        $this->assertMatchesRegularExpression('/value="'.$dependent->id.'"\s*selected/', $content);
     }
 
     public function test_dashboard_recents_show_author(): void

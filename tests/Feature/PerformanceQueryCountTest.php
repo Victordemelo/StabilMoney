@@ -197,7 +197,7 @@ class PerformanceQueryCountTest extends TestCase
             ->take(8);
 
         $relatorio = $agrupadas
-            ->map(fn ($n, $sql) => sprintf("  %3dx  %s", $n, mb_substr($sql, 0, 150)))
+            ->map(fn ($n, $sql) => sprintf('  %3dx  %s', $n, mb_substr($sql, 0, 150)))
             ->implode("\n");
 
         fwrite(STDERR, "\n[/accounts com 10 contas — queries repetidas]\n".$relatorio."\n");

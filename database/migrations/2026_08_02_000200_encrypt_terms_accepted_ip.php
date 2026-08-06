@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Crypt;
@@ -60,7 +61,7 @@ return new class extends Migration
                     // não deve derrubar o rollback.
                     try {
                         $puro = Crypt::decryptString($linha->terms_accepted_ip);
-                    } catch (\Illuminate\Contracts\Encryption\DecryptException) {
+                    } catch (DecryptException) {
                         continue;
                     }
 

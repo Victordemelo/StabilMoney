@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Http\Requests\Concerns\NormalizesMoneyInput;
 use App\Models\Account;
 use App\Models\Category;
+use App\Support\FundingSource;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -58,7 +59,7 @@ class StoreFaturaLaunchRequest extends FormRequest
                 'required',
                 'date',
                 'after_or_equal:2000-01-01',
-                'before_or_equal:' . now()->addYears(10)->toDateString(),
+                'before_or_equal:'.now()->addYears(10)->toDateString(),
             ],
             'account_id' => [
                 'required',
@@ -73,10 +74,10 @@ class StoreFaturaLaunchRequest extends FormRequest
             ],
             // De onde sai o dinheiro quando o disponível não cobre (o
             // FundingService responde 409 pedindo a escolha).
-            'funding_source' => ['nullable', Rule::in(\App\Support\FundingSource::TODAS)],
+            'funding_source' => ['nullable', Rule::in(FundingSource::TODAS)],
             'funding_investment_id' => [
                 'nullable',
-                'required_if:funding_source,' . \App\Support\FundingSource::RESGATE_INVESTIMENTO,
+                'required_if:funding_source,'.FundingSource::RESGATE_INVESTIMENTO,
                 Rule::exists('investments', 'id')->where('user_id', $userId),
             ],
             'category_id' => [

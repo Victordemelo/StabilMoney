@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\FixedBill;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  * mês já existe e a primeira ocorrência nunca é descartada por nascer antes do
  * `starts_on` (ver FixedBillService::occurrences).
  *
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\FixedBill>
+ * @extends Factory<FixedBill>
  */
 class FixedBillFactory extends Factory
 {

@@ -84,7 +84,7 @@ class PwaTest extends TestCase
             'icon-maskable-512.png',
             'apple-touch-icon.png',
         ] as $file) {
-            $this->assertFileExists(public_path('assets/icons/' . $file));
+            $this->assertFileExists(public_path('assets/icons/'.$file));
         }
     }
 

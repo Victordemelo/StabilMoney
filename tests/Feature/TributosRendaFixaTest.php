@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use App\Support\TributosRendaFixa;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -181,13 +182,14 @@ class TributosRendaFixaTest extends TestCase
         $this->assertNull($t['irFaixas'][3]['ate']);
         $this->assertSame(15.0, $t['irFaixas'][3]['aliquota']);
     }
+
     /**
      * A tela precisa RECEBER as tabelas do PHP: é o que impede a prévia no cliente de
      * divergir do servidor (esta tela já teve card e prévia discordando).
      */
     public function test_tela_de_investimentos_entrega_as_tabelas_ao_front(): void
     {
-        $user = \App\Models\User::factory()->create();
+        $user = User::factory()->create();
 
         $html = $this->actingAs($user)->get(route('investimentos.index'))->assertOk()->getContent();
 
@@ -209,7 +211,7 @@ class TributosRendaFixaTest extends TestCase
     /** O seletor de prazo existe — sem ele o IOF nunca seria exercitado na tela. */
     public function test_tela_oferece_simulacao_de_prazo_curto(): void
     {
-        $user = \App\Models\User::factory()->create();
+        $user = User::factory()->create();
 
         $html = $this->actingAs($user)->get(route('investimentos.index'))->assertOk()->getContent();
 

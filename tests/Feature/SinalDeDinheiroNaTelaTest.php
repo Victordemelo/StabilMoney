@@ -65,7 +65,7 @@ class SinalDeDinheiroNaTelaTest extends TestCase
         $html = $this->actingAs($this->user)->get(route('dashboard'))->assertOk()->getContent();
 
         // Antes: `R$ -150,00`.
-        $this->assertStringContainsString(self::MENOS . 'R$ 150', $html);
+        $this->assertStringContainsString(self::MENOS.'R$ 150', $html);
         $this->assertStringNotContainsString('R$ -150', $html);
     }
 
@@ -78,7 +78,7 @@ class SinalDeDinheiroNaTelaTest extends TestCase
         // O sinal mora fora do .num porque o JS reescreve só o número ao trocar
         // de período — se ele viesse colado, o formato "pulava" no primeiro clique.
         $this->assertMatchesRegularExpression(
-            '/<span class="sign">' . self::MENOS . '<\/span><span class="cur">R\$<\/span>/u',
+            '/<span class="sign">'.self::MENOS.'<\/span><span class="cur">R\$<\/span>/u',
             $html,
         );
 
@@ -95,7 +95,7 @@ class SinalDeDinheiroNaTelaTest extends TestCase
         $html = $this->actingAs($this->user)->get(route('dashboard'))->assertOk()->getContent();
 
         $this->assertStringContainsString('<span class="sign"></span>', $html);
-        $this->assertStringNotContainsString(self::MENOS . 'R$ 3', $html);
+        $this->assertStringNotContainsString(self::MENOS.'R$ 3', $html);
     }
 
     public function test_saldo_negativo_de_conta_na_lista_ja_usava_brl(): void

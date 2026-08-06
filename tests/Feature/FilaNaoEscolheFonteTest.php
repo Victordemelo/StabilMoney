@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -39,7 +40,7 @@ class FilaNaoEscolheFonteTest extends TestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('caminhosDaFila')]
+    #[DataProvider('caminhosDaFila')]
     public function test_nenhum_caminho_da_fila_escolhe_cheque_especial(string $caminho): void
     {
         $codigo = $this->fonte($caminho);
@@ -57,7 +58,7 @@ class FilaNaoEscolheFonteTest extends TestCase
         );
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('caminhosDaFila')]
+    #[DataProvider('caminhosDaFila')]
     public function test_o_409_retem_o_item_para_o_usuario_decidir(string $caminho): void
     {
         $codigo = $this->fonte($caminho);
@@ -71,7 +72,7 @@ class FilaNaoEscolheFonteTest extends TestCase
     }
 
     /** Item retido não pode ser reenviado às cegas: os dois laços têm de pulá-lo. */
-    #[\PHPUnit\Framework\Attributes\DataProvider('caminhosDaFila')]
+    #[DataProvider('caminhosDaFila')]
     public function test_item_retido_e_pulado_pelo_reenvio_automatico(string $caminho): void
     {
         $codigo = $this->fonte($caminho);

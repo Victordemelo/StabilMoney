@@ -47,7 +47,7 @@ class StoreInvestmentContributionRequest extends FormRequest
 
                     if ($account && (float) $value > $account->available + 0.001) {
                         $fail('O valor do aporte é maior que o saldo disponível na conta de origem (R$ '
-                            . number_format($account->available, 2, ',', '.') . ').');
+                            .number_format($account->available, 2, ',', '.').').');
                     }
                 },
             ],
@@ -79,7 +79,7 @@ class StoreInvestmentContributionRequest extends FormRequest
                 // A saída coerente com o modelo é não deixar entrar movimentação que
                 // ainda não aconteceu — tornar `reserved` sensível à data faria ele
                 // discordar do `balance`, que continua somando tudo.
-                'before_or_equal:' . now()->toDateString(),
+                'before_or_equal:'.now()->toDateString(),
             ],
         ];
     }

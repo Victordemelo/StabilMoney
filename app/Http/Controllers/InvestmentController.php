@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 class InvestmentController extends Controller
 {
     use AuthorizesRequests;
+
     // Só pelos helpers de escrita (lockAccount / assertCabeNoDisponivel): o
     // aporte inicial usa exatamente a mesma rede dos aportes normais.
     use HandlesContributions;
@@ -191,11 +192,11 @@ class InvestmentController extends Controller
 
         $aplicadoDela = (float) $reservadoPorConta->get($negativa->id, 0);
 
-        return 'A conta “' . $negativa->name . '” está em ' . Brl::format($negativa->available)
-            . ' e este investimento tem ' . Brl::format($aplicadoDela) . ' aplicados a partir dela. '
-            . 'Excluir aqui zeraria esse saldo negativo em silêncio, sem deixar registrado que foi '
-            . 'a aplicação que o cobriu. Faça um resgate para a conta “' . $negativa->name . '” '
-            . '(aí fica gravado de onde saiu o dinheiro) ou deixe o saldo dela positivo antes de excluir.';
+        return 'A conta “'.$negativa->name.'” está em '.Brl::format($negativa->available)
+            .' e este investimento tem '.Brl::format($aplicadoDela).' aplicados a partir dela. '
+            .'Excluir aqui zeraria esse saldo negativo em silêncio, sem deixar registrado que foi '
+            .'a aplicação que o cobriu. Faça um resgate para a conta “'.$negativa->name.'” '
+            .'(aí fica gravado de onde saiu o dinheiro) ou deixe o saldo dela positivo antes de excluir.';
     }
 
     /**

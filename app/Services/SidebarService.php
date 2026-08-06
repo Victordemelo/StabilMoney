@@ -20,9 +20,7 @@ use Carbon\CarbonImmutable;
  */
 class SidebarService
 {
-    public function __construct(private DashboardService $dashboard)
-    {
-    }
+    public function __construct(private DashboardService $dashboard) {}
 
     /** Monta os dados do card de patrimônio, escopado no usuário. */
     public function build(int $userId): array
@@ -152,7 +150,7 @@ class SidebarService
             $coords[] = [$x, $y];
         }
 
-        $d = 'M' . implode(' L', array_map(fn ($c) => "{$c[0]} {$c[1]}", $coords));
+        $d = 'M'.implode(' L', array_map(fn ($c) => "{$c[0]} {$c[1]}", $coords));
 
         if ($area) {
             $d .= ' L178 40 L2 40 Z';

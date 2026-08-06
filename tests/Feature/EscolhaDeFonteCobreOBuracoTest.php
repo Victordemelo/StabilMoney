@@ -7,6 +7,7 @@ use App\Models\Investment;
 use App\Models\InvestmentContribution;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\SpendingGuard;
 use App\Support\FundingSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -160,7 +161,7 @@ class EscolhaDeFonteCobreOBuracoTest extends TestCase
             ->postJson(route('transactions.store'), $this->despesa())
             ->assertStatus(409);
 
-        fwrite(STDERR, "\n[A] disponivel=-100 | despesa=300 | faltante oferecido: " . $r->json('fonte.faltante') . "\n");
+        fwrite(STDERR, "\n[A] disponivel=-100 | despesa=300 | faltante oferecido: ".$r->json('fonte.faltante')."\n");
         $this->assertEqualsWithDelta(400.0, $r->json('fonte.faltante'), 0.001,
             'o resgate precisa trazer a despesa (300) MAIS o buraco (100)');
 
@@ -178,7 +179,7 @@ class EscolhaDeFonteCobreOBuracoTest extends TestCase
 
         $conta = Account::find($this->conta->id);
         fwrite(STDERR, "[A] apos o resgate -> saldo={$conta->balance} reservado={$conta->reserved} "
-            . "disponivel={$conta->available} | investido={$inv->fresh()->aplicado}\n");
+            ."disponivel={$conta->available} | investido={$inv->fresh()->aplicado}\n");
 
         // saldo 900 − 300 = 600 | reservado 1000 − 400 = 600 | disponível 0
         $this->assertSame(600.0, $conta->balance);
@@ -215,8 +216,8 @@ class EscolhaDeFonteCobreOBuracoTest extends TestCase
             'funding_investment_id' => $inv->id,
         ]))->assertSessionHasNoErrors();
 
-        fwrite(STDERR, "[A+] conta positiva -> disponivel=" . $this->disponivel()
-            . " | investido=" . $inv->fresh()->aplicado . "\n");
+        fwrite(STDERR, '[A+] conta positiva -> disponivel='.$this->disponivel()
+            .' | investido='.$inv->fresh()->aplicado."\n");
         $this->assertSame(0.0, $this->disponivel());
         $this->assertSame(500.0, $inv->fresh()->aplicado, 'resgatou só o faltante, não o total');
     }
@@ -242,9 +243,9 @@ class EscolhaDeFonteCobreOBuracoTest extends TestCase
         $resgate = $fontes->firstWhere('id', FundingSource::RESGATE_INVESTIMENTO);
         $cheque = $fontes->firstWhere('id', FundingSource::CHEQUE_ESPECIAL);
 
-        fwrite(STDERR, "[B] faltante=" . $r->json('fonte.faltante')
-            . " | teto do resgate={$resgate['teto']} (soma seria 600) | cobre="
-            . var_export($resgate['cobre'], true) . "\n");
+        fwrite(STDERR, '[B] faltante='.$r->json('fonte.faltante')
+            ." | teto do resgate={$resgate['teto']} (soma seria 600) | cobre="
+            .var_export($resgate['cobre'], true)."\n");
 
         $this->assertEqualsWithDelta(500.0, $r->json('fonte.faltante'), 0.001);
         $this->assertFalse($resgate['cobre'], 'ERA AQUI O BUG: a soma (600) dizia que cobria');
@@ -321,7 +322,7 @@ class EscolhaDeFonteCobreOBuracoTest extends TestCase
             ->post(route('transactions.store'), $this->despesa(['amount' => '1.900,00']))
             ->assertSessionHasNoErrors();
 
-        fwrite(STDERR, "[B-] apos resgatar os dois e lancar -> disponivel=" . $this->disponivel() . "\n");
+        fwrite(STDERR, '[B-] apos resgatar os dois e lancar -> disponivel='.$this->disponivel()."\n");
         $this->assertSame(100.0, $this->disponivel());
     }
 
@@ -349,8 +350,8 @@ class EscolhaDeFonteCobreOBuracoTest extends TestCase
             'funding_investment_id' => $grande->id,
         ]))->assertSessionHasNoErrors();
 
-        fwrite(STDERR, "[B+] um so cobre -> disponivel=" . $this->disponivel()
-            . " | investido=" . $grande->fresh()->aplicado . "\n");
+        fwrite(STDERR, '[B+] um so cobre -> disponivel='.$this->disponivel()
+            .' | investido='.$grande->fresh()->aplicado."\n");
         $this->assertSame(0.0, $this->disponivel());
         $this->assertSame(400.0, $grande->fresh()->aplicado);
     }
@@ -436,7 +437,7 @@ class EscolhaDeFonteCobreOBuracoTest extends TestCase
         $conta = Account::find($this->conta->id);
 
         fwrite(STDERR, "[CE] disponivel={$conta->available} | cheque usado={$conta->overdraftUsed} de "
-            . "{$conta->overdraftLimitValue} | funding_amount={$despesa->funding_amount}\n");
+            ."{$conta->overdraftLimitValue} | funding_amount={$despesa->funding_amount}\n");
 
         $this->assertEqualsWithDelta(350.0, (float) $despesa->funding_amount, 0.001,
             'o incremento é 350 — o buraco de 100 não conta duas vezes');
@@ -477,7 +478,7 @@ class EscolhaDeFonteCobreOBuracoTest extends TestCase
             ->post(route('faturas.fatura.pagar', $card), ['pay_account_id' => $this->conta->id])
             ->assertSessionHasNoErrors();
 
-        fwrite(STDERR, "[obrigacao] fatura de 3000 com 2000 em conta -> disponivel=" . $this->disponivel() . "\n");
+        fwrite(STDERR, '[obrigacao] fatura de 3000 com 2000 em conta -> disponivel='.$this->disponivel()."\n");
         $this->assertSame(-1000.0, $this->disponivel(), 'não se recusa um boleto');
         $this->assertNotNull(Transaction::where('account_id', $card->id)->first()->paid_at);
     }
@@ -487,14 +488,14 @@ class EscolhaDeFonteCobreOBuracoTest extends TestCase
     {
         $this->contaNoVermelhoComInvestimento(1000);
 
-        $guard = app(\App\Services\SpendingGuard::class);
+        $guard = app(SpendingGuard::class);
         $conta = Account::find($this->conta->id);
 
         $faltante = $guard->faltante($conta, 300);
         $doCheque = $guard->chequeNecessario($conta, 300);
 
         fwrite(STDERR, "[guard] disponivel={$conta->available} | faltante(resgate)={$faltante} "
-            . "| chequeNecessario={$doCheque}\n");
+            ."| chequeNecessario={$doCheque}\n");
 
         $this->assertSame(400.0, $faltante, 'o resgate tapa o buraco também');
         $this->assertSame(300.0, $doCheque, 'o cheque especial só conta o incremento');

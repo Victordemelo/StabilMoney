@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\Category;
 use App\Models\FixedBill;
 use App\Models\Transaction;
 use App\Models\User;
@@ -219,6 +220,7 @@ class EscolhaDeFonteNaTelaTest extends TestCase
             ->assertStatus(409)
             ->assertJson(['precisa_fonte' => true]);
     }
+
     /**
      * O replay sem JS precisa preservar o MÉTODO da requisição original.
      *
@@ -228,14 +230,14 @@ class EscolhaDeFonteNaTelaTest extends TestCase
      */
     public function test_fallback_preserva_o_metodo_original_da_requisicao(): void
     {
-        $conta = \App\Models\Account::factory()->for($this->user)->create([
+        $conta = Account::factory()->for($this->user)->create([
             'type' => 'checking',
             'initial_balance' => 50,
             'overdraft_limit' => 500,
         ]);
-        $categoria = \App\Models\Category::factory()->for($this->user)->expense()->create();
+        $categoria = Category::factory()->for($this->user)->expense()->create();
 
-        $transacao = \App\Models\Transaction::factory()->for($this->user)->create([
+        $transacao = Transaction::factory()->for($this->user)->create([
             'account_id' => $conta->id,
             'category_id' => $categoria->id,
             'type' => 'expense',

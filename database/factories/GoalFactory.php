@@ -2,13 +2,14 @@
 
 namespace Database\Factories;
 
+use App\Models\Goal;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
  * Fábrica de metas para os testes.
  *
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Goal>
+ * @extends Factory<Goal>
  */
 class GoalFactory extends Factory
 {
@@ -23,7 +24,7 @@ class GoalFactory extends Factory
         return [
             'user_id' => User::factory(),
             'made_by_user_id' => null,
-            'name' => fake()->randomElement(['Viagem', 'Reserva de emergência', 'Notebook novo', 'Carro']) . ' ' . fake()->unique()->numberBetween(1, 9999),
+            'name' => fake()->randomElement(['Viagem', 'Reserva de emergência', 'Notebook novo', 'Carro']).' '.fake()->unique()->numberBetween(1, 9999),
             'emoji' => fake()->randomElement(['🎯', '✈️', '🏠', '💻', '🚗', '🐷']),
             'color' => fake()->randomElement(['#0F6B47', '#1FA06E', '#59C497', '#18B6BE', '#F0A93B']),
             'target_amount' => fake()->randomFloat(2, 100, 20000),

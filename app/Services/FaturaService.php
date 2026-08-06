@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\FixedBill;
 use App\Models\Transaction;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -74,7 +75,7 @@ class FaturaService
             // Contas fixas mensais: competência do mês + as atrasadas.
             'contasFixas' => $contasFixas,
             // Cadastro/edição de conta fixa (select de categoria de despesa).
-            'fixedBills' => \App\Models\FixedBill::where('user_id', $userId)
+            'fixedBills' => FixedBill::where('user_id', $userId)
                 ->orderBy('due_day')->get(),
         ];
     }
@@ -102,7 +103,7 @@ class FaturaService
             if ($fechada && $vencFechada && ($fechada['vencida'] || $vencFechada->lessThanOrEqualTo($limit))) {
                 $itens->push(new Fluent([
                     'tipo' => 'fatura',
-                    'nome' => 'Fatura ' . $card->name,
+                    'nome' => 'Fatura '.$card->name,
                     'valor' => $fechada['valor'],
                     'due' => $vencFechada,
                     'diasRestantes' => $fechada['vencida']
@@ -120,7 +121,7 @@ class FaturaService
             }
             $itens->push(new Fluent([
                 'tipo' => 'fatura',
-                'nome' => 'Fatura ' . $card->name,
+                'nome' => 'Fatura '.$card->name,
                 'valor' => $devido,
                 'due' => $due,
                 'diasRestantes' => (int) $today->diffInDays($due, false),
@@ -236,7 +237,7 @@ class FaturaService
      * `min` do input de data não oferecer o que o servidor vai recusar.
      *
      * @param  Collection<int, Account>  $cartoes
-     * @return \Illuminate\Support\Collection<int, string>
+     * @return Collection<int, string>
      */
     private function pisosDePagamento(Collection $cartoes): Collection
     {

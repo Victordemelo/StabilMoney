@@ -2,13 +2,14 @@
 
 namespace Database\Factories;
 
+use App\Models\Investment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
  * Fábrica de investimentos para os testes.
  *
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Investment>
+ * @extends Factory<Investment>
  */
 class InvestmentFactory extends Factory
 {
@@ -23,7 +24,7 @@ class InvestmentFactory extends Factory
         return [
             'user_id' => User::factory(),
             'made_by_user_id' => null,
-            'name' => fake()->randomElement(['CDB Liquidez', 'Tesouro Selic', 'Fundo Multimercado', 'Bitcoin', 'Ações BOVA11']) . ' ' . fake()->unique()->numberBetween(1, 9999),
+            'name' => fake()->randomElement(['CDB Liquidez', 'Tesouro Selic', 'Fundo Multimercado', 'Bitcoin', 'Ações BOVA11']).' '.fake()->unique()->numberBetween(1, 9999),
             'classe' => 'renda_fixa',
             'indexador' => 'CDI',
             'taxa' => fake()->randomFloat(2, 90, 120),

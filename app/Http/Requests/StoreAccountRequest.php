@@ -6,6 +6,7 @@ use App\Http\Requests\Concerns\NormalizesMoneyInput;
 use App\Models\Account;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 
 class StoreAccountRequest extends FormRequest
 {
@@ -118,7 +119,7 @@ class StoreAccountRequest extends FormRequest
     }
 
     /** Regra de existência da conta vinculada: precisa ser da família e do tipo certo. */
-    private function linkRule(int $ownerId, string $type): \Illuminate\Validation\Rules\Exists
+    private function linkRule(int $ownerId, string $type): Exists
     {
         return Rule::exists('accounts', 'id')->where(function ($q) use ($ownerId, $type) {
             $q->where('user_id', $ownerId)->where('type', $type);

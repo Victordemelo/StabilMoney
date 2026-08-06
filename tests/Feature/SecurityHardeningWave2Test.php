@@ -87,7 +87,7 @@ class SecurityHardeningWave2Test extends TestCase
     /** O caminho real: upload de avatar grava a versão sem EXIF no disco. */
     public function test_uploaded_avatar_is_stored_without_exif(): void
     {
-        Storage::fake(\App\Models\User::AVATAR_DISK);
+        Storage::fake(User::AVATAR_DISK);
 
         $user = User::factory()->create();
 
@@ -100,7 +100,7 @@ class SecurityHardeningWave2Test extends TestCase
         $caminho = $user->fresh()->avatar_path;
         $this->assertNotNull($caminho, 'O avatar deveria ter sido gravado.');
 
-        $gravado = Storage::disk(\App\Models\User::AVATAR_DISK)->get($caminho);
+        $gravado = Storage::disk(User::AVATAR_DISK)->get($caminho);
         $this->assertStringNotContainsString('GPS-LAT-SECRETA', $gravado);
         $this->assertStringContainsString('dados-da-imagem', $gravado);
     }

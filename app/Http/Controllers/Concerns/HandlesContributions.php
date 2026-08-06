@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Concerns;
 
 use App\Models\Account;
+use App\Models\Goal;
+use App\Models\Investment;
 use App\Services\SpendingGuard;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -45,7 +47,7 @@ trait HandlesContributions
      * neste pai (`reservedFromAccount`) — não do total do pai. Só volta para a
      * conta o dinheiro que saiu dela.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $parent  Goal ou Investment.
+     * @param  Model  $parent  Goal ou Investment.
      * @param  string  $type  'aporte' | 'resgate'.
      */
     protected function record(Request $request, Model $parent, string $type): void
@@ -120,7 +122,7 @@ trait HandlesContributions
         if ($amount > $account->available + SpendingGuard::EPSILON) {
             throw ValidationException::withMessages([
                 'amount' => 'O valor do aporte é maior que o saldo disponível na conta de origem (R$ '
-                    . number_format($account->available, 2, ',', '.') . ').',
+                    .number_format($account->available, 2, ',', '.').').',
             ]);
         }
     }
@@ -136,7 +138,7 @@ trait HandlesContributions
      */
     protected function assertCabeNoReservadoDaConta(Model $parent, Account $account, float $amount): void
     {
-        /** @var \App\Models\Goal|\App\Models\Investment $parent */
+        /** @var Goal|Investment $parent */
         $reservado = $parent->reservedFromAccount($account->id);
 
         if ($amount > $reservado + SpendingGuard::EPSILON) {

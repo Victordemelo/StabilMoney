@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -90,7 +91,7 @@ class ModalLancarTrata419Test extends TestCase
     {
         $this->get('/csrf-token')->assertRedirect(route('login'));
 
-        $this->actingAs(\App\Models\User::factory()->create())
+        $this->actingAs(User::factory()->create())
             ->getJson('/csrf-token')
             ->assertOk()
             ->assertJsonStructure(['token']);

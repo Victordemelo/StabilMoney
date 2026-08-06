@@ -16,7 +16,7 @@ class ProfileTest extends TestCase
     {
         // Avatar vive no disco PRIVADO (User::AVATAR_DISK): ele sai só pela rota
         // autenticada `avatar.show`, nunca pelo symlink público.
-        Storage::fake(\App\Models\User::AVATAR_DISK);
+        Storage::fake(User::AVATAR_DISK);
         $user = User::factory()->create();
 
         $this->actingAs($user)->patch('/meu-perfil', [
@@ -27,7 +27,7 @@ class ProfileTest extends TestCase
 
         $user->refresh();
         $this->assertNotNull($user->avatar_path);
-        Storage::disk(\App\Models\User::AVATAR_DISK)->assertExists($user->avatar_path);
+        Storage::disk(User::AVATAR_DISK)->assertExists($user->avatar_path);
     }
 
     public function test_profile_page_is_displayed(): void

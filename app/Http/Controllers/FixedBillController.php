@@ -59,10 +59,10 @@ class FixedBillController extends Controller
         $vencidas = $service->overdue($conta->user_id)
             ->filter(fn ($o) => $o['bill']->id === $conta->id);
 
-        $aviso = $vencidas->isEmpty() ? '' : ' Atenção: ' . $vencidas->count()
-            . ($vencidas->count() === 1 ? ' competência vencida' : ' competências vencidas')
-            . ' em aberto (' . Brl::format((float) $vencidas->sum('valor'))
-            . ') deixaram de aparecer aqui — se você ainda deve, lance como despesa avulsa.';
+        $aviso = $vencidas->isEmpty() ? '' : ' Atenção: '.$vencidas->count()
+            .($vencidas->count() === 1 ? ' competência vencida' : ' competências vencidas')
+            .' em aberto ('.Brl::format((float) $vencidas->sum('valor'))
+            .') deixaram de aparecer aqui — se você ainda deve, lance como despesa avulsa.';
 
         // Os pagamentos já feitos são transações de verdade e ficam no
         // histórico; só o vínculo se perde (fixed_bill_id vira null não é
@@ -72,12 +72,12 @@ class FixedBillController extends Controller
             $conta->update(['active' => false]);
 
             return redirect()->route('faturas.index')
-                ->with('status', 'Conta fixa desativada (os pagamentos já feitos continuam no histórico).' . $aviso);
+                ->with('status', 'Conta fixa desativada (os pagamentos já feitos continuam no histórico).'.$aviso);
         }
 
         $conta->delete();
 
-        return redirect()->route('faturas.index')->with('status', 'Conta fixa removida.' . $aviso);
+        return redirect()->route('faturas.index')->with('status', 'Conta fixa removida.'.$aviso);
     }
 
     /**
@@ -96,7 +96,7 @@ class FixedBillController extends Controller
 
         // "2026-07" → 01/07/2026. Competência é sempre o dia 1 do mês.
         // A rota já garante mês 01..12; o `!` reseta hora/minuto para não herdar "agora".
-        $competence = CarbonImmutable::createFromFormat('!Y-m-d', $competencia . '-01')->startOfMonth();
+        $competence = CarbonImmutable::createFromFormat('!Y-m-d', $competencia.'-01')->startOfMonth();
 
         // Conta DESATIVADA não se paga (M-11): o serviço só projeta contas
         // ativas, então o dinheiro saía do caixa e a competência paga não
@@ -118,7 +118,7 @@ class FixedBillController extends Controller
         if ($vencimento->greaterThan($hoje->addDays(FixedBillService::DIAS_A_FRENTE))) {
             throw ValidationException::withMessages([
                 'amount' => 'Esta competência ainda está longe — ela fica disponível para pagamento a partir de '
-                    . $vencimento->subDays(FixedBillService::DIAS_A_FRENTE)->translatedFormat('d/m/Y') . '.',
+                    .$vencimento->subDays(FixedBillService::DIAS_A_FRENTE)->translatedFormat('d/m/Y').'.',
             ]);
         }
 
@@ -129,8 +129,8 @@ class FixedBillController extends Controller
         if ($vencimento->lessThan(CarbonImmutable::parse($conta->starts_on)->startOfDay())) {
             throw ValidationException::withMessages([
                 'amount' => 'Esta conta fixa começou em '
-                    . CarbonImmutable::parse($conta->starts_on)->translatedFormat('d/m/Y')
-                    . ' — não há o que pagar antes disso.',
+                    .CarbonImmutable::parse($conta->starts_on)->translatedFormat('d/m/Y')
+                    .' — não há o que pagar antes disso.',
             ]);
         }
 
@@ -169,7 +169,7 @@ class FixedBillController extends Controller
                     // A competência continua contando como paga — FixedBillService
                     // olha a EXISTÊNCIA da transação (fixed_bill_id + competence).
                     'paid_at' => $caixa->isCash() ? $pagoEm : null,
-                    'description' => $conta->name . ' — ' . $competence->translatedFormat('F/Y'),
+                    'description' => $conta->name.' — '.$competence->translatedFormat('F/Y'),
                     'fixed_bill_id' => $conta->id,
                     'competence' => $competence->toDateString(),
                 ]),
@@ -199,10 +199,10 @@ class FixedBillController extends Controller
         $fresco = $caixa->fresh();
         $saldo = $fresco->available;
         $aviso = $fresco->isCash() && $saldo < 0
-            ? $conta->name . ' pago. Atenção: a conta ' . $caixa->name . ' ficou em ' . Brl::format($saldo) . '.'
+            ? $conta->name.' pago. Atenção: a conta '.$caixa->name.' ficou em '.Brl::format($saldo).'.'
             : ($fresco->isCard()
-                ? $conta->name . ' lançado na fatura do ' . $caixa->name . '. Entra no pagamento da fatura.'
-                : $conta->name . ' pago. A próxima competência já aparece aqui.');
+                ? $conta->name.' lançado na fatura do '.$caixa->name.'. Entra no pagamento da fatura.'
+                : $conta->name.' pago. A próxima competência já aparece aqui.');
 
         return redirect()->route('faturas.index')->with('status', $aviso);
     }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\CategoryController;
 use App\Models\Category;
 use App\Models\User;
 use DOMDocument;
@@ -354,11 +355,11 @@ class CategoriaEmModalTest extends TestCase
         $modal = $this->actingAs($this->user)->get(route('categories.index'))->getContent();
         $cheio = $this->actingAs($this->user)->get(route('categories.create'))->getContent();
 
-        foreach (\App\Http\Controllers\CategoryController::ICONES as $emoji) {
+        foreach (CategoryController::ICONES as $emoji) {
             $this->assertStringContainsString('value="'.$emoji.'"', $modal);
             $this->assertStringContainsString('value="'.$emoji.'"', $cheio);
         }
-        foreach (\App\Http\Controllers\CategoryController::CORES as $cor) {
+        foreach (CategoryController::CORES as $cor) {
             $this->assertStringContainsString('value="'.$cor.'"', $modal);
             $this->assertStringContainsString('value="'.$cor.'"', $cheio);
         }

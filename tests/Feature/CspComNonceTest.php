@@ -143,12 +143,12 @@ class CspComNonceTest extends TestCase
 
         $semNonce = array_values(array_filter(
             $tags[0],
-            fn (string $tag) => ! str_contains($tag, 'nonce="' . $nonce . '"'),
+            fn (string $tag) => ! str_contains($tag, 'nonce="'.$nonce.'"'),
         ));
 
         $this->assertSame([], $semNonce,
             "Script sem o nonce da requisição em {$rota} — o navegador vai bloquear:\n"
-            . implode("\n", $semNonce));
+            .implode("\n", $semNonce));
     }
 
     public function test_telas_publicas_tambem_carimbam(): void
@@ -161,7 +161,7 @@ class CspComNonceTest extends TestCase
             preg_match_all('/<script\b[^>]*>/i', $resposta->getContent(), $tags);
 
             foreach ($tags[0] as $tag) {
-                $this->assertStringContainsString('nonce="' . $nonce . '"', $tag,
+                $this->assertStringContainsString('nonce="'.$nonce.'"', $tag,
                     "Script sem nonce em {$rota}: {$tag}");
             }
         }

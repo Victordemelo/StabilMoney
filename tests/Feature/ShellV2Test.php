@@ -80,7 +80,7 @@ class ShellV2Test extends TestCase
         $response->assertSee('id="launchModal"', false);
         $response->assertSee('Nova transação');
         $response->assertSee('data-launch-form', false);
-        $response->assertSee('action="' . route('transactions.store') . '"', false);
+        $response->assertSee('action="'.route('transactions.store').'"', false);
         // A conta da família aparece no select do modal.
         $response->assertSee('Conta Teste');
     }

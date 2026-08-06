@@ -2,8 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Account;
+use App\Models\Transaction;
 use App\Support\FundingSource;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 /**
@@ -30,7 +33,7 @@ class PayInvoiceRequest extends FormRequest
     {
         $cartao = $this->route('account');
 
-        if (! $cartao instanceof \App\Models\Account) {
+        if (! $cartao instanceof Account) {
             return false;
         }
 
@@ -56,9 +59,9 @@ class PayInvoiceRequest extends FormRequest
                 // existir. Antes bastava ser >= 2000-01-01, então `paid_on=2001-03-04`
                 // era aceito numa compra de 2026: o saldo descontava hoje, mas a despesa
                 // sumia do fluxo de caixa e do "gasto do mês" (que olham a data).
-                'after_or_equal:' . $this->primeiraDespesaDoCartao(),
+                'after_or_equal:'.$this->primeiraDespesaDoCartao(),
                 // Pagamento é fato consumado: não se paga no futuro.
-                'before_or_equal:' . now()->toDateString(),
+                'before_or_equal:'.now()->toDateString(),
             ],
             // Qual fatura está sendo paga: a do ciclo aberto (padrão) ou a do ciclo já
             // fechado e vencida — que antes não tinha caminho de pagamento nenhum.
@@ -67,7 +70,7 @@ class PayInvoiceRequest extends FormRequest
             'funding_source' => ['nullable', Rule::in(FundingSource::TODAS)],
             'funding_investment_id' => [
                 'nullable',
-                'required_if:funding_source,' . FundingSource::RESGATE_INVESTIMENTO,
+                'required_if:funding_source,'.FundingSource::RESGATE_INVESTIMENTO,
                 Rule::exists('investments', 'id')->where('user_id', $ownerId),
             ],
         ];
@@ -81,16 +84,16 @@ class PayInvoiceRequest extends FormRequest
     {
         $cartao = $this->route('account');
 
-        if (! $cartao instanceof \App\Models\Account) {
+        if (! $cartao instanceof Account) {
             return '2000-01-01';
         }
 
-        $primeira = \App\Models\Transaction::where('account_id', $cartao->id)
+        $primeira = Transaction::where('account_id', $cartao->id)
             ->where('type', 'expense')
             ->whereNull('paid_at')
             ->min('date');
 
-        return $primeira ? \Illuminate\Support\Carbon::parse($primeira)->toDateString() : '2000-01-01';
+        return $primeira ? Carbon::parse($primeira)->toDateString() : '2000-01-01';
     }
 
     public function attributes(): array

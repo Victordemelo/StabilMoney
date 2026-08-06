@@ -8,6 +8,7 @@ use App\Models\FixedBill;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -155,7 +156,7 @@ class IsolamentoFaturasEContasFixasTest extends TestCase
 
     public function test_estranho_nao_estorna_quitacao_de_outra_familia(): void
     {
-        if (! \Illuminate\Support\Facades\Route::has('faturas.fatura.estornar')) {
+        if (! Route::has('faturas.fatura.estornar')) {
             $this->markTestSkipped('Estorno de fatura não disponível nesta versão.');
         }
 

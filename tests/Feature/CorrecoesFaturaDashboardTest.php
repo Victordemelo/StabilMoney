@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\FixedBill;
+use App\Models\Goal;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\DashboardService;
@@ -261,7 +263,7 @@ class CorrecoesFaturaDashboardTest extends TestCase
     public function test_achado_a11_dashboard_lista_contas_pelo_disponivel(): void
     {
         // Reserva R$ 400 numa meta: cru = 5.000, disponível = 4.600.
-        $meta = \App\Models\Goal::factory()->for($this->user)->create();
+        $meta = Goal::factory()->for($this->user)->create();
         $this->post(route('metas.aportes.store', $meta), [
             'amount' => '400,00',
             'account_id' => $this->corrente->id,
@@ -279,6 +281,7 @@ class CorrecoesFaturaDashboardTest extends TestCase
                 .'Os dois têm de mostrar o disponível.',
         );
     }
+
     /**
      * ACHADO A-9 — o card "Contas a pagar" só somava faturas de cartão, então o
      * dashboard mostrava "Nada a pagar 🎉" com três meses de aluguel vencidos,
@@ -286,11 +289,11 @@ class CorrecoesFaturaDashboardTest extends TestCase
      */
     public function test_achado_a9_dashboard_conta_as_contas_fixas_em_aberto(): void
     {
-        if (! class_exists(\App\Models\FixedBill::class)) {
+        if (! class_exists(FixedBill::class)) {
             $this->markTestSkipped('Contas fixas não disponíveis.');
         }
 
-        \App\Models\FixedBill::create([
+        FixedBill::create([
             'user_id' => $this->user->id,
             'name' => 'Aluguel',
             'amount' => 1800.00,
@@ -310,6 +313,7 @@ class CorrecoesFaturaDashboardTest extends TestCase
                 .'enquanto o sino avisa que há dívida.',
         );
     }
+
     /**
      * REGRESSÃO desta rodada — estorno lançado no cartão passou a abater a fatura
      * (achado A-6), mas o pagamento somava tudo como despesa: uma compra de R$ 1.000 com

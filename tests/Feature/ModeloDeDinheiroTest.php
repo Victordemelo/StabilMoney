@@ -45,7 +45,7 @@ class ModeloDeDinheiroTest extends TestCase
             'amount' => 400, 'date' => CarbonImmutable::today()->addMonths(6)->toDateString(),
         ]);
 
-        fwrite(STDERR, "\n[A-01] saldo com despesa daqui 6 meses: " . $conta->fresh()->balance . " (esperado intuitivo: 1000)\n");
+        fwrite(STDERR, "\n[A-01] saldo com despesa daqui 6 meses: ".$conta->fresh()->balance." (esperado intuitivo: 1000)\n");
         $this->assertSame(600.0, $conta->fresh()->balance);
     }
 
@@ -61,7 +61,7 @@ class ModeloDeDinheiroTest extends TestCase
             'recurring' => true, 'paid_at' => null, 'group_id' => 'g1',
         ]);
 
-        fwrite(STDERR, "[A-02] saldo com condominio NAO pago: " . $conta->fresh()->balance . "\n");
+        fwrite(STDERR, '[A-02] saldo com condominio NAO pago: '.$conta->fresh()->balance."\n");
         $this->assertSame(200.0, $conta->fresh()->balance);
     }
 
@@ -120,7 +120,7 @@ class ModeloDeDinheiroTest extends TestCase
             'account_id' => $conta->id, 'date' => CarbonImmutable::today()->toDateString(),
         ])->assertSessionHasErrors('amount');
 
-        fwrite(STDERR, "[C-01] saldo intacto apos tentar gastar 99.999,99 tendo 100: " . $conta->fresh()->balance . "\n");
+        fwrite(STDERR, '[C-01] saldo intacto apos tentar gastar 99.999,99 tendo 100: '.$conta->fresh()->balance."\n");
         $this->assertSame(100.0, $conta->fresh()->balance);
         $this->assertDatabaseCount('transactions', 0);
     }
@@ -185,7 +185,7 @@ class ModeloDeDinheiroTest extends TestCase
         ])->assertStatus(409);
 
         $fonte = $r->json('fonte');
-        fwrite(STDERR, "[C-02] faltante oferecido: {$fonte['faltante']} | fontes: " . implode(',', array_column($fonte['fontes'], 'id')) . "\n");
+        fwrite(STDERR, "[C-02] faltante oferecido: {$fonte['faltante']} | fontes: ".implode(',', array_column($fonte['fontes'], 'id'))."\n");
         $this->assertEqualsWithDelta(500.0, $fonte['faltante'], 0.001, 'resgata so o que falta, nao o total');
 
         // Escolhendo o resgate: o investido cai 500 e o saldo NÃO fica negativo.
@@ -238,7 +238,7 @@ class ModeloDeDinheiroTest extends TestCase
         $sino = app(FaturaService::class)->upcomingDue($u->id, 7);
 
         fwrite(STDERR, "[D-01] fatura de 05/07 nao paga | ciclo fechado devendo: {$c->closedInvoiceDue} | venceu em: "
-            . $atrasada['vencimento']->toDateString() . " | atraso: {$atrasada['diasAtraso']} dias | itens no sino: " . $sino->count() . "\n");
+            .$atrasada['vencimento']->toDateString()." | atraso: {$atrasada['diasAtraso']} dias | itens no sino: ".$sino->count()."\n");
 
         $this->assertSame(750.0, $c->closedInvoiceDue, 'a divida do ciclo fechado nao some mais');
         $this->assertSame('2026-07-20', $atrasada['vencimento']->toDateString());
@@ -292,7 +292,7 @@ class ModeloDeDinheiroTest extends TestCase
         $datas = Transaction::where('account_id', $card->id)->orderBy('installment_no')->pluck('date')
             ->map(fn ($d) => $d->toDateString())->all();
 
-        fwrite(STDERR, "[E-01] parcelas de uma compra em 31/01/2027: " . implode(' | ', $datas) . "\n");
+        fwrite(STDERR, '[E-01] parcelas de uma compra em 31/01/2027: '.implode(' | ', $datas)."\n");
         $this->assertSame(['2027-01-31', '2027-02-28', '2027-03-31'], $datas);
     }
 
@@ -359,8 +359,8 @@ class ModeloDeDinheiroTest extends TestCase
         ])->assertRedirect();
 
         $parcelas = Transaction::where('account_id', $card->id)->orderBy('installment_no')->get();
-        fwrite(STDERR, "\n[G-01] parcelas geradas: " . $parcelas->count()
-            . " | datas: " . $parcelas->pluck('date')->map(fn ($d) => $d->format('d/m/y'))->implode(' '));
+        fwrite(STDERR, "\n[G-01] parcelas geradas: ".$parcelas->count()
+            .' | datas: '.$parcelas->pluck('date')->map(fn ($d) => $d->format('d/m/y'))->implode(' '));
 
         $this->assertCount(6, $parcelas, 'gerou 1 transacao por mes');
         $this->assertEqualsWithDelta(600.0, (float) $parcelas->sum('amount'), 0.01);
@@ -406,7 +406,7 @@ class ModeloDeDinheiroTest extends TestCase
         $this->actingAs($u)->post(route('faturas.fatura.pagar', $card), ['pay_account_id' => $conta->id])
             ->assertSessionHasNoErrors();
 
-        fwrite(STDERR, "[D-02] conta com 50 pagou fatura de 900 -> saldo: " . $conta->fresh()->available . " (negativado, sem cheque especial)\n");
+        fwrite(STDERR, '[D-02] conta com 50 pagou fatura de 900 -> saldo: '.$conta->fresh()->available." (negativado, sem cheque especial)\n");
         $this->assertSame(-850.0, $conta->fresh()->available);
     }
 
@@ -432,8 +432,8 @@ class ModeloDeDinheiroTest extends TestCase
             'pay_account_id' => $conta->id,
         ])->assertStatus(409);
 
-        fwrite(STDERR, "[D-02b] fatura de 900 com 50 em conta e 2000 de cheque -> 409, faltante: "
-            . $r->json('fonte.faltante') . " | fatura segue em aberto\n");
+        fwrite(STDERR, '[D-02b] fatura de 900 com 50 em conta e 2000 de cheque -> 409, faltante: '
+            .$r->json('fonte.faltante')." | fatura segue em aberto\n");
 
         // Nada foi pago enquanto ele não escolhe.
         $this->assertSame(50.0, Account::find($conta->id)->available);

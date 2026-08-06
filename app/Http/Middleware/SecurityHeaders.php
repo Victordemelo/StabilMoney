@@ -171,7 +171,7 @@ class SecurityHeaders
         // O websocket do HMR usa o MESMO host, trocando o esquema.
         $ws = array_map(fn (string $o) => str_replace(['http://', 'https://'], ['ws://', 'wss://'], $o), $origens);
 
-        return [' ' . implode(' ', $origens), ' ' . implode(' ', $ws)];
+        return [' '.implode(' ', $origens), ' '.implode(' ', $ws)];
     }
 
     protected function emDesenvolvimento(): bool

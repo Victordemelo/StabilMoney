@@ -23,7 +23,7 @@ final class Brl
             $n = 0.0;
         }
 
-        return ($n < 0 ? '−' : '') . 'R$ ' . number_format(abs($n), $decimais, ',', '.');
+        return ($n < 0 ? '−' : '').'R$ '.number_format(abs($n), $decimais, ',', '.');
     }
 
     /** Só o número, sem "R$": "1.234,56" · negativo: "−1.234,56". */
@@ -35,6 +35,6 @@ final class Brl
             $n = 0.0;
         }
 
-        return ($n < 0 ? '−' : '') . number_format(abs($n), $decimais, ',', '.');
+        return ($n < 0 ? '−' : '').number_format(abs($n), $decimais, ',', '.');
     }
 }

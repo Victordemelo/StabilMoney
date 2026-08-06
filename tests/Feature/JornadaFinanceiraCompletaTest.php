@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\Goal;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -137,7 +138,7 @@ class JornadaFinanceiraCompletaTest extends TestCase
             'color' => '#1C9A70',
         ])->assertSessionHasNoErrors();
 
-        $meta = \App\Models\Goal::where('user_id', $this->titular->id)->firstOrFail();
+        $meta = Goal::where('user_id', $this->titular->id)->firstOrFail();
 
         $brutoAntes = $this->conta()->balance;
         $dispAntes = $this->conta()->available;
@@ -188,7 +189,7 @@ class JornadaFinanceiraCompletaTest extends TestCase
             'emoji' => '🛟',
             'color' => '#1C9A70',
         ]);
-        $meta = \App\Models\Goal::where('user_id', $this->titular->id)->firstOrFail();
+        $meta = Goal::where('user_id', $this->titular->id)->firstOrFail();
 
         $inicial = $this->conta()->available;
 
@@ -234,7 +235,7 @@ class JornadaFinanceiraCompletaTest extends TestCase
             'emoji' => '🐷',
             'color' => '#1C9A70',
         ]);
-        $meta = \App\Models\Goal::where('user_id', $this->titular->id)->firstOrFail();
+        $meta = Goal::where('user_id', $this->titular->id)->firstOrFail();
 
         $this->post(route('metas.aportes.store', $meta), [
             'amount' => '100,00',
@@ -410,7 +411,7 @@ class JornadaFinanceiraCompletaTest extends TestCase
         $this->post(route('metas.store'), [
             'name' => 'Meta X', 'target_amount' => '9.999,99', 'emoji' => '🎯', 'color' => '#1C9A70',
         ]);
-        $meta = \App\Models\Goal::where('user_id', $this->titular->id)->firstOrFail();
+        $meta = Goal::where('user_id', $this->titular->id)->firstOrFail();
         $this->post(route('metas.aportes.store', $meta), [
             'amount' => '1.111,11', 'account_id' => $this->corrente->id,
         ])->assertSessionHasNoErrors();

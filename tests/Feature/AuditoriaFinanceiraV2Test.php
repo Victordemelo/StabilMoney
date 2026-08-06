@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\FixedBill;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\FaturaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -156,7 +157,7 @@ class AuditoriaFinanceiraV2Test extends TestCase
         $cartao = $this->cartao();
         $this->pagarFatura($cartao);
 
-        $avulsas = app(\App\Services\FaturaService::class)
+        $avulsas = app(FaturaService::class)
             ->build($this->user->id)['accountExpenses'];
 
         // A quitação não é gasto novo: as compras que ela pagou já estão no cartão.

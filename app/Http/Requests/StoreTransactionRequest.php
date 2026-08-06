@@ -89,7 +89,7 @@ class StoreTransactionRequest extends FormRequest
             'funding_source' => ['nullable', Rule::in(FundingSource::TODAS)],
             'funding_investment_id' => [
                 'nullable',
-                'required_if:funding_source,' . FundingSource::RESGATE_INVESTIMENTO,
+                'required_if:funding_source,'.FundingSource::RESGATE_INVESTIMENTO,
                 Rule::exists('investments', 'id')->where('user_id', $userId),
             ],
             // TETO do que o usuário aprovou no modal de fonte. O valor do resgate é
@@ -102,7 +102,7 @@ class StoreTransactionRequest extends FormRequest
                 'required',
                 'date',
                 'after_or_equal:2000-01-01',
-                'before_or_equal:' . now()->addYears(10)->toDateString(),
+                'before_or_equal:'.now()->addYears(10)->toDateString(),
             ],
         ];
     }

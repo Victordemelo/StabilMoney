@@ -6,7 +6,10 @@ use App\Models\Account;
 use App\Models\Category;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\FaturaService;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -175,7 +178,7 @@ class FaturaCrudTest extends TestCase
         $this->assertSame($atual->group_id, $proxima->group_id);
         $this->assertSame('49.90', (string) $proxima->amount);
         $this->assertSame(
-            \Carbon\CarbonImmutable::parse($atual->date)->addMonth()->toDateString(),
+            CarbonImmutable::parse($atual->date)->addMonth()->toDateString(),
             $proxima->date->toDateString(),
         );
     }
@@ -368,7 +371,7 @@ class FaturaCrudTest extends TestCase
             'account_id' => $cash->id,
             'type' => 'expense',
             'amount' => '200.00',
-            'description' => 'Pagamento da fatura — ' . $this->card->name,
+            'description' => 'Pagamento da fatura — '.$this->card->name,
         ]);
     }
 
@@ -396,7 +399,7 @@ class FaturaCrudTest extends TestCase
 
     public function test_upcoming_card_invoice_shows_in_notifications(): void
     {
-        \Illuminate\Support\Carbon::setTestNow('2026-07-08');
+        Carbon::setTestNow('2026-07-08');
 
         // Fecha dia 10, vence dia 12: hoje (08/07) o ciclo aberto é (10/06, 10/07],
         // que fecha em 10/07 e vence em 12/07 — 4 dias, dentro da janela do sino.
@@ -407,12 +410,12 @@ class FaturaCrudTest extends TestCase
             'amount' => 300, 'date' => '2026-06-20',
         ]);
 
-        $due = app(\App\Services\FaturaService::class)->upcomingDue($this->user->id, 7);
+        $due = app(FaturaService::class)->upcomingDue($this->user->id, 7);
 
         $this->assertCount(1, $due);
-        $this->assertSame('Fatura ' . $card->name, $due->first()['nome']);
+        $this->assertSame('Fatura '.$card->name, $due->first()['nome']);
         $this->assertSame(300.0, $due->first()['valor']);
 
-        \Illuminate\Support\Carbon::setTestNow();
+        Carbon::setTestNow();
     }
 }

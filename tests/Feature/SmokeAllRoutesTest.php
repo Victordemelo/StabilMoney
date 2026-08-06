@@ -113,7 +113,7 @@ class SmokeAllRoutesTest extends TestCase
      * Devolve as rotas GET que dá para visitar, com os parâmetros já substituídos.
      *
      * @param  array<string, mixed>  $params
-     * @return array<string, string>  [nome ou uri => url]
+     * @return array<string, string> [nome ou uri => url]
      */
     private function rotasVisitaveis(array $params): array
     {

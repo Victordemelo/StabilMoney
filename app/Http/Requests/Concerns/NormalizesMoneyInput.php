@@ -44,8 +44,8 @@ trait NormalizesMoneyInput
      *  - `min`          → dinheiro nunca é negativo (o sinal vem do `type`);
      *  - `max`          → ver TETO_MONETARIO.
      *
-     * @param  bool    $obrigatorio  false = `nullable` no lugar de `required`.
-     * @param  string  $min          "0.01" (valor que precisa existir) ou "0".
+     * @param  bool  $obrigatorio  false = `nullable` no lugar de `required`.
+     * @param  string  $min  "0.01" (valor que precisa existir) ou "0".
      * @return list<string>
      */
     protected function regrasDeDinheiro(bool $obrigatorio = true, string $min = '0.01'): array
@@ -54,8 +54,8 @@ trait NormalizesMoneyInput
             $obrigatorio ? 'required' : 'nullable',
             'numeric',
             'decimal:0,2',
-            'min:' . $min,
-            'max:' . self::TETO_MONETARIO,
+            'min:'.$min,
+            'max:'.self::TETO_MONETARIO,
         ];
     }
 
@@ -68,9 +68,9 @@ trait NormalizesMoneyInput
      * brasileiro quis dizer. Quem quer a terceira casa decimal escreve
      * "800,123" — e aí o `decimal:0,2` recusa, como tem de ser.
      *
-     * @param  string  $field        Nome do campo a normalizar.
-     * @param  bool    $emptyToNull   Se true, string vazia vira null (em vez de "").
-     * @param  bool    $stripPercent  Se true, remove também o símbolo "%" (campos de taxa).
+     * @param  string  $field  Nome do campo a normalizar.
+     * @param  bool  $emptyToNull  Se true, string vazia vira null (em vez de "").
+     * @param  bool  $stripPercent  Se true, remove também o símbolo "%" (campos de taxa).
      */
     protected function normalizeMoneyField(string $field, bool $emptyToNull = false, bool $stripPercent = false): void
     {

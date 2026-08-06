@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Investment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -43,7 +44,7 @@ class AporteInicialSemDataFuturaTest extends TestCase
         $this->actingAs($this->user);
     }
 
-    private function criar(array $extra = []): \Illuminate\Testing\TestResponse
+    private function criar(array $extra = []): TestResponse
     {
         return $this->post(route('investimentos.store'), array_merge([
             'name' => 'CDB Futuro',
@@ -109,13 +110,13 @@ class AporteInicialSemDataFuturaTest extends TestCase
 
         $this->get(route('investimentos.index'))
             ->assertOk()
-            ->assertSee('id="inv-c-date" name="date" max="' . $hoje . '"', false)
-            ->assertSee('id="inv-aporte-date" name="date" max="' . $hoje . '"', false)
-            ->assertSee('id="inv-resgate-date" name="date" max="' . $hoje . '"', false);
+            ->assertSee('id="inv-c-date" name="date" max="'.$hoje.'"', false)
+            ->assertSee('id="inv-aporte-date" name="date" max="'.$hoje.'"', false)
+            ->assertSee('id="inv-resgate-date" name="date" max="'.$hoje.'"', false);
 
         $this->get(route('metas.index'))
             ->assertOk()
-            ->assertSee('id="meta-aporte-date" name="date" max="' . $hoje . '"', false)
-            ->assertSee('id="meta-resgate-date" name="date" max="' . $hoje . '"', false);
+            ->assertSee('id="meta-aporte-date" name="date" max="'.$hoje.'"', false)
+            ->assertSee('id="meta-resgate-date" name="date" max="'.$hoje.'"', false);
     }
 }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -105,7 +106,7 @@ class LimpezaDeSessoesTest extends TestCase
 
     public function test_o_comando_esta_agendado(): void
     {
-        $agendados = collect(app(\Illuminate\Console\Scheduling\Schedule::class)->events())
+        $agendados = collect(app(Schedule::class)->events())
             ->map(fn ($e) => $e->command ?? '')
             ->filter(fn ($c) => str_contains($c, 'sessoes:limpar'));
 

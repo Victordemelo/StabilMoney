@@ -53,12 +53,12 @@ class ContaEmModalTest extends TestCase
 
         // O gatilho é um link de verdade: sem JS ele navega para a página cheia.
         $resposta->assertSee('data-acct-open="novo"', false);
-        $resposta->assertSee('href="' . route('accounts.create') . '"', false);
+        $resposta->assertSee('href="'.route('accounts.create').'"', false);
 
         // E o modal existe na página, com o formulário dentro.
         $resposta->assertSee('id="acctModal-novo"', false);
         $resposta->assertSee('id="acct-form-novo"', false);
-        $resposta->assertSee('action="' . route('accounts.store') . '"', false);
+        $resposta->assertSee('action="'.route('accounts.store').'"', false);
     }
 
     public function test_o_modal_de_novo_metodo_existe_mesmo_sem_nenhuma_conta(): void
@@ -84,12 +84,12 @@ class ContaEmModalTest extends TestCase
 
         $resposta = $this->actingAs($this->user)->get(route('accounts.index'))->assertOk();
 
-        $resposta->assertSee('data-acct-open="' . $conta->id . '"', false);
-        $resposta->assertSee('href="' . route('accounts.edit', $conta) . '"', false);
-        $resposta->assertSee('id="acctModal-' . $conta->id . '"', false);
+        $resposta->assertSee('data-acct-open="'.$conta->id.'"', false);
+        $resposta->assertSee('href="'.route('accounts.edit', $conta).'"', false);
+        $resposta->assertSee('id="acctModal-'.$conta->id.'"', false);
 
         // Preenchido: nome, cheque especial e o método (PUT por spoofing).
-        $resposta->assertSee('id="name-c' . $conta->id . '"', false);
+        $resposta->assertSee('id="name-c'.$conta->id.'"', false);
         $resposta->assertSee('value="Corrente Nubank"', false);
         $resposta->assertSee('value="800,00"', false);
         $resposta->assertSee('name="_method" value="PUT"', false);
@@ -103,7 +103,7 @@ class ContaEmModalTest extends TestCase
 
         // Os cinco tipos.
         foreach (['checking', 'savings', 'debit_card', 'credit_card', 'pix'] as $tipo) {
-            $resposta->assertSee('value="' . $tipo . '"', false);
+            $resposta->assertSee('value="'.$tipo.'"', false);
         }
 
         // Os cinco grupos que o JS mostra/esconde conforme o tipo — se um sumir no
@@ -136,11 +136,11 @@ class ContaEmModalTest extends TestCase
 
         // Travada: o select vai desabilitado (e desabilitado não envia valor, por isso
         // muda de nome) e o tipo verdadeiro viaja num hidden.
-        $resposta->assertSee('id="type-c' . $comDinheiro->id . '" name="_type_travado"', false);
+        $resposta->assertSee('id="type-c'.$comDinheiro->id.'" name="_type_travado"', false);
         $resposta->assertSee('<input type="hidden" name="type" value="checking">', false);
 
         // Sem dinheiro: o select é o próprio campo `type`.
-        $resposta->assertSee('id="type-c' . $vazia->id . '" name="type"', false);
+        $resposta->assertSee('id="type-c'.$vazia->id.'" name="type"', false);
         // E no cadastro novo nunca há trava.
         $resposta->assertSee('id="type-novo" name="type"', false);
     }
@@ -279,7 +279,7 @@ class ContaEmModalTest extends TestCase
         $this->actingAs($this->user)->get(route('accounts.index'))
             ->assertOk()
             ->assertDontSee('Conta do Vizinho')
-            ->assertDontSee('id="acctModal-' . $alheia->id . '"', false);
+            ->assertDontSee('id="acctModal-'.$alheia->id.'"', false);
     }
 
     public function test_conta_com_historico_nao_muda_de_classe_nem_por_ajax(): void
@@ -327,7 +327,7 @@ class ContaEmModalTest extends TestCase
 
         $this->actingAs($this->user)->get(route('accounts.edit', $conta))
             ->assertOk()
-            ->assertSee('id="acct-form-c' . $conta->id . '"', false)
+            ->assertSee('id="acct-form-c'.$conta->id.'"', false)
             ->assertSee('value="5.000,00"', false);
     }
 
@@ -367,7 +367,7 @@ class ContaEmModalTest extends TestCase
             1,
             $porConta,
             "A tela de contas voltou a crescer com o volume: {$porConta} queries por conta "
-                . "(2 contas: {$com2}, 12 contas: {$com12})."
+                ."(2 contas: {$com2}, 12 contas: {$com12})."
         );
     }
 

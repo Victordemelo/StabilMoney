@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Account;
+use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  * Nos testes, passe o mesmo usuário para os dois lados, ex.:
  * Transaction::factory()->for($user)->for($account)->create();
  *
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Transaction>
+ * @extends Factory<Transaction>
  */
 class TransactionFactory extends Factory
 {

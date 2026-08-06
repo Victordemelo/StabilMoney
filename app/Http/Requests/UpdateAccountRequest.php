@@ -87,10 +87,10 @@ class UpdateAccountRequest extends StoreAccountRequest
 
             if ($novo + 0.001 < $usado) {
                 $fail(
-                    'Esta conta está usando ' . Brl::format($usado) . ' do cheque especial agora, '
-                    . 'então o limite não pode cair para ' . Brl::format($novo) . '. '
-                    . 'Deixe pelo menos ' . Brl::format($usado)
-                    . ' ou lance um recebimento para cobrir o saldo negativo antes de reduzir o limite.'
+                    'Esta conta está usando '.Brl::format($usado).' do cheque especial agora, '
+                    .'então o limite não pode cair para '.Brl::format($novo).'. '
+                    .'Deixe pelo menos '.Brl::format($usado)
+                    .' ou lance um recebimento para cobrir o saldo negativo antes de reduzir o limite.'
                 );
             }
         };

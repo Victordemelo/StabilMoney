@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\Goal;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\DashboardService;
 use App\Services\SidebarService;
+use App\Support\FundingSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -182,7 +184,7 @@ class PixComoMetodoTest extends TestCase
             'target_amount' => '5.000,00', 'target_date' => '2027-01-01',
         ])->assertSessionHasNoErrors();
 
-        $meta = \App\Models\Goal::firstOrFail();
+        $meta = Goal::firstOrFail();
         $this->actingAs($this->user)->post(route('metas.aportes.store', $meta), [
             'account_id' => $this->corrente->id, 'amount' => '400,00',
         ])->assertSessionHasNoErrors();
@@ -271,7 +273,7 @@ class PixComoMetodoTest extends TestCase
             'account_id' => $contaSubmetida,
             'date' => '2026-08-05',
             'description' => 'Compra grande no Pix',
-            'funding_source' => \App\Support\FundingSource::CHEQUE_ESPECIAL,
+            'funding_source' => FundingSource::CHEQUE_ESPECIAL,
         ])->assertSessionHasNoErrors();
 
         $this->assertSame(-200.0, $this->corrente->fresh()->available);

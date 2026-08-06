@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\DashboardService;
+use App\Services\FaturaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -58,7 +60,7 @@ class CreditCardTest extends TestCase
             'date' => now()->toDateString(),
         ]);
 
-        $dashboard = app(\App\Services\DashboardService::class)->build($user->id);
+        $dashboard = app(DashboardService::class)->build($user->id);
 
         // saldo (stat) = só a conta (2.000), sem o cartão.
         $this->assertSame(2000.0, $dashboard['monthStats']['saldo']);
@@ -74,7 +76,7 @@ class CreditCardTest extends TestCase
             'date' => now()->toDateString(),
         ]);
 
-        $dashboard = app(\App\Services\DashboardService::class)->build($user->id);
+        $dashboard = app(DashboardService::class)->build($user->id);
 
         // Despesa em conta (não-cartão) baixa o saldo normalmente.
         $this->assertSame(1700.0, $dashboard['totalBalance']);
@@ -184,7 +186,7 @@ class CreditCardTest extends TestCase
             'date' => '2026-06-18',
         ]);
 
-        $data = app(\App\Services\FaturaService::class)->build($user->id);
+        $data = app(FaturaService::class)->build($user->id);
 
         $this->assertSame(1, $data['stats']['numCartoes']);
         $this->assertSame(1000.0, $data['stats']['totalFaturas']);

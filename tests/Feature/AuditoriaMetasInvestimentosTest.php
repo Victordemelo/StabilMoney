@@ -226,7 +226,7 @@ class AuditoriaMetasInvestimentosTest extends TestCase
                 return;
             }
             foreach (['accounts', 'goals'] as $tabela) {
-                if (str_contains($query->sql, '"' . $tabela . '"') || str_contains($query->sql, '`' . $tabela . '`')) {
+                if (str_contains($query->sql, '"'.$tabela.'"') || str_contains($query->sql, '`'.$tabela.'`')) {
                     $tabelas[] = $tabela;
                 }
             }

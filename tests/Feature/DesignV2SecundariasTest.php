@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -30,7 +31,7 @@ class DesignV2SecundariasTest extends TestCase
      * `layouts.guest` não tem painel visual nenhum — se um deles sumir da
      * resposta, a tela caiu de volta no layout antigo.
      */
-    private function assertUsaLayoutAuthV2(\Illuminate\Testing\TestResponse $resposta): void
+    private function assertUsaLayoutAuthV2(TestResponse $resposta): void
     {
         $resposta->assertOk();
         $resposta->assertSee('<main class="auth">', false);   // shell split
@@ -223,7 +224,7 @@ class DesignV2SecundariasTest extends TestCase
     {
         $html = $this->get($rota)->assertOk()->getContent();
 
-        $this->assertStringContainsString('<title>' . $esperado . ' · StabilMoney</title>', $html);
+        $this->assertStringContainsString('<title>'.$esperado.' · StabilMoney</title>', $html);
     }
 
     public static function telasComTitulo(): array

@@ -64,7 +64,7 @@ class PayFixedBillRequest extends FormRequest
     {
         $conta = $this->route('conta');
 
-        if (! $conta instanceof \App\Models\FixedBill) {
+        if (! $conta instanceof FixedBill) {
             return false;
         }
 
@@ -101,13 +101,13 @@ class PayFixedBillRequest extends FormRequest
                 // Piso RELATIVO à competência (M-6): pagar a conta de julho/2026
                 // com data de 2001 tirava a despesa do fluxo de caixa e do
                 // "gasto do mês", enquanto o saldo caía hoje.
-                'after_or_equal:' . $this->pisoDaDataDePagamento(),
-                'before_or_equal:' . now()->toDateString(),
+                'after_or_equal:'.$this->pisoDaDataDePagamento(),
+                'before_or_equal:'.now()->toDateString(),
             ],
             'funding_source' => ['nullable', Rule::in(FundingSource::TODAS)],
             'funding_investment_id' => [
                 'nullable',
-                'required_if:funding_source,' . FundingSource::RESGATE_INVESTIMENTO,
+                'required_if:funding_source,'.FundingSource::RESGATE_INVESTIMENTO,
                 Rule::exists('investments', 'id')->where('user_id', $ownerId),
             ],
         ];
@@ -148,9 +148,9 @@ class PayFixedBillRequest extends FormRequest
 
         if ($previsto > 0 && $valor > $teto) {
             $validator->errors()->add('amount',
-                'O valor pago (' . Brl::format($valor) . ') é muito maior que o previsto para '
-                . $bill->name . ' (' . Brl::format($previsto) . '). Confira os centavos — se a conta '
-                . 'mudou de valor de vez, edite a conta fixa antes de pagar.');
+                'O valor pago ('.Brl::format($valor).') é muito maior que o previsto para '
+                .$bill->name.' ('.Brl::format($previsto).'). Confira os centavos — se a conta '
+                .'mudou de valor de vez, edite a conta fixa antes de pagar.');
         }
     }
 
@@ -196,8 +196,8 @@ class PayFixedBillRequest extends FormRequest
 
             if ($competencia->greaterThan($fim->startOfMonth())) {
                 $validator->errors()->add('amount',
-                    'A conta fixa ' . $bill->name . ' foi encerrada em ' . $fim->translatedFormat('d/m/Y')
-                    . ' — não há competência de ' . $competencia->translatedFormat('F/Y') . ' para pagar.');
+                    'A conta fixa '.$bill->name.' foi encerrada em '.$fim->translatedFormat('d/m/Y')
+                    .' — não há competência de '.$competencia->translatedFormat('F/Y').' para pagar.');
 
                 return;
             }
@@ -209,10 +209,10 @@ class PayFixedBillRequest extends FormRequest
 
         if ($competencia->lessThan($piso)) {
             $validator->errors()->add('amount',
-                'A competência de ' . $competencia->translatedFormat('F/Y') . ' é antiga demais: as contas fixas '
-                . 'só aparecem até ' . FixedBillService::MAX_MESES_ATRAS . ' meses atrás (desde '
-                . $piso->translatedFormat('F/Y') . '). Se você ainda precisa registrar esse pagamento, '
-                . 'lance-o como despesa avulsa.');
+                'A competência de '.$competencia->translatedFormat('F/Y').' é antiga demais: as contas fixas '
+                .'só aparecem até '.FixedBillService::MAX_MESES_ATRAS.' meses atrás (desde '
+                .$piso->translatedFormat('F/Y').'). Se você ainda precisa registrar esse pagamento, '
+                .'lance-o como despesa avulsa.');
         }
     }
 
@@ -242,7 +242,7 @@ class PayFixedBillRequest extends FormRequest
             return null;
         }
 
-        return CarbonImmutable::createFromFormat('!Y-m-d', $bruta . '-01')->startOfMonth();
+        return CarbonImmutable::createFromFormat('!Y-m-d', $bruta.'-01')->startOfMonth();
     }
 
     /** A conta fixa da rota, só se for da família de quem está pedindo. */

@@ -126,13 +126,13 @@ class Investment extends Model
     public function mensagemResgateAcimaDoReservado(Account $conta, float $reservado): string
     {
         if ($reservado <= 0) {
-            return 'A conta “' . $conta->name . '” não tem nada aplicado neste investimento'
-                . ' — só é possível resgatar para a conta de onde o dinheiro saiu.';
+            return 'A conta “'.$conta->name.'” não tem nada aplicado neste investimento'
+                .' — só é possível resgatar para a conta de onde o dinheiro saiu.';
         }
 
         return 'O valor do resgate é maior que o aplicado neste investimento a partir da conta “'
-            . $conta->name . '” (R$ ' . number_format($reservado, 2, ',', '.')
-            . '). Só volta para a conta o que saiu dela.';
+            .$conta->name.'” (R$ '.number_format($reservado, 2, ',', '.')
+            .'). Só volta para a conta o que saiu dela.';
     }
 
     /**

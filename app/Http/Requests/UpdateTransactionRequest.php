@@ -16,6 +16,4 @@ namespace App\Http\Requests;
  * `TransactionController::travaDeEdicao()`, que roda ANTES dos dois ramos de
  * gravação — inclusive antes do ramo de receita, que grava sem o FundingService.
  */
-class UpdateTransactionRequest extends StoreTransactionRequest
-{
-}
+class UpdateTransactionRequest extends StoreTransactionRequest {}

@@ -5,11 +5,13 @@ namespace Tests\Feature;
 use App\Http\Requests\StoreTransactionRequest;
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\FixedBill;
 use App\Models\Goal;
 use App\Models\Investment;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -58,7 +60,7 @@ class ValidacaoDeValoresTest extends TestCase
             'zero' => ['0'],
             'zero com centavos' => ['0,00'],
             'texto' => ['abc'],
-            'sql' => ["1 OR 1=1"],
+            'sql' => ['1 OR 1=1'],
             'vazio' => [''],
             'acima do decimal(15,2)' => ['99999999999999999'],
             'só símbolo' => ['R$'],
@@ -133,7 +135,7 @@ class ValidacaoDeValoresTest extends TestCase
     #[DataProvider('valoresInvalidos')]
     public function test_fixed_bill_rejects_invalid_amount(string $valor): void
     {
-        if (! \Illuminate\Support\Facades\Route::has('contas-fixas.store')) {
+        if (! Route::has('contas-fixas.store')) {
             $this->markTestSkipped('Contas fixas não disponíveis.');
         }
 
@@ -325,7 +327,7 @@ class ValidacaoDeValoresTest extends TestCase
         ];
 
         foreach ($casos as $entrada => $esperado) {
-            \App\Models\Transaction::query()->delete();
+            Transaction::query()->delete();
 
             $this->post(route('transactions.store'), [
                 'type' => 'income',
@@ -335,7 +337,7 @@ class ValidacaoDeValoresTest extends TestCase
                 'category_id' => Category::factory()->for($this->user)->income()->create()->id,
             ])->assertSessionHasNoErrors();
 
-            $transacao = \App\Models\Transaction::where('user_id', $this->user->id)->firstOrFail();
+            $transacao = Transaction::where('user_id', $this->user->id)->firstOrFail();
 
             $this->assertSame(
                 $esperado,
@@ -546,7 +548,7 @@ class ValidacaoDeValoresTest extends TestCase
      */
     public function test_fixed_bill_due_day_boundaries(): void
     {
-        if (! \Illuminate\Support\Facades\Route::has('contas-fixas.store')) {
+        if (! Route::has('contas-fixas.store')) {
             $this->markTestSkipped('Contas fixas não disponíveis.');
         }
 
@@ -641,7 +643,7 @@ class ValidacaoDeValoresTest extends TestCase
             'starts_on' => now()->startOfMonth()->toDateString(),
         ])->assertSessionHasNoErrors();
 
-        $this->assertSame('999999999999.99', \App\Models\FixedBill::firstOrFail()->amount);
+        $this->assertSame('999999999999.99', FixedBill::firstOrFail()->amount);
     }
 
     public function test_conta_fixa_recusa_notacao_cientifica(): void

@@ -152,10 +152,10 @@ class GoalController extends Controller
 
         $guardadoDela = (float) $reservadoPorConta->get($negativa->id, 0);
 
-        return 'A conta “' . $negativa->name . '” está em ' . Brl::format($negativa->available)
-            . ' e esta meta tem ' . Brl::format($guardadoDela) . ' guardados a partir dela. '
-            . 'Excluir aqui zeraria esse saldo negativo em silêncio, sem deixar registrado que foi '
-            . 'o dinheiro da meta que o cobriu. Faça um resgate para a conta “' . $negativa->name . '” '
-            . '(aí fica gravado de onde saiu o dinheiro) ou deixe o saldo dela positivo antes de excluir.';
+        return 'A conta “'.$negativa->name.'” está em '.Brl::format($negativa->available)
+            .' e esta meta tem '.Brl::format($guardadoDela).' guardados a partir dela. '
+            .'Excluir aqui zeraria esse saldo negativo em silêncio, sem deixar registrado que foi '
+            .'o dinheiro da meta que o cobriu. Faça um resgate para a conta “'.$negativa->name.'” '
+            .'(aí fica gravado de onde saiu o dinheiro) ou deixe o saldo dela positivo antes de excluir.';
     }
 }

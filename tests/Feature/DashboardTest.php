@@ -4,9 +4,14 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\Goal;
+use App\Models\GoalContribution;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\DashboardService;
+use App\Support\DefaultCategories;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -141,7 +146,7 @@ class DashboardTest extends TestCase
     public function test_locked_categories_always_appear_in_breakdown(): void
     {
         $user = User::factory()->create();
-        \App\Support\DefaultCategories::seedFor($user);
+        DefaultCategories::seedFor($user);
         $account = Account::factory()->for($user)->create(['type' => 'checking']);
 
         // Um gasto só em Alimentação — as outras 4 fixas ficam sem gasto no mês.
@@ -150,7 +155,7 @@ class DashboardTest extends TestCase
             'category_id' => $alimentacao->id, 'amount' => 250, 'date' => now()->toDateString(),
         ]);
 
-        $cats = collect(app(\App\Services\DashboardService::class)->build($user->id)['cats']);
+        $cats = collect(app(DashboardService::class)->build($user->id)['cats']);
 
         // As 5 fixas aparecem, mesmo as zeradas; a com gasto vem com valor.
         foreach (['Alimentação', 'Moradia', 'Saúde', 'Transporte', 'Contas'] as $nome) {
@@ -165,10 +170,10 @@ class DashboardTest extends TestCase
     public function test_breakdown_is_empty_without_expenses(): void
     {
         $user = User::factory()->create();
-        \App\Support\DefaultCategories::seedFor($user);
+        DefaultCategories::seedFor($user);
 
         // Sem despesa no mês, o card mostra o estado vazio (não um donut zerado)
-        $this->assertSame([], app(\App\Services\DashboardService::class)->build($user->id)['cats']);
+        $this->assertSame([], app(DashboardService::class)->build($user->id)['cats']);
     }
 
     public function test_saldo_stat_discounts_goals_and_investments(): void
@@ -178,12 +183,12 @@ class DashboardTest extends TestCase
 
         // Guardado numa meta (modelo cofrinho: o dinheiro segue na conta, mas
         // não está disponível para gastar).
-        $meta = \App\Models\Goal::factory()->for($user)->create();
-        \App\Models\GoalContribution::factory()->for($meta)->for($conta)->create([
+        $meta = Goal::factory()->for($user)->create();
+        GoalContribution::factory()->for($meta)->for($conta)->create([
             'type' => 'aporte', 'amount' => 300, 'date' => now()->toDateString(),
         ]);
 
-        $dashboard = app(\App\Services\DashboardService::class)->build($user->id);
+        $dashboard = app(DashboardService::class)->build($user->id);
 
         // O card do topo mostra o DISPONÍVEL (1000 − 300), não o saldo cru.
         $this->assertSame(700.0, $dashboard['initialStats']['saldo']);
@@ -193,7 +198,7 @@ class DashboardTest extends TestCase
 
     public function test_card_panel_lists_every_credit_card_with_spent_and_available(): void
     {
-        \Illuminate\Support\Carbon::setTestNow('2026-06-18');
+        Carbon::setTestNow('2026-06-18');
 
         $user = User::factory()->create();
         $nubank = Account::factory()->for($user)->create([
@@ -207,7 +212,7 @@ class DashboardTest extends TestCase
         Transaction::factory()->for($user)->for($nubank)->expense()->create(['amount' => 300, 'date' => '2026-06-18']);
         Transaction::factory()->for($user)->for($itau)->expense()->create(['amount' => 450, 'date' => '2026-06-18']);
 
-        $d = app(\App\Services\DashboardService::class)->build($user->id);
+        $d = app(DashboardService::class)->build($user->id);
 
         // Os DOIS cartões aparecem (antes o card mostrava só a primeira conta)
         $this->assertCount(2, $d['cartoes']);
@@ -231,7 +236,7 @@ class DashboardTest extends TestCase
         $this->assertSame(11, $nu['melhorDia']);
         $this->assertSame(10, $nu['fechamento']);
 
-        \Illuminate\Support\Carbon::setTestNow();
+        Carbon::setTestNow();
     }
 
     public function test_best_purchase_day_wraps_when_closing_is_at_the_end(): void
@@ -244,7 +249,7 @@ class DashboardTest extends TestCase
             'credit_limit' => 1000, 'closing_day' => 28, 'due_day' => 5,
         ]);
 
-        $d = app(\App\Services\DashboardService::class)->build($user->id);
+        $d = app(DashboardService::class)->build($user->id);
 
         $this->assertSame(1, $d['cartoes'][0]['melhorDia']);
     }
@@ -263,7 +268,7 @@ class DashboardTest extends TestCase
             ]);
         }
 
-        $recent = app(\App\Services\DashboardService::class)->build($user->id)['recent'];
+        $recent = app(DashboardService::class)->build($user->id)['recent'];
 
         // A lista mostra 4 por vez e rola o restante (CSS); o servidor manda 8.
         $this->assertCount(8, $recent);
