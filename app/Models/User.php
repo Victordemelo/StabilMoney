@@ -15,23 +15,25 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * Verificação de e-mail — por que `MustVerifyEmail` pode estar ligado SEM mailer.
+ * Verificação de e-mail — por que exigir confirmação NÃO tranca ninguém.
  *
- * Implementar este contrato não tranca ninguém sozinho: ele só habilita o fluxo
- * (link assinado + rotas `verification.*`). Quem de fato exige a confirmação é o
- * middleware `verified`, que HOJE não está em rota nenhuma — ver routes/web.php.
+ * Implementar `MustVerifyEmail` só habilita o fluxo (link assinado + rotas
+ * `verification.*`). Quem de fato exige a confirmação é o middleware `verified`, que
+ * **está aplicado às rotas do app** desde 06/08/2026 — ver routes/web.php.
  *
- * A regra que evita o desastre está em quem CRIA usuário, não aqui:
+ * A regra que evita o desastre está em quem CRIA usuário, não aqui. O invariante:
+ * **enquanto o app não consegue enviar e-mail, ninguém fica pendente de confirmação.**
  *
  *  - `RegisteredUserController::store` grava `email_verified_at` no ato quando
- *    `App\Support\Mailer::entrega()` é falso. Na fase de testes o app não tem como
- *    confirmar endereço nenhum, então ninguém nasce trancado. No dia em que o SMTP
- *    entrar no `.env`, o cadastro volta a deixar o campo nulo e o listener
- *    `SendEmailVerificationNotification` (evento `Registered`) manda o link sozinho
- *    — só o usuário NOVO precisa confirmar; quem já estava dentro segue verificado.
- *  - `DependentController::store` grava SEMPRE: dependente não passa pelo
- *    `/register`, ninguém lhe envia link nenhum, e deixá-lo nulo trancaria toda a
- *    família fora do app no dia em que alguma rota ganhar `verified`.
+ *    `App\Support\Mailer::entrega()` é falso — sem mailer não há endereço a confirmar,
+ *    então ninguém nasce trancado. Com SMTP configurado, o campo nasce nulo e o listener
+ *    `SendEmailVerificationNotification` (evento `Registered`) manda o link sozinho: só
+ *    o usuário NOVO precisa confirmar; quem já estava dentro segue verificado.
+ *  - `DependentController::store` grava SEMPRE: dependente não passa pelo `/register`,
+ *    ninguém lhe envia link nenhum, e deixá-lo nulo trancaria toda a família fora do app.
+ *  - `ProfileController::update` grava no ato quando não há mailer. 🚨 Ele já fez o
+ *    contrário — zerava o campo — e criava conta que NENHUM link destrava. Foi inofensivo
+ *    só enquanto `verified` não existia.
  *
  * Coberto por tests/Feature/VerificacaoDeEmailTest.php.
  */

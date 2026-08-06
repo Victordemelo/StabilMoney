@@ -52,7 +52,7 @@ SESSION_SECURE_COOKIE=true
 **Por quê:** sem isso o cookie de sessão é enviado também em `http://`. Quem estiver na
 mesma rede intercepta e entra na conta sem senha.
 
-### 5. Mailer de verdade — 🟡 **falta só a senha**
+### ~~5. Mailer de verdade~~ — ✅ **Feito** (06/08/2026)
 
 ```env
 MAIL_MAILER=smtp
@@ -68,11 +68,15 @@ MAIL_FROM_ADDRESS="victor_teste@victor.jwsolucoesdigitais.com.br"
 **perde a conta**, porque o link de redefinição só vai para o arquivo de log. É também
 pré-requisito do item 13.
 
-**Estado (06/08/2026):** host, porta, usuário e remetente já estão no `.env`; a conexão foi
-testada e o servidor responde (Exim, certificado válido). Falta apenas o `MAIL_PASSWORD`.
-Os três fluxos foram verificados de ponta a ponta contra um SMTP real — cadastro envia o
-link de verificação, a troca de e-mail manda a confirmação **para o endereço novo**, e
-"esqueci a senha" entrega o link.
+**Estado:** configurado e **autenticando de verdade** — o servidor aceita e entrega. Os três
+fluxos foram verificados de ponta a ponta: cadastro envia o link de verificação (e o
+dashboard fica bloqueado até o clique), a troca de e-mail manda a confirmação **para o
+endereço novo**, e "esqueci a senha" entrega o link. Além deles, os sete alertas de segurança
+(ver CLAUDE.md, "📧 E-mail") passaram a sair.
+
+⚠️ Ao publicar, esta caixa é de **teste** (`victor_teste@`). Vale criar uma caixa dedicada e
+sem pessoa por trás (`nao-responda@`) antes de abrir para desconhecidos: e-mail transacional
+saindo de um endereço pessoal mistura resposta de usuário com a caixa de quem administra.
 
 > ⚠️ **A porta decide o `MAIL_SCHEME`**: `465 → smtps` (TLS implícito), `587 → smtp`
 > (STARTTLS). Trocados, o cliente fala texto puro com um servidor que só entende TLS e a
@@ -84,8 +88,6 @@ link de verificação, a troca de e-mail manda a confirmação **para o endereç
 **Em desenvolvimento** não se usa este servidor: o `docker-compose` sobe um **Mailpit**
 (SMTP de mentira, caixa em http://localhost:8026). Para voltar a ele, basta
 `MAIL_HOST=mailpit`, `MAIL_PORT=1025`, `MAIL_SCHEME=smtp` e usuário/senha vazios.
-
-### 6. MySQL sem porta publicada
 
 ### 6. MySQL sem porta publicada
 
