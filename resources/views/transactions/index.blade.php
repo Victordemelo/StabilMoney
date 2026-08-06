@@ -39,6 +39,27 @@
                         @endforeach
                     </select>
                 </div>
+                {{-- Categoria: agrupada por tipo com <optgroup>. Sem o agrupamento,
+                     "Outros" (que existe nos dois tipos) apareceria duas vezes sem
+                     nada dizendo qual é qual. A ordem dentro de cada grupo é a
+                     `position` — a mesma que o usuário arrumou em Categorias. --}}
+                <div class="field">
+                    <label for="f-category">Categoria</label>
+                    <select class="input" id="f-category" name="category">
+                        <option value="">Todas</option>
+                        @foreach (['income' => 'Receitas', 'expense' => 'Despesas'] as $tipo => $rotulo)
+                            @if (($categories[$tipo] ?? collect())->isNotEmpty())
+                                <optgroup label="{{ $rotulo }}">
+                                    @foreach ($categories[$tipo] as $cat)
+                                        <option value="{{ $cat->id }}" @selected((int) request('category') === $cat->id)>
+                                            {{ $cat->icon }} {{ $cat->name }}
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                            @endif
+                        @endforeach
+                    </select>
+                </div>
                 <div class="field">
                     <label for="f-de">De</label>
                     <input class="input" type="date" id="f-de" name="de" value="{{ $filtroDe }}"
@@ -54,7 +75,7 @@
 
                 {{-- Só aparece quando há filtro ativo: um "limpar" permanente vira
                      ruído numa barra que na maioria das visitas está vazia. --}}
-                @if (request()->hasAny(['type', 'account', 'de', 'ate']) && collect(request()->only(['type', 'account', 'de', 'ate']))->filter()->isNotEmpty())
+                @if (collect(request()->only(['type', 'account', 'category', 'de', 'ate']))->filter()->isNotEmpty())
                     <a class="btn-ghost filtro-limpar" href="{{ route('transactions.index') }}">Limpar</a>
                 @endif
             </form>
@@ -67,7 +88,7 @@
                     <div class="pico">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8h13M7 8l3-3M7 8l3 3M17 16H4M17 16l-3-3M17 16l-3 3"/></svg>
                     </div>
-                    @if (request()->filled('type') || request()->filled('account'))
+                    @if (collect(request()->only(['type', 'account', 'category', 'de', 'ate']))->filter()->isNotEmpty())
                         <h3>Nada por aqui</h3>
                         <p>Nenhuma transação encontrada com esses filtros.</p>
                         <a class="btn-ghost" href="{{ route('transactions.index') }}">Limpar filtros</a>
@@ -110,7 +131,7 @@
 
     <script nonce="{{ Vite::cspNonce() }}">
         // Auto-submit dos filtros ao trocar o select (o botão "Filtrar" é o fallback sem JS)
-        document.querySelectorAll('#f-type, #f-account').forEach(function (sel) {
+        document.querySelectorAll('#f-type, #f-account, #f-category').forEach(function (sel) {
             sel.addEventListener('change', function () { sel.form.submit(); });
         });
     </script>

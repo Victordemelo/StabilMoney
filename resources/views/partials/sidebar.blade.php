@@ -9,6 +9,10 @@
         : mb_substr($partesNome[0] ?? 'U', 0, 2);
     $iniciais = mb_strtoupper($iniciais);
 
+    // Foto do perfil, quando houver: as iniciais são o fallback, não o padrão.
+    // Uma chamada só — o rodapé e o popover mostram a mesma pessoa.
+    $fotoUsuario = $usuario->avatarUrl();
+
     // Formato pt-BR com os centavos separados (o v2 põe ",dd" num <span> menor).
     // O sinal sai do número e vira prefixo do "R$": a regra do app é
     // `−R$ 150,00` (traço U+2212 antes do símbolo), nunca `R$ -150,00`.
@@ -109,7 +113,13 @@
     @endif
 
     <button class="side-foot" id="profileBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="profilePop">
-        <span class="avatar-initials">{{ $iniciais }}</span>
+        <span class="avatar-initials">
+            @if ($fotoUsuario)
+                <img src="{{ $fotoUsuario }}" alt="">
+            @else
+                {{ $iniciais }}
+            @endif
+        </span>
         <div class="side-foot-text">
             <strong>{{ $usuario->name }}</strong>
             <span>{{ $usuario->email }}</span>
@@ -121,7 +131,13 @@
 {{-- Popover do perfil (abre pelo .side-foot; posicionado via JS em shell.js) --}}
 <div class="profile-pop" id="profilePop" role="menu" aria-hidden="true">
     <div class="pp-head">
-        <span class="avatar-initials">{{ $iniciais }}</span>
+        <span class="avatar-initials">
+            @if ($fotoUsuario)
+                <img src="{{ $fotoUsuario }}" alt="">
+            @else
+                {{ $iniciais }}
+            @endif
+        </span>
         <div class="pp-head-txt">
             <strong>{{ $usuario->name }}</strong>
             <span>{{ $usuario->email }}</span>

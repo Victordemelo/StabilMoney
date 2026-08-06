@@ -38,7 +38,12 @@ class DependentController extends Controller
         $gastoTitular = (float) $titular->madeTransactions()
             ->where('type', 'expense')->whereBetween('date', [$mesInicio, $mesFim])->sum('amount');
 
-        return view('dependents.index', compact('dependents', 'gastoTitular'));
+        // Total da família no mês: é o denominador da fatia de cada pessoa. Sem
+        // ele o card mostra um número solto — "R$ 1.590" é muito ou pouco só em
+        // relação ao resto, e é essa comparação que a tela existe para dar.
+        $gastoFamilia = $gastoTitular + (float) $dependents->sum('gasto');
+
+        return view('dependents.index', compact('dependents', 'gastoTitular', 'gastoFamilia'));
     }
 
     public function store(StoreDependentRequest $request)

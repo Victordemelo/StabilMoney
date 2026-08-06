@@ -119,7 +119,10 @@
         {{-- Nasce em RECEITA, igual ao modal global de "Lançar". Quem clica no
              "Criar agora" de uma coluna vazia manda o tipo daquela coluna
              (data-cat-type) — ali o usuário já disse o que quer. --}}
-        <div class="modal" data-type="income">
+        {{-- `modal-lg` (620px) e não os 440px padrão: com 14 emojis de 40px e 13
+             cores, a largura menor empilhava os pickers em três fileiras e o
+             formulário inteiro ficava espremido numa coluna estreita. --}}
+        <div class="modal modal-lg" data-type="income">
             <div class="modal-head">
                 <span class="modal-ico">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>

@@ -971,6 +971,59 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .dp-spent-label { font-size: 12px; font-weight: 600; color: var(--ink-3); }
 .dp-spent-val { font-size: 18px; font-weight: 800; font-family: var(--font-head); letter-spacing: -.01em; }
 
+/* ----- Dependentes v2: papel, fatia do gasto e o card-fantasma -----
+   O card antigo mostrava nome, e-mail e um número solto. O número sozinho não
+   responde a pergunta que a tela existe para responder ("quem está gastando
+   quanto?"): R$ 1.590 é muito ou pouco depende do total da família. Daí a
+   barra de fatia — comparação, não só valor. */
+
+/* Papel (Titular / Cônjuge / Filho…) como chip, e não texto solto colado no
+   e-mail: era a informação mais consultada do card e a menos visível. */
+.dp-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 999px; margin-left: 8px; vertical-align: 2px;
+  font-family: var(--font-body); font-size: 10.5px; font-weight: 700;
+  letter-spacing: .03em; text-transform: uppercase;
+  background: var(--surface-3); color: var(--ink-3); border: 1px solid var(--line);
+}
+.dp-badge.titular { background: var(--brand-50); color: var(--brand-700); border-color: var(--brand-200); }
+[data-theme="dark"] .dp-badge.titular { background: rgba(28,154,112,.14); color: var(--brand-300); border-color: rgba(28,154,112,.28); }
+
+/* Fatia do gasto da família. `--fatia` é escrito no style inline pelo Blade —
+   largura em custom property mantém o valor fora do CSS e o CSS fora do Blade. */
+.dp-bar { height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; margin-top: 10px; }
+.dp-bar-fill {
+  display: block; height: 100%; border-radius: 999px;
+  width: var(--fatia, 0%); background: var(--brand-500);
+  transition: width .5s var(--ease-out);
+}
+.dp-person.titular .dp-bar-fill { background: var(--brand-600); }
+
+.dp-foot { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 11.5px; color: var(--ink-3); }
+.dp-foot strong { font-weight: 700; color: var(--ink-2); }
+
+/* Resumo da família — a linha que dá contexto aos cards de baixo. */
+.dep-resumo { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.dep-resumo-item {
+  flex: 1 1 150px; min-width: 0; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
+}
+.dep-resumo-item .lbl { display: block; font-size: 11.5px; font-weight: 600; color: var(--ink-3); }
+.dep-resumo-item .val {
+  display: block; margin-top: 4px; font-family: var(--font-head); font-weight: 800;
+  font-size: 17px; letter-spacing: -.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Card-fantasma: aparece só quando ainda não há dependente nenhum. Mostra o
+   FORMATO do que a pessoa vai receber ao adicionar alguém — um estado vazio que
+   só diz "nada aqui" deixa o usuário adivinhando o que ganha em troca.
+   `aria-hidden` porque é ilustração: quem usa leitor de tela ouve o botão de
+   adicionar, que é a ação de verdade. */
+.dep-ghost { opacity: .5; filter: saturate(.35); pointer-events: none; user-select: none; }
+.dep-ghost .dp-av { background: var(--surface-3); color: var(--ink-3); }
+.dep-ghost .dp-name, .dep-ghost .dp-spent-val { color: var(--ink-3); }
+
 /* Avatar central clicável (modais de dependente): a bolinha É o botão de upload. */
 .avatar-pick { display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; margin: 2px 0 6px; }
 .avatar-pick-img { position: relative; width: 88px; height: 88px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-3); color: var(--ink-3); font-family: var(--font-head); font-weight: 800; font-size: 26px; overflow: visible; border: 2px solid var(--line); transition: border-color .15s, box-shadow .15s; }
@@ -1384,13 +1437,21 @@ body.pjax-loading #content { opacity: .5; }
 .btn-danger:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(229,96,77,.3); }
 .btn-danger svg { width: 18px; height: 18px; stroke-width: 2.2; flex: none; }
 
-/* ----- Avatar com iniciais (sem foto) ----- */
+/* ----- Avatar do usuário: foto quando existe, iniciais quando não -----
+   As iniciais são o FALLBACK, não o padrão. Quem sobe uma foto no perfil
+   espera vê-la no shell — era o único lugar do app que continuava mostrando
+   as letras depois do upload. O <img> vive dentro do mesmo elemento, então
+   tamanho e recorte redondo valem para os dois estados. */
 .avatar-initials {
   width: 38px; height: 38px; border-radius: 50%; flex: none;
-  display: grid; place-items: center;
+  display: grid; place-items: center; overflow: hidden;
   background: var(--brand-600); color: #fff;
   font-family: var(--font-head); font-weight: 700; font-size: 13px; letter-spacing: .04em;
   user-select: none;
+}
+
+.avatar-initials img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
 }
 
 /* ----- Avatar com iniciais no header do popover (no protótipo é <img>) ----- */

@@ -14,6 +14,20 @@
     $titular = auth()->user();
     // Qual modal reabrir quando a validação volta com erro (store vs editar X).
     $formComErro = old('_form');
+
+    // Fatia de cada pessoa no gasto da família. Guarda contra divisão por zero:
+    // em mês sem despesa nenhuma, todo mundo fica com a barra vazia (e não com
+    // um NaN de largura, que o navegador ignora em silêncio).
+    $fatia = fn (float $valor) => $gastoFamilia > 0 ? round($valor / $gastoFamilia * 100) : 0;
+
+    $quantasPessoas = $dependents->count() + 1;
+
+    // Quem mais gastou no mês — o titular entra na disputa como qualquer um.
+    $maiorGasto = $dependents
+        ->map(fn ($d) => ['nome' => $d->name, 'valor' => (float) ($d->gasto ?? 0)])
+        ->push(['nome' => $titular->name, 'valor' => $gastoTitular])
+        ->sortByDesc('valor')
+        ->first();
 @endphp
 
 <section class="view">
@@ -30,11 +44,31 @@
 
     <div class="grid">
         <div class="card span12">
-            <div class="card-head"><h3>Pessoas vinculadas</h3></div>
+            <div class="card-head">
+                <h3>Pessoas vinculadas</h3>
+                <span class="chip">Gastos de {{ now()->translatedFormat('F') }}</span>
+            </div>
+
+            {{-- Resumo da família: o contexto que faz o número de cada card
+                 significar alguma coisa. --}}
+            <div class="dep-resumo">
+                <div class="dep-resumo-item">
+                    <span class="lbl">Pessoas na conta</span>
+                    <span class="val">{{ $quantasPessoas }}</span>
+                </div>
+                <div class="dep-resumo-item">
+                    <span class="lbl">Gasto da família no mês</span>
+                    <span class="val">@brl($gastoFamilia)</span>
+                </div>
+                <div class="dep-resumo-item">
+                    <span class="lbl">Quem mais gastou</span>
+                    <span class="val">{{ $gastoFamilia > 0 ? $maiorGasto['nome'] : '—' }}</span>
+                </div>
+            </div>
 
             <div class="dep-grid">
                 {{-- Titular (você) --}}
-                <div class="dep-person">
+                <div class="dep-person titular">
                     <div class="dp-top">
                         <div class="dp-av" style="background: var(--brand-600)">
                             @if ($titular->avatarUrl())
@@ -44,13 +78,18 @@
                             @endif
                         </div>
                         <div class="dp-id">
-                            <div class="dp-name">{{ $titular->name }}</div>
-                            <div class="dp-rel"><strong>Titular</strong> · {{ $titular->email }}</div>
+                            <div class="dp-name">{{ $titular->name }}<span class="dp-badge titular">Titular</span></div>
+                            <div class="dp-rel">{{ $titular->email }}</div>
                         </div>
                     </div>
                     <div class="dp-spent">
                         <span class="dp-spent-label">Gastou no mês</span>
-                        <span class="dp-spent-val">R$ {{ number_format($gastoTitular, 2, ',', '.') }}</span>
+                        <span class="dp-spent-val">@brl($gastoTitular)</span>
+                    </div>
+                    <div class="dp-bar"><span class="dp-bar-fill" style="--fatia: {{ $fatia($gastoTitular) }}%"></span></div>
+                    <div class="dp-foot">
+                        <span><strong>{{ $fatia($gastoTitular) }}%</strong> do gasto da família</span>
+                        <span>Desde {{ $titular->created_at->format('m/Y') }}</span>
                     </div>
                 </div>
 
@@ -67,8 +106,8 @@
                                 @endif
                             </div>
                             <div class="dp-id">
-                                <div class="dp-name">{{ $dep->name }}</div>
-                                <div class="dp-rel">{{ $dep->relationshipLabel() ?? 'Dependente' }} · {{ $dep->email }}</div>
+                                <div class="dp-name">{{ $dep->name }}<span class="dp-badge">{{ $dep->relationshipLabel() ?? 'Dependente' }}</span></div>
+                                <div class="dp-rel">{{ $dep->email }}</div>
                             </div>
                             <div class="dp-actions">
                                 <button class="dp-edit" type="button" data-edit="{{ $dep->id }}" aria-label="Editar dependente">
@@ -88,7 +127,12 @@
                         {{-- Quanto já gastou (despesas lançadas por ele) --}}
                         <div class="dp-spent">
                             <span class="dp-spent-label">Gastou no mês</span>
-                            <span class="dp-spent-val">R$ {{ number_format($gasto, 2, ',', '.') }}</span>
+                            <span class="dp-spent-val">@brl($gasto)</span>
+                        </div>
+                        <div class="dp-bar"><span class="dp-bar-fill" style="--fatia: {{ $fatia($gasto) }}%"></span></div>
+                        <div class="dp-foot">
+                            <span><strong>{{ $fatia($gasto) }}%</strong> do gasto da família</span>
+                            <span>Desde {{ $dep->created_at->format('m/Y') }}</span>
                         </div>
                     </div>
                 @endforeach
@@ -101,6 +145,36 @@
                         <span class="dp-rel">Login próprio, mesma visão da família</span>
                     </div>
                 </button>
+
+                {{-- Card-fantasma: só enquanto a família é de um. Mostra o FORMATO
+                     do card que a pessoa vai receber — um estado vazio que apenas
+                     diz "não há nada" deixa o usuário adivinhando o que ganha em
+                     troca de cadastrar alguém. Some no instante em que existe um
+                     dependente de verdade. --}}
+                @if ($dependents->isEmpty())
+                    <div class="dep-person dep-ghost" aria-hidden="true">
+                        <div class="dp-top">
+                            <div class="dp-av">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:22px;height:22px;stroke-width:1.9">
+                                    <circle cx="12" cy="9" r="3.4"/><path d="M5 20c0-3.4 3-5.6 7-5.6s7 2.2 7 5.6"/>
+                                </svg>
+                            </div>
+                            <div class="dp-id">
+                                <div class="dp-name">Alguém da família<span class="dp-badge">Cônjuge</span></div>
+                                <div class="dp-rel">o-e-mail-dela@exemplo.com</div>
+                            </div>
+                        </div>
+                        <div class="dp-spent">
+                            <span class="dp-spent-label">Gastou no mês</span>
+                            <span class="dp-spent-val">@brl(0)</span>
+                        </div>
+                        <div class="dp-bar"><span class="dp-bar-fill" style="--fatia: 0%"></span></div>
+                        <div class="dp-foot">
+                            <span><strong>0%</strong> do gasto da família</span>
+                            <span>Desde {{ now()->format('m/Y') }}</span>
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
     </div>

@@ -29,6 +29,15 @@ class TransactionController extends Controller
         // Contas do usuário (usadas no select de filtro)
         $accounts = Account::where('user_id', $userId)->orderBy('name')->get();
 
+        // Categorias da família, na MESMA ordem da tela de Categorias (`position`),
+        // agrupadas por tipo no select. Ordenar por nome aqui faria o filtro
+        // discordar da ordem que o usuário arrumou à mão.
+        $categories = Category::where('user_id', $userId)
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('type');
+
         $query = Transaction::with(['account', 'category', 'madeBy'])
             ->where('user_id', $userId);
 
@@ -41,6 +50,15 @@ class TransactionController extends Controller
         $accountId = (int) $request->query('account');
         if ($accountId && $accounts->contains('id', $accountId)) {
             $query->where('account_id', $accountId);
+        }
+
+        // Categoria: o id só é aceito se for da própria família — senão o filtro
+        // viraria uma sonda para descobrir a categoria dos outros pelo que a
+        // lista devolve (ou deixa de devolver).
+        $categoryId = (int) $request->query('category');
+        $idsDeCategoria = $categories->flatten()->pluck('id');
+        if ($categoryId && $idsDeCategoria->contains($categoryId)) {
+            $query->where('category_id', $categoryId);
         }
 
         // Período: "de" e "até", os dois opcionais e independentes.
@@ -73,6 +91,7 @@ class TransactionController extends Controller
         return view('transactions.index', [
             'transactions' => $transactions,
             'accounts' => $accounts,
+            'categories' => $categories,
             'showAuthor' => $showAuthor,
             // Devolvidas normalizadas (Y-m-d) para reabastecer os inputs de data.
             'filtroDe' => $de?->toDateString(),
