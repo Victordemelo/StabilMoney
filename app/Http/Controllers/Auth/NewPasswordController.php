@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AlertaDeSeguranca;
 use App\Models\User;
+use App\Support\ContextoDeSeguranca;
+use App\Support\Notificador;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -49,6 +52,17 @@ class NewPasswordController extends Controller
                 ])->save();
 
                 event(new PasswordReset($user));
+
+                // Avisa o dono da conta. Este é o caminho que um invasor usa quando já
+                // tomou a CAIXA DE E-MAIL da vítima: ele pede a recuperação e define a
+                // senha nova sem nunca ter sabido a antiga. O aviso não impede isso —
+                // mas chega junto com o link no mesmo endereço, e é a chance de a pessoa
+                // perceber no mesmo minuto em vez de descobrir quando não conseguir mais
+                // entrar. Nunca derruba a redefinição se o envio falhar (ver Notificador).
+                Notificador::avisar($user, AlertaDeSeguranca::senhaRedefinida(
+                    $user,
+                    ContextoDeSeguranca::doRequest($request),
+                ));
             }
         );
 

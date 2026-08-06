@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\AlertaDeSeguranca;
 use App\Support\BrowserSessions;
+use App\Support\ContextoDeSeguranca;
+use App\Support\Notificador;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -32,10 +35,19 @@ class SecurityController extends Controller
         Auth::logoutOtherDevices($request->input('password'));
 
         // Remove as linhas das outras sessões (o que de fato as desconecta).
-        BrowserSessions::purgeForUser(
+        $encerradas = BrowserSessions::purgeForUser(
             $request->user()->getAuthIdentifier(),
             exceptSessionId: $request->session()->getId(),
         );
+
+        // Avisa quantos aparelhos caíram. Serve para os dois lados: confirma ao dono que
+        // a limpeza funcionou, e denuncia a ele se quem mandou desconectar foi outra
+        // pessoa — porque nesse caso o aparelho derrubado foi o dele.
+        Notificador::avisar($request->user(), AlertaDeSeguranca::sessoesEncerradas(
+            $request->user(),
+            ContextoDeSeguranca::doRequest($request),
+            $encerradas,
+        ));
 
         return back()->with('status', 'sessions-cleared');
     }

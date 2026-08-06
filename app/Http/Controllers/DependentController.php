@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreDependentRequest;
 use App\Http\Requests\UpdateDependentRequest;
+use App\Mail\BemVindoDependente;
 use App\Models\User;
+use App\Support\Notificador;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -69,6 +71,13 @@ class DependentController extends Controller
         }
 
         $dependent->save();
+
+        // O dependente é o único usuário que não escolheu se cadastrar — o titular fez
+        // isso por ele. Sem este aviso, a pessoa ganha acesso a todo o dinheiro da
+        // família e só descobre quando alguém lhe conta. A senha NÃO vai no e-mail
+        // (ver BemVindoDependente): o caminho oferecido é o "Esqueci a senha", que é o
+        // único que lhe dá uma senha que o titular não conhece.
+        Notificador::avisar($dependent, new BemVindoDependente($dependent, $titular));
 
         return redirect()->route('dependentes')->with('status', 'Dependente adicionado.');
     }

@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AlertaDeSeguranca;
 use App\Support\BrowserSessions;
+use App\Support\ContextoDeSeguranca;
+use App\Support\Notificador;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -36,6 +39,15 @@ class PasswordController extends Controller
             $request->user()->getKey(),
             exceptSessionId: $request->session()->getId(),
         );
+
+        // Derrubar as outras sessões protege contra quem NÃO tem a senha. Este aviso
+        // cobre o caso oposto e pior: quem já entrou e está trocando a senha justamente
+        // para trancar o dono do lado de fora. O e-mail é o único canal que o invasor
+        // não controla.
+        Notificador::avisar($request->user(), AlertaDeSeguranca::senhaAlterada(
+            $request->user(),
+            ContextoDeSeguranca::doRequest($request),
+        ));
 
         return back()->with('status', 'password-updated');
     }

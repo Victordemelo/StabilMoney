@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Mail\AlertaDeSeguranca;
 use App\Models\Account;
 use App\Models\User;
 use App\Services\FixedBillService;
+use App\Support\ContextoDeSeguranca;
 use App\Support\Mailer;
+use App\Support\Notificador;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -143,6 +146,14 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
+
+        // ANTES do delete, e não depois: em seguida não existe mais nome nem endereço
+        // para quem escrever. É também o último aviso que a pessoa recebe — se a exclusão
+        // não partiu dela, é a única chance de descobrir.
+        Notificador::avisar($user, AlertaDeSeguranca::contaExcluida(
+            $user,
+            ContextoDeSeguranca::doRequest($request),
+        ));
 
         Auth::logout();
 

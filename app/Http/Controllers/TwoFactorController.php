@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\AlertaDeSeguranca;
 use App\Services\TwoFactorService;
+use App\Support\ContextoDeSeguranca;
+use App\Support\Notificador;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -98,6 +101,11 @@ class TwoFactorController extends Controller
             );
         }
 
+        Notificador::avisar($user, AlertaDeSeguranca::doisFatoresAtivado(
+            $user,
+            ContextoDeSeguranca::doRequest($request),
+        ));
+
         // Os códigos aparecem UMA vez, agora. Ficam na sessão (flash) e não no banco em
         // texto para a tela — quem quiser vê-los de novo gera outros.
         return $this->voltar()
@@ -142,6 +150,16 @@ class TwoFactorController extends Controller
         }
 
         $this->twoFactor->desligar($user);
+
+        // Só quando a proteção CAIU de fato. Cancelar um setup pendente não desligou
+        // nada — avisar ali seria alarme falso, e alarme falso é o que faz a pessoa
+        // parar de ler os próximos.
+        if ($estavaAtivo) {
+            Notificador::avisar($user, AlertaDeSeguranca::doisFatoresDesativado(
+                $user,
+                ContextoDeSeguranca::doRequest($request),
+            ));
+        }
 
         return $this->voltar()->with('status', $estavaAtivo ? 'two-factor-disabled' : 'two-factor-cancelled');
     }

@@ -920,6 +920,53 @@ conta perdida no dia em que ele entrou. A migration
 `routes/auth.php`, fora do grupo protegido — senão a tela que destrava a conta fica ela
 própria trancada.
 
+### Alertas de segurança (06/08/2026) — `AlertasDeSegurancaTest`
+
+**O buraco que fecham:** o app já derruba as outras sessões quando a senha muda e já exige
+a senha atual para desligar o 2FA — isso protege contra quem **não** tem a credencial. O
+caso oposto ficava descoberto: quem **já entrou** troca a senha, desliga o 2FA, e o dono não
+fica sabendo de nada — descobre semanas depois, quando já não consegue entrar. **O e-mail é
+o único canal que o invasor não controla.**
+
+| Ação | Alerta |
+|---|---|
+| Trocar senha (Configurações) | `senhaAlterada` |
+| Redefinir senha pelo link | `senhaRedefinida` |
+| Ativar / desativar 2FA | `doisFatoresAtivado` / `doisFatoresDesativado` |
+| Encerrar outras sessões | `sessoesEncerradas` (com quantos aparelhos caíram) |
+| Excluir conta | `contaExcluida` — enviado **antes** do delete |
+| Criar dependente | `BemVindoDependente` (para o dependente) |
+
+- **🚨 Todo alerta sai por `App\Support\Notificador::avisar()`, nunca por `Mail::` direto.**
+  Ele engole a exceção e registra no log. O motivo é a razão de a classe existir: trocar a
+  senha é o que a pessoa faz **justamente ao desconfiar de invasão** — se o SMTP estiver
+  fora do ar e a exceção subir, ela vê um 500 e conclui que a troca falhou, quando já foi
+  gravada. **O aviso é acessório; a ação é o que importa.**
+- **`AlertaDeSeguranca` é um Mailable com construtores nomeados**, não seis classes: o
+  formato é o mesmo e o que não pode divergir é justamente a instrução do "não foi você".
+- **A senha do dependente NUNCA vai no e-mail** — o caminho oferecido é o "Esqueci a senha",
+  que além de seguro é o único que lhe dá uma senha que o titular não conhece.
+- **Alarme falso é proibido:** cancelar um setup de 2FA pendente não dispara nada (não
+  desligou proteção nenhuma). Alerta que grita à toa é alerta que ninguém lê no dia certo.
+- Envio **síncrono** (~1 s). `QUEUE_CONNECTION=database` mas não há worker rodando; se um
+  dia houver `queue:work`, basta os Mailables implementarem `ShouldQueue`.
+
+### Layout dos e-mails — o design system traduzido
+
+`resources/views/emails/layout.blade.php` (HTML) + `layout-texto.blade.php` (texto puro),
+os dois usados por **todos** os Mailables, que só passam dados.
+
+**Não dá para reusar o CSS do app**, e cada motivo já mordeu alguém: `var(--brand-600)` não
+existe em Outlook nem no app do Gmail; folha externa (`@vite`) nunca chega ao cliente;
+flex/grid são irregulares — daí o layout em `<table>`; e web font é bloqueada, então a pilha
+cai em fonte de sistema. Os tokens viram **hex literal**, copiados do `:root` do
+`design-system.css`. Tema **sempre claro**, como as telas de auth.
+
+⚠️ Toda mensagem sai em **duas partes** (HTML + texto). Não é capricho: filtro de spam
+desconfia de mensagem só-HTML, e um HTML que não renderize deixa o aviso ilegível sem ela.
+⚠️ Parágrafo é impresso com `{!! !!}` (para permitir `<strong>`), então **dado do usuário
+interpolado ali passa por `e()`** — senão é injeção de HTML no e-mail.
+
 ---
 
 ## 🔐 Verificação em duas etapas (2FA — 05/08/2026)

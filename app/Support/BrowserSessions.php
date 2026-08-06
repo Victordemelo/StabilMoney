@@ -53,7 +53,7 @@ class BrowserSessions
      *
      * @param  string|null  $exceptSessionId  sessão a preservar (ex.: a atual, ao
      *                                        encerrar "as outras"); null apaga todas.
-     * @return int  linhas removidas
+     * @return int linhas removidas
      */
     public static function purgeForUser(int|string $userId, ?string $exceptSessionId = null): int
     {
@@ -70,6 +70,23 @@ class BrowserSessions
         }
 
         return $query->delete();
+    }
+
+    /**
+     * Descrição curta do aparelho a partir do user-agent ("Chrome no Windows").
+     *
+     * Público porque os alertas de segurança por e-mail precisam da MESMA leitura que a
+     * tela de dispositivos mostra: se o e-mail dissesse "Chrome/Windows" e a tela
+     * "Edge no Windows", a pessoa não teria como cruzar as duas informações — que é
+     * exatamente o que ela faz ao desconfiar de um acesso.
+     */
+    public static function descrever(?string $ua): string
+    {
+        if ($ua === null || $ua === '') {
+            return 'Dispositivo desconhecido';
+        }
+
+        return self::browser($ua).' no '.self::platform($ua);
     }
 
     private static function isMobile(?string $ua): bool
