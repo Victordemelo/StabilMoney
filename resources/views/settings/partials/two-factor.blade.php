@@ -1,5 +1,10 @@
 {{--
-    Card "Verificação em duas etapas" (2FA por app autenticador) — Configurações › Segurança.
+    Aba "Verificação em 2 etapas" (2FA por app autenticador) — Configurações › 2FA.
+
+    Dois cards lado a lado: o da ESQUERDA é onde se age (status + ligar/confirmar/
+    desligar) e o da DIREITA explica o recurso e o que são os códigos de recuperação.
+    Separar assim tira da frente o texto que só se lê uma vez e deixa a página caber
+    sem rolagem — quando tudo era um card só, a explicação empurrava a ação para baixo.
 
     Espera: $user, $qrCode e $chaveManual (só preenchidos durante a configuração) e
     $semRecuperacaoPorEmail (SettingsController).
@@ -16,7 +21,7 @@
     $codigosNovos = session('codigosDeRecuperacao');
 @endphp
 
-<div class="card sec-card" id="verificacao-duas-etapas">
+<div class="card sec-card span7" id="verificacao-duas-etapas">
     <div class="card-head">
         <h3>Verificação em duas etapas</h3>
         <span class="chip {{ $ativo ? 'chip-ativo' : '' }}">
@@ -30,13 +35,6 @@
             @endif
         </span>
     </div>
-
-    <p class="sec-card-desc">
-        Uma camada extra de proteção: além da senha, o app pede um código de 6 dígitos
-        gerado no seu celular (Google Authenticator, Authy, Microsoft Authenticator ou o
-        gerenciador de senhas do seu navegador). Quem descobrir sua senha ainda assim
-        não entra. <strong>É opcional</strong> — você liga e desliga quando quiser.
-    </p>
 
     {{-- Avisos de resultado --}}
     @if (session('status') === 'two-factor-disabled')
@@ -248,4 +246,57 @@
             </form>
         </details>
     @endif
+</div>
+
+{{-- ================== Card lateral: o que é e como se recupera ================== --}}
+<div class="card sec-card span5">
+    <div class="card-head">
+        <h3>Como funciona</h3>
+        <span class="chip">Entenda</span>
+    </div>
+
+    <p class="sec-card-desc">
+        Além da senha, o app passa a pedir um <strong>código de 6 dígitos</strong> gerado no
+        seu celular. Quem descobrir sua senha ainda assim não entra.
+    </p>
+
+    <ul class="tfa-info">
+        <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>
+            <div>
+                <strong>Funciona com qualquer autenticador</strong>
+                <span>Google Authenticator, Authy, Microsoft Authenticator ou o gerenciador
+                    de senhas do seu navegador.</span>
+            </div>
+        </li>
+        <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3 5 6v5c0 4.2 2.9 7.7 7 9 4.1-1.3 7-4.8 7-9V6l-7-3Z"/></svg>
+            <div>
+                <strong>O código muda a cada 30 segundos</strong>
+                <span>Ele é gerado no aparelho, sem internet — não depende de SMS nem de e-mail.</span>
+            </div>
+        </li>
+        <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 16"/><path d="M4 20v-4h4"/></svg>
+            <div>
+                <strong>Códigos de recuperação</strong>
+                <span>
+                    Ao ativar, você recebe uma lista. Cada código serve <b>uma vez</b> e entra
+                    no lugar do celular.
+                    @if ($semRecuperacaoPorEmail)
+                        Como o aplicativo ainda não envia e-mails, <b>é a única forma de voltar</b>
+                        se você perder o aparelho — guarde num lugar seguro.
+                    @endif
+                </span>
+            </div>
+        </li>
+        <li>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4.5 4.5l15 15"/><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 6.9-2.8"/></svg>
+            <div>
+                <strong>É opcional</strong>
+                <span>Nasce desligada, e você liga ou desliga quando quiser — sempre confirmando
+                    com a sua senha.</span>
+            </div>
+        </li>
+    </ul>
 </div>

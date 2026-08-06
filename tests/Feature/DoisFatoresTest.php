@@ -26,6 +26,10 @@ use Tests\TestCase;
  */
 class DoisFatoresTest extends TestCase
 {
+    // A tela do 2FA saiu da aba Segurança e ganhou aba própria em 06/08/2026
+    // (`/configuracoes/2fa`): com senha + sessões + 2FA juntos, a aba Segurança
+    // passava de duas telas de rolagem. Ver SettingsController::TABS.
+
     use RefreshDatabase;
 
     private const SENHA = 'password';
@@ -59,7 +63,7 @@ class DoisFatoresTest extends TestCase
         $this->assertFalse($user->temDoisFatores());
         $this->assertNull($user->two_factor_secret);
 
-        $this->actingAs($user)->get('/configuracoes/seguranca')
+        $this->actingAs($user)->get('/configuracoes/2fa')
             ->assertOk()
             ->assertSee('Verificação em duas etapas')
             ->assertSee('Ativar verificação em duas etapas')
@@ -73,7 +77,7 @@ class DoisFatoresTest extends TestCase
         $user = User::factory()->create();
 
         $this->actingAs($user)
-            ->from('/configuracoes/seguranca')
+            ->from('/configuracoes/2fa')
             ->post(route('settings.2fa.ativar'), ['password' => 'senha-errada'])
             ->assertSessionHasErrors('password', errorBag: 'twoFactor');
 
@@ -107,7 +111,7 @@ class DoisFatoresTest extends TestCase
 
         $this->actingAs($user)->post(route('settings.2fa.ativar'), ['password' => self::SENHA]);
 
-        $resposta = $this->actingAs($user->fresh())->get('/configuracoes/seguranca')->assertOk();
+        $resposta = $this->actingAs($user->fresh())->get('/configuracoes/2fa')->assertOk();
 
         // QR desenhado no servidor (SVG embutido) + a chave em grupos de 4 para quem
         // não consegue escanear.
@@ -147,14 +151,14 @@ class DoisFatoresTest extends TestCase
         $this->actingAs($user)
             ->post(route('settings.2fa.confirmar'), ['codigo' => $this->codigoAtual($user)]);
 
-        $resposta = $this->actingAs($user->fresh())->get('/configuracoes/seguranca')->assertOk();
+        $resposta = $this->actingAs($user->fresh())->get('/configuracoes/2fa')->assertOk();
 
         foreach ($user->fresh()->two_factor_recovery_codes as $codigo) {
             $resposta->assertSee($codigo);
         }
 
         // E não fica na tela para sempre: recarregar já não mostra (veio de flash).
-        $this->actingAs($user->fresh())->get('/configuracoes/seguranca')
+        $this->actingAs($user->fresh())->get('/configuracoes/2fa')
             ->assertOk()
             ->assertDontSee($user->fresh()->two_factor_recovery_codes[0]);
     }
@@ -164,7 +168,7 @@ class DoisFatoresTest extends TestCase
     {
         $user = $this->comDoisFatores();
 
-        $this->actingAs($user)->get('/configuracoes/seguranca')
+        $this->actingAs($user)->get('/configuracoes/2fa')
             ->assertOk()
             ->assertSee('Ativada')
             ->assertSee('Desativar verificação em duas etapas')
@@ -195,7 +199,7 @@ class DoisFatoresTest extends TestCase
         $this->actingAs($user)->post(route('settings.2fa.ativar'), ['password' => self::SENHA]);
 
         $this->actingAs($user->fresh())
-            ->from('/configuracoes/seguranca')
+            ->from('/configuracoes/2fa')
             ->post(route('settings.2fa.confirmar'), ['codigo' => '000000'])
             ->assertSessionHasErrors('codigo', errorBag: 'twoFactor');
 
@@ -208,7 +212,7 @@ class DoisFatoresTest extends TestCase
         $segredo = $user->two_factor_secret;
 
         $this->actingAs($user)
-            ->from('/configuracoes/seguranca')
+            ->from('/configuracoes/2fa')
             ->post(route('settings.2fa.ativar'), ['password' => self::SENHA])
             ->assertSessionHasErrors('two_factor', errorBag: 'twoFactor');
 
@@ -405,7 +409,7 @@ class DoisFatoresTest extends TestCase
         $antigos = $user->two_factor_recovery_codes;
 
         $this->actingAs($user)
-            ->from('/configuracoes/seguranca')
+            ->from('/configuracoes/2fa')
             ->post(route('settings.2fa.codigos'), ['password' => 'senha-errada'])
             ->assertSessionHasErrors('password', errorBag: 'twoFactorCodigos');
 
@@ -428,7 +432,7 @@ class DoisFatoresTest extends TestCase
         $user = $this->comDoisFatores();
 
         $this->actingAs($user)
-            ->from('/configuracoes/seguranca')
+            ->from('/configuracoes/2fa')
             ->delete(route('settings.2fa.desativar'), ['password' => 'senha-errada'])
             ->assertSessionHasErrors('password', errorBag: 'twoFactorDesligar');
 

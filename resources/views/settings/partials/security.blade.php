@@ -33,7 +33,7 @@
 @include('profile.partials.update-password-form')
 
 {{-- Card "Sessões ativas" (dispositivos conectados) --}}
-<div class="card sec-card">
+<div class="card sec-card span6">
     <div class="card-head">
         <h3>Sessões ativas</h3>
         <span class="chip">
@@ -109,6 +109,3 @@
         </form>
     </details>
 </div>
-
-{{-- Card "Verificação em duas etapas" (2FA por app autenticador) --}}
-@include('settings.partials.two-factor')

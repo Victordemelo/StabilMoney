@@ -1,5 +1,5 @@
 {{-- Card "Senha": troca a senha exigindo a senha atual, com medidor de força --}}
-<div class="card sec-card">
+<div class="card sec-card span6">
     <div class="card-head">
         <h3>Senha</h3>
         <span class="chip">Segurança</span>

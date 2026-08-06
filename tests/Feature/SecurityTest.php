@@ -12,15 +12,57 @@ class SecurityTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_security_tab_shows_sessions_and_2fa_sections(): void
+    public function test_security_tab_shows_password_and_sessions(): void
     {
         $user = User::factory()->create();
 
+        // O 2FA saiu daqui em 06/08/2026: com senha + sessões + 2FA no mesmo lugar,
+        // a aba passava de duas telas de rolagem. Agora tem aba própria (abaixo).
         $this->actingAs($user)->get('/configuracoes')
             ->assertOk()
+            ->assertSee('Senha')
             ->assertSee('Sessões ativas')
             ->assertSee('Encerrar outras sessões')
-            ->assertSee('Verificação em duas etapas');
+            ->assertDontSee('Verificação em duas etapas');
+    }
+
+    public function test_2fa_tem_aba_propria(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get('/configuracoes/2fa')
+            ->assertOk()
+            ->assertSee('Verificação em duas etapas')
+            ->assertSee('Ativar verificação em duas etapas')
+            // Card lateral explicativo: o que é e como se recupera.
+            ->assertSee('Como funciona')
+            ->assertSee('Códigos de recuperação');
+    }
+
+    public function test_as_tres_abas_aparecem_e_a_atual_fica_marcada(): void
+    {
+        $user = User::factory()->create();
+
+        $html = $this->actingAs($user)->get('/configuracoes/2fa')->assertOk()->getContent();
+
+        // Rótulo curto: "2FA" é mais reconhecível que o nome por extenso na pílula.
+        $this->assertStringContainsString('>2FA</a>', $html);
+        $this->assertStringContainsString('>Segurança</a>', $html);
+        $this->assertStringContainsString('>Conta</a>', $html);
+        $this->assertMatchesRegularExpression('/class="settings-tab active"[^>]*>\s*2FA/u', $html);
+    }
+
+    public function test_aba_conta_mostra_o_resumo_ao_lado_da_zona_de_perigo(): void
+    {
+        $user = User::factory()->create(['email' => 'dono@example.com']);
+
+        $this->actingAs($user)->get('/configuracoes/conta')
+            ->assertOk()
+            ->assertSee('Sua conta')
+            ->assertSee('dono@example.com')
+            ->assertSee('Nenhum dependente')
+            // A zona de perigo continua lá, agora com companhia.
+            ->assertSee('Excluir conta');
     }
 
     public function test_changing_password_stamps_password_changed_at(): void

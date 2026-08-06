@@ -18,14 +18,15 @@
         @endforeach
     </nav>
 
-    {{-- Conteúdo da aba: cada aba decide seus próprios cards (coluna centrada) --}}
+    {{-- Corpo da aba: grid de 12 colunas (o mesmo do resto do app). Cada card decide
+         quanto ocupa com as classes span*; sem classe, ocupa a largura toda. --}}
     <div class="settings-body">
         @if ($tab === 'seguranca')
             @include('settings.partials.security')
+        @elseif ($tab === '2fa')
+            @include('settings.partials.two-factor')
         @elseif ($tab === 'conta')
-            <div class="card">
-                @include('profile.partials.delete-user-form')
-            </div>
+            @include('settings.partials.conta')
         @endif
     </div>
 </section>

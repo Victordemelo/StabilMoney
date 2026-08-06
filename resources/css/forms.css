@@ -409,7 +409,17 @@ a.tx { text-decoration: none; color: inherit; }
 .pw-match.ok { color: var(--pos); }
 
 /* ----- Lista de sessões/dispositivos ----- */
-.sess-list { list-style: none; margin: 0 0 16px; padding: 0; }
+/* Lista de dispositivos: TETO DE 4 e rolagem depois.
+   Sem teto, uma conta com muitas sessões esticava o card para muito além do de
+   Senha, ao lado — e a página voltava a rolar. 260px = 4 itens de 65px, medido no
+   navegador (12px de padding em cima e embaixo + duas linhas de texto). A partir da
+   5ª sessão a lista rola por dentro e o card mantém a altura. */
+.sess-list {
+  list-style: none; margin: 0 0 16px; padding: 0;
+  max-height: var(--sess-altura, 260px); overflow-y: auto;
+  /* Espaço para a barra de rolagem não cobrir o texto quando ela aparece. */
+  scrollbar-gutter: stable;
+}
 .sess-item { display: flex; align-items: center; gap: 13px; padding: 12px 2px; border-bottom: 1px solid var(--line-2); }
 .sess-item:last-child { border-bottom: none; }
 .sess-ico { width: 40px; height: 40px; border-radius: 12px; flex: none; display: grid; place-items: center; background: var(--surface-3); color: var(--ink-2); }

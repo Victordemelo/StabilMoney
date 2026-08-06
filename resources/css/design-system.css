@@ -907,11 +907,17 @@ body.pjax-loading #content { opacity: .5; }
 .avatar-edit-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .avatar-edit-actions .btn-ghost { cursor: pointer; }
 
-/* ============ Configurações: coluna centrada (header + abas + cards alinhados) ============
-   Antes o título ficava à esquerda e as abas/cards centravam no viewport — tudo
-   desalinhado. Agora a aba inteira mora numa coluna estreita e todos os elementos
-   compartilham a mesma borda esquerda, então nada fica "um em cima do outro". */
-.settings-view { max-width: 680px; margin-inline: auto; }
+/* ============ Configurações ============
+   O header, as abas e os cards moram na MESMA coluna, compartilhando a borda
+   esquerda — antes o título ficava à esquerda e o resto centrava no viewport.
+
+   A coluna era 680px para todas as abas, o que em tela cheia deixava dois terços
+   de branco dos lados e empilhava tudo numa rolagem longa. Agora ela acompanha o
+   resto do app (1120px) e o corpo é um grid de 12 colunas: na Segurança, senha e
+   sessões ficam lado a lado e a página cabe quase inteira sem rolar. */
+.settings-view { max-width: 1120px; margin-inline: auto; }
+/* ⚠️ A largura é a MESMA nas três abas. Estreitar a seção numa delas fazia o título
+   "Configurações" e as pílulas PULAREM horizontalmente a cada troca de aba. */
 
 /* Abas em pílulas (mesma linguagem do .seg do dashboard), alinhadas à esquerda da coluna */
 .settings-tabs {
@@ -928,8 +934,41 @@ body.pjax-loading #content { opacity: .5; }
 .settings-tab.active { background: var(--surface); color: var(--brand-700); box-shadow: var(--shadow-sm); }
 [data-theme="dark"] .settings-tab.active { color: var(--brand-300); }
 
-/* Corpo da aba: pilha de cards com respiro consistente */
-.settings-body { display: flex; flex-direction: column; gap: 16px; }
+/* Corpo da aba: mesmo grid de 12 colunas do resto do app, para os cards poderem
+   usar as classes span* já existentes (.card.span6 e companhia).
+   `align-items: start` é o que impede um card curto de esticar até a altura do
+   vizinho — sem isso, "Sessões ativas" ficaria com um vazio enorme embaixo. */
+.settings-body {
+  display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; align-items: start;
+}
+/* Sem classe span*, o card ocupa a linha toda (é o caso do overview e da aba Conta). */
+.settings-body > * { grid-column: span 12; }
+/* Os dois cards de uma linha têm a MESMA altura: com alturas diferentes a dupla
+   fica com um degrau feio, e o mais curto parece inacabado. O corpo continua com
+   `align-items: start` (um card sozinho não estica); quem estica é o par. */
+.settings-body > .card.span5,
+.settings-body > .card.span6,
+.settings-body > .card.span7 { align-self: stretch; display: flex; flex-direction: column; }
+/* A lista de sessões é quem absorve a sobra de altura — assim o botão "Encerrar
+   outras sessões" fica colado no rodapé do card, alinhado com o de Senha. */
+.settings-body .sess-list { flex: 1 1 auto; min-height: 0; }
+
+@media (max-width: 1000px) {
+  .settings-body > .card.span5,
+  .settings-body > .card.span6,
+  .settings-body > .card.span7 { grid-column: span 12; align-self: start; }
+}
+
+/* Lista "Como funciona" do 2FA e resumo da aba Conta: ícone + texto em duas linhas. */
+.tfa-info, .conta-resumo { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+.tfa-info li, .conta-resumo li { display: flex; gap: 11px; align-items: flex-start; }
+.tfa-info svg, .conta-resumo svg {
+  width: 18px; height: 18px; flex: none; margin-top: 2px;
+  stroke-width: 1.7; color: var(--brand-600);
+}
+[data-theme="dark"] .tfa-info svg, [data-theme="dark"] .conta-resumo svg { color: var(--brand-300); }
+.tfa-info strong, .conta-resumo strong { display: block; font-size: 13px; margin-bottom: 2px; }
+.tfa-info span, .conta-resumo span { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
 .head-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .head-actions .btn.primary { display: inline-flex; align-items: center; gap: 7px; }
 .head-actions .btn.primary svg { width: 17px; height: 17px; }
