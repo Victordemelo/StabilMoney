@@ -11,10 +11,10 @@ use App\Http\Controllers\GoalContributionController;
 use App\Http\Controllers\GoalController;
 use App\Http\Controllers\InvestmentContributionController;
 use App\Http\Controllers\InvestmentController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PwaController;
 use App\Http\Controllers\SecurityController;
 use App\Http\Controllers\SettingsController;
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\TwoFactorController;
 use Illuminate\Support\Facades\Route;
@@ -78,9 +78,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Meu perfil (dados pessoais: nome, e-mail, telefone, foto)
     Route::get('/meu-perfil', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/meu-perfil', [ProfileController::class, 'update'])->name('profile.update');
-    // Valida a senha atual → limitada (ver 'senha' no AppServiceProvider).
+    // Valida a senha atual → limitada (ver 'senha' no AppServiceProvider). Com 2FA
+    // ligado também confere o código do autenticador, então leva os DOIS limites:
+    // `senha` conta a tentativa de senha e `dois-fatores`, a de código — um teto só
+    // deixaria o atacante gastar toda a cota num dos dois campos.
     Route::delete('/meu-perfil', [ProfileController::class, 'destroy'])
-        ->middleware('throttle:senha')
+        ->middleware(['throttle:senha', 'throttle:dois-fatores'])
         ->name('profile.destroy');
 
     // Confirmação do e-mail NOVO (link assinado enviado ao próprio endereço novo).
@@ -173,4 +176,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('contas-fixas.pagar');
 });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';

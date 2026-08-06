@@ -73,27 +73,26 @@ jobs:
         run: php artisan view:cache
 
   # ------------------------------------------------------------------------
-  # Pint (formatação) NÃO tem passo aqui, de propósito — 02/08/2026.
+  # Formatação (Pint) — LIGADO em 06/08/2026.
   #
-  # O baseline do repositório está sujo: `pint --test` reprova 88 de 225 arquivos,
-  # incluindo lang/pt_BR/*.php e lang/en/*.php, que são gerados pelo laravel-lang e
-  # ninguém edita à mão. Ligar o passo agora deixaria o CI vermelho para sempre e
-  # treinaria todo mundo a ignorar o resultado — o oposto do que um CI serve.
+  # Ficou desligado até aqui porque o baseline reprovava 94 arquivos: um CI
+  # vermelho permanente treina todo mundo a ignorar o resultado, que é o oposto
+  # do que ele serve. O que destravou foi a rodada de formatação num commit só,
+  # com a suíte verificada verde antes e depois (934 testes).
   #
-  # Para ligar depois, em UM commit só de formatação:
-  #   1. docker compose exec app php ./vendor/bin/pint
-  #   2. rodar a suíte, conferir que segue verde e commitar como "style: pint"
-  #   3. criar um pint.json excluindo lang/ (arquivos de terceiros)
-  #   4. descomentar o job abaixo
+  # `lang/` fica de fora pelo pint.json — é gerado pelo laravel-lang e ninguém
+  # edita à mão.
   #
-  # formatacao:
-  #   name: Formatação (Pint)
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: shivammathur/setup-php@v2
-  #       with:
-  #         php-version: '8.4'
-  #         coverage: none
-  #     - run: composer install --prefer-dist --no-interaction --no-progress
-  #     - run: ./vendor/bin/pint --test
+  # Quando este job reprovar: `docker compose exec app ./vendor/bin/pint` e
+  # commitar o resultado. Ele nunca aponta erro de lógica, só de estilo.
+  formatacao:
+    name: Formatação (Pint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      - run: composer install --prefer-dist --no-interaction --no-progress
+      - run: ./vendor/bin/pint --test

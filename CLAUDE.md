@@ -1136,6 +1136,24 @@ impediria reexibi-los.
 - **O `switch` do card é decorativo** (`aria-hidden`). Quem liga/desliga são os formulários —
   um interruptor de um clique não teria onde pedir a senha nem mostrar o QR.
 
+### Excluir a conta com 2FA ligado pede o segundo fator (06/08/2026)
+
+Teste: `ExclusaoDeContaComDoisFatoresTest`. Desligar o 2FA já exigia senha + 2FA, mas **apagar a
+conta inteira** — que desliga tudo de uma vez e é irreversível — pedia só a senha. Quem
+sequestrasse uma sessão pegaria o caminho mais destrutivo justamente por ser o mais barato.
+
+- `ProfileController::destroy` valida a **senha primeiro** e só então o código. A ordem não é
+  estética: código de recuperação é de **uso único**, e queimá-lo para depois descobrir que a
+  senha estava errada gastaria uma das poucas voltas para casa de quem perdeu o celular.
+- **Código de recuperação também serve**, com a caixa "não consigo abrir o aplicativo" marcada —
+  o modo é declarado, nunca adivinhado pelo formato (mesma regra do desafio do login). Sem essa
+  porta, perder o celular viraria conta impossível de apagar: o oposto do direito de eliminação
+  que a nossa Política promete.
+- A rota leva **os dois limites** (`throttle:senha` + `throttle:dois-fatores`): um teto só
+  deixaria o atacante gastar a cota inteira num dos campos.
+- O modal avisa que a verificação em duas etapas **some junto com a conta**, com o caminho certo
+  para quem só quer trocar de aparelho (Configurações › 2FA).
+
 ---
 
 ## Convenções
@@ -1190,10 +1208,11 @@ impediria reexibi-los.
   (testes rodam em sqlite `:memory:` — cuidado com funções tipo `MONTH()`, ver
   `DashboardService` para o padrão por driver).
 - Commits: prefixos `Feat:`, `Fix:`, `style:`.
-- **Pint:** `pint.json` exclui `lang/` (gerado pelo laravel-lang, ninguém edita à mão). O job no
-  CI existe **comentado**: o baseline ainda reprova 85 arquivos, e ligar antes de um commit só de
-  formatação deixaria o CI vermelho permanente — o que treina todo mundo a ignorá-lo. A rodada de
-  formatação precisa de um momento em que ninguém mais esteja com trabalho pendente no repo.
+- **Pint: o job do CI está LIGADO** (06/08/2026). `pint.json` exclui `lang/` (gerado pelo
+  laravel-lang, ninguém edita à mão). O baseline foi limpo numa rodada só — 96 arquivos, com a
+  suíte verificada verde antes e depois. Quando o job reprovar, rode
+  `docker compose exec app ./vendor/bin/pint` e commite o resultado; ele nunca aponta erro de
+  lógica, só de estilo. ⚠️ Pint **não** toca em `.blade.php` — view continua sem formatador.
 - **Fluxo git — modelo principal/secundário (jun/2026):** há um **agente principal** (o que
   conversa com o Victor) e **agentes secundários** (subagentes despachados para implementar
   partes em paralelo). **SOMENTE o agente principal commita e dá `push`.** Agentes secundários
@@ -1275,7 +1294,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte completa (925 testes)
+docker compose exec app php artisan test                       # suíte completa (934 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan tinker                     # console interativo
 docker compose exec app php artisan view:cache                 # valida sintaxe de TODAS as views

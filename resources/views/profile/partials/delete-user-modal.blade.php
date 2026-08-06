@@ -15,10 +15,15 @@
     Quem inclui: settings/partials/conta.blade.php, como IRMÃO do card.
 --}}
 @php
+    $dono = $user ?? auth()->user();
+
     // Consentimento informado: o que fica pendente no mundo real quando a conta
     // some. A MESMA regra roda no servidor (ProfileController::pendenciasDe,
     // que exige o aceite quando `tem` é true) — aqui é só a exibição.
-    $pendencias = \App\Http\Controllers\ProfileController::pendenciasDe($user ?? auth()->user());
+    $pendencias = \App\Http\Controllers\ProfileController::pendenciasDe($dono);
+
+    // Com 2FA ligado a senha não basta (ver ProfileController::destroy).
+    $comDoisFatores = $dono->temDoisFatores();
 @endphp
 
 {{-- O próprio scrim é o véu e o clique-fora: não há div extra. --}}
@@ -33,7 +38,11 @@
             </div>
             <div>
                 <h3 id="confirm-user-deletion-title">Excluir sua conta?</h3>
-                <p>Isto não pode ser desfeito. Digite sua senha para confirmar.</p>
+                <p>
+                    Isto não pode ser desfeito. Digite sua senha
+                    @if ($comDoisFatores) e o código do seu aplicativo @endif
+                    para confirmar.
+                </p>
             </div>
             <button type="button" class="modal-x" data-close-deletion aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -93,6 +102,37 @@
                     <p class="field-error">{{ $message }}</p>
                 @enderror
             </div>
+
+            {{-- Segundo fator: só aparece para quem ligou o 2FA. A verificação em
+                 duas etapas some junto com a conta, e é isso que o aviso diz — quem
+                 quer apenas trocar de aparelho deve desligá-la em Configurações,
+                 não apagar a conta. --}}
+            @if ($comDoisFatores)
+                <div class="field">
+                    <label for="delete_confirm_code" class="sr-only">Código de verificação</label>
+                    <input id="delete_confirm_code" class="input" type="text" name="codigo"
+                           placeholder="Código de 6 dígitos" inputmode="numeric"
+                           autocomplete="one-time-code" autocorrect="off" spellcheck="false"
+                           data-no-money />
+                    @error('codigo', 'userDeletion')
+                        <p class="field-error">{{ $message }}</p>
+                    @enderror
+
+                    <label class="check" style="margin-top: 10px;">
+                        <input type="checkbox" name="recuperacao" value="1" />
+                        <span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
+                        <span>Não consigo abrir o aplicativo — vou usar um código de recuperação</span>
+                    </label>
+
+                    {{-- Tamanho pelo estilo inline, e não por classe nova: `.hint` só
+                         define peso e cor, e `forms.css` está com trabalho de outra
+                         sessão pendente (regra de ouro do CLAUDE.md). --}}
+                    <p class="hint" style="margin-top: 8px; font-size: 12.5px; line-height: 1.45;">
+                        Sua verificação em duas etapas será apagada junto com a conta. Para
+                        só trocar de aparelho, desative-a em Configurações › 2FA.
+                    </p>
+                </div>
+            @endif
 
             </div>{{-- /.modal-body — o rodapé é IRMÃO dele, para ficar preso ao
                  fundo do modal em vez de rolar junto com o conteúdo. --}}

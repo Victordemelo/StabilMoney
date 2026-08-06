@@ -7,13 +7,16 @@ use App\Mail\AlertaDeSeguranca;
 use App\Models\Account;
 use App\Models\User;
 use App\Services\FixedBillService;
+use App\Services\TwoFactorService;
 use App\Support\ContextoDeSeguranca;
 use App\Support\Mailer;
 use App\Support\Notificador;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
@@ -128,10 +131,18 @@ class ProfileController extends Controller
      * em aberto ou conta fixa vencida, o modal lista tudo e a exclusão passa a
      * exigir um segundo aceite explícito, validado aqui no servidor. Sem
      * pendência nenhuma, o fluxo continua o de sempre (só a senha).
+     *
+     * **Com 2FA ligado, a senha não basta.** Apagar a conta é a ação mais
+     * destrutiva do app e é irreversível — não faria sentido exigir o segundo
+     * fator para DESLIGAR a proteção (que é reversível) e dispensá-lo para
+     * apagar tudo de uma vez, que é o atalho equivalente. Quem sequestrasse uma
+     * sessão faria exatamente isso.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request, TwoFactorService $twoFactor): RedirectResponse
     {
-        $pendencias = self::pendenciasDe($request->user());
+        $user = $request->user();
+        $pendencias = self::pendenciasDe($user);
+        $comDoisFatores = $user->temDoisFatores();
 
         $regras = ['password' => ['required', 'current_password']];
 
@@ -141,11 +152,38 @@ class ProfileController extends Controller
             $regras['confirmo_pendencias'] = ['accepted'];
         }
 
+        if ($comDoisFatores) {
+            $regras['codigo'] = ['required', 'string'];
+        }
+
+        // A senha é conferida AQUI, antes do código: um código de recuperação é
+        // de uso único, e queimá-lo para depois descobrir que a senha estava
+        // errada gastaria uma das poucas voltas para casa de quem perdeu o
+        // celular.
         $request->validateWithBag('userDeletion', $regras, [
             'confirmo_pendencias.accepted' => 'Confirme que você entendeu que apagar a conta não quita nenhuma das pendências acima.',
+            'codigo.required' => 'Digite o código do seu aplicativo autenticador para confirmar.',
         ]);
 
-        $user = $request->user();
+        if ($comDoisFatores) {
+            $codigo = $request->string('codigo')->trim()->toString();
+
+            // O modo é declarado pelo usuário (caixa "usar código de recuperação"),
+            // como no desafio do login: adivinhar pelo formato faria um código de
+            // recuperação digitado errado ser conferido contra o relógio do TOTP,
+            // com a mensagem de erro apontando para o lugar errado.
+            $confere = $request->boolean('recuperacao')
+                ? $twoFactor->consumirCodigoDeRecuperacao($user, $codigo)
+                : $twoFactor->verificarCodigo($user, $codigo);
+
+            if (! $confere) {
+                throw ValidationException::withMessages([
+                    'codigo' => $request->boolean('recuperacao')
+                        ? 'Código de recuperação inválido ou já utilizado.'
+                        : 'Código incorreto ou expirado. Confira o relógio do celular e tente com o código atual.',
+                ])->errorBag('userDeletion');
+            }
+        }
 
         // ANTES do delete, e não depois: em seguida não existe mais nome nem endereço
         // para quem escrever. É também o último aviso que a pessoa recebe — se a exclusão
@@ -189,7 +227,7 @@ class ProfileController extends Controller
      *     tem: bool,
      *     contasNegativas: list<array{nome: string, valor: float}>,
      *     faturas: list<array{nome: string, valor: float}>,
-     *     contasFixas: list<array{nome: string, valor: float, vencimento: \Carbon\CarbonImmutable}>
+     *     contasFixas: list<array{nome: string, valor: float, vencimento: CarbonImmutable}>
      * }
      */
     public static function pendenciasDe(User $user): array
