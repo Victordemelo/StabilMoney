@@ -321,7 +321,9 @@
             @endif
         </div>
 
-        {{-- Contas a pagar (faturas de cartão em aberto) --}}
+        {{-- Contas a pagar: fatura de cartão em aberto (ciclo atual + o que já fechou
+             e não foi pago) e competências de contas fixas. Total, contador e lista
+             saem da mesma coleção — ver DashboardService::obrigacoesEmAberto(). --}}
         <div class="card span4" style="animation-delay:.38s">
             <div class="card-head">
                 <h3>Contas a pagar</h3>
@@ -329,14 +331,25 @@
             </div>
             @if ($faturasResumo['count'] > 0)
                 <div class="dash-kpi">
-                    <div class="lbl">A pagar nas faturas</div>
+                    <div class="lbl">A pagar</div>
                     <div class="dash-kpi-val">@brl($faturasResumo['total'])</div>
                 </div>
                 <div style="margin-top:14px">
                     @foreach ($faturasResumo['top'] as $f)
                         <div class="acct">
                             <div class="ab" style="background:var(--c-lazer)">{{ $initials($f['name']) }}</div>
-                            <div><div class="an">{{ $f['name'] }}</div><div class="at">{{ $f['due'] ? 'Vence ' . $f['due'] : 'Fatura atual' }}</div></div>
+                            <div>
+                                <div class="an">{{ $f['name'] }}</div>
+                                <div class="at">
+                                    @if ($f['vencida'])
+                                        <span style="color:var(--neg)">Venceu {{ $f['due'] }}</span>
+                                    @elseif ($f['due'])
+                                        Vence {{ $f['due'] }}
+                                    @else
+                                        Fatura atual
+                                    @endif
+                                </div>
+                            </div>
                             <div class="av">@brl($f['invoice'])</div>
                         </div>
                     @endforeach
@@ -345,7 +358,7 @@
                 <div class="empty-state">
                     <div class="pico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></div>
                     <h3>Nada a pagar 🎉</h3>
-                    <p>Nenhuma fatura de cartão em aberto.</p>
+                    <p>Nenhuma fatura de cartão ou conta fixa em aberto.</p>
                 </div>
             @endif
         </div>

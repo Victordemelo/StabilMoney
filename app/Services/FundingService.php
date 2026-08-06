@@ -56,8 +56,9 @@ class FundingService
         ?int $madeByUserId = null,
         ?string $date = null,
         bool $obrigacao = false,
+        ?float $maxFonte = null,
     ): ?Transaction {
-        return DB::transaction(function () use ($account, $amount, $source, $investmentId, $write, $ignore, $madeByUserId, $date, $obrigacao) {
+        return DB::transaction(function () use ($account, $amount, $source, $investmentId, $write, $ignore, $madeByUserId, $date, $obrigacao, $maxFonte) {
             // 1. Relock da conta (o saldo é derivado de SUM sobre transactions,
             //    então travamos a linha da conta como ponto de serialização).
             $conta = Account::whereKey($account->getKey())->lockForUpdate()->first() ?? $account;
@@ -133,6 +134,25 @@ class FundingService
             }
 
             if ($source === FundingSource::RESGATE_INVESTIMENTO) {
+                // 🚨 O resgate NUNCA passa do que o usuário aprovou.
+                //
+                // O modal mostra um número ("Vamos resgatar R$ 100,00") e é ESSE
+                // número que a pessoa autoriza — mas ele não viaja no payload: o
+                // `faltante` é recalculado aqui, com o disponível do momento da
+                // GRAVAÇÃO. Entre aprovar e gravar, o disponível pode ter despencado
+                // (outra despesa da família, uma fatura paga, ou — o caso grave — o
+                // lançamento ter dormido horas na fila offline). Sem este teto,
+                // aprovar R$ 100 sacava R$ 700 do investimento, sem novo aviso.
+                //
+                // Estourou: não resgata mais que o combinado nem recusa em silêncio —
+                // devolve 409 com as opções RECALCULADAS, para a pessoa decidir de
+                // novo com o número certo na frente.
+                if ($maxFonte !== null && $faltante > $maxFonte + SpendingGuard::EPSILON) {
+                    throw new RequiresFundingChoice(
+                        $this->guard->opcoesDeFonte($conta, $amount, $ignore)
+                    );
+                }
+
                 return $this->comResgate($conta, $faltante, $investmentId, $write, $madeByUserId, $date);
             }
 
@@ -150,6 +170,8 @@ class FundingService
      * "O que falta" inclui o vermelho que a conta já tinha (`SpendingGuard::faltante`):
      * é o que faz o disponível terminar em zero, como o modal promete. Com o
      * clamp antigo a conta saía do resgate ainda negativa.
+     *
+     * O teto do que o usuário aprovou é conferido em `spend()`, ANTES daqui.
      */
     private function comResgate(
         Account $conta,
@@ -164,6 +186,7 @@ class FundingService
                 'funding_investment_id' => 'Escolha de qual investimento resgatar.',
             ]);
         }
+
 
         // Lock do investimento DEPOIS da conta (ordem fixa: conta → pai).
         $investimento = Investment::whereKey($investmentId)

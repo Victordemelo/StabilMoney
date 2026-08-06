@@ -93,9 +93,12 @@ class TransactionController extends Controller
         }
 
         // Escolha da fonte é instrução, não coluna: sai do payload da transação.
+        // `funding_max_amount` é o teto que o usuário aprovou no modal — vai para o
+        // guard, nunca para a tabela.
         $fonte = $data['funding_source'] ?? null;
         $investimentoId = $data['funding_investment_id'] ?? null;
-        unset($data['funding_source'], $data['funding_investment_id']);
+        $maxFonte = $data['funding_max_amount'] ?? null;
+        unset($data['funding_source'], $data['funding_investment_id'], $data['funding_max_amount']);
 
         // Receita não gasta nada: grava direto. Despesa passa pelo guard.
         if ($data['type'] !== 'expense') {
@@ -112,6 +115,7 @@ class TransactionController extends Controller
             write: fn (array $auditoria) => Transaction::create($data + $auditoria),
             madeByUserId: $data['made_by_user_id'],
             date: $data['date'],
+            maxFonte: $maxFonte !== null ? (float) $maxFonte : null,
         );
 
         return $this->storeResponse($request, $transaction, created: true);

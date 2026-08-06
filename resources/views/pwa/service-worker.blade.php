@@ -105,7 +105,9 @@ async function flushLancamentos() {
 
   let retry = false; // sobrou item por falha passageira → pede novo sync (backoff do navegador)
   for (const item of items) {
-    if (item.failed) continue;
+    // `needsFunding` = espera o usuário escolher a fonte na página. Reenviar aqui
+    // só traria outro 409; decidir por ele é o que esta rodada veio proibir.
+    if (item.failed || item.needsFunding) continue;
 
     const enviar = (payload) => fetch('/transactions', {
       method: 'POST',
@@ -126,25 +128,30 @@ async function flushLancamentos() {
       retry = true; break; // a rede caiu no meio: tenta de novo no próximo sync
     }
 
-    // 409: o saldo não cobre. Sem tela para perguntar (o app pode estar
-    // fechado) e com a compra já feita no mundo real, reenvia UMA vez pelo
-    // cheque especial. Resgate de investimento nunca é automático.
+    // 409: o saldo não cobre e existe fonte. Aqui NÃO há tela para perguntar (o
+    // app pode estar fechado), e escolher sozinho é justamente o que o modelo v3
+    // proíbe — o cheque especial cobra juros de verdade. Então o item fica RETIDO
+    // com as opções do servidor, e a próxima carga da página abre o modal de
+    // escolha. Nada se perde: o lançamento continua na fila.
     if (res.status === 409) {
-      try {
-        res = await enviar(Object.assign({}, item.payload, { funding_source: 'cheque_especial' }));
-      } catch (e) {
-        retry = true; break;
-      }
+      let fonte = null;
+      try { fonte = (await res.json()).fonte || null; } catch (e) { /* corpo não-JSON */ }
+      item.needsFunding = true;
+      item.fonte = fonte;
+      delete item.failed;
+      delete item.motivo;
+      await odbPut(item);
+      continue;
     }
 
     if (res.ok) {
       await odbDelete(item.client_uuid); // 201 criado ou 200 já existia (idempotente)
     } else if (res.status >= 500) {
       retry = true; // erro passageiro do servidor
-    } else if (res.status === 422 || res.status === 409) {
-      // Nem o cheque especial cobriu, ou os dados são inválidos. MARCA como
-      // failed em vez de deixar em silêncio: antes o item ficava vivo na fila,
-      // sendo reenviado para sempre e sem nenhuma tela para o usuário resolver.
+    } else if (res.status === 422) {
+      // Dados inválidos ou nenhuma fonte cobre. MARCA como failed em vez de deixar
+      // em silêncio: antes o item ficava vivo na fila, sendo reenviado para sempre
+      // e sem nenhuma tela para o usuário resolver.
       item.failed = true;
       item.motivo = 'Saldo insuficiente ou dados inválidos — revise este lançamento.';
       await odbPut(item);

@@ -494,10 +494,19 @@ o servidor responde **409** e o usuário escolhe. Enquanto não escolher, nada �
 2. Servidor responde **409** com `{precisa_fonte: true, fonte: {...}}`.
 3. `resources/js/sm/funding.js` → `pedirFonte(payload)` abre o modal
    (`partials/funding-modal.blade.php`, no shell) e resolve com a escolha.
-4. Front **reenvia o mesmo payload** + `funding_source` (+ `funding_investment_id`), com o
-   **mesmo `client_uuid`** — por isso não duplica.
+4. Front **reenvia o mesmo payload** + `funding_source` (+ `funding_investment_id`
+   + **`funding_max_amount`**), com o **mesmo `client_uuid`** — por isso não duplica.
 5. `resgate_investimento` resgata só o **FALTANTE**, não o total, e a despesa + o resgate nascem
    na mesma transação de banco.
+
+**🚨 `funding_max_amount` = teto do que o usuário aprovou** (06/08/2026). O valor do resgate
+**não viaja no payload**: o `faltante` é recalculado no servidor, sob lock, na hora de gravar.
+Entre aprovar e gravar o disponível pode despencar — e um lançamento que dormiu na fila offline
+resgatava MUITO mais do que o número que o modal prometeu ("Vamos resgatar R$ 100,00" → saíam
+R$ 700). Agora `spend()` recebe `maxFonte` e, se o faltante estourar o teto, devolve **409 com as
+opções recalculadas** em vez de sacar mais. Null = sem teto (não veio do modal). Quem preenche:
+`funding.js` (`faltanteAprovado`, capturado na abertura do modal) e o `funding-modal.blade.php`
+por hidden, no caminho sem JS. Coberto por `TetoDoResgateAprovadoTest`.
 
 **Duas contas diferentes, de propósito** (02/08/2026 — não unifique):
 
@@ -514,9 +523,22 @@ depois). Consequência aceita: quando só a soma cobriria e não há cheque espe
 `ESTOURA_LIMITE` (recusa explicada) em vez de um 409 sem saída.
 
 Consumidores do 409: `sm/launch.js` (modal global), `sm/offline-queue.js` (form cheio) e, sem
-JS, o Blade via `session('fonteNecessaria')`. **Fila offline e service worker**: no 409
-reenviam **uma vez** com `cheque_especial` (a compra já aconteceu no mundo real); resgate de
-investimento nunca é automático. Se ainda falhar, marcam `failed` com a mensagem real do servidor.
+JS, o Blade via `session('fonteNecessaria')`.
+
+**🚨 A fila offline NUNCA escolhe a fonte** (06/08/2026 — mudou; não regrida). Antes, o replay da
+página e o service worker reenviavam sozinhos com `cheque_especial`, no argumento de que "a compra
+já aconteceu no mundo real". O argumento vale para **registrar** a despesa, não para escolher a
+fonte: cheque especial cobra juros de verdade e o sucesso do drain é **silencioso** — o usuário só
+descobria pelo extrato. Isso furava o invariante "o app NUNCA usa o cheque especial sozinho".
+
+Hoje, no 409 os dois caminhos marcam o item **`needsFunding`**, guardam nele o payload `fonte` que
+veio do servidor, e **param** (o laço pula item retido nos dois lados). A página então mostra o
+banner de revisão (`renderRevisao` → `resolverFonte` → `pedirFonte`), o usuário escolhe, e só aí
+o lançamento é gravado. Se a escolha chegar tarde demais e o servidor responder 409 de novo, as
+opções são **atualizadas** e ele pergunta outra vez — nunca grava por conta própria.
+O mesmo banner é a tela dos itens **`failed`** (422), que antes contavam no selo, eram pulados
+pelo drain e não tinham onde ser vistos: agora dão "Tentar de novo" e "Descartar" (com confirmação).
+**Nada é apagado sozinho.** Coberto por `FilaNaoEscolheFonteTest`.
 
 ### Cartão de crédito
 

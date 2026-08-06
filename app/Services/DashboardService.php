@@ -11,6 +11,7 @@ use App\Models\InvestmentContribution;
 use App\Models\Transaction;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
@@ -331,15 +332,7 @@ class DashboardService
         $investments = Investment::where('user_id', $userId)->orderByDesc('id')->get();
         $cards = $accounts->where('type', 'credit_card');
 
-        // "A pagar" usa `openInvoiceDue` (o que está EM ABERTO), não `currentInvoice`
-        // (soma do ciclo, que ignora `paid_at`). Com `currentInvoice` o card continuava
-        // cobrando a fatura pelo resto do ciclo depois de paga — e discordava do sino e
-        // da tela /faturas, que já a mostravam quitada.
-        $faturasTop = $cards
-            ->map(fn ($c) => ['name' => $c->name, 'invoice' => $c->openInvoiceDue, 'due' => $c->dueDate?->format('d/m')])
-            ->filter(fn ($f) => $f['invoice'] > 0)
-            ->sortByDesc('invoice')
-            ->take(3)->values()->all();
+        $aPagar = $this->obrigacoesEmAberto($userId, $cards);
 
         return [
             'metasResumo' => [
@@ -352,15 +345,11 @@ class DashboardService
                 ])->values()->all(),
             ],
             'faturasResumo' => [
-                // Soma faturas de cartão EM ABERTO + contas fixas ainda não pagas. Antes
-                // só olhava cartão, então o card dizia "Nada a pagar 🎉" com três meses de
-                // aluguel vencidos — enquanto o sino da mesma tela contava 3.
-                'total' => round(
-                    (float) $cards->sum(fn ($c) => $c->openInvoiceDue) + $this->contasFixasEmAberto($userId),
-                    2,
-                ),
-                'count' => count($faturasTop),
-                'top' => $faturasTop,
+                // Total, contador e lista saem TODOS da mesma coleção — ver
+                // `obrigacoesEmAberto()` para o porquê de isso importar.
+                'total' => round((float) $aPagar->sum('invoice'), 2),
+                'count' => $aPagar->count(),
+                'top' => $aPagar->sortByDesc('invoice')->take(3)->values()->all(),
             ],
             'investimentosResumo' => [
                 'total' => round((float) $investments->sum(fn (Investment $i) => $i->aplicado), 2),
@@ -420,28 +409,84 @@ class DashboardService
      * @return array{guardado: float, investido: float, total: float}
      */
     /**
-     * Soma das competências de contas fixas que ainda não foram pagas.
+     * Tudo que a família deve HOJE, numa lista só: faturas de cartão em aberto e
+     * competências de contas fixas não pagas — a MESMA dívida que o sino da topbar
+     * conta (`FaturaService::upcomingDue`).
+     *
+     * Duas armadilhas se fecham aqui, e as duas faziam o card mentir:
+     *
+     * 1. A dívida do cartão é `openInvoiceDue` + `closedInvoiceDue`. Sozinho, o
+     *    `openInvoiceDue` só enxerga o ciclo ABERTO: uma compra de junho não paga
+     *    sumia do card no dia em que o ciclo virava, enquanto o sino e /faturas
+     *    continuavam cobrando. As duas janelas são DISJUNTAS (a fechada termina no
+     *    início do ciclo aberto; a aberta começa logo depois), então somar as duas
+     *    não conta nada duas vezes.
+     *
+     * 2. O `count` que mostra o card sai DESTA lista, a mesma que gera o `total`.
+     *    Antes ele contava só cartões: quem devia três aluguéis e não tinha cartão
+     *    via "Nada a pagar 🎉" — com o total já somado, mas nunca renderizado.
+     *
+     * @param  \Illuminate\Support\Collection<int, Account>  $cards
+     * @return Collection<int, array{name: string, invoice: float, due: ?string, vencida: bool}>
+     */
+    private function obrigacoesEmAberto(int $userId, $cards): Collection
+    {
+        $itens = collect();
+
+        foreach ($cards as $cartao) {
+            $valor = round($cartao->openInvoiceDue + $cartao->closedInvoiceDue, 2);
+
+            if ($valor <= 0.001) {
+                continue;
+            }
+
+            // Havendo dívida já fechada, o vencimento que interessa é o da fatura
+            // mais antiga ainda em aberto. Derivar do ciclo aberto anunciava
+            // "Vence 20/08" para uma dívida que venceu em 20/06.
+            $fechada = $cartao->closedInvoice;
+
+            $itens->push([
+                'name' => (string) $cartao->name,
+                'invoice' => $valor,
+                'due' => ($fechada['vencimento'] ?? $cartao->dueDate)?->format('d/m'),
+                'vencida' => (bool) ($fechada['vencida'] ?? false),
+            ]);
+        }
+
+        foreach ($this->contasFixasEmAberto($userId) as $ocorrencia) {
+            $itens->push([
+                'name' => (string) ($ocorrencia['bill']->name ?? 'Conta fixa'),
+                'invoice' => round((float) ($ocorrencia['valor'] ?? 0), 2),
+                'due' => $ocorrencia['vencimento']?->format('d/m'),
+                'vencida' => (bool) ($ocorrencia['vencida'] ?? false),
+            ]);
+        }
+
+        return $itens->filter(fn ($i) => $i['invoice'] > 0)->values();
+    }
+
+    /**
+     * Competências de contas fixas que ainda não foram pagas.
      *
      * Delega ao FixedBillService: a projeção das competências (e a regra do que já
      * venceu) mora lá, e duplicar isso aqui foi exatamente o que fez o card e o sino
      * discordarem no passado.
+     *
+     * @return Collection<int, mixed>
      */
-    private function contasFixasEmAberto(int $userId): float
+    private function contasFixasEmAberto(int $userId): Collection
     {
         if (! class_exists(FixedBillService::class)) {
-            return 0.0;
+            return collect();
         }
 
         // Sem type hint de propósito: `currentAndOverdue()` devolve `Fluent`, não array
         // (mesma pegadinha de `Account::paymentOptions()` anotada no CLAUDE.md). O acesso
         // por offset funciona nos dois.
-        return round(
-            (float) app(FixedBillService::class)
-                ->currentAndOverdue($userId)
-                ->reject(fn ($ocorrencia) => (bool) ($ocorrencia['paga'] ?? false))
-                ->sum(fn ($ocorrencia) => (float) ($ocorrencia['valor'] ?? 0)),
-            2,
-        );
+        return app(FixedBillService::class)
+            ->currentAndOverdue($userId)
+            ->reject(fn ($ocorrencia) => (bool) ($ocorrencia['paga'] ?? false))
+            ->values();
     }
 
     /**

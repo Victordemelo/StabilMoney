@@ -92,6 +92,11 @@ class StoreTransactionRequest extends FormRequest
                 'required_if:funding_source,' . FundingSource::RESGATE_INVESTIMENTO,
                 Rule::exists('investments', 'id')->where('user_id', $userId),
             ],
+            // TETO do que o usuário aprovou no modal de fonte. O valor do resgate é
+            // recalculado no servidor (o disponível muda entre aprovar e gravar), e
+            // sem este teto um lançamento que dormiu na fila offline podia resgatar
+            // muito mais do que o número que a pessoa viu e confirmou.
+            'funding_max_amount' => $this->regrasDeDinheiro(obrigatorio: false),
             'description' => ['nullable', 'string', 'max:255'],
             'date' => [
                 'required',

@@ -110,17 +110,32 @@ function renderBadge(count) {
             'font:600 13px/1 system-ui,sans-serif', 'color:#0C3D2B', 'background:#36D38A',
             'box-shadow:0 8px 24px rgba(0,0,0,.25)',
         ].join(';');
-        badge.addEventListener('click', () => drain());
+        // Travados (precisam de decisão ou falharam) abrem a revisão; o resto
+        // tenta sincronizar. Tocar num selo que o drain ia pular não fazia nada.
+        badge.addEventListener('click', () => {
+            if (travados.length) renderRevisao(travados);
+            else drain();
+        });
         document.body.appendChild(badge);
     }
     if (count > 0) {
-        const plural = count > 1 ? 'lançamentos pendentes' : 'lançamento pendente';
-        badge.textContent = `⏳ ${count} ${plural} — tocar p/ sincronizar`;
+        if (travados.length) {
+            const plural = travados.length > 1 ? 'lançamentos precisam' : 'lançamento precisa';
+            badge.textContent = `⚠️ ${travados.length} ${plural} de você — tocar p/ resolver`;
+            badge.style.background = '#FFD466';
+        } else {
+            const plural = count > 1 ? 'lançamentos pendentes' : 'lançamento pendente';
+            badge.textContent = `⏳ ${count} ${plural} — tocar p/ sincronizar`;
+            badge.style.background = '#36D38A';
+        }
         badge.style.display = 'inline-flex';
     } else {
         badge.style.display = 'none';
     }
 }
+
+// Itens meus que o drain NÃO consegue reenviar sozinho: esperam uma decisão.
+let travados = [];
 
 async function refreshBadge() {
     try {
@@ -129,11 +144,29 @@ async function refreshBadge() {
         const items = (await queueAll())
             .filter(ehLancamento)
             .filter((i) => String(i.userId) === String(userId));
+        travados = items.filter((i) => i.needsFunding || i.failed);
         renderBadge(items.length);
+        // Item travado sem tela era o buraco antigo: o selo contava, o drain
+        // pulava, e não havia onde ver o motivo nem como resolver.
+        if (travados.length) renderRevisao(travados, { discreto: true });
     } catch (_) { /* sem IndexedDB: ignora silenciosamente */ }
 }
 
 // ---- Sincronização (replay) ------------------------------------------------
+
+/** POST do lançamento no formato que o replay usa (JSON + CSRF do <meta>). */
+function enviarLancamento(payload, token = meta('csrf-token')) {
+    return fetch('/transactions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': token,
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(payload),
+    });
+}
 
 let draining = false;
 async function drain() {
@@ -149,19 +182,10 @@ async function drain() {
         // (iria para a família errada, com o autor errado).
         const items = (await queueAll())
             .filter(ehLancamento)
-            .filter((i) => String(i.userId) === String(userId) && !i.failed);
+            .filter((i) => String(i.userId) === String(userId) && !i.failed && !i.needsFunding);
 
         for (const item of items) {
-            const enviar = (payload) => fetch('/transactions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': token,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify(payload),
-            });
+            const enviar = (payload) => enviarLancamento(payload, token);
 
             let res;
             try {
@@ -170,17 +194,30 @@ async function drain() {
                 break; // caiu a rede no meio: tenta de novo no próximo online
             }
 
-            // 409: o saldo não cobre. Aqui NÃO há como perguntar (o usuário pode
-            // nem estar na tela), e a compra já aconteceu no mundo real — então
-            // reenviamos UMA vez usando o cheque especial. Resgatar investimento
-            // sozinho seria decidir pelo usuário; isso nunca é automático.
+            // 409: o saldo não cobre e existe fonte. A fila NÃO escolhe por você.
+            //
+            // Antes daqui reenviávamos sozinhos com `cheque_especial`, argumentando
+            // que "a compra já aconteceu no mundo real". O argumento vale para
+            // REGISTRAR a despesa, não para escolher a fonte: cheque especial cobra
+            // juros de verdade, e o usuário descobria depois — sem aviso nenhum,
+            // porque o sucesso do drain é silencioso. Isso furava o invariante do
+            // modelo v3 ("o app NUNCA usa o cheque especial sozinho").
+            //
+            // Agora o item fica RETIDO com as opções que o servidor mandou, e a
+            // próxima carga da página abre o modal de escolha. Nada se perde: o
+            // lançamento continua na fila, que é onde ele já estava.
             if (res.status === 409) {
-                const comCheque = { ...item.payload, funding_source: 'cheque_especial' };
+                let fonte = null;
                 try {
-                    res = await enviar(comCheque);
-                } catch (_) {
-                    break;
-                }
+                    fonte = (await res.json())?.fonte || null;
+                } catch (_) { /* corpo não-JSON: o modal é reaberto sem detalhe */ }
+
+                item.needsFunding = true;
+                item.fonte = fonte;
+                delete item.failed;   // não é falha: é decisão pendente
+                delete item.motivo;
+                await queueAdd(item);
+                continue;             // não bloqueia os outros itens da fila
             }
 
             if (res.ok) {
@@ -188,10 +225,9 @@ async function drain() {
             } else if (res.status === 401 || res.status === 419) {
                 showToast('Faça login para sincronizar seus lançamentos pendentes.');
                 break;                                         // sessão/CSRF expirou: mantém na fila
-            } else if (res.status === 422 || res.status === 409) {
-                // Nem o cheque especial cobriu (ou os dados são inválidos):
-                // guarda a mensagem REAL do servidor para o usuário resolver,
-                // em vez do texto genérico de antes.
+            } else if (res.status === 422) {
+                // Dados inválidos ou nenhuma fonte cobre: guarda a mensagem REAL do
+                // servidor para o usuário resolver, em vez do texto genérico.
                 let motivo = '';
                 try {
                     const data = await res.json();
@@ -557,6 +593,168 @@ function purgeCachedFormIfUserChanged() {
 // aparelho; o dado do dinheiro fica.
 
 let avisoOutroDono;
+// ---- Revisão dos lançamentos travados --------------------------------------
+
+let revisaoEl = null;
+let revisaoDispensada = false; // "×" esconde só nesta visita, não apaga nada
+
+/** "R$ 1.234,56" — mesmo formato do Brl::format do servidor. */
+function brl(valor) {
+    const n = Number(valor) || 0;
+    return (n < 0 ? '−' : '') + 'R$ ' + Math.abs(n).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
+
+function botao(rotulo, cor, onClick) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = rotulo;
+    b.style.cssText = 'border:0;border-radius:999px;padding:7px 12px;cursor:pointer;'
+        + 'font:600 12px/1 system-ui,sans-serif;color:#fff;background:' + cor;
+    b.addEventListener('click', onClick);
+    return b;
+}
+
+/**
+ * Tela dos lançamentos que a fila NÃO resolve sozinha.
+ *
+ * Existem dois motivos para um item parar aqui, e nenhum dos dois tinha tela antes:
+ *
+ *  - `needsFunding`: o servidor devolveu 409 (o disponível não cobre). A fila
+ *    deixou de escolher a fonte por conta própria — ver o bloco do 409 no
+ *    `drain()`. Aqui a pessoa escolhe, e só então o lançamento é gravado.
+ *  - `failed`: 422 do servidor (dados inválidos, ou nenhuma fonte cobre). Antes o
+ *    item só sumia do drain e o selo ficava preso para sempre, sem nada explicando.
+ *
+ * NADA é apagado sozinho: descartar é sempre um clique consciente, porque o
+ * lançamento nunca chegou ao servidor e é a única cópia que existe.
+ */
+function renderRevisao(itens, { discreto = false } = {}) {
+    if (!itens.length || (discreto && revisaoDispensada)) {
+        if (revisaoEl) revisaoEl.style.display = 'none';
+        return;
+    }
+
+    if (!revisaoEl) {
+        revisaoEl = document.createElement('div');
+        revisaoEl.id = 'sm-fila-revisao';
+        revisaoEl.setAttribute('role', 'status');
+        revisaoEl.style.cssText = [
+            'position:fixed', 'left:50%', 'transform:translateX(-50%)',
+            'top:calc(12px + env(safe-area-inset-top,0px))', 'z-index:71',
+            'display:flex', 'flex-direction:column', 'gap:8px',
+            'max-width:min(92vw,520px)', 'padding:12px 14px', 'border-radius:12px',
+            'font:500 13px/1.35 system-ui,sans-serif', 'color:#3A2A00', 'background:#FFD466',
+            'box-shadow:0 10px 30px rgba(0,0,0,.25)',
+        ].join(';');
+        document.body.appendChild(revisaoEl);
+    }
+
+    // textContent em tudo: nada de innerHTML com dado do usuário (regra do projeto).
+    revisaoEl.textContent = '';
+
+    const topo = document.createElement('div');
+    topo.style.cssText = 'display:flex;align-items:center;gap:10px';
+    const titulo = document.createElement('strong');
+    titulo.style.flex = '1 1 auto';
+    titulo.textContent = itens.length > 1
+        ? `${itens.length} lançamentos precisam de você`
+        : 'Um lançamento precisa de você';
+    topo.appendChild(titulo);
+
+    const fechar = document.createElement('button');
+    fechar.type = 'button';
+    fechar.setAttribute('aria-label', 'Dispensar aviso');
+    fechar.textContent = '×';
+    fechar.style.cssText = 'border:0;background:transparent;cursor:pointer;'
+        + 'font:700 18px/1 system-ui,sans-serif;color:#3A2A00;padding:0 2px';
+    fechar.addEventListener('click', () => { revisaoDispensada = true; renderRevisao([]); });
+    topo.appendChild(fechar);
+    revisaoEl.appendChild(topo);
+
+    itens.forEach((item) => {
+        const linha = document.createElement('div');
+        linha.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+
+        const texto = document.createElement('span');
+        texto.style.flex = '1 1 200px';
+        const desc = (item.payload?.description || '').trim() || 'Lançamento';
+        texto.textContent = item.needsFunding
+            ? `${desc} (${brl(item.payload?.amount)}) — o saldo não cobre: escolha de onde sai o dinheiro.`
+            : `${desc} (${brl(item.payload?.amount)}) — ${item.motivo || 'não foi possível sincronizar.'}`;
+        linha.appendChild(texto);
+
+        if (item.needsFunding) {
+            linha.appendChild(botao('Escolher fonte', '#0C3D2B', () => resolverFonte(item)));
+        } else {
+            linha.appendChild(botao('Tentar de novo', '#0C3D2B', () => tentarDeNovo(item)));
+        }
+
+        linha.appendChild(botao('Descartar', '#8A1C1C', () => descartar(item)));
+        revisaoEl.appendChild(linha);
+    });
+
+    revisaoEl.style.display = 'flex';
+}
+
+/** Abre o modal de fonte para um item retido e reenvia com a escolha. */
+async function resolverFonte(item) {
+    const escolha = await pedirFonte(item.fonte);
+    if (!escolha) return; // cancelou: o lançamento continua retido, intacto
+
+    let res;
+    try {
+        res = await enviarLancamento({ ...item.payload, ...escolha });
+    } catch (_) {
+        showToast('Sem conexão agora. O lançamento continua guardado.');
+        return;
+    }
+
+    if (res.ok) {
+        await queueDelete(item.client_uuid);
+        showToast('Lançamento sincronizado.');
+    } else if (res.status === 409) {
+        // O disponível mudou de novo (ou o teto aprovado não cobre mais): guarda as
+        // opções NOVAS e pergunta outra vez, nunca grava por conta própria.
+        try {
+            item.fonte = (await res.json())?.fonte || item.fonte;
+        } catch (_) { /* mantém as opções anteriores */ }
+        await queueAdd(item);
+        showToast('O saldo mudou desde a sua escolha — confira as opções de novo.');
+    } else {
+        let motivo = '';
+        try {
+            const data = await res.json();
+            motivo = flattenErrors(data && data.errors)[0] || data?.message || '';
+        } catch (_) { /* corpo não-JSON */ }
+        delete item.needsFunding;
+        item.failed = true;
+        item.motivo = motivo;
+        await queueAdd(item);
+        showToast(motivo || 'Não foi possível sincronizar este lançamento.');
+    }
+
+    await refreshBadge();
+}
+
+/** Devolve um item `failed` para a fila normal e tenta sincronizar de novo. */
+async function tentarDeNovo(item) {
+    delete item.failed;
+    delete item.motivo;
+    await queueAdd(item);
+    await refreshBadge();
+    await drain();
+}
+
+async function descartar(item) {
+    const desc = (item.payload?.description || '').trim() || 'este lançamento';
+    if (!window.confirm(`Descartar ${desc}? Ele nunca chegou ao servidor e será perdido para sempre.`)) return;
+    await queueDelete(item.client_uuid).catch(() => {});
+    await refreshBadge();
+}
+
 let dispensado = false; // "×" esconde só nesta visita, não apaga nada
 
 function renderAvisoOutroDono(itens) {
