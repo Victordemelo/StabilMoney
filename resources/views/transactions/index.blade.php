@@ -87,7 +87,7 @@
         </div>
     </div>
 
-    <script>
+    <script nonce="{{ Vite::cspNonce() }}">
         // Auto-submit dos filtros ao trocar o select (o botão "Filtrar" é o fallback sem JS)
         document.querySelectorAll('#f-type, #f-account').forEach(function (sel) {
             sel.addEventListener('change', function () { sel.form.submit(); });

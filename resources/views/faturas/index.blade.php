@@ -744,7 +744,7 @@
      tela vive em resources/js/sm/faturas.js, mas este bloco é pequeno, roda
      também depois da navegação pjax (nav.js re-executa scripts inline) e evita
      mexer no módulo compartilhado. --}}
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
 (function () {
     var modal = document.getElementById('fixaEditarModal');
     if (!modal) return;

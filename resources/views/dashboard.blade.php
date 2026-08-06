@@ -384,5 +384,5 @@
 
 {{-- Contrato de dados do dashboard (consumido por resources/js/sm/dashboard.js).
      Seguro com !!: é json_encode (com escape de "/") de dados do próprio service. --}}
-<script type="application/json" id="sm-dashboard-data">{!! $payloadJson !!}</script>
+<script type="application/json" id="sm-dashboard-data" nonce="{{ Vite::cspNonce() }}">{!! $payloadJson !!}</script>
 @endsection

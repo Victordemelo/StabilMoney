@@ -57,7 +57,7 @@
         <button type="button" onclick="location.reload()">Tentar de novo</button>
         <div class="hint">A conexão volta? Esta tela recarrega sozinha.</div>
     </main>
-    <script>
+    <script nonce="{{ Vite::cspNonce() }}">
         // Quando a rede voltar, recarrega automaticamente.
         window.addEventListener('online', function () { location.reload(); });
     </script>

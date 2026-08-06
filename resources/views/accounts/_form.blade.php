@@ -201,7 +201,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
     // Mostra os campos certos conforme o tipo e troca a imagem do banco no preview.
     (function () {
         var form = document.querySelector('[data-account-form]');

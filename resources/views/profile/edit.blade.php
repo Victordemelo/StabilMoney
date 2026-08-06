@@ -76,7 +76,7 @@
     </div>
 </section>
 
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
     // Pré-visualização da foto escolhida antes de salvar
     (function () {
         var input = document.getElementById('avatar');

@@ -652,14 +652,42 @@ Testes: `VerificacaoDeEmailTest`, `LimpezaDeSessoesTest`, `FilaOfflineNaTrocaDeU
   antes era fixo e as cinco telas ficavam idênticas na aba do navegador.
 - **Bottom-nav tem teto de 4 destinos + FAB**: com 5 rótulos a barra passa de ~388px e quebra num
   aparelho de 360px. Hoje: Início · Extrato · [FAB] · Pagar · Metas.
-- **CSP com nonce continua PENDENTE, e o motivo mudou.** O obstáculo NÃO é o pjax: `DOMParser`
-  preserva o atributo `nonce`, então o `nav.js` consegue re-carimbar seletivamente (XSS armazenado
-  não tem nonce, não casa, não executa). ⚠️ No documento já ativo o navegador esconde o nonce do
-  atributo — leia `elemento.nonce`, nunca `getAttribute('nonce')`. O que falta é carimbar **9 views
-  com script inline**, uma delas (`partials/cookie-consent`) presente em 100% das páginas. `style-src`
-  fica com `'unsafe-inline'`: são 71 atributos `style="..."` e **nonce não existe para atributo de estilo**.
+- **CSP com nonce: FEITO em 05/08/2026** — ver a seção própria abaixo.
 - **`same_site=strict` foi DESCARTADO**: o cookie não viaja em navegação vinda de fora, e é
   exatamente isso que um link de confirmação de e-mail é. `lax` já barra requisição de estado cross-site.
+
+### CSP com nonce (05/08/2026) — `CspComNonceTest`
+
+`script-src` deixou de aceitar `'unsafe-inline'`. Só executa script que carregue o nonce sorteado
+por requisição (`Vite::useCspNonce()`, 40 caracteres). Um XSS armazenado — o achado do pentest de
+jul/2026 — vira texto inerte. **Verificado no navegador:** script sem nonce, com nonce chutado e
+injetado por `innerHTML` foram os três bloqueados.
+
+- **🚨 Todo `<script>` inline novo precisa de `nonce="{{ Vite::cspNonce() }}"`.** São 12 hoje, e o
+  `partials/cookie-consent` está em 100% das páginas. Sem o carimbo a tela morre **em silêncio**
+  (o navegador bloqueia e só o console avisa) — por isso o `CspComNonceTest` varre o HTML servido
+  de 17 telas e falha se algum ficar sem. As tags do `@vite` o Laravel carimba sozinho.
+- **O pjax valida no documento INERTE, antes do `innerHTML`.** Aqui está a armadilha que custou
+  uma rodada: assim que o script entra num documento VIVO o navegador **esvazia o atributo**
+  `nonce` (guarda o valor num slot interno, exposto só por `.nonce`), para um XSS não raspá-lo do
+  DOM. Medido no Chrome:
+
+  | | `getAttribute('nonce')` | `.nonce` |
+  |---|---|---|
+  | documento inerte (`DOMParser`) | `"ABC123"` | `"ABC123"` |
+  | documento vivo | `""` | `"ABC123"` |
+
+  Validar depois do `innerHTML` nunca casa, e a guarda apaga justamente os scripts legítimos —
+  a tela renderiza e não faz nada. Por isso `nav.js::descartarScriptsSemNonce()` roda em cima do
+  `DOMParser`, e só depois o `runScripts()` recria os sobreviventes.
+- **O nonce da resposta viaja no header `X-Csp-Nonce`**, não no corpo: header não é forjável por
+  conteúdo armazenado. É com ele que o `nav.js` distingue script legítimo de injetado. Sem essa
+  checagem o pjax carimbaria o nonce válido em QUALQUER script vindo do corpo — entregando de
+  graça o que a CSP existe para negar.
+- No elemento recriado, o nonce vai por **propriedade** (`s.nonce = ...`); `setAttribute` não
+  alimenta o slot interno.
+- **`style-src` mantém `'unsafe-inline'` de propósito:** são 71 atributos `style="..."` e **nonce
+  não existe para atributo de estilo**, só para `<style>`/`<link>`. Style inline não executa código.
 
 ### Auditoria de integridade (02/08/2026) — os 7 críticos, não regredir
 
@@ -782,10 +810,9 @@ dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypt
   **desligado em teste** (`runningUnitTests`) p/ a suíte não depender de rede.
 - **Headers de segurança:** `App\Http\Middleware\SecurityHeaders` (append no grupo `web`) —
   CSP, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, e HSTS
-  **só sobre HTTPS**. A CSP usa `'unsafe-inline'` em `script-src` de propósito (scripts inline
-  + `nav.js` recriando `<script>` no pjax); o que ela entrega é `connect-src`/`img-src` na
-  própria origem e `frame-ancestors`/`object-src`/`base-uri`/`form-action` travados. **Libera
-  `localhost:5173` só em ambiente local** — senão `npm run dev` quebra.
+  **só sobre HTTPS**. A CSP entrega `connect-src`/`img-src` na própria origem,
+  `frame-ancestors`/`object-src`/`base-uri`/`form-action` travados e **`script-src` com nonce**
+  (ver abaixo). **Libera `localhost:5173` só em ambiente local** — senão `npm run dev` quebra.
 - **Trocar e-mail exige a senha atual** (`ProfileUpdateRequest` → `current_password` requerido
   **só quando o e-mail muda**). O e-mail é o que recupera a conta: sem isso, sessão sequestrada
   → troca e-mail → "esqueci a senha" → conta tomada. Nome/telefone/foto seguem sem atrito.
@@ -808,7 +835,7 @@ dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypt
   valor de config de cada um. **Consulte antes de publicar.**
 
 **Pendências (não são código — infra ou decisão):** **credenciais SMTP** (`MAIL_MAILER=log` ainda);
-CSP com nonce (ver abaixo); revisão jurídica dos documentos legais. Detalhes no checklist.
+revisão jurídica dos documentos legais. Detalhes no checklist.
 
 ---
 
@@ -1030,7 +1057,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte completa (700 testes)
+docker compose exec app php artisan test                       # suíte completa (776 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan tinker                     # console interativo
 docker compose exec app php artisan view:cache                 # valida sintaxe de TODAS as views

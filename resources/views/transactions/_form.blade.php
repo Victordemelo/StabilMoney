@@ -144,7 +144,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
     // Tom do formulário (pílula/accent) + filtro de categorias pelo tipo escolhido.
     // Escopado ao PRÓPRIO form (data-tx-form) p/ não colidir com o modal global "Lançar".
     (function () {

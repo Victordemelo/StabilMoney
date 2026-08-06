@@ -8,7 +8,7 @@
     </div>
     <button type="button" class="btn-primary cookie-accept" id="cookieAccept">Aceitar</button>
 </div>
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
     (function () {
         var KEY = 'sm-cookie-consent';
         try { if (localStorage.getItem(KEY) === '1') return; } catch (e) { return; }

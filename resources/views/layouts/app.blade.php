@@ -17,7 +17,7 @@
     @include('partials.pwa-head')
 
     {{-- Anti-flash: aplica o tema salvo ANTES do CSS pintar a página --}}
-    <script>
+    <script nonce="{{ Vite::cspNonce() }}">
         (function () {
             try {
                 var t = localStorage.getItem('sm-theme');

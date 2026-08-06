@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Vite;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -16,8 +17,26 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class SecurityHeaders
 {
+    /**
+     * Header que publica o nonce da RESPOSTA para o pjax.
+     *
+     * O `nav.js` precisa saber qual nonce o servidor emitiu para o HTML que ele
+     * acabou de buscar, para distinguir script legítimo de script injetado. O
+     * header é a fonte confiável disso: diferente do corpo, ele não pode ser
+     * forjado por conteúdo armazenado. (Lê-lo exige execução de script — quem
+     * já tem isso não precisa do nonce.)
+     */
+    public const HEADER_NONCE = 'X-Csp-Nonce';
+
     public function handle(Request $request, Closure $next): Response
     {
+        // ANTES do $next: o nonce precisa existir enquanto a view renderiza.
+        // `Vite::useCspNonce()` gera um valor aleatório, guarda para a requisição
+        // inteira E carimba sozinho as tags que o `@vite` emite — que são
+        // justamente os scripts que o `nav.js` consulta para descobrir o nonce
+        // do documento vivo.
+        $nonce = Vite::useCspNonce();
+
         $response = $next($request);
 
         // Respostas de arquivo (download/stream) não têm headers manipuláveis do mesmo jeito.
@@ -25,7 +44,8 @@ class SecurityHeaders
             return $response;
         }
 
-        $response->headers->set('Content-Security-Policy', $this->csp());
+        $response->headers->set('Content-Security-Policy', $this->csp($nonce));
+        $response->headers->set(self::HEADER_NONCE, $nonce);
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Frame-Options', 'DENY');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -43,59 +63,53 @@ class SecurityHeaders
     /**
      * Monta a política.
      *
-     * ## Por que `script-src` ainda tem `'unsafe-inline'` (e não nonce)
+     * ## `script-src` usa NONCE, não `'unsafe-inline'` (05/08/2026)
      *
-     * Reavaliado em 02/08/2026. O bloqueio **não é técnico — é de alcance**: o nonce só
-     * funciona se TODO `<script>` inline servido carregar o `nonce=` da requisição, e hoje
-     * existem **12 blocos inline**, dos quais **9 executáveis fora dos layouts**:
+     * O nonce é sorteado por requisição (`Vite::useCspNonce()`, 40 caracteres) e só
+     * executa script que o carregue. Um XSS armazenado — o achado do pentest de
+     * jul/2026 foi exatamente isso — passa a ser texto inerte: não tem como
+     * adivinhar o valor da requisição.
      *
-     *   partials/cookie-consent · transactions/_form · transactions/index · faturas/index
-     *   accounts/_form · dependents/index · profile/edit
-     *   profile/partials/delete-user-form · pwa/offline
+     * Todo `<script>` inline das views leva `nonce="{{ Vite::cspNonce() }}"`. São 12,
+     * e o `partials/cookie-consent` está em 100% das páginas — **ao criar um bloco
+     * inline novo, carimbe-o**, senão a tela morre em silêncio (o navegador bloqueia
+     * e só o console avisa). O `CspComNonceTest` varre o HTML servido e falha se
+     * algum ficar sem, justamente para isso não passar despercebido.
+     * As tags do `@vite` são carimbadas pelo próprio Laravel.
      *
-     * O `cookie-consent` é incluído pelos **quatro** layouts, ou seja, está em 100% das
-     * páginas: uma CSP com nonce sem carimbar esses arquivos quebraria o app inteiro.
-     * (O 12º bloco, o `sm-dashboard-data` do dashboard, é `type="application/json"` —
-     * bloco de dados, não executa, e `script-src` não se aplica a ele.)
+     * **Hash SHA-256 não serviria:** dois blocos têm interpolação Blade que muda por
+     * requisição (`dependents/index` injeta o id do form que falhou na validação;
+     * `accounts/_form` interpola `asset()`), e hash fixo mataria a tela a cada edição.
      *
-     * **Hash SHA-256 não substitui o nonce aqui:** dois desses blocos têm interpolação
-     * Blade que muda por requisição/ambiente (`dependents/index` injeta o id do form que
-     * falhou na validação; `accounts/_form` interpola `asset()`), e um hash fixo faria a
-     * tela morrer em silêncio a cada edição de um inline. Só o anti-flash de tema, de
-     * conteúdo realmente fixo, seria hasheável.
+     * ## O pjax e o header `X-Csp-Nonce`
      *
-     * ## O pjax NÃO é o obstáculo (diagnóstico anterior corrigido)
+     * O `nav.js` troca o `#content` por HTML buscado via fetch e precisa RECRIAR os
+     * scripts (innerHTML não executa `<script>`). Recriar tudo carimbando o nonce
+     * vivo entregaria ao atacante o que a CSP existe para negar. Por isso o servidor
+     * publica o nonce da resposta no header `X-Csp-Nonce` (fonte confiável: header
+     * não é forjável por conteúdo armazenado) e o `nav.js` só recria o script cujo
+     * `nonce` bate com ele.
      *
-     * A versão antiga desta nota dizia que fazer o `nav.js` carimbar o nonce atual seria
-     * "pior que hoje", por dar nonce válido a um XSS armazenado vindo no HTML do fetch.
-     * **Isso não se sustenta** — verificado no navegador em 02/08/2026:
-     *
-     *  - o `DOMParser` **preserva** o `nonce` do HTML buscado: `getAttribute('nonce')`
-     *    devolve o valor nos scripts legítimos e `null` num script sem nonce. Logo o
-     *    `nav.js` consegue re-carimbar **seletivamente** — só nos scripts cujo nonce
-     *    bate com o do documento buscado (publicado nele como `<meta name="csp-nonce">`).
-     *    Um XSS armazenado não tem nonce, não casa, e continua sem executar. O nonce da
-     *    requisição é imprevisível, então o payload não tem como forjá-lo;
-     *  - **armadilha para quem for implementar:** no documento já ativo o navegador
-     *    esconde o nonce do atributo (`getAttribute('nonce')` → `""`), mas ele sobrevive
-     *    na propriedade (`elemento.nonce` → valor). Leia sempre `.nonce` /
-     *    `document.currentScript.nonce`, **nunca** `getAttribute('nonce')`.
-     *
-     * Então a rodada que fizer isto precisa de escopo sobre as 9 views acima + `nav.js`,
-     * e pode manter os inlines onde estão (não é obrigatório migrá-los para módulos).
+     * Dois detalhes que custam horas a quem não souber:
+     *  - no documento JÁ ATIVO o navegador esconde o nonce do atributo
+     *    (`getAttribute('nonce')` → `""`), mas ele sobrevive na propriedade
+     *    (`elemento.nonce`). No documento inerte do `DOMParser` o atributo é legível
+     *    — é isso que permite validar o HTML buscado;
+     *  - no elemento novo, o nonce precisa ser atribuído pela PROPRIEDADE
+     *    (`s.nonce = ...`), não por `setAttribute`.
      *
      * ## `style-src` continua com `'unsafe-inline'` de propósito
      *
-     * São 71 atributos `style="..."` nas views e 3 blocos `<style>`; nonce **não existe
-     * para atributo de estilo**, só para `<style>`/`<link>`. Tirar o `'unsafe-inline'`
-     * daqui exigiria varrer os 71 para classes. O ganho de segurança que importa é em
-     * `script-src` — style inline não executa código.
+     * São 71 atributos `style="..."` nas views e 3 blocos `<style>`; **nonce não
+     * existe para atributo de estilo**, só para `<style>`/`<link>`. Tirar o
+     * `'unsafe-inline'` daqui exigiria varrer os 71 para classes, e style inline não
+     * executa código — o ganho que importa é em `script-src`.
      *
-     * Enquanto isso, a política entrega o que importa contra exfiltração:
-     * `connect-src`/`img-src` restritos à própria origem, `frame-ancestors 'none'`
-     * (clickjacking), `object-src 'none'`, `base-uri` e `form-action` travados.
+     * A política ainda entrega o resto contra exfiltração: `connect-src`/`img-src`
+     * restritos à própria origem, `frame-ancestors 'none'` (clickjacking),
+     * `object-src 'none'`, `base-uri` e `form-action` travados.
      */
-    protected function csp(): string
+    protected function csp(string $nonce): string
     {
         $self = "'self'";
 
@@ -106,7 +120,9 @@ class SecurityHeaders
 
         return implode('; ', [
             "default-src {$self}",
-            "script-src {$self} 'unsafe-inline'{$vite}",
+            // Sem `'unsafe-inline'`: só executa script que carregue o nonce desta
+            // resposta. Um XSS armazenado não tem como adivinhá-lo.
+            "script-src {$self} 'nonce-{$nonce}'{$vite}",
             "style-src {$self} 'unsafe-inline' https://fonts.googleapis.com{$vite}",
             'font-src '.$self.' https://fonts.gstatic.com data:',
             // data: e blob: para o preview de foto antes do upload (FileReader).

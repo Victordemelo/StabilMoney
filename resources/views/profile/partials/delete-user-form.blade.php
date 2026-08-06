@@ -102,7 +102,7 @@
 </div>
 
 {{-- JS vanilla mínimo do modal (abre, fecha por botão/véu/Esc e foca a senha) --}}
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
     (function () {
         var modal = document.getElementById('confirm-user-deletion');
         var openBtn = document.getElementById('open-user-deletion');

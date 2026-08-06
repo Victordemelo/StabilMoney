@@ -248,7 +248,7 @@
     </div>
 @endforeach
 
-<script>
+<script nonce="{{ Vite::cspNonce() }}">
     (function () {
         var abrir = function (modal) { if (modal) modal.classList.add('open'); };
         var fechar = function (modal) { if (modal) modal.classList.remove('open'); };
