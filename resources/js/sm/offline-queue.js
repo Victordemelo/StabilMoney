@@ -380,7 +380,10 @@ function postTransaction(action, payload, token) {
 // Pega um token CSRF FRESCO da sessão atual (rota /csrf-token, atrás de auth) e
 // o aplica no <meta> e no input _token do form, para o retro do POST e para os
 // próximos envios. Devolve o token novo, ou null se a sessão expirou (não-200).
-async function refreshCsrfToken(form) {
+//
+// Exportado porque o modal "Lançar" (`sm/launch.js`) precisa do MESMO tratamento
+// de 419: era o único caminho de escrita sem ele, e o lançamento se perdia.
+export async function refreshCsrfToken(form) {
     let res;
     try {
         res = await fetch('/csrf-token', {

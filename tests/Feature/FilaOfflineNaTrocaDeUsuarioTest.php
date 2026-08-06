@@ -206,7 +206,14 @@ class FilaOfflineNaTrocaDeUsuarioTest extends TestCase
         $modal = file_get_contents(resource_path('js/sm/launch.js'));
         $fila = file_get_contents(resource_path('js/sm/offline-queue.js'));
 
-        $this->assertStringContainsString("import { enfileirarLancamento } from './offline-queue'", $modal);
+        // A asserção olha o SÍMBOLO importado, não a linha inteira: a lista de
+        // imports cresce (o modal também passou a usar `refreshCsrfToken` para tratar
+        // 419), e casar a linha literal quebrava o teste a cada import novo — sem
+        // nada de errado no código.
+        $this->assertMatchesRegularExpression(
+            "/import \{[^}]*\benfileirarLancamento\b[^}]*\} from '\.\/offline-queue'/",
+            $modal,
+        );
         $this->assertStringContainsString('export function enfileirarLancamento', $fila);
         // E não promete "salvo" para algo que ainda vai ser enviado.
         $this->assertStringNotContainsString('lançamento salvo', $fila);

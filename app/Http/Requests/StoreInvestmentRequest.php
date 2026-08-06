@@ -86,7 +86,16 @@ class StoreInvestmentRequest extends FormRequest
                 'nullable',
                 'date',
                 'after_or_equal:2000-01-01',
-                'before_or_equal:' . now()->addYears(10)->toDateString(),
+                // Data do APORTE INICIAL (o controller grava uma `investment_contribution`
+                // com ela quando `valor_inicial` > 0), então vale a mesma regra dos
+                // outros quatro Form Requests de aporte/resgate: nada de futuro.
+                //
+                // `Account::reserved` soma as contribuições SEM olhar data (igual ao
+                // `balance` — decisão D-4 da spec). Um aporte datado em dezembro
+                // derrubava o disponível de HOJE e fazia o app recusar despesa que
+                // cabe. Esta era a 5ª porta para o mesmo buraco, deixada aberta quando
+                // as outras quatro foram fechadas.
+                'before_or_equal:' . now()->toDateString(),
             ],
         ];
     }
@@ -121,7 +130,7 @@ class StoreInvestmentRequest extends FormRequest
             'account_id.required' => 'Escolha a conta de origem do valor inicial.',
             'account_id.exists' => 'Escolha uma conta corrente ou poupança sua — cartões não guardam dinheiro.',
             'date.date' => 'Data inválida.',
-            'date.before_or_equal' => 'A data está longe demais no futuro.',
+            'date.before_or_equal' => 'A data não pode ser no futuro — registre o aporte no dia em que ele acontecer.',
         ];
     }
 }

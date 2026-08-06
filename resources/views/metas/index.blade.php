@@ -426,7 +426,7 @@
 
                 <div class="field">
                     <label for="meta-aporte-date">Data <span class="hint">(opcional)</span></label>
-                    <input class="input" type="date" id="meta-aporte-date" name="date" value="{{ $reabreAporte ? old('date') : '' }}">
+                    <input class="input" type="date" id="meta-aporte-date" name="date" max="{{ now()->toDateString() }}" value="{{ $reabreAporte ? old('date') : '' }}">
                 </div>
             </div>
             <div class="modal-foot">
@@ -502,7 +502,7 @@
 
                 <div class="field">
                     <label for="meta-resgate-date">Data <span class="hint">(opcional)</span></label>
-                    <input class="input" type="date" id="meta-resgate-date" name="date" value="{{ $reabreResgate ? old('date') : '' }}">
+                    <input class="input" type="date" id="meta-resgate-date" name="date" max="{{ now()->toDateString() }}" value="{{ $reabreResgate ? old('date') : '' }}">
                 </div>
             </div>
             <div class="modal-foot">

@@ -327,7 +327,7 @@
 
                 <div class="field">
                     <label for="inv-c-date">Data <span class="hint">(opcional)</span></label>
-                    <input class="input" type="date" id="inv-c-date" name="date" value="{{ $reabreCreate ? old('date') : '' }}">
+                    <input class="input" type="date" id="inv-c-date" name="date" max="{{ now()->toDateString() }}" value="{{ $reabreCreate ? old('date') : '' }}">
                 </div>
 
                 {{-- Prazo da SIMULAÇÃO. Não é campo do investimento (não vai para o banco):
@@ -524,7 +524,7 @@
 
                 <div class="field">
                     <label for="inv-aporte-date">Data <span class="hint">(opcional)</span></label>
-                    <input class="input" type="date" id="inv-aporte-date" name="date" value="{{ $reabreAporte ? old('date') : '' }}">
+                    <input class="input" type="date" id="inv-aporte-date" name="date" max="{{ now()->toDateString() }}" value="{{ $reabreAporte ? old('date') : '' }}">
                 </div>
             </div>
             <div class="modal-foot">
@@ -600,7 +600,7 @@
 
                 <div class="field">
                     <label for="inv-resgate-date">Data <span class="hint">(opcional)</span></label>
-                    <input class="input" type="date" id="inv-resgate-date" name="date" value="{{ $reabreResgate ? old('date') : '' }}">
+                    <input class="input" type="date" id="inv-resgate-date" name="date" max="{{ now()->toDateString() }}" value="{{ $reabreResgate ? old('date') : '' }}">
                 </div>
             </div>
             <div class="modal-foot">
