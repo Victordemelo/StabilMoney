@@ -32,7 +32,21 @@ class PwaController extends Controller
             'scope' => '/',
             'display' => 'standalone',
             'orientation' => 'portrait',
-            'background_color' => '#FFFFFF',
+            // Fundo da splash do Android (a tela cheia que aparece entre tocar no
+            // ícone e o primeiro frame do app). O manifest é lido ANTES de o app
+            // abrir — sem localStorage e sem cookie —, então esta cor NÃO tem como
+            // seguir o tema escolhido: é uma aposta única para os dois temas.
+            //
+            // Era #FFFFFF, o pior valor possível: a cada abertura fria o Android
+            // pintava a tela INTEIRA de branco, um clarão para quem usa o tema
+            // escuro. #0C3D2B é exatamente a cor de fundo dos PNGs de ícone
+            // (medida no pixel), então o quadrado do ícone se dissolve na splash e
+            // ela vira uma abertura de marca: escura o bastante para não ofuscar no
+            // tema escuro e coerente com a sidebar (verde em qualquer tema) no claro.
+            'background_color' => '#0C3D2B',
+            // Barra de status durante a splash/instalação. Igual ao background_color
+            // de propósito — splash sem emenda. Depois que a página carrega, quem
+            // manda é a meta `theme-color` do layout, que aí sim segue o tema.
             'theme_color' => '#0C3D2B',
             'icons' => [
                 [

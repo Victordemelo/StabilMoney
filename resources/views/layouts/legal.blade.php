@@ -5,19 +5,31 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0C3D2B" />
+    {{-- Mesma regra do layouts/app: a cor da barra do celular acompanha o `--bg`
+         do tema (claro #EFF4F1, escuro #07140E), porque estas páginas usam o
+         design system inteiro e o tema salvo. Ver o comentário longo lá. --}}
+    <meta name="theme-color" content="#EFF4F1" data-sm-theme data-light="#EFF4F1" data-dark="#07140E" />
     <title>@yield('title', 'StabilMoney')</title>
 
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
     @include('partials.pwa-head')
 
-    {{-- Anti-flash: aplica o tema salvo antes de pintar --}}
+    {{-- Anti-flash: aplica o tema salvo antes de pintar + acerta as cores das
+         bordas do sistema (barra do navegador/status). Cópia deliberada do inline
+         do layouts/app — o iOS lê a meta da barra no carregamento, então isto não
+         pode esperar o bundle; ao mexer aqui, mexa lá também. --}}
     <script nonce="{{ Vite::cspNonce() }}">
         (function () {
-            try {
-                var t = localStorage.getItem('sm-theme');
-                if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
-            } catch (e) {}
+            var t;
+            try { t = localStorage.getItem('sm-theme'); } catch (e) { /* storage indisponível */ }
+            if (t !== 'dark' && t !== 'light') t = document.documentElement.getAttribute('data-theme') || 'light';
+            document.documentElement.setAttribute('data-theme', t);
+
+            var cor = document.querySelector('meta[name="theme-color"][data-sm-theme]');
+            if (cor) cor.setAttribute('content', cor.getAttribute(t === 'dark' ? 'data-dark' : 'data-light'));
+
+            var barra = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+            if (barra) barra.setAttribute('content', t === 'dark' ? 'black' : 'default');
         })();
     </script>
 

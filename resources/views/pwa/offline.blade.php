@@ -9,7 +9,14 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0C3D2B" />
+    {{-- Esta página é escura nos DOIS temas (estilos próprios, sem design system
+         e sem acesso ao tema salvo), então a cor da barra é fixa mesmo — e casa
+         com o topo do gradiente do body (#114B34 no centro superior), não com o
+         verde da marca. Pelo mesmo motivo a barra de status do iPhone pede
+         `black` (glifos claros): sem esta meta o iOS assume `default`, e glifos
+         escuros sobre este fundo verde-escuro somem. --}}
+    <meta name="theme-color" content="#114B34" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <title>Você está offline — StabilMoney</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }

@@ -49,7 +49,26 @@ export function drawSpark(svg, vals, color, reduceMotion, opts) {
 
 /* ---------- FLUXO DE CAIXA (área + linhas + pontos) ---------- */
 
-const W = 760, H = 230, PAD_L = 8, PAD_R = 8, PAD_T = 16, PAD_B = 28;
+/**
+ * Geometria do gráfico. `H` é fixo porque o CSS trava a altura em 230px; a LARGURA
+ * é medida a cada desenho (ver `larguraReal`), e `W_PADRAO` só entra quando não há
+ * como medir (elemento ainda sem layout).
+ *
+ * Por que a largura não pode ser fixa: o SVG é `width: 100%` com
+ * `preserveAspectRatio="none"`. Com um viewBox de 760 de largura desenhado num
+ * celular de 360px, o eixo X era comprimido a ~38% enquanto o Y ficava em 100% —
+ * escala não-uniforme. O resultado é texto achatado (os rótulos do eixo viravam
+ * riscos ilegíveis) e cantos arredondados virando elipses. Casando a unidade do
+ * viewBox com o pixel de tela, a escala é 1:1 e nada distorce.
+ */
+const W_PADRAO = 760, H = 230, PAD_L = 8, PAD_R = 8, PAD_T = 16, PAD_B = 28;
+
+/** Largura do SVG em pixels reais, com piso para não gerar geometria degenerada. */
+function larguraReal(svg) {
+    const medida = Math.round(svg.getBoundingClientRect().width);
+
+    return medida > 0 ? Math.max(240, medida) : W_PADRAO;
+}
 
 // Desenha o gráfico de fluxo de caixa (BARRAS AGRUPADAS) e devolve o estado
 // usado pelo hover. `p` = { labels: [], receitas: [], despesas: [] }
@@ -59,6 +78,8 @@ const W = 760, H = 230, PAD_L = 8, PAD_R = 8, PAD_T = 16, PAD_B = 28;
 // por período (receitas x despesas) comparam direto e nunca distorcem.
 export function buildCashflow(svg, p, reduceMotion) {
     if (!svg || !p || !Array.isArray(p.labels) || !p.labels.length) return null;
+
+    const W = larguraReal(svg);
 
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     const all = p.receitas.concat(p.despesas);
@@ -119,7 +140,9 @@ export function buildCashflow(svg, p, reduceMotion) {
     $$('.cf-bar-rec', svg).forEach((el, i) => crescer(el, p.receitas[i], 60 + i * 55));
     $$('.cf-bar-desp', svg).forEach((el, i) => crescer(el, p.despesas[i], 110 + i * 55));
 
-    return { p, xAt, yAt, n, groupW, centerAt };
+    // `W` vai no estado porque o hover converte pixel do mouse em coordenada do
+    // viewBox — e agora essa largura muda a cada redesenho.
+    return { p, xAt, yAt, n, groupW, centerAt, W };
 }
 
 // Liga o tooltip/guide do fluxo de caixa. `getState` devolve o estado atual
@@ -132,7 +155,7 @@ export function bindCashflowHover(wrap, svg, tip, getState) {
         const st = getState();
         if (!st || !realce()) return;
         const rect = svg.getBoundingClientRect();
-        const rel = (clientX - rect.left) / rect.width * W;
+        const rel = (clientX - rect.left) / rect.width * st.W;
         // Índice do GRUPO de barras sob o cursor (faixa de largura groupW)
         let i = Math.floor((rel - PAD_L) / st.groupW);
         i = Math.max(0, Math.min(st.n - 1, i));
@@ -158,7 +181,7 @@ export function bindCashflowHover(wrap, svg, tip, getState) {
         const meio = (tip.offsetWidth || 160) / 2;
         const margem = 8;
 
-        let px = deslocaSvg + (st.centerAt(i) / W) * rect.width;
+        let px = deslocaSvg + (st.centerAt(i) / st.W) * rect.width;
         px = Math.max(meio + margem, Math.min(wrapRect.width - meio - margem, px));
 
         tip.style.left = px + 'px';

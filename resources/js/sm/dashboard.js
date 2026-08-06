@@ -168,12 +168,36 @@ export function initDashboard() {
     const cfWrap = document.getElementById('cfWrap');
     const cfTip = document.getElementById('cfTip');
     let cfState = null;
+    let periodoDoGrafico = null;
     const drawCf = (period) => {
         if (!cfSvg) return;
-        const p = data.periods[period];
+        // Guarda o período para o redesenho por resize poder repetir o mesmo.
+        periodoDoGrafico = period || periodoDoGrafico;
+        const p = data.periods[periodoDoGrafico];
         if (p) cfState = buildCashflow(cfSvg, p, reduceMotion);
     };
     if (cfWrap && cfSvg && cfTip) bindCashflowHover(cfWrap, cfSvg, cfTip, () => cfState);
+
+    // Redesenha ao mudar a largura. Agora o viewBox é medido em pixels reais
+    // (ver charts.js), então uma largura nova exige geometria nova — sem isto o
+    // gráfico voltaria a esticar, que é exatamente o defeito que se está corrigindo.
+    // Girar o celular é o caso comum; o debounce evita redesenhar a cada pixel.
+    if (cfSvg) {
+        let larguraAnterior = cfSvg.getBoundingClientRect().width;
+        let agendado = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(agendado);
+            agendado = setTimeout(() => {
+                const nova = cfSvg.getBoundingClientRect().width;
+                // Só quando a LARGURA muda: no celular, esconder/mostrar a barra de
+                // endereço dispara resize o tempo todo sem mexer na horizontal, e
+                // redesenhar ali reiniciaria a animação das barras à toa.
+                if (Math.abs(nova - larguraAnterior) < 1) return;
+                larguraAnterior = nova;
+                drawCf();
+            }, 160);
+        });
+    }
 
     // Donut de gastos por categoria (se cats = [], o Blade nem renderiza o container)
     buildDonut(document.getElementById('donut'), document.getElementById('catLegend'), data.cats || []);

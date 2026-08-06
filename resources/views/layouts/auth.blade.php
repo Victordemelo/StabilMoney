@@ -13,6 +13,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
+    {{-- Aqui a cor NÃO acompanha o tema, de propósito: as telas de auth são
+         sempre claras (tokens fixos no escopo `.auth` do auth.css) e, no celular,
+         o topo da tela é o painel do vídeo — verde-escuro em qualquer tema. Por
+         isso esta meta fica sem o marcador `data-sm-theme` e o `sm/theme.js` não
+         encosta nela. #0C3D2B é o verde da marca (mesmo fundo dos ícones). --}}
     <meta name="theme-color" content="#0C3D2B" />
 
     {{-- Mesmo padrão do layouts/app: a view informa `@section('title')` e o

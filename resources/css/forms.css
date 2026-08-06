@@ -37,6 +37,15 @@ select.input {
   background-repeat: no-repeat; background-position: right 12px center; background-size: 16px;
 }
 
+/* Celular: 16px é o PISO que desliga o zoom automático do Safari no iPhone — ele
+   amplia a página sozinho ao focar um campo com fonte menor que isso. Como os
+   modais são `position: fixed`, depois do zoom eles saem de enquadramento e o
+   usuário perde de vista o botão de salvar. No desktop o campo segue com os 14px
+   do design (e o `.tfa-input-codigo`, mais específico, segue com os seus 18px). */
+@media (max-width: 640px) {
+  .input { font-size: 16px; }
+}
+
 /* Estado de erro */
 .input-error, .input-error:focus { border-color: var(--neg); }
 .input-error:focus { box-shadow: 0 0 0 4px rgba(229,96,77,.12); }
@@ -191,6 +200,12 @@ form[data-type="expense"] .tt-pill { transform: translateX(calc(100% + 4px)); ba
 }
 .pagination .pg-gap { color: var(--ink-3); }
 .pagination .pg svg { width: 16px; height: 16px; stroke-width: 2.2; }
+/* Celular: 36×36 é alvo pequeno demais para o dedo (mínimo recomendado: 44×44).
+   A barra já é `flex-wrap: wrap`, então crescer aqui só faz ela usar mais uma
+   linha quando houver muitas páginas — nada é recortado. */
+@media (max-width: 640px) {
+  .pagination .pg, .pagination .pg-gap { min-width: 44px; height: 44px; }
+}
 
 /* ----- Barra de filtros (índice de transações) ----- */
 .filter-bar { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
@@ -281,6 +296,18 @@ a.tx { text-decoration: none; color: inherit; }
 .cat-chip .cc-act:focus-visible, .cat-chip .cc-del:focus-visible { opacity: 1; }
 @media (hover: none) {
   .cat-chip .cc-act, .cat-chip .cc-del { opacity: 1; }
+}
+
+/* Alvo de toque de 44×44 SEM redesenhar o chip: quem cresce é um pseudo-elemento
+   invisível, não o botão (26px) — se o botão crescesse, os ~87px que sobram para o
+   nome da categoria em 360px virariam ~51px e "Alimentação" sairia truncado.
+   Os `inset` são assimétricos de propósito: cada área avança 12px para o lado de
+   fora e 6px para o lado do vizinho (26+6+12 = 44). Como o gap do chip é 12px, as
+   duas áreas apenas se encostam — tocar em "editar" nunca dispara "excluir". */
+@media (hover: none), (max-width: 640px) {
+  .cat-chip .cc-act, .cat-chip .cc-del { position: relative; }
+  .cat-chip .cc-act::after { content: ""; position: absolute; inset: -9px -6px -9px -12px; }
+  .cat-chip .cc-del::after { content: ""; position: absolute; inset: -9px -12px -9px -6px; }
 }
 
 /* Categoria fixa: não arrasta e não exclui. O cadeado ocupa a MESMA caixa do
@@ -577,6 +604,23 @@ a.tx { text-decoration: none; color: inherit; }
   opacity: 0; transition: opacity .15s var(--ease);
 }
 .meta-card:hover .meta-actions, .meta-card:focus-within .meta-actions { opacity: 1; }
+
+/* No TOQUE não existe hover: sem esta regra, Editar/Resgatar/Excluir nunca
+   apareciam e Metas virava uma tela somente-leitura no celular — que é onde o app
+   mais é usado. É o mesmo remendo que o `.cat-chip` já tinha ganhado.
+   O `max-width` entra junto para cobrir janela estreita em aparelho com mouse. */
+@media (hover: none), (max-width: 640px) {
+  /* O gap sobe de 4px para 16px porque a área de toque abaixo cresce 8px para cada
+     lado: com 4px, dois alvos se sobreporiam e um toque em "Resgatar" poderia cair
+     em "Excluir". Com 16px eles encostam sem sobrepor, e o grupo (3×28 + 2×16 =
+     116px) continua à direita do emoji central, sem cobri-lo. */
+  .meta-actions { opacity: 1; gap: 16px; }
+  /* 28×28 no desenho, 44×44 no dedo: cresce o pseudo-elemento, não o ícone —
+     assim o hover/active continua desenhando o quadradinho de 28px de sempre. */
+  .meta-act { position: relative; }
+  .meta-act::after { content: ""; position: absolute; inset: -8px; }
+}
+
 .meta-act {
   width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
   color: var(--ink-3); cursor: pointer; background: transparent; border: 0;
@@ -634,6 +678,15 @@ a.tx { text-decoration: none; color: inherit; }
 .al-name { font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .al-val { margin-left: auto; font-family: var(--font-head); font-weight: 700; font-size: 13px; }
 
+/* Espelha o que o `.donut-wrap` do design system já faz em ≤920px. Lado a lado, o
+   SVG de 150px (`flex: none`) deixava ~124px de largura para a legenda em 360px, e
+   rótulos como "Renda variável" quebravam em duas linhas com o percentual solto
+   embaixo. Empilhado, a legenda usa os 288px inteiros do card. */
+@media (max-width: 920px) {
+  .alloc-wrap { flex-direction: column; align-items: center; gap: 16px; }
+  .alloc-legend { width: 100%; }
+}
+
 /* Lista de ativos */
 .inv-rows { display: flex; flex-direction: column; }
 .invr { display: flex; align-items: center; gap: 13px; padding: 13px 4px; border-bottom: 1px solid var(--line-2); }
@@ -662,11 +715,33 @@ a.tx { text-decoration: none; color: inherit; }
 [data-theme="dark"] .inv-rm:hover { background: rgba(229,96,77,.12); }
 .inv-rm svg { width: 15px; height: 15px; stroke-width: 2; }
 
-/* Mobile: ações empilham e ocupam a largura (linha vira coluna) */
+/* ----- Celular: a linha vira DUAS (identidade em cima, ações embaixo) -----
+   Só `flex-wrap` não resolvia: `.invr-main` é `flex: 1` (base 0), logo não empurra
+   ninguém no cálculo de quebra, e os quatro botões continuavam na primeira linha.
+   Em 360px sobram 280px dentro do card e o que era fixo (avatar 42 + valor ~92 +
+   Aportar + Resgatar + editar + excluir + gaps) já passava disso — o nome ficava
+   com ~23px e "Tesouro IPCA+ 2029" saía com uma letra por linha (e o resto era
+   RECORTADO, porque `.card` é `overflow: hidden`; nunca virava barra de rolagem).
+   A quebra é forçada por um pseudo-elemento de largura 100% colocado ENTRE os dois
+   grupos via `order`. Com ela o nome passa a ter ~126px na primeira linha.
+   `row-gap: 0` + `margin-top` nas ações mantém o espaçamento sob controle. */
 @media (max-width: 640px) {
-  .invr { flex-wrap: wrap; }
-  .invr-val { margin-left: auto; }
-  .invr-btn, .invr-btn-out { flex: 1; text-align: center; }
+  .invr { flex-wrap: wrap; column-gap: 10px; row-gap: 0; }
+  .invr-l, .invr-main, .invr-val { order: 1; }
+  .invr::after { content: ""; flex: 0 0 100%; height: 0; order: 2; }
+  .invr-btn, .inv-rm { order: 3; margin-top: 10px; }
+
+  /* O valor não quebra em duas linhas nem cede espaço ao nome: sem `flex: none`
+     ele podia encolher e partir "≈ 10,5% a.a. est." no meio. */
+  .invr-val { margin-left: auto; flex: none; white-space: nowrap; }
+
+  /* Aportar/Resgatar dividem a 2ª linha (≈81px cada em 360px); editar e excluir
+     ficam com 44×44 de alvo de toque, o mínimo confortável para o dedo. */
+  .invr-btn {
+    flex: 1 1 auto; min-width: 0; min-height: 44px;
+    padding: 7px 10px; text-align: center; white-space: nowrap;
+  }
+  .invr-btn-edit, .inv-rm { flex: none; width: 44px; height: 44px; border-radius: 12px; padding: 0; }
 }
 
 /* ============================================================
@@ -728,6 +803,34 @@ a.tx { text-decoration: none; color: inherit; }
 
 /* Lista vazia do cartão */
 .fi-empty { padding: 18px 4px; font-size: 13px; color: var(--ink-3); text-align: center; }
+
+/* ----- Celular: a linha vira DUAS (o que é, quanto é / o que fazer) -----
+   Em 360px sobram 280px dentro do `.fatura-item`, e uma linha de CONTA FIXA pede
+   ícone 40 + valor ~85 + "Pagar" ~78 + editar + excluir + 5 gaps ≈ 300px. Como
+   `.content` e `.card` são `overflow: hidden`, o excesso nunca virou barra de
+   rolagem: era recortado em silêncio, e o `.fi-txt` (`flex: 1`, `min-width: 0`)
+   era espremido a zero — o nome ("Condomínio", "Aluguel") escapava por cima do
+   valor. Com a quebra, o nome fica com ~128px de largura real.
+   A quebra é FORÇADA por um pseudo-elemento de 100% posto entre os dois grupos
+   pelo `order`, porque o wrap natural não serve aqui: `.fi-txt` tem base 0, não
+   empurra ninguém, e o que quebrava era só o último botão.
+   `row-gap: 0` deixa a linha com a mesma altura de antes quando ela não tem ação
+   nenhuma (a 2ª linha existe, mas vazia e com 0px de altura). */
+@media (max-width: 640px) {
+  .fatura-item { flex-wrap: wrap; justify-content: flex-end; column-gap: 12px; row-gap: 0; }
+  .fatura-item > .fi-ico, .fatura-item > .fi-txt, .fatura-item > .fi-val { order: 1; }
+  .fatura-item::after { content: ""; flex: 0 0 100%; height: 0; order: 2; }
+  /* Tudo que AGE desce para a 2ª linha — inclusive os <form> de pagar/excluir. */
+  .fatura-item > .btn, .fatura-item > .fi-rm, .fatura-item > form { order: 3; margin-top: 10px; }
+  /* "Pagar" toma a sobra da 2ª linha (~168px). Quando a linha só tem o X, nada
+     cresce e o `justify-content: flex-end` encosta a ação à direita, embaixo do
+     valor — mesmo alinhamento que ela tinha no desktop. */
+  .fatura-item > .btn { flex: 1 1 auto; min-height: 44px; }
+  /* Valor inteiro numa linha só: "R$ 1.234,56" partido no meio é ilegível. */
+  .fi-val { flex: none; white-space: nowrap; }
+  /* 30×30 é alvo pequeno demais para o dedo; na 2ª linha há espaço para 44×44. */
+  .fi-rm { width: 44px; height: 44px; border-radius: 12px; }
+}
 
 /* Toggle de modo no modal de lançar (À vista / Parcelado / Recorrente) */
 .pay-mode { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
