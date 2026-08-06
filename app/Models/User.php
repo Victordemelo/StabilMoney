@@ -49,6 +49,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'phone',
+        'birth_date',
+        'gender',
         'avatar_path',
         'password',
         'password_changed_at',
@@ -81,6 +83,20 @@ class User extends Authenticatable implements MustVerifyEmail
     public const AVATAR_DISK = 'local';
 
     /** Graus de parentesco de um dependente (valor no banco => rótulo PT-BR). */
+    /**
+     * Sexo/gênero — opções do perfil.
+     *
+     * "Prefiro não informar" existe e é a escolha padrão de quem não responde:
+     * obrigar alguém a se declarar para usar o app não serve a nada aqui, e o
+     * campo inteiro é opcional. A ordem alfabética evita sugerir uma resposta.
+     */
+    public const GENEROS = [
+        'feminino' => 'Feminino',
+        'masculino' => 'Masculino',
+        'outro' => 'Outro',
+        'nao_informar' => 'Prefiro não informar',
+    ];
+
     public const RELATIONSHIPS = [
         'conjuge' => 'Cônjuge',
         'filho' => 'Filho(a)',
@@ -116,6 +132,10 @@ class User extends Authenticatable implements MustVerifyEmail
             'password_changed_at' => 'datetime',
             'pending_email_sent_at' => 'datetime',
             'is_admin' => 'boolean',
+            // `date:Y-m-d` (e não só `date`): o cast padrão GRAVA "Y-m-d H:i:s", e o
+            // input[type=date] do formulário só aceita "Y-m-d" — sem isto o campo
+            // voltava vazio ao reabrir a tela. Mesma pegadinha de `transactions.date`.
+            'birth_date' => 'date:Y-m-d',
             'terms_accepted_at' => 'datetime',
             // Prova do aceite (LGPD art. 8º, §1º) cifrada em repouso: um dump de
             // backup vazado não entrega o IP de ninguém. `encrypted`, NUNCA hash —

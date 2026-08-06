@@ -977,6 +977,10 @@ body.pjax-loading #content { opacity: .5; }
   .settings-body > .card.span7 { grid-column: span 12; align-self: start; }
 }
 
+/* Ações do perfil: o botão vai para o rodapé do card (o par de cards tem altura
+   igual, então sem isto ele flutuava no meio do vazio do card mais curto). */
+.perfil-acoes { margin-top: auto; padding-top: 16px; display: flex; justify-content: flex-end; }
+
 /* Zona de perigo: a lista do que se perde usa o vermelho de dívida, e o botão
    fica colado no rodapé do card (o `margin-top:auto` do flex) em vez de grudado
    no último item — antes o texto e o botão vermelho ficavam espremidos juntos. */

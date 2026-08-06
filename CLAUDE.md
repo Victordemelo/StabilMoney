@@ -260,7 +260,7 @@ tests/Feature/              # 755 testes: auth, dashboard, CRUD, validação, is
 | `/transactions` (resource, sem `show`) | `transactions/*` | Lista com filtros GET (tipo/conta), paginação; form com type-toggle, valor com vírgula, conta, categoria filtrada por tipo. |
 | `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"**. 5 tipos (Conta Corrente/Poupança, Cartão de Débito/Crédito, **Pix**) + **banco** com logo (imagem `public/assets/banks/`, preview no form). Form com campos condicionais por tipo (JS): conta = saldo inicial; **corrente = + limite do cheque especial**; crédito = limite + fechamento/vencimento; débito = vincula corrente/poupança que ele espelha. **Sem picker de ícone/cor.** O card mostra a imagem do banco e o **"Saldo em conta" = `available`** (vermelho quando negativo), com barra de uso do cheque especial; débito mostra corrente/poupança separados + total. |
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
-| `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais: nome, e-mail, telefone, foto (preview antes de salvar). **Acesso pelo popover do perfil** (sidebar). |
+| `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais em **dois cards lado a lado** (mesmo grid das Configurações, largura cheia): "Quem é você" (foto com preview, nome, **data de nascimento**, **sexo**) e "Como falamos com você" (e-mail, telefone). Nascimento e sexo são **opcionais** — minimização de dados; `User::GENEROS` traz "Prefiro não informar". O campo de **senha atual** só aparece quando o e-mail muda (mesma regra do `ProfileUpdateRequest`). **Acesso pelo popover do perfil** (sidebar). |
 | `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security|two-factor|conta`) | **Três subabas-pílula** (Segurança · **2FA** · Conta) numa coluna de 1120px, com o corpo em grid de 12 colunas — cada aba tem DOIS cards lado a lado (`span6`/`span7`+`span5`), de altura igual, e cabe sem rolar. **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), (lista com **teto de 4 itens** e rolagem interna — sem isso o card esticava além do de Senha e a página voltava a rolar). **2FA** = card de ação + card "Como funciona" ao lado. **O SWITCH é o controle**: a linha inteira é um `<summary>` (`.tfa-toggle`) que abre a confirmação por senha DENTRO do card — ligar e desligar seguem exigindo senha, sem botão-gatilho separado empurrando o conteúdo. No rodapé, **"Autenticadores da família"** lista quem já protegeu o próprio login (nome, papel, desde quando) — só status, nunca segredo: `two_factor_secret` é `encrypted` e não chega à view. **Conta** = resumo real da conta (e-mail, desde quando, dependentes, estado do 2FA) + zona de perigo. |
 | `POST/DELETE /configuracoes/2fa` (`settings.2fa.ativar` / `.desativar`), `POST /configuracoes/2fa/confirmar` (`.confirmar`), `POST /configuracoes/2fa/codigos` (`.codigos`) → `TwoFactorController` | bloco em `settings/partials/two-factor` | **2FA (opcional).** Ligar/desligar/trocar códigos exigem a **senha atual** (`throttle:senha`); confirmar o setup exige o **código** (`throttle:dois-fatores`). Sem rota de listagem — tudo acontece no card da aba Segurança. |
 | `GET/POST /verificacao-em-duas-etapas` (`two-factor.login`) + `POST /verificacao-em-duas-etapas/cancelar` (`two-factor.cancel`) → `Auth\TwoFactorChallengeController` | `auth/two-factor-challenge` | **Segunda etapa do login.** Grupo `guest`: quem está aqui ainda NÃO tem sessão. Aceita o código do autenticador ou um **código de recuperação** (`?recuperacao=1`, sem depender de JS). |
@@ -359,6 +359,9 @@ Saldo total = atual de todas as contas, independe do período.
 ## Modelo de dados
 
 - **users** — `name`, `email`, `password`, `phone`, `avatar_path` (foto, disco `public`),
+  `birth_date` (date nullable, cast `date:Y-m-d` — o cast padrão gravaria "Y-m-d H:i:s" e o
+  `input[type=date]` abriria vazio) e `gender` (string 20 nullable, valores em `User::GENEROS`;
+  string e não enum, que diverge entre MySQL e sqlite): os dois OPCIONAIS,
   `is_admin` (boolean: titular=true, dependente=false), `account_owner_id` (nullable, auto-ref →
   `users`, **cascadeOnDelete**): **null = titular; preenchido = dependente** apontando para o
   titular. Helpers no model: `ownerId()` (= `account_owner_id ?? id`), `isTitular()`,
@@ -1140,7 +1143,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte completa (790 testes)
+docker compose exec app php artisan test                       # suíte completa (804 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan tinker                     # console interativo
 docker compose exec app php artisan view:cache                 # valida sintaxe de TODAS as views
