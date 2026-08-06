@@ -767,6 +767,12 @@ a.tx { text-decoration: none; color: inherit; }
    o resultado antes de digitar a senha, e o botão embaixo confirma. */
 .tfa-toggle[open] > summary .switch { opacity: .55; }
 .tfa-toggle > form { margin-top: 14px; }
+/* Dentro do card de 2FA o formulário usa a LARGURA TODA: o `max-width: 360px` do
+   .sess-logout-form deixava o aviso e o campo espremidos na metade esquerda,
+   com o resto do card vazio ao lado. */
+.tfa-toggle > form.sess-logout-form { max-width: none; }
+.tfa-toggle > form .btn-primary,
+.tfa-toggle > form .btn-danger { align-self: stretch; width: 100%; }
 
 .tfa-familia { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
 .tfa-familia-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }

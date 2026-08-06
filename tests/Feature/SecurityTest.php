@@ -180,4 +180,42 @@ class SecurityTest extends TestCase
             ->assertSee('Os dependentes')
             ->assertSee('Excluir minha conta');
     }
+
+    public function test_o_modal_de_excluir_usa_os_primitivos_do_design_system(): void
+    {
+        $user = User::factory()->create();
+
+        $html = $this->actingAs($user)->get('/configuracoes/conta')->assertOk()->getContent();
+
+        // `.modal-scrim`/`.modal` já resolvem largura, centralização e rolagem. A
+        // versão com utilitários Tailwind arbitrários (`w-full max-w-[440px]` num
+        // grid `place-items-center`) colapsava o painel para MIN-CONTENT: ~100px,
+        // com o texto saindo uma palavra por linha.
+        $this->assertStringContainsString('id="confirm-user-deletion"', $html);
+        $this->assertStringContainsString('modal-scrim', $html);
+        $this->assertStringNotContainsString('max-w-[440px]', $html);
+    }
+
+    public function test_o_modal_de_excluir_fica_fora_de_qualquer_card(): void
+    {
+        $user = User::factory()->create();
+
+        $html = $this->actingAs($user)->get('/configuracoes/conta')->assertOk()->getContent();
+
+        // `.card` tem overflow:hidden e animação com transform, e transform em
+        // ancestral vira o bloco de contenção de um `position: fixed` — o modal
+        // ficava preso e recortado dentro do card. Ele precisa nascer como IRMÃO.
+        $posCard = strrpos($html, 'class="card sec-card span6"');
+        $posModal = strpos($html, 'id="confirm-user-deletion"');
+        $this->assertNotFalse($posModal);
+        $this->assertGreaterThan($posCard, $posModal, 'o modal precisa vir DEPOIS do último card, fora dele');
+
+        // E o card que o precede tem de estar fechado antes: nada de aninhamento.
+        $entre = substr($html, $posCard, $posModal - $posCard);
+        $this->assertSame(
+            substr_count($entre, '<div'),
+            substr_count($entre, '</div>'),
+            'o card não foi fechado antes do modal — ele ficou aninhado',
+        );
+    }
 }

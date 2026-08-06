@@ -293,6 +293,14 @@ existe no mobile** (a `.topbar` some em ≤920px; sem ele o celular não recebia
 PWA-first). **Saldo negativo:** a sidebar mostra "Disponível para gastar" em vermelho e uma linha
 de cheque especial usado.
 
+**⚠️ `animation-fill-mode` é `backwards`, NUNCA `both`, em `.card` e `.view`.** Com `both` a
+propriedade continua "animada" depois de terminar, e um `transform: none` animado computa como
+**matriz identidade** — sem efeito visual, mas o elemento vira o **bloco de contenção** de qualquer
+`position: fixed` descendente. Era isso que espremia o modal de excluir conta para ~100px
+(min-content) e o recortava. Todo modal continua nascendo **fora da `.card`**, e usa os primitivos
+`.modal-scrim`/`.modal` — não utilitários Tailwind arbitrários: `w-full max-w-[440px]` num grid
+`place-items-center` faz a largura percentual ficar cíclica e o painel colapsar para min-content.
+
 **Modal "Lançar" — FECHA ao salvar.** O recarregamento pós-sucesso é por pjax, que troca só o
 `#content`; o modal vive no shell e **sobrevive**. Sem chamar `close()` explicitamente ele ficava
 aberto por cima do resultado, escondendo o lançamento que acabou de entrar.

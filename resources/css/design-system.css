@@ -261,7 +261,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   padding: 20px; box-shadow: var(--shadow-card); position: relative; overflow: hidden;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .card { animation: rise .55s var(--ease-out) both; }
+  /* `backwards`, NÃO `both`. Com `both` a propriedade continua "animada" depois de
+     terminar, e um `transform: none` animado computa como matriz IDENTIDADE — que,
+     mesmo sem efeito visual, faz do elemento o BLOCO DE CONTENÇÃO de qualquer
+     `position: fixed` descendente. Era isso que espremia os modais dentro do card
+     (e o `overflow: hidden` daqui os recortava). Com `backwards` a entrada é
+     idêntica e a transform desaparece ao fim. */
+  .card { animation: rise .55s var(--ease-out) backwards; }
 }
 @keyframes rise { from { transform: translateY(18px); } to { transform: none; } }
 .card.span3 { grid-column: span 3; }
@@ -549,7 +555,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* No app real cada página é uma rota do Laravel — a "view" é sempre visível. */
 .view { display: block; }
 @media (prefers-reduced-motion: no-preference) {
-  .view { animation: viewIn .4s var(--ease-out) both; }
+  /* `backwards` pelo mesmo motivo do `.card` acima: com `both`, a `.view` ficava
+     com uma transform identidade permanente e prendia os modais `position: fixed`
+     das telas — o modal de excluir conta saía com 73px de largura, espremido. */
+  .view { animation: viewIn .4s var(--ease-out) backwards; }
 }
 @keyframes viewIn { from { transform: translateY(10px); } to { transform: none; } }
 .placeholder {
@@ -647,6 +656,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .modal-ico svg { width: 24px; height: 24px; stroke-width: 1.9; }
 .modal-head h3 { font-family: var(--font-head); font-size: 18px; font-weight: 600; }
 .modal-head p { font-size: 13px; color: var(--ink-3); margin-top: 3px; }
+/* Modal destrutivo: o ícone da cabeça usa o vermelho de dívida, não o verde da
+   marca — a cor precisa dizer o que está prestes a acontecer. */
+.modal-ico.perigo { background: color-mix(in srgb, var(--neg) 12%, transparent); color: var(--neg); }
 .modal-x { margin-left: auto; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: var(--ink-3); transition: all .15s; flex: none; }
 .modal-x:hover { background: var(--surface-2); color: var(--ink); }
 .modal-x svg { width: 18px; height: 18px; stroke-width: 2; }

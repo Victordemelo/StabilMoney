@@ -94,3 +94,7 @@
 <div class="card sec-card span6">
     @include('profile.partials.delete-user-form')
 </div>
+
+{{-- FORA do card: a `.card` tem overflow:hidden + animação com transform, e isso
+     prende um `position: fixed` filho. Ver o cabeçalho do partial. --}}
+@include('profile.partials.delete-user-modal')
