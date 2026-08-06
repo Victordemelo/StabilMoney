@@ -724,6 +724,12 @@ injetado por `innerHTML` foram os três bloqueados.
   graça o que a CSP existe para negar.
 - No elemento recriado, o nonce vai por **propriedade** (`s.nonce = ...`); `setAttribute` não
   alimenta o slot interno.
+- **🚨 O Vite dev precisa de host IPv4 fixo** (`server.host: '127.0.0.1'` no `vite.config.js`).
+  Sem isso ele pode subir em IPv6 (`http://[::1]:5173`) — e a gramática de `host-source` da CSP
+  **não aceita literal IPv6**: o navegador marca a fonte como inválida, ignora, e bloqueia a folha
+  de estilo e o websocket do HMR. O app abre **sem CSS nenhum** com `npm run dev`, e o único aviso
+  é no console. A liberação do dev é LIDA de `public/hot` (com `localhost`/`127.0.0.1` de rede de
+  segurança) e descarta endereço IPv6 em vez de emitir fonte inválida.
 - **`style-src` mantém `'unsafe-inline'` de propósito:** são 71 atributos `style="..."` e **nonce
   não existe para atributo de estilo**, só para `<style>`/`<link>`. Style inline não executa código.
 
@@ -1212,7 +1218,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte completa (804 testes)
+docker compose exec app php artisan test                       # suíte completa (833 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan tinker                     # console interativo
 docker compose exec app php artisan view:cache                 # valida sintaxe de TODAS as views

@@ -216,4 +216,47 @@ class CspComNonceTest extends TestCase
             $this->actingAs($this->user)->get('/')->headers->get('Strict-Transport-Security'),
         );
     }
+
+    public function test_a_csp_nunca_emite_endereco_ipv6_que_o_navegador_descarta(): void
+    {
+        $this->app->detectEnvironment(fn () => 'local');
+
+        // Um `hot` apontando para IPv6 é possível: o Vite escolhe o host sozinho se
+        // `server.host` não estiver fixo. Mas a gramática de `host-source` da CSP NÃO
+        // aceita literal IPv6 — o navegador marca a fonte como inválida, ignora, e
+        // bloqueia o recurso. O app abria SEM CSS NENHUM, com o aviso só no console.
+        $hot = public_path('hot');
+        $original = is_file($hot) ? file_get_contents($hot) : null;
+        file_put_contents($hot, 'http://[::1]:5173');
+
+        try {
+            $csp = $this->actingAs($this->user)->get('/')->headers->get('Content-Security-Policy');
+
+            $this->assertStringNotContainsString('[::1]', $csp,
+                'endereço IPv6 na CSP é fonte inválida — o navegador descarta e bloqueia o recurso');
+            // E a rede de segurança continua lá, para o dev não ficar sem nada.
+            $this->assertStringContainsString('http://127.0.0.1:5173', $csp);
+        } finally {
+            $original === null ? @unlink($hot) : file_put_contents($hot, $original);
+        }
+    }
+
+    public function test_a_origem_do_vite_vem_do_arquivo_hot(): void
+    {
+        $this->app->detectEnvironment(fn () => 'local');
+
+        $hot = public_path('hot');
+        $original = is_file($hot) ? file_get_contents($hot) : null;
+        file_put_contents($hot, 'http://127.0.0.1:5199');
+
+        try {
+            $csp = $this->actingAs($this->user)->get('/')->headers->get('Content-Security-Policy');
+
+            // Porta diferente da padrão: só passa se a origem for LIDA, não chutada.
+            $this->assertStringContainsString('http://127.0.0.1:5199', $csp);
+            $this->assertStringContainsString('ws://127.0.0.1:5199', $csp, 'o HMR usa o mesmo host');
+        } finally {
+            $original === null ? @unlink($hot) : file_put_contents($hot, $original);
+        }
+    }
 }

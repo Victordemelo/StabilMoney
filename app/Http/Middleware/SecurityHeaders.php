@@ -113,10 +113,8 @@ class SecurityHeaders
     {
         $self = "'self'";
 
-        // Em dev os assets vêm do servidor do Vite (localhost:5173, mais o websocket
-        // de hot reload). Sem isto, `npm run dev` quebraria com a CSP ligada.
-        $vite = $this->emDesenvolvimento() ? ' http://localhost:5173 http://127.0.0.1:5173' : '';
-        $viteWs = $this->emDesenvolvimento() ? ' ws://localhost:5173 ws://127.0.0.1:5173' : '';
+        // Em dev os assets vêm do servidor do Vite, mais o websocket de hot reload.
+        [$vite, $viteWs] = $this->origensDoVite();
 
         return implode('; ', [
             "default-src {$self}",
@@ -136,6 +134,44 @@ class SecurityHeaders
             "object-src 'none'",
             "frame-ancestors 'none'",
         ]);
+    }
+
+    /**
+     * Origens do servidor de dev do Vite liberadas na CSP: `[http, ws]`.
+     *
+     * A origem é LIDA do arquivo `public/hot` (a URL real do dev server), com
+     * `localhost`/`127.0.0.1` como rede de segurança para a janela entre subir o Vite
+     * e o arquivo existir. Sem o arquivo — produção, ou build estático — nada é liberado.
+     *
+     * ⚠️ **Endereço IPv6 literal é DESCARTADO de propósito.** A gramática de
+     * `host-source` da CSP não aceita `[::1]`: o navegador trata a fonte como inválida,
+     * ignora e bloqueia o recurso. Já aconteceu — o Vite escolheu IPv6 sozinho e o app
+     * abriu sem CSS nenhum, com o aviso só no console. A solução de verdade é o Vite
+     * NÃO subir em IPv6 (`server.host` fixo no `vite.config.js`); aqui só evitamos
+     * emitir uma fonte que o navegador vai jogar fora.
+     */
+    protected function origensDoVite(): array
+    {
+        if (! $this->emDesenvolvimento()) {
+            return ['', ''];
+        }
+
+        $origens = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+
+        $hot = public_path('hot');
+        if (is_file($hot) && ($url = trim((string) file_get_contents($hot))) !== '') {
+            // Literal IPv6 (`http://[::1]:5173`) não é expressável em CSP — ver o
+            // docblock. Emitir mesmo assim só suja a política com fonte inválida.
+            if (! str_contains($url, '[')) {
+                $origens[] = $url;
+            }
+        }
+
+        $origens = array_values(array_unique($origens));
+        // O websocket do HMR usa o MESMO host, trocando o esquema.
+        $ws = array_map(fn (string $o) => str_replace(['http://', 'https://'], ['ws://', 'wss://'], $o), $origens);
+
+        return [' ' . implode(' ', $origens), ' ' . implode(' ', $ws)];
     }
 
     protected function emDesenvolvimento(): bool
