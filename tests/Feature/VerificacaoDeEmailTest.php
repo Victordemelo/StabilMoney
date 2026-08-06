@@ -111,22 +111,75 @@ class VerificacaoDeEmailTest extends TestCase
     }
 
     /**
-     * Garantia para quem JÁ usava o app antes desta mudança: as linhas antigas têm
-     * `email_verified_at` nulo e mesmo assim continuam entrando, porque nenhuma rota
-     * exige `verified`. Se este teste quebrar, alguém ligou o middleware sem antes
-     * preencher o campo dos usuários existentes — e trancou a base inteira.
+     * O middleware `verified` ENTROU em 06/08/2026 (`routes/web.php`), e este teste mudou
+     * de forma junto — mas não de intenção.
+     *
+     * Antes ele dizia "usuário sem verificação continua entrando, porque nenhuma rota
+     * exige `verified`", e avisava: *se este teste quebrar, alguém ligou o middleware sem
+     * antes preencher o campo dos usuários existentes*. Foi exatamente o que aconteceu, e
+     * o aviso foi cumprido em vez de contornado: a migration
+     * `2026_08_06_000000_backfill_email_verified_at_antes_do_middleware` roda no MESMO
+     * deploy que liga o middleware e não deixa ninguém para trás.
+     *
+     * O que se garante agora, e que continua sendo a mesma coisa que importa: **nenhum
+     * caminho do app produz um usuário trancado quando não há como enviar e-mail.**
      */
-    public function test_usuario_antigo_sem_verificacao_continua_entrando(): void
+    public function test_sem_mailer_nenhum_caminho_do_app_deixa_usuario_por_confirmar(): void
     {
         $this->semMailer();
 
-        $antigo = User::factory()->unverified()->create();
-        $dependenteAntigo = User::factory()->unverified()->create([
-            'account_owner_id' => $antigo->id,
-        ]);
+        $titular = $this->cadastrar('titular@example.com');
+        $dependente = $this->criarDependente($titular);
 
-        $this->actingAs($antigo)->get(route('dashboard'))->assertOk();
-        $this->actingAs($dependenteAntigo)->get(route('dashboard'))->assertOk();
+        // Cadastro e criação de dependente: os dois nascem com a data preenchida...
+        $this->assertNotNull($titular->email_verified_at);
+        $this->assertNotNull($dependente->email_verified_at);
+
+        // ...e trocar o e-mail no perfil TAMBÉM não pode devolver alguém ao limbo.
+        // Este era o furo: o ProfileController zerava a coluna, e sem mailer não existe
+        // link capaz de destravar — o middleware transformaria isso em conta perdida.
+        $this->actingAs($titular)->patch(route('profile.update'), [
+            'name' => $titular->name,
+            'email' => 'outro@example.com',
+            'current_password' => 'senha-bem-comprida-123',
+        ])->assertRedirect();
+
+        $titular->refresh();
+
+        $this->assertSame('outro@example.com', $titular->email);
+        $this->assertNotNull(
+            $titular->email_verified_at,
+            'Trocar o e-mail sem mailer deixou a conta por confirmar — com `verified` ligado, isso é conta trancada sem saída.'
+        );
+
+        // E, na prática: os dois entram no app.
+        $this->actingAs($titular)->get(route('dashboard'))->assertOk();
+        $this->actingAs($dependente)->get(route('dashboard'))->assertOk();
+    }
+
+    /**
+     * O outro lado da moeda: com o middleware no ar, quem de fato ainda não confirmou é
+     * mandado para a tela de confirmação — e não entra no app. É este barramento que
+     * fecha o buraco do item 13: cadastrar-se com o e-mail de outra pessoa deixa de dar
+     * acesso ao app enquanto o dono do endereço não clicar no link.
+     */
+    public function test_com_mailer_quem_nao_confirmou_e_barrado_nas_rotas_do_app(): void
+    {
+        $this->comMailer();
+
+        $porConfirmar = User::factory()->unverified()->create();
+
+        $this->actingAs($porConfirmar)->get(route('dashboard'))
+            ->assertRedirect(route('verification.notice'));
+
+        // A saída existe e fica FORA do grupo protegido — senão a tela que destrava a
+        // conta estaria ela própria trancada.
+        $this->actingAs($porConfirmar)->get(route('verification.notice'))->assertOk();
+
+        // E depois de confirmar, entra.
+        $porConfirmar->markEmailAsVerified();
+
+        $this->actingAs($porConfirmar->fresh())->get(route('dashboard'))->assertOk();
     }
 
     // ---------------------------------------------------------------- com mailer

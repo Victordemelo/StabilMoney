@@ -50,7 +50,18 @@ class ProfileController extends Controller
         } elseif ($trocouEmail) {
             // Sem transporte de e-mail (fase de testes) não há como confirmar nada: a
             // troca vale na hora, como sempre valeu. A senha atual segue obrigatória.
-            $user->email_verified_at = null;
+            //
+            // E o endereço nasce JÁ VERIFICADO, de propósito. Marcar "não verificado"
+            // seria semanticamente mais bonito e operacionalmente um desastre: não
+            // existe link para mandar, então a pessoa ficaria num estado do qual nada
+            // a tira — e no dia em que o middleware `verified` entrasse (item 13 do
+            // checklist), viraria uma conta trancada sem saída. É o mesmo invariante
+            // que o RegisteredUserController mantém no cadastro: **enquanto o app não
+            // consegue enviar e-mail, ninguém fica pendente de confirmação.**
+            //
+            // Com o SMTP configurado este ramo não roda: cai no `if` acima, que exige
+            // a confirmação de verdade no endereço novo.
+            $user->email_verified_at = now();
             $user->pending_email = null;
             $user->pending_email_sent_at = null;
         }

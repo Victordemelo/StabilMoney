@@ -32,8 +32,23 @@ Route::view('/offline', 'pwa.offline')->name('pwa.offline');
 Route::view('/termos', 'legal.termos')->name('termos');
 Route::view('/privacidade', 'legal.privacidade')->name('privacidade');
 
-// Todas as telas do app exigem login (multiusuário desde a Fase 1).
-Route::middleware('auth')->group(function () {
+// Todas as telas do app exigem login (multiusuário desde a Fase 1) e e-mail confirmado.
+//
+// `verified` (item 13 do checklist de publicação) fecha um buraco concreto: sem ele, dá
+// para cadastrar com o e-mail de OUTRA pessoa — e, como o "esqueci a senha" manda o link
+// para aquele endereço, o dono do e-mail "recupera" a conta e vê os lançamentos de quem
+// a criou.
+//
+// **Por que isto não tranca ninguém**, mesmo sem SMTP configurado: quem cria usuário só
+// deixa `email_verified_at` nulo quando o app CONSEGUE enviar o link. Sem entrega
+// (`App\Support\Mailer::entrega()` falso), o cadastro grava a data no ato, o dependente
+// nasce verificado e a troca de e-mail no perfil também. Ou seja, o middleware fica
+// inerte enquanto não houver mailer e passa a valer sozinho no dia em que houver — sem
+// mudar código. Coberto por VerificacaoDeEmailTest.
+//
+// ⚠️ Ao criar uma rota que precise funcionar ANTES da confirmação (reenviar o link, sair
+// da conta), coloque-a em routes/auth.php, fora deste grupo.
+Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard (tela inicial)
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 

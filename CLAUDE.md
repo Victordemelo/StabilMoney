@@ -241,8 +241,9 @@ tests/Feature/              # 755 testes: auth, dashboard, CRUD, validação, is
   `SEED_USER_NAME`, `SEED_USER_EMAIL`, `SEED_USER_PASSWORD` (usa `updateOrCreate`, então
   rodar o seed de novo re-sincroniza nome/senha com o `.env`). **Senha real jamais vai
   para o código/git** — fica só no `.env` (gitignorado).
-- `User` **não** implementa `MustVerifyEmail` (fluxo de verificação pronto em PT-BR,
-  desativado de propósito — não há mailer configurado; `MAIL_MAILER=log` em dev).
+- **Verificação de e-mail LIGADA** (06/08/2026): `User` implementa `MustVerifyEmail` e as
+  rotas do app estão sob `['auth', 'verified']`. Ver "📧 E-mail" abaixo — inclusive por que
+  isso **não tranca ninguém** quando o app não consegue enviar e-mail.
 - **Hashing de senha: `argon2id`** (`config/hashing.php`, `driver => 'argon2id'`) — vale para
   o app inteiro (registro, troca de senha e seeder). O `Hash::check` detecta o algoritmo pelo
   prefixo do hash, então qualquer hash antigo em bcrypt continua validando. Lembrete conceitual:
@@ -625,8 +626,8 @@ Testes: `VerificacaoDeEmailTest`, `LimpezaDeSessoesTest`, `FilaOfflineNaTrocaDeU
   (`Mailer::entrega()` falso) o cadastro grava `email_verified_at` — **antes** do
   `event(new Registered)`, senão o listener do framework dispara um link inútil. **Dependente
   nasce verificado SEMPRE** (não passa pelo `/register`, ninguém lhe envia link). Uma migration
-  fez o backfill de quem já existia. **Nenhuma rota usa o middleware `verified`** — ao adicionar
-  a primeira, confira que o backfill cobre todo mundo.
+  fez o backfill de quem já existia. ⚠️ **Desatualizado desde 06/08/2026:** o middleware
+  `verified` passou a valer nas rotas do app — ver "📧 E-mail".
 - **`terms_accepted_ip` tem cast `encrypted`** e a coluna virou `text`: o cifrado tem 200–256
   caracteres e ela era `varchar(45)`. Em MySQL isso é erro 1406 no `/register` — e como a suíte
   roda em **sqlite, que não aplica o limite**, ficaria verde escondendo o defeito. ⚠️ Rotacionar
@@ -838,8 +839,75 @@ dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypt
 - **`docs/checklist-de-publicacao.md`** — 17 itens de deploy priorizados, com o "por quê" e o
   valor de config de cada um. **Consulte antes de publicar.**
 
-**Pendências (não são código — infra ou decisão):** **credenciais SMTP** (`MAIL_MAILER=log` ainda);
+**Pendências (não são código — infra ou decisão):** **senha do SMTP** (host/porta/usuário já
+no `.env`, ver "📧 E-mail"; o resto do e-mail está pronto e testado);
 revisão jurídica dos documentos legais. Detalhes no checklist.
+
+---
+
+## 📧 E-mail (SMTP — 06/08/2026)
+
+Testes: `VerificacaoDeEmailTest`, `TrocaDeEmailConfirmadaTest`.
+
+### `App\Support\Mailer::entrega()` é a chave de tudo
+
+Três fluxos dependem de e-mail: **recuperar senha**, **verificar o e-mail do cadastro** e
+**confirmar a troca de e-mail**. Nenhum deles tem `if` de ambiente espalhado pelo código —
+todos perguntam a este helper, que só olha `config('mail.default')`. Transporte que não
+entrega (`log`, `null`) ⇒ o app **se adapta em vez de mentir**; transporte de verdade ⇒ os
+três passam a valer sozinhos, **sem mudar uma linha**.
+
+### Desenvolvimento: Mailpit, não `log`
+
+O `docker-compose.yml` sobe um container **`mailpit`** — um SMTP de mentira que aceita tudo,
+não entrega a ninguém e mostra as mensagens em **http://localhost:8026**.
+
+**Por que não `log`:** com `log`, `Mailer::entrega()` é falso e o app desvia para os caminhos
+de "fase de testes". São caminhos legítimos, mas **não são os que vão rodar em produção** — e
+com `log` eles seriam os únicos jamais exercitados em dev. Com Mailpit, o dev roda o mesmo
+código da produção e dá para ler o e-mail.
+
+Porta **8026** e não a 8025 padrão: outro projeto da máquina (`umadflor`) já ocupa a 8025 —
+mesma história do `megatruck` com 8000/3306/5173. A porta SMTP (1025) não é publicada; o app
+fala por `mailpit:1025` na rede interna do compose.
+
+### Produção
+
+Configuração no `.env` (receita completa e comentada no `.env.example`). O que **não** pode
+errar:
+
+> ⚠️ **A porta decide o `MAIL_SCHEME`**: `465 → smtps` (TLS implícito), `587 → smtp`
+> (STARTTLS). Trocar os dois faz o cliente falar texto puro com um servidor que só entende
+> TLS — a conexão morre **sem mensagem de erro útil**.
+
+> ⚠️ `MAIL_FROM_ADDRESS` tem de ser endereço de um domínio que você controla, e em
+> hospedagem compartilhada normalmente **o mesmo** do `MAIL_USERNAME`: o servidor recusa
+> remetente diferente do autenticado.
+
+### O middleware `verified` está APLICADO — e não tranca ninguém
+
+`routes/web.php` usa `['auth', 'verified']`. Fecha um buraco concreto: sem ele, dá para se
+cadastrar com o e-mail de outra pessoa e, como o "esqueci a senha" manda o link para aquele
+endereço, o dono do e-mail "recupera" a conta e vê os lançamentos de quem a criou.
+
+**O invariante que torna isso seguro: enquanto o app não consegue enviar e-mail, ninguém
+fica pendente de confirmação.** Quem cria usuário decide o `email_verified_at`:
+
+| Caminho | Sem mailer | Com mailer |
+|---|---|---|
+| `/register` | grava a data no ato | nasce nulo + recebe o link |
+| Dependente (`DependentController`) | grava sempre | grava sempre (ninguém lhe manda link) |
+| Trocar e-mail no perfil | grava a data no ato | fica em `pending_email`, `email` não muda |
+
+**🚨 Nunca deixe `email_verified_at` nulo num caminho que não envie link.** Foi exatamente
+o defeito corrigido em 06/08: o `ProfileController` zerava a coluna quando não havia mailer,
+criando uma conta que **nenhum link destrava** — inerte enquanto `verified` não existia, e
+conta perdida no dia em que ele entrou. A migration
+`2026_08_06_000000_backfill_email_verified_at_antes_do_middleware` limpou o rastro.
+
+⚠️ Rota que precise funcionar ANTES da confirmação (reenviar link, sair da conta) vai em
+`routes/auth.php`, fora do grupo protegido — senão a tela que destrava a conta fica ela
+própria trancada.
 
 ---
 
@@ -905,7 +973,7 @@ Limitador `dois-fatores` (`AppServiceProvider`), chave = conta + IP: `Limit::per
 
 ### Códigos de recuperação são a ÚNICA porta de volta
 
-Enquanto `MAIL_MAILER=log`, nem "esqueci a senha" entrega e-mail (`App\Support\Mailer`), então
+Se o app não estiver entregando e-mail, nem "esqueci a senha" funciona (`App\Support\Mailer`), então
 **não existe recuperação por e-mail**. A tela avisa isso **antes** de ligar e mostra a lista
 logo depois de confirmar (flash, uma vez). Ficam **cifrados** e não com hash porque o segredo
 TOTP ao lado é obrigatoriamente reversível — hash nos códigos não fecharia buraco nenhum e
@@ -1048,10 +1116,13 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 > Ordem correta no deploy: `php artisan view:cache` → `npm run build`.
 
 ### Portas (host) e troubleshooting
-- **App:** http://localhost:8001 · **MySQL (host):** 3307 · **Vite:** 5173.
+- **App:** http://localhost:8001 · **MySQL (host):** 3307 · **Vite:** 5173 ·
+  **Mailpit (caixa de e-mail de dev):** http://localhost:8026.
 - Portas movidas de **8000→8001** (app) e **3306→3307** (MySQL, só no host) para **não
   conflitar com o projeto `megatruck`** na mesma máquina (ele ocupa 8000/3306/5173). A porta do
   **container** do MySQL segue 3306 — por isso `DB_PORT=3306` no `.env` (rede interna do Docker).
+  O **Mailpit** foi para **8026** pelo mesmo motivo: o projeto `umadflor` já roda um na 8025.
+  A porta SMTP dele (1025) não é publicada — o app fala por `mailpit:1025` na rede do compose.
 - ⚠️ **Vite/5173 ainda colide com o megatruck:** não rodar os dois `npm run dev` ao mesmo tempo
   (ou mudar a porta do Vite no `vite.config.js` quando precisar dos dois no ar).
 - **Erro `SQLSTATE[HY000] [2002] ... getaddrinfo for db failed`** (o app não resolve o host

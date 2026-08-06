@@ -40,6 +40,35 @@ services:
     volumes:
       - db_data:/var/lib/mysql
 
+  # Caixa de e-mail FALSA para desenvolvimento (Mailpit).
+  #
+  # Por que existe: com `MAIL_MAILER=log` o app "envia" para storage/logs e nada chega
+  # a ninguém — e `App\Support\Mailer::entrega()` fica falso, o que DESVIA o código
+  # (cadastro grava email_verified_at no ato, troca de e-mail não pede confirmação,
+  # "esqueci a senha" avisa que não dá). Ou seja: com `log`, os caminhos que vão rodar
+  # em produção nunca são exercitados em dev, e o primeiro teste real deles seria com
+  # usuário de verdade na frente.
+  #
+  # O Mailpit é um servidor SMTP de mentira: aceita tudo, não entrega a ninguém e
+  # mostra as mensagens numa interface web. Para o Laravel é SMTP igual ao de produção.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: stabilmoney_mailpit
+    restart: unless-stopped
+    ports:
+      # Interface web: http://localhost:8026 — é aqui que se leem os e-mails.
+      #
+      # 8026 e não a 8025 padrão: outro projeto desta máquina (umadflor) já roda um
+      # Mailpit na 8025, do mesmo jeito que o megatruck ocupa 8000/3306/5173 — daí as
+      # portas 8001/3307 deste projeto. Isto NÃO afeta o app: ele fala com o Mailpit
+      # por `mailpit:1025` na rede interna do compose, que é isolada por projeto.
+      #
+      # Bind em 127.0.0.1 pelo mesmo motivo do MySQL: sem isso, qualquer aparelho da
+      # rede Wi-Fi lê a caixa de entrada — que traz links de redefinir senha.
+      - "127.0.0.1:8026:8025"
+    # A porta SMTP (1025) NÃO é publicada de propósito: só o container do app
+    # precisa dela, e ele fala por `mailpit:1025` na rede interna do compose.
+
 # Volume para garantir que os dados do banco não sumam se o contêiner cair
 volumes:
   db_data:

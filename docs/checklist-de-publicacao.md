@@ -52,15 +52,40 @@ SESSION_SECURE_COOKIE=true
 **Por quê:** sem isso o cookie de sessão é enviado também em `http://`. Quem estiver na
 mesma rede intercepta e entra na conta sem senha.
 
-### 5. Mailer de verdade
+### 5. Mailer de verdade — 🟡 **falta só a senha**
 
 ```env
-MAIL_MAILER=smtp   # e as credenciais do provedor
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtps                                    # 465 = TLS implícito
+MAIL_HOST=victor.jwsolucoesdigitais.com.br
+MAIL_PORT=465
+MAIL_USERNAME=victor_teste@victor.jwsolucoesdigitais.com.br
+MAIL_PASSWORD=<a senha da conta de e-mail>           # ← única linha pendente
+MAIL_FROM_ADDRESS="victor_teste@victor.jwsolucoesdigitais.com.br"
 ```
 
-**Por quê:** hoje é `log` — **nenhum e-mail sai**. Consequência prática: quem esquecer a
-senha **perde a conta**, porque o link de redefinição só vai para o arquivo de log. É
-também pré-requisito dos itens 13 e 14.
+**Por quê:** com `log`, **nenhum e-mail sai**. Consequência prática: quem esquecer a senha
+**perde a conta**, porque o link de redefinição só vai para o arquivo de log. É também
+pré-requisito do item 13.
+
+**Estado (06/08/2026):** host, porta, usuário e remetente já estão no `.env`; a conexão foi
+testada e o servidor responde (Exim, certificado válido). Falta apenas o `MAIL_PASSWORD`.
+Os três fluxos foram verificados de ponta a ponta contra um SMTP real — cadastro envia o
+link de verificação, a troca de e-mail manda a confirmação **para o endereço novo**, e
+"esqueci a senha" entrega o link.
+
+> ⚠️ **A porta decide o `MAIL_SCHEME`**: `465 → smtps` (TLS implícito), `587 → smtp`
+> (STARTTLS). Trocados, o cliente fala texto puro com um servidor que só entende TLS e a
+> conexão morre **sem mensagem de erro útil** — parece "servidor fora do ar".
+
+> ⚠️ `MAIL_FROM_ADDRESS` precisa ser **o mesmo** do `MAIL_USERNAME` nesta hospedagem:
+> servidor compartilhado recusa remetente diferente do autenticado.
+
+**Em desenvolvimento** não se usa este servidor: o `docker-compose` sobe um **Mailpit**
+(SMTP de mentira, caixa em http://localhost:8026). Para voltar a ele, basta
+`MAIL_HOST=mailpit`, `MAIL_PORT=1025`, `MAIL_SCHEME=smtp` e usuário/senha vazios.
+
+### 6. MySQL sem porta publicada
 
 ### 6. MySQL sem porta publicada
 
@@ -225,32 +250,37 @@ de um deploy, provavelmente sobrou um `config:cache` velho.
 ## 🟡 Antes de abrir o cadastro para desconhecidos
 
 Eram os itens da "onda 3" do pentest: dependiam de infraestrutura ou de decisão de produto,
-não de correção pontual. **Três dos cinco já foram implementados** (14, 15 e 16, em
-02/08/2026) e ficam aqui só como registro do que foi decidido — o que sobra é o **item 13**,
-que espera o mailer, e o **17**, que espera advogado.
+não de correção pontual. **Quatro dos cinco já foram implementados** (14, 15 e 16 em
+02/08/2026; 13 em 06/08/2026) e ficam aqui como registro do que foi decidido — o único que
+sobra é o **17**, que espera advogado.
 
-### 13. Verificação de e-mail — 🟡 **falta um passo, e ele depende do item 5**
+### ~~13. Verificação de e-mail~~ — ✅ **Feito** (06/08/2026)
 
-O código está pronto desde 02/08/2026: `User` **implementa** `MustVerifyEmail`, as telas em
-PT-BR existem e `VerificacaoDeEmailTest` cobre o fluxo. Ligar o contrato foi seguro porque
-**ninguém nasce trancado**: sem mailer (`App\Support\Mailer::entrega()` falso) o cadastro
-grava `email_verified_at` no ato, dependente nasce sempre verificado, e uma migration fez o
-backfill de quem já existia.
+`routes/web.php` usa `['auth', 'verified']`: quem não confirmou o e-mail é mandado para a
+tela de confirmação e não entra no app. Isso fecha o buraco de se cadastrar com o e-mail de
+**outra pessoa** — como o "esqueci a senha" manda o link para aquele endereço, o dono do
+e-mail "recuperava" a conta e via os lançamentos de quem a criou.
 
-**O que ainda falta:** aplicar o middleware `verified` ao grupo de rotas do app em
-`routes/web.php` — hoje **nenhuma rota o usa**, então na prática a confirmação não é
-exigida de ninguém. Só faça isso **depois do item 5 (mailer)**: sem entrega de e-mail, a
-exigência trancaria todo cadastro novo fora do app.
+**Por que isto não tranca ninguém, mesmo com o item 5 pendente:** quem cria usuário só deixa
+`email_verified_at` nulo quando o app CONSEGUE enviar o link. Sem entrega, o cadastro grava a
+data no ato, o dependente nasce verificado e a troca de e-mail no perfil também. O middleware
+fica **inerte** enquanto não houver mailer e passa a valer sozinho no dia em que houver.
 
-> ⚠️ Ao adicionar a primeira rota com `verified`, **confira `email_verified_at` de todo mundo
-> antes** (`select id, email from users where email_verified_at is null`). Além do backfill,
-> há um caminho que zera a coluna em produção: quem trocar o e-mail no perfil **enquanto não
-> houver mailer** volta a "não verificado" (ver item 14). Com SMTP no ar essa pessoa consegue
-> pedir um link novo na tela de verificação — sem SMTP, seria uma conta trancada sem saída.
+Duas coisas entraram junto, e sem elas isto seria uma armadilha:
 
-**Por que importa:** sem exigir a confirmação, dá para cadastrar com o e-mail de outra
-pessoa — e como o "esqueci a senha" manda o link para aquele endereço, **o dono do e-mail
-pode "recuperar" a conta e ver os lançamentos de quem a criou**.
+- **`ProfileController` corrigido.** Ele zerava `email_verified_at` ao trocar o e-mail sem
+  mailer — criando uma conta que **nenhum link destrava**. Inofensivo enquanto `verified` não
+  existia; conta perdida no dia seguinte. Agora o endereço novo nasce verificado nesse
+  cenário, como no cadastro.
+- **Migration `2026_08_06_000000_backfill_email_verified_at_antes_do_middleware`**, que roda
+  no mesmo deploy e preenche quem tiver ficado com a coluna nula pelo defeito acima.
+
+> ⚠️ Daqui em diante, `email_verified_at` nulo é estado **legítimo** (usuário novo que ainda
+> não clicou no link), e não mais acidente para consertar em massa. Não repita o backfill.
+
+> ⚠️ Rota que precise funcionar ANTES da confirmação (reenviar o link, sair da conta) vai em
+> `routes/auth.php`, fora do grupo protegido — senão a tela que destrava a conta fica ela
+> própria trancada.
 
 ### ~~14. Confirmar a troca de e-mail~~ — ✅ **Feito** (02/08/2026)
 
