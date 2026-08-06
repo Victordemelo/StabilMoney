@@ -40,7 +40,8 @@
             </button>
         </div>
 
-        <form method="POST" action="{{ route('profile.destroy') }}" class="modal-body">
+        <form method="POST" action="{{ route('profile.destroy') }}">
+            <div class="modal-body">
             @csrf
             @method('delete')
 
@@ -92,6 +93,9 @@
                     <p class="field-error">{{ $message }}</p>
                 @enderror
             </div>
+
+            </div>{{-- /.modal-body — o rodapé é IRMÃO dele, para ficar preso ao
+                 fundo do modal em vez de rolar junto com o conteúdo. --}}
 
             <div class="modal-foot">
                 <button type="button" class="btn ghost" data-close-deletion>Cancelar</button>

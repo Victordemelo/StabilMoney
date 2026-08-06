@@ -652,18 +652,26 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .modal {
   width: 100%; max-width: 440px; background: var(--surface); color: var(--ink);
   border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--shadow-lg);
-  padding: 22px; transform: translateY(14px) scale(.97); transition: transform .28s var(--ease-out);
-  /* Em telas baixas o conteúdo (ex.: modal de investimento, com muitos campos)
-     passa da viewport. Sem isto o modal transbordava e o botão de enviar ficava
-     inacessível (o scrim é fixed e não rola). Limita a altura ao espaço visível
-     e deixa o próprio modal rolar. vh = fallback; dvh respeita a barra do mobile. */
+  transform: translateY(14px) scale(.97); transition: transform .28s var(--ease-out);
+  /* Em telas baixas o conteúdo (ex.: cartão de crédito, com todos os campos) passa
+     da viewport. Antes o MODAL INTEIRO rolava: o cabeçalho com o título e o botão
+     de fechar saíam de vista, e o rodapé andava junto — medido, o head ia a −104px.
+     Agora o modal é uma COLUNA FLEX com overflow escondido, e quem rola é só o
+     `.modal-body`: cabeçalho e rodapé ficam presos, sempre alcançáveis.
+     O padding saiu daqui e foi para as partes, senão o conteúdo rolaria por baixo
+     dele. vh = fallback; dvh respeita a barra do mobile. */
+  padding: 0;
+  display: flex; flex-direction: column;
   max-height: calc(100vh - 40px);
   max-height: calc(100dvh - 40px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
 }
+/* O <form> quase sempre envolve body+foot (o submit precisa estar dentro dele),
+   então ele também precisa ser coluna flexível — sem isto o `flex: 1` do body não
+   teria contra o que crescer e a rolagem não aconteceria. */
+.modal > form { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
 .modal-scrim.open .modal { transform: none; }
-.modal-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px; }
+.modal-head { display: flex; align-items: flex-start; gap: 14px; flex: none; padding: 22px 22px 18px; }
 .modal-ico { width: 46px; height: 46px; border-radius: 14px; flex: none; display: grid; place-items: center; background: var(--brand-50); color: var(--brand-600); }
 [data-theme="dark"] .modal-ico { background: rgba(28,154,112,.16); color: var(--brand-300); }
 .modal-ico svg { width: 24px; height: 24px; stroke-width: 1.9; }
@@ -675,9 +683,24 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .modal-x { margin-left: auto; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: var(--ink-3); transition: all .15s; flex: none; }
 .modal-x:hover { background: var(--surface-2); color: var(--ink); }
 .modal-x svg { width: 18px; height: 18px; stroke-width: 2; }
-.modal-body { display: flex; flex-direction: column; gap: 14px; }
+/* É ELE quem rola. `min-height: 0` é obrigatório: sem isso um filho flex se recusa
+   a encolher abaixo do conteúdo e o overflow nunca chega a acontecer. */
+.modal-body {
+  display: flex; flex-direction: column; gap: 14px;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: 0 22px;
+}
+/* Colunas IGUAIS (50/50, ou 1/N). Sem o `flex: 1 1 0` os campos encolhiam para a
+   largura natural do conteúdo e sobrava vazio à direita — no modal de meta, "Valor
+   alvo" e "Prazo" ocupavam pouco mais da metade da linha. `min-width: 0` deixa um
+   select de rótulo longo encolher em vez de esticar a linha inteira. */
 .field-row { display: flex; gap: 12px; }
-.modal-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+.field-row > .field { flex: 1 1 0; min-width: 0; }
+/* Preso no rodapé, com um filete que separa do conteúdo que passa rolando. */
+.modal-foot {
+  display: flex; gap: 10px; justify-content: flex-end; flex: none;
+  padding: 16px 22px 22px; border-top: 1px solid var(--line-2);
+}
 .btn { font-size: 14px; font-weight: 600; padding: 11px 18px; border-radius: 12px; transition: all .18s var(--ease); }
 .btn.ghost { color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); }
 .btn.ghost:hover { background: var(--surface-3); }
@@ -835,6 +858,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* Pagar fatura (tela "Pagar despesas") */
 .fatura-pay { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 2px 0 14px; }
+/* Ação secundária do card (ex.: "Nova conta fixa"): separada do conteúdo por um
+   filete, com o ícone respirando do rótulo. */
+.fatura-acao { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line-2); }
+.fatura-acao .btn { display: inline-flex; align-items: center; gap: 8px; }
+.fatura-acao .btn svg { width: 16px; height: 16px; stroke-width: 2; }
 .fatura-due { font-size: 13px; color: var(--ink-2); }
 .fatura-due b { color: var(--ink); font-family: var(--font-head); }
 .fatura-pay .btn.primary { margin-left: auto; }
@@ -927,6 +955,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* Modais de LANÇAMENTO. Eram estreitos demais: 480/560px com campos empilhados um
    por linha deixavam o painel comprido e apertado, e valor/data (que se leem
    juntos) ficavam distantes. Mais largura permite pares lado a lado. */
+/* Meio-termo: modal com 3 ou 4 campos. Em 440px os pares 50/50 ficam com uma
+   coluna estreita demais para caber um select de conta com nome de banco. */
+.modal-md { max-width: 520px; }
 .modal-lg { max-width: 620px; }
 /* Modal amplo (ex.: "Lançar" nova transação): mais largo p/ 2 colunas respirarem */
 .modal-wide { max-width: 620px; }

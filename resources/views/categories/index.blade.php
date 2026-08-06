@@ -5,7 +5,7 @@
 @section('content')
     <div class="section-head">
         <h2>Categorias</h2>
-        <span class="sub">Arraste para mover entre Despesas e Receitas</span>
+        <span class="sub">Arraste para reordenar — ou solte na outra coluna para trocar o tipo</span>
         <div class="head-actions">
             {{-- Abre o modal (categories.js). O href continua valendo como
                  FALLBACK sem JS — mesmo padrão do botão "Lançar" da topbar. --}}
@@ -27,12 +27,17 @@
         </div>
     @endif
 
-    {{-- Colunas de drag & drop (design v2): arrastar um chip entre as colunas
-         troca o tipo da categoria via PATCH (resources/js/sm/categories.js). --}}
-    <div class="cat-cols" id="catCols">
+    {{-- Colunas de drag & drop (design v2), em resources/js/sm/categories.js:
+         • arrastar DENTRO da coluna reordena os chips (PATCH categories.ordenar);
+         • arrastar ENTRE as colunas troca o tipo (PATCH categories.update) e
+           grava a posição no destino.
+
+         RECEITA à esquerda, DESPESA à direita — a ordem que o Victor pediu; o
+         que entra primeiro é o dinheiro. A ordem deste array É a ordem da tela. --}}
+    <div class="cat-cols" id="catCols" data-ordenar-url="{{ route('categories.ordenar') }}">
         @foreach ([
-            ['titulo' => 'Despesas', 'tipo' => 'expense', 'cor' => '#E5604D', 'lista' => $expenseCategories, 'fallback' => '💸'],
             ['titulo' => 'Receitas', 'tipo' => 'income', 'cor' => '#1C9A70', 'lista' => $incomeCategories, 'fallback' => '💰'],
+            ['titulo' => 'Despesas', 'tipo' => 'expense', 'cor' => '#E5604D', 'lista' => $expenseCategories, 'fallback' => '💸'],
         ] as $grupo)
             <div class="cat-col">
                 <div class="cat-col-head">
@@ -111,7 +116,10 @@
          pointer-events:none) e os links continuam levando para as telas
          cheias `categories.create` / `categories.edit`. --}}
     <div class="modal-scrim" id="catModal">
-        <div class="modal" data-type="expense">
+        {{-- Nasce em RECEITA, igual ao modal global de "Lançar". Quem clica no
+             "Criar agora" de uma coluna vazia manda o tipo daquela coluna
+             (data-cat-type) — ali o usuário já disse o que quer. --}}
+        <div class="modal" data-type="income">
             <div class="modal-head">
                 <span class="modal-ico">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
@@ -133,7 +141,7 @@
 
             {{-- O `action` e o `_method` são definidos pelo JS conforme abrir em
                  criação ou edição. --}}
-            <form method="POST" action="{{ route('categories.store') }}" data-cat-form data-type="expense">
+            <form method="POST" action="{{ route('categories.store') }}" data-cat-form data-type="income">
                 @csrf
                 <div class="modal-body">
                     {{-- Tipo --}}
@@ -148,12 +156,12 @@
                         </label>
                         <div class="type-toggle">
                             <span class="tt-pill" aria-hidden="true"></span>
-                            <input type="radio" id="cm-tt-income" name="type" value="income">
+                            <input type="radio" id="cm-tt-income" name="type" value="income" checked>
                             <label class="tt-income" for="cm-tt-income">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17 17 7M17 7h-7M17 7v7"/></svg>
                                 Receita
                             </label>
-                            <input type="radio" id="cm-tt-expense" name="type" value="expense" checked>
+                            <input type="radio" id="cm-tt-expense" name="type" value="expense">
                             <label class="tt-expense" for="cm-tt-expense">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7 17 17M17 17h-7M17 17v-7"/></svg>
                                 Despesa

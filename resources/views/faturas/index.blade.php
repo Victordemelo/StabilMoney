@@ -188,8 +188,15 @@
             @endforelse
         </div>
 
-        <div class="fatura-pay">
-            <button class="btn ghost" type="button" id="novaContaFixaBtn">+ Nova conta fixa</button>
+        {{-- Fora do `.fatura-pay`: aquele bloco é a linha de PAGAR a fatura (tem
+             `margin-left:auto` no botão primário), e o "+ Nova conta fixa" herdava
+             o alinhamento dela. O "+" era texto solto colado no rótulo; virou
+             ícone, com o espaçamento do próprio botão. --}}
+        <div class="fatura-acao">
+            <button class="btn ghost" type="button" id="novaContaFixaBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+                Nova conta fixa
+            </button>
         </div>
     </div>
 
@@ -561,7 +568,7 @@
 {{-- ======================== MODAL: PAGAR CONTA FIXA ======================== --}}
 @if ($accounts->isNotEmpty())
 <div class="modal-scrim" id="fixaPagarModal" data-fixa-scrim>
-    <div class="modal">
+    <div class="modal modal-md">
         <div class="modal-head">
             <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg></span>
             <div>
@@ -607,7 +614,7 @@
 
 {{-- ====================== MODAL: NOVA CONTA FIXA ====================== --}}
 <div class="modal-scrim" id="fixaNovaModal" data-fixanova-scrim>
-    <div class="modal">
+    <div class="modal modal-lg">
         <div class="modal-head">
             <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 10 12 4l9 6M5 10v9h14v-9"/></svg></span>
             <div>
@@ -687,7 +694,7 @@
      "Pagar conta fixa"). Fica FORA da .card de propósito: a .card tem
      overflow:hidden + animação de transform, que prende position:fixed. --}}
 <div class="modal-scrim" id="fixaEditarModal" data-fixaedit-scrim>
-    <div class="modal">
+    <div class="modal modal-lg">
         <div class="modal-head">
             <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg></span>
             <div>

@@ -63,6 +63,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Recursos principais
     Route::resource('transactions', TransactionController::class)->except('show');
     Route::resource('accounts', AccountController::class)->except('show');
+
+    // ⚠️ ANTES do resource, sempre: `PATCH categories/{category}` casaria com
+    // "ordenar" e o route-model binding devolveria 404. O Laravel resolve na
+    // ordem de registro, então esta linha precisa vir primeiro.
+    Route::patch('categories/ordenar', [CategoryController::class, 'ordenar'])
+        ->name('categories.ordenar');
     Route::resource('categories', CategoryController::class)->except('show');
 
     // Foto de perfil — servida pelo app, não pelo symlink de storage/. Fica atrás de

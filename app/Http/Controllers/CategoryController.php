@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CategoryController extends Controller
@@ -40,9 +41,15 @@ class CategoryController extends Controller
 
     public function index(Request $request)
     {
-        // Fixas primeiro (são as de uso recorrente), depois as demais — cada
-        // bloco em ordem alfabética.
+        // A ordem é a que o usuário escolheu arrastando os chips (`position`).
+        // Os dois desempates existem para a lista NUNCA alternar entre um
+        // refresh e outro: sem eles, duas categorias empatadas em `position`
+        // sairiam na ordem que o banco quisesse. Empate é raro (a migration
+        // numerou tudo e cada categoria nova entra no fim), mas acontece se o
+        // PATCH de ordenar falhar no meio de um arraste entre colunas — e aí
+        // vale a regra antiga: fixas primeiro, depois alfabética.
         $categories = Category::where('user_id', $request->user()->ownerId())
+            ->orderBy('position')
             ->orderByDesc('is_locked')
             ->orderBy('name')
             ->get();
@@ -52,6 +59,70 @@ class CategoryController extends Controller
             'expenseCategories' => $categories->where('type', 'expense'),
             ...$this->opcoesDoFormulario(),
         ]);
+    }
+
+    /**
+     * Grava a ordem dos chips de UMA coluna (recebe os ids na ordem final).
+     *
+     * Renumera em 0..n-1 em vez de "empurrar" vizinhos: é uma coluna de ~10
+     * itens, e reescrever tudo elimina de vez a chance de empate — que é o que
+     * faria a lista alternar de ordem entre um refresh e outro.
+     *
+     * A validação mora aqui (e não num Form Request) porque o corpo é só uma
+     * lista de ids; e é de propósito que NÃO exista uma regra `exists`: id
+     * inexistente ou de outra família tem de ser IGNORADO, não virar 422 — o
+     * usuário não tem culpa se uma categoria foi excluída em outra aba no meio
+     * do arraste.
+     */
+    public function ordenar(Request $request)
+    {
+        $dados = $request->validate([
+            'ids' => ['required', 'array', 'max:500'],
+            'ids.*' => ['integer'],
+        ], [
+            'ids.required' => 'Informe a nova ordem das categorias.',
+            'ids.array' => 'A nova ordem precisa ser uma lista de categorias.',
+            'ids.*.integer' => 'A lista de categorias veio em formato inválido.',
+        ]);
+
+        $ownerId = $request->user()->ownerId();
+        $ids = array_map('intval', $dados['ids']);
+
+        // 🔒 O payload é dado do cliente: quem decide o que é da família é o
+        // BANCO, não a lista recebida. Sem este filtro, mandar o id do vizinho
+        // reordenaria (ou embaralharia) a tela dele — IDOR clássico.
+        $daFamilia = Category::where('user_id', $ownerId)
+            ->whereIn('id', $ids)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $posicao = 0;
+        $vistos = [];
+
+        DB::transaction(function () use ($ids, $daFamilia, $ownerId, &$posicao, &$vistos) {
+            foreach ($ids as $id) {
+                // Alheio, inexistente ou repetido: pula sem numerar.
+                if (! in_array($id, $daFamilia, true) || isset($vistos[$id])) {
+                    continue;
+                }
+
+                $vistos[$id] = true;
+
+                // O `user_id` no WHERE é cinto de segurança: mesmo que a lista
+                // acima escapasse, o UPDATE não alcança outra família.
+                Category::where('user_id', $ownerId)
+                    ->where('id', $id)
+                    ->update(['position' => $posicao++]);
+            }
+        });
+
+        if ($this->wantsJsonResponse($request)) {
+            return response()->json(['ok' => true, 'ordenadas' => $posicao]);
+        }
+
+        return redirect()->route('categories.index')
+            ->with('status', 'Ordem das categorias atualizada.');
     }
 
     public function create()

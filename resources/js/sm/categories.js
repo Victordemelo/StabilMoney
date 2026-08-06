@@ -1,10 +1,14 @@
 // Página de categorias (design v2). Duas frentes:
 //
-//  1) Arrastar um chip entre as colunas "Despesas" e "Receitas" troca o tipo
-//     da categoria. HTML5 drag & drop com atualização otimista: o chip muda de
-//     coluna na hora e um PATCH é enviado para categories.update com TODOS os
-//     campos exigidos pelo UpdateCategoryRequest (name/type/color/icon). Se a
-//     requisição falhar, o chip volta para a posição original (rollback).
+//  1) Drag & drop dos chips, em dois eixos:
+//       • DENTRO da coluna: reordena (o usuário decide quem fica no topo) e
+//         grava a ordem em PATCH categories.ordenar;
+//       • ENTRE as colunas "Receitas" e "Despesas": troca o TIPO da categoria
+//         (PATCH categories.update com todos os campos que o
+//         UpdateCategoryRequest exige) e, em seguida, grava a posição no
+//         destino.
+//     Tudo otimista: o chip se move na hora e, se o servidor recusar, a tela
+//     volta ao estado anterior (rollback).
 //
 //  2) Criar/editar em MODAL, na própria tela (`initCategoryModal`), em vez de
 //     navegar para as páginas cheias — que continuam existindo e valendo como
@@ -14,6 +18,13 @@
 
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
+/**
+ * Tipo com que o modal de criação NASCE — receita, igual ao modal global de
+ * "Lançar". Quem clica no "Criar agora" de uma coluna vazia manda o tipo dela
+ * (data-cat-type) e esse valor tem precedência: ali o usuário já escolheu.
+ */
+const TIPO_PADRAO = 'income';
+
 export function initCategories() {
     const cols = document.getElementById('catCols');
     if (!cols) return;
@@ -21,7 +32,18 @@ export function initCategories() {
     initCategoryModal();
 
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+    const ordenarUrl = cols.dataset.ordenarUrl || '';
+
+    const cabecalhosJson = () => ({
+        'X-CSRF-TOKEN': csrf,
+        'X-Requested-With': 'XMLHttpRequest',
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+    });
+
     let dragged = null; // chip sendo arrastado no momento
+    let origem = null;  // { chip, drop, next, type } — de onde ele saiu (rollback)
+    let soltou = false; // houve um `drop` válido? Se não, o dragend desfaz
 
     // Mantém os badges de contagem (.cch-count) em dia com as colunas
     const updateCounts = () => {
@@ -31,15 +53,47 @@ export function initCategories() {
         });
     };
 
-    // Chips sempre antes dos avisos (.cat-drop-empty / .cat-drop-hint),
-    // para o CSS esconder o "vazio" assim que a coluna ganha um chip.
-    const insertChip = (drop, chip) => {
-        drop.insertBefore(chip, drop.querySelector('.cat-drop-empty, .cat-drop-hint'));
+    // Fim da lista de chips: os avisos (.cat-drop-empty / .cat-drop-hint) ficam
+    // sempre DEPOIS deles, para o CSS esconder o "vazio" assim que a coluna
+    // ganha um chip.
+    const marcadorFinal = (drop) => drop.querySelector('.cat-drop-empty, .cat-drop-hint');
+
+    /**
+     * Move o chip para onde o ponteiro está, AO VIVO (durante o arraste).
+     * É esta troca de lugar que serve de feedback visual da reordenação — sem
+     * ela seria preciso CSS novo para desenhar a "linha de inserção", e o CSS
+     * não é desta rodada.
+     */
+    const posicionar = (drop, chip, y) => {
+        const alvo = $$('.cat-chip', drop).find((outro) => {
+            if (outro === chip) return false;
+            const r = outro.getBoundingClientRect();
+            return y < r.top + r.height / 2; // ponteiro acima da metade: entra antes dele
+        }) ?? marcadorFinal(drop);
+
+        if (chip.parentElement !== drop || chip.nextElementSibling !== alvo) {
+            drop.insertBefore(chip, alvo);
+        }
+    };
+
+    /** Devolve o chip exatamente para onde ele estava antes do arraste. */
+    const restaurar = (estado) => {
+        if (!estado) return;
+        estado.drop.insertBefore(estado.chip, estado.next ?? marcadorFinal(estado.drop));
+        estado.chip.dataset.type = estado.type;
+        updateCounts();
     };
 
     $$('.cat-chip', cols).forEach((chip) => {
         chip.addEventListener('dragstart', (e) => {
             dragged = chip;
+            soltou = false;
+            origem = {
+                chip,
+                drop: chip.closest('.cat-drop'),
+                next: chip.nextElementSibling,
+                type: chip.dataset.type,
+            };
             e.dataTransfer.effectAllowed = 'move';
             try { e.dataTransfer.setData('text/plain', chip.dataset.id); } catch { /* IE/edge cases */ }
             // Adia a classe para o "fantasma" do drag não sair já apagado
@@ -47,8 +101,11 @@ export function initCategories() {
         });
         chip.addEventListener('dragend', () => {
             chip.classList.remove('dragging');
-            dragged = null;
             $$('.cat-drop', cols).forEach((d) => d.classList.remove('over'));
+            // Soltou fora de qualquer coluna: o `posicionar` do dragover já
+            // tinha mexido no chip, e o servidor nunca soube de nada — desfaz.
+            if (!soltou) restaurar(origem);
+            dragged = null;
         });
     });
 
@@ -58,6 +115,7 @@ export function initCategories() {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
             drop.classList.add('over');
+            posicionar(drop, dragged, e.clientY);
         });
         drop.addEventListener('dragleave', (e) => {
             if (!drop.contains(e.relatedTarget)) drop.classList.remove('over');
@@ -65,51 +123,88 @@ export function initCategories() {
         drop.addEventListener('drop', (e) => {
             e.preventDefault();
             drop.classList.remove('over');
+            if (!dragged) return;
+            soltou = true;
             const chip = dragged;
-            // Soltar na própria coluna não muda nada
-            if (!chip || chip.closest('.cat-drop') === drop) return;
-            moveChip(chip, drop);
+            const estado = origem; // cópia síncrona: o dragend já vai ter limpado
+            posicionar(drop, chip, e.clientY); // posição final, exata
+            persistir(chip, drop, estado);
         });
     });
 
-    async function moveChip(chip, drop) {
-        // Guarda a posição original para o rollback
-        const fromDrop = chip.closest('.cat-drop');
-        const nextSibling = chip.nextElementSibling;
+    /** PATCH categories.update — é ele que troca o TIPO da categoria. */
+    async function salvarTipo(chip, tipo) {
+        try {
+            const res = await fetch(chip.dataset.updateUrl, {
+                method: 'PATCH',
+                headers: cabecalhosJson(),
+                body: JSON.stringify({
+                    name: chip.dataset.name,
+                    type: tipo,
+                    color: chip.dataset.color || null,
+                    icon: chip.dataset.icon || null,
+                }),
+            });
+            return res.ok;
+        } catch {
+            return false;
+        }
+    }
 
-        const tipoAnterior = chip.dataset.type;
+    /** PATCH categories.ordenar — manda os ids da coluna na ordem final. */
+    async function salvarOrdem(drop) {
+        if (!ordenarUrl) return false;
 
-        // Otimista: move o chip já, sem esperar o servidor
-        insertChip(drop, chip);
+        const ids = $$('.cat-chip', drop)
+            .map((c) => Number(c.dataset.id))
+            .filter((id) => Number.isFinite(id));
+
+        try {
+            const res = await fetch(ordenarUrl, {
+                method: 'PATCH',
+                headers: cabecalhosJson(),
+                body: JSON.stringify({ ids }),
+            });
+            return res.ok;
+        } catch {
+            return false;
+        }
+    }
+
+    async function persistir(chip, drop, estado) {
+        if (!estado) return;
+
+        const trocouDeColuna = drop.dataset.type !== estado.type;
+
+        // Soltou de volta exatamente onde estava: nada a gravar.
+        if (!trocouDeColuna && chip.parentElement === estado.drop && chip.nextElementSibling === estado.next) {
+            return;
+        }
+
         // O modal de edição lê o tipo daqui — sem isto, editar um chip recém
         // arrastado abriria o modal na coluna errada.
         chip.dataset.type = drop.dataset.type;
         updateCounts();
 
-        try {
-            const res = await fetch(chip.dataset.updateUrl, {
-                method: 'PATCH',
-                headers: {
-                    'X-CSRF-TOKEN': csrf,
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    name: chip.dataset.name,
-                    type: drop.dataset.type,
-                    color: chip.dataset.color || null,
-                    icon: chip.dataset.icon || null,
-                }),
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        } catch {
-            // Rollback: devolve o chip para onde estava
-            fromDrop.insertBefore(chip, nextSibling);
-            chip.dataset.type = tipoAnterior;
-            updateCounts();
+        if (trocouDeColuna && !(await salvarTipo(chip, drop.dataset.type))) {
+            restaurar(estado);
             window.alert('Não foi possível mover a categoria. Tente novamente.');
+            return;
         }
+
+        if (await salvarOrdem(drop)) return;
+
+        if (trocouDeColuna) {
+            // O tipo JÁ mudou no servidor: desfazer o visual seria mentira.
+            // Recarrega para a tela mostrar exatamente o que está gravado.
+            window.alert('A categoria mudou de coluna, mas a nova ordem não pôde ser salva.');
+            if (typeof window.smPjaxReload === 'function') window.smPjaxReload();
+            else window.location.reload();
+            return;
+        }
+
+        restaurar(estado);
+        window.alert('Não foi possível salvar a nova ordem. Tente novamente.');
     }
 }
 
@@ -165,14 +260,16 @@ function initCategoryModal() {
     // Espelha o tipo escolhido no form (é o [data-type] que move a pílula do toggle).
     const applyType = () => {
         const marcado = form.querySelector('input[name="type"]:checked');
-        const tipo = marcado ? marcado.value : 'expense';
+        const tipo = marcado ? marcado.value : TIPO_PADRAO;
         form.dataset.type = tipo;
         if (card) card.dataset.type = tipo;
     };
     radiosTipo.forEach((r) => r.addEventListener('change', applyType));
 
+    // Só 'expense' tira do padrão: quem chama sem tipo (o botão "Nova
+    // categoria" do topo) cai em receita.
     const marcarTipo = (tipo) => {
-        const alvo = form.querySelector(`input[name="type"][value="${tipo === 'income' ? 'income' : 'expense'}"]`);
+        const alvo = form.querySelector(`input[name="type"][value="${tipo === 'expense' ? 'expense' : 'income'}"]`);
         if (alvo) alvo.checked = true;
         applyType();
     };
@@ -299,7 +396,7 @@ function initCategoryModal() {
         const payload = new FormData(form);
         // O radio de tipo pode estar desabilitado (categoria fixa) e, nesse
         // caso, não entra no FormData — o servidor recusaria por "tipo obrigatório".
-        payload.set('type', form.dataset.type || 'expense');
+        payload.set('type', form.dataset.type || TIPO_PADRAO);
         // Laravel lê o verbo do _method: multipart/form-data com PUT real não é
         // parseado pelo PHP, então o envio é sempre POST.
         if (editandoUrl) payload.set('_method', 'PUT');
