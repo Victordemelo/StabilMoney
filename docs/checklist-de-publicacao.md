@@ -140,6 +140,10 @@ site sobe **sem parte dos estilos**. Falha silenciosa: nenhum erro, nenhum aviso
 Vale para toda máquina nova e para qualquer deploy que rode `view:clear` antes. Se
 desconfiar que aconteceu, compare o tamanho do CSS gerado em `public/build/assets/`.
 
+> O número saudável **cresce junto com o app** (06/08/2026: ~134 kB, depois do CSS do 2FA),
+> então não trate "129 kB" como meta — compare com o último deploy que você sabe que ficou
+> bom. O sinal de alarme é uma queda brusca, não o valor absoluto.
+
 ### 11. Backup do banco — automático, testado e fora da VPS
 
 Existem dois scripts prontos no repositório (feitos em 02/08/2026, depois do incidente de
@@ -220,53 +224,70 @@ de um deploy, provavelmente sobrou um `config:cache` velho.
 
 ## 🟡 Antes de abrir o cadastro para desconhecidos
 
-Estes são os itens da "onda 3" do pentest que dependem de infraestrutura ou de decisão de
-produto, não de correção pontual.
+Eram os itens da "onda 3" do pentest: dependiam de infraestrutura ou de decisão de produto,
+não de correção pontual. **Três dos cinco já foram implementados** (14, 15 e 16, em
+02/08/2026) e ficam aqui só como registro do que foi decidido — o que sobra é o **item 13**,
+que espera o mailer, e o **17**, que espera advogado.
 
-### 13. Verificação de e-mail
+### 13. Verificação de e-mail — 🟡 **falta um passo, e ele depende do item 5**
 
-Depende do item 5 (mailer). Hoje `User` **não** implementa `MustVerifyEmail`, de propósito
-— ativar sem mailer trancaria todos os usuários fora do app.
+O código está pronto desde 02/08/2026: `User` **implementa** `MustVerifyEmail`, as telas em
+PT-BR existem e `VerificacaoDeEmailTest` cobre o fluxo. Ligar o contrato foi seguro porque
+**ninguém nasce trancado**: sem mailer (`App\Support\Mailer::entrega()` falso) o cadastro
+grava `email_verified_at` no ato, dependente nasce sempre verificado, e uma migration fez o
+backfill de quem já existia.
 
-Para ativar quando houver mailer:
+**O que ainda falta:** aplicar o middleware `verified` ao grupo de rotas do app em
+`routes/web.php` — hoje **nenhuma rota o usa**, então na prática a confirmação não é
+exigida de ninguém. Só faça isso **depois do item 5 (mailer)**: sem entrega de e-mail, a
+exigência trancaria todo cadastro novo fora do app.
 
-1. `class User extends Authenticatable implements MustVerifyEmail`
-2. adicionar o middleware `verified` no grupo de rotas do app em `routes/web.php`
-3. testar o fluxo (as telas em PT-BR já existem, prontas)
+> ⚠️ Ao adicionar a primeira rota com `verified`, **confira `email_verified_at` de todo mundo
+> antes** (`select id, email from users where email_verified_at is null`). Além do backfill,
+> há um caminho que zera a coluna em produção: quem trocar o e-mail no perfil **enquanto não
+> houver mailer** volta a "não verificado" (ver item 14). Com SMTP no ar essa pessoa consegue
+> pedir um link novo na tela de verificação — sem SMTP, seria uma conta trancada sem saída.
 
-**Por que importa:** sem verificação, dá para cadastrar com o e-mail de outra pessoa — e
-como o "esqueci a senha" manda o link para aquele endereço, **o dono do e-mail pode
-"recuperar" a conta e ver os lançamentos de quem a criou**.
+**Por que importa:** sem exigir a confirmação, dá para cadastrar com o e-mail de outra
+pessoa — e como o "esqueci a senha" manda o link para aquele endereço, **o dono do e-mail
+pode "recuperar" a conta e ver os lançamentos de quem a criou**.
 
-### 14. Confirmar a troca de e-mail
+### ~~14. Confirmar a troca de e-mail~~ — ✅ **Feito** (02/08/2026)
 
-Também depende do mailer. Hoje trocar o e-mail no perfil exige a senha atual (feito na
-onda 2), mas o novo endereço não é confirmado — dá para apontar a conta para um e-mail que
-não se controla e perder o acesso. O padrão é guardar em `pending_email` e só efetivar
-quando o link enviado ao **novo** endereço for clicado.
+Trocar o e-mail no perfil exige a senha atual (onda 2) **e** confirmação no endereço novo: o
+`ProfileController` guarda o valor em `users.pending_email` e só promove a `email` quando o
+link assinado enviado **àquele** endereço for clicado (rota `profile.email.confirm`, sob
+`signed`). Coberto por `TrocaDeEmailConfirmadaTest`.
 
-### 15. Avatares fora do disco público
+> Enquanto `MAIL_MAILER=log`, o link não sai — nesse cenário a troca é aplicada direto (e
+> `email_verified_at` **volta a nulo**), para não deixar o usuário sem poder corrigir o
+> próprio e-mail. Com o item 5 resolvido, a confirmação em duas etapas passa a valer
+> sozinha, sem mudar código: o `ProfileController` decide pelo `Mailer::entrega()`.
 
-Hoje as fotos ficam em `storage/app/public/avatars` e são servidas **sem autenticação**.
-O nome é aleatório (40 caracteres), então não é enumerável, e o EXIF/GPS já é removido no
-upload (onda 2) — mas quem tiver a URL vê a foto para sempre, sem login.
+### ~~15. Avatares fora do disco público~~ — ✅ **Feito** (02/08/2026)
 
-Para fechar: gravar no disco `local` (privado) e servir por uma rota sob `auth` que
-valide a família do dono, ajustando `User::avatarUrl()`. Requer **migrar os arquivos
-existentes** de `app/public/avatars` para `app/private/avatars`.
+As fotos gravam no disco **`local` (privado)** — `User::AVATAR_DISK` — e são servidas pela
+rota autenticada `GET /avatar/{user}` (`AvatarController`), que valida se quem pede é da
+**mesma família** do dono. `User::avatarUrl()` aponta para a rota, não para o arquivo. A
+migration `2026_08_02_000000_move_avatars_to_private_disk` moveu os arquivos que já existiam.
+Coberto por `AvatarPrivadoTest`.
 
-### 16. Limpar a fila offline na troca de usuário
+### ~~16. Limpar a fila offline na troca de usuário~~ — ✅ **Feito** (02/08/2026)
 
-O IndexedDB (`sm-offline`) guarda valor, descrição e o token CSRF dos lançamentos
-pendentes, e nada o limpa no logout — num aparelho compartilhado, o próximo usuário lê
-pelo DevTools. O envio em background já filtra por usuário na página, mas o service worker
-itera a fila inteira e depende só do CSRF para não cruzar contas.
+Resolvido, mas **não** como este item propunha. Apagar o object store no logout destruiria
+lançamentos que nunca chegaram ao servidor — resolveria o vazamento destruindo dinheiro do
+usuário. O que ficou:
 
-A fazer: limpar o object store em `purgeCachedFormIfUserChanged()`, filtrar por `userId`
-também no `flushLancamentos()` do service worker, descartar itens `failed` antigos e
-buscar um token fresco em `/csrf-token` em vez de persistir o token.
+- o item de outro dono é **desarmado, não apagado**: o `csrf` dele é removido, e é justamente
+  por `i.csrf` que o service worker filtra o que pode reenviar;
+- o lançamento continua na fila, com um banner avisando, e o descarte exige confirmação.
 
-> O logout já manda `Clear-Site-Data: "cache"`, que resolve o **cache de páginas**. Não
+Coberto por `FilaOfflineNaTrocaDeUsuarioTest`.
+
+> ⚠️ Não use bump de versão do IndexedDB nem registro-marcador para isso: os dois quebram
+> `tests/e2e/offline-lancamento.spec.js`.
+
+> O logout manda `Clear-Site-Data: "cache"`, que resolve o **cache de páginas**. Não
 > incluímos `"storage"` de propósito: apagaria a fila offline e destruiria lançamentos não
 > sincronizados.
 
