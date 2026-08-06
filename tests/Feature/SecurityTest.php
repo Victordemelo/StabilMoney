@@ -114,4 +114,70 @@ class SecurityTest extends TestCase
         // ...mas a de outra pessoa nunca é tocada.
         $this->assertDatabaseHas('sessions', ['id' => 'device-c']);
     }
+
+    public function test_o_2fa_e_ligado_pelo_switch_e_nao_por_um_botao_separado(): void
+    {
+        $user = User::factory()->create();
+
+        $html = $this->actingAs($user)->get('/configuracoes/2fa')->assertOk()->getContent();
+
+        // O <summary> É a linha do switch: clicar nela abre a confirmação por senha
+        // dentro do próprio card, sem botão extra empurrando o conteúdo para baixo.
+        $this->assertStringContainsString('class="tfa-toggle"', $html);
+        $this->assertMatchesRegularExpression('/<summary class="sec-2fa-row"[^>]*>/u', $html);
+        $this->assertStringContainsString('senha_ativar_2fa', $html, 'a senha precisa vir junto, no mesmo card');
+
+        // O botão-gatilho antigo saiu de cena.
+        $this->assertStringNotContainsString('sess-logout-trigger tfa-trigger', $html);
+    }
+
+    public function test_a_lista_de_autenticadores_da_familia_aparece(): void
+    {
+        $titular = User::factory()->create(['name' => 'Victor']);
+        $dependente = User::factory()->create([
+            'name' => 'Maria',
+            'account_owner_id' => $titular->id,
+            'is_admin' => false,
+        ]);
+
+        $html = $this->actingAs($titular)->get('/configuracoes/2fa')->assertOk()->getContent();
+
+        $this->assertStringContainsString('Autenticadores da família', $html);
+        $this->assertStringContainsString('Victor', $html);
+        $this->assertStringContainsString('Maria', $html);
+        // Ninguém ligou ainda: 0 de 2.
+        $this->assertStringContainsString('0 de 2 pessoas', $html);
+        // Nenhum segredo escapa para a tela.
+        $this->assertStringNotContainsString($dependente->two_factor_secret ?? 'NADA-A-VAZAR', $html);
+    }
+
+    public function test_a_lista_da_familia_conta_quem_ja_ativou(): void
+    {
+        $titular = User::factory()->create(['name' => 'Victor']);
+        User::factory()->create([
+            'name' => 'Maria',
+            'account_owner_id' => $titular->id,
+            'is_admin' => false,
+            'two_factor_secret' => 'JBSWY3DPEHPK3PXP',
+            'two_factor_confirmed_at' => now(),
+        ]);
+
+        $this->actingAs($titular)->get('/configuracoes/2fa')
+            ->assertOk()
+            ->assertSee('1 de 2 pessoas');
+    }
+
+    public function test_a_zona_de_perigo_lista_o_que_some(): void
+    {
+        $user = User::factory()->create();
+
+        // A frase corrida virou lista: o tamanho do estrago precisa ser visível
+        // antes de o dedo chegar no botão vermelho.
+        $this->actingAs($user)->get('/configuracoes/conta')
+            ->assertOk()
+            ->assertSee('Contas e cartões')
+            ->assertSee('Todo o histórico')
+            ->assertSee('Os dependentes')
+            ->assertSee('Excluir minha conta');
+    }
 }

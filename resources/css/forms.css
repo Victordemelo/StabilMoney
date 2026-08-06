@@ -750,3 +750,53 @@ a.tx { text-decoration: none; color: inherit; }
 [data-theme="dark"] .meta-plan b { color: var(--brand-300); }
 .meta-plan.is-late { background: #FCEDEA; border-color: rgba(229,96,77,.28); color: var(--neg); }
 [data-theme="dark"] .meta-plan.is-late { background: rgba(229,96,77,.12); }
+
+
+/* ============ 2FA: switch como controle + autenticadores da família ============ */
+
+/* O <summary> É a linha inteira: clicar em qualquer ponto (inclusive no switch)
+   abre a confirmação por senha. `list-style: none` some com o triângulo padrão. */
+.tfa-toggle > summary {
+  cursor: pointer; list-style: none; user-select: none;
+  border-radius: var(--r-sm); transition: background .15s var(--ease);
+}
+.tfa-toggle > summary::-webkit-details-marker { display: none; }
+.tfa-toggle > summary:hover { background: var(--surface-2); }
+.tfa-toggle > summary:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
+/* Aberto, o switch já mostra o estado para onde a ação vai levar — o usuário vê
+   o resultado antes de digitar a senha, e o botão embaixo confirma. */
+.tfa-toggle[open] > summary .switch { opacity: .55; }
+.tfa-toggle > form { margin-top: 14px; }
+
+.tfa-familia { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.tfa-familia-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.tfa-familia-head strong { font-family: var(--font-head); font-size: 13.5px; font-weight: 600; }
+.tfa-familia-head .chip { margin-left: auto; white-space: nowrap; flex: none; }
+
+.tfa-familia-lista { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.tfa-familia-lista li {
+  display: flex; align-items: center; gap: 11px; padding: 9px 2px;
+  border-bottom: 1px solid var(--line-2);
+}
+.tfa-familia-lista li:last-child { border-bottom: none; }
+
+.tfa-familia-foto {
+  width: 32px; height: 32px; flex: none; border-radius: 50%; object-fit: cover;
+  background: var(--surface-3);
+}
+.tfa-familia-txt { min-width: 0; flex: 1; }
+.tfa-familia-txt strong { display: block; font-size: 13px; font-weight: 600; }
+.tfa-familia-txt strong em { font-style: normal; font-weight: 500; color: var(--ink-3); }
+.tfa-familia-txt span {
+  display: block; font-size: 12px; color: var(--ink-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.tfa-selo { flex: none; display: grid; place-items: center; width: 22px; height: 22px; }
+.tfa-selo svg { width: 18px; height: 18px; stroke-width: 1.8; }
+.tfa-selo.on { color: var(--brand-600); }
+[data-theme="dark"] .tfa-selo.on { color: var(--brand-300); }
+/* Sem autenticador não é ERRO — é um convite. Âmbar, não o vermelho de dívida. */
+.tfa-selo.off { color: var(--warn, #C98A16); }
+
+.tfa-familia-nota { margin-top: 10px; font-size: 12px; color: var(--ink-3); line-height: 1.5; }

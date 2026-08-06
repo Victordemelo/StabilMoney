@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Services\TwoFactorService;
 use App\Support\BrowserSessions;
 use App\Support\Mailer;
@@ -56,6 +57,23 @@ class SettingsController extends Controller
             // códigos de recuperação passam a ser a ÚNICA porta de volta de quem perder o
             // celular. Isso muda o texto do aviso, e a pessoa precisa saber antes de ligar.
             $data['semRecuperacaoPorEmail'] = ! Mailer::entrega();
+
+            // Aparelhos com autenticador ligado na FAMÍLIA inteira. Quem divide a
+            // conta divide o dinheiro, então saber quem já protegeu o próprio login
+            // é informação útil — e cobra quem ainda não protegeu. Só nome, papel e
+            // desde quando: nenhum segredo sai daqui (o `two_factor_secret` é
+            // `encrypted` e não é lido nesta tela).
+            $data['totpDaFamilia'] = User::familyOf($user->ownerId())
+                ->orderBy('name')
+                ->get()
+                ->map(fn (User $membro) => (object) [
+                    'nome' => $membro->name,
+                    'euMesmo' => $membro->id === $user->id,
+                    'papel' => $membro->isTitular() ? 'Titular' : ($membro->relationshipLabel() ?? 'Dependente'),
+                    'ativo' => $membro->temDoisFatores(),
+                    'desde' => $membro->two_factor_confirmed_at,
+                    'avatar' => $membro->avatarUrl(),
+                ]);
         }
 
         return view('settings.index', $data);

@@ -139,14 +139,34 @@
 
     {{-- ========================= ESTADO 2: ativada ========================= --}}
     @elseif ($ativo)
-        <div class="sec-2fa-row">
-            <div class="sec-2fa-txt">
-                <strong>App autenticador (TOTP)</strong>
-                <span>Ativa desde {{ $user->two_factor_confirmed_at->translatedFormat('j \d\e F \d\e Y') }}
-                    · {{ $user->codigosDeRecuperacaoRestantes() }} código(s) de recuperação restante(s)</span>
-            </div>
-            <span class="switch is-on" aria-hidden="true"><span class="switch-dot"></span></span>
-        </div>
+        {{-- Mesmo padrão do estado desligado: o switch é o controle. Aqui ele ABRE a
+             confirmação para DESATIVAR — desligar uma proteção nunca acontece num
+             clique só; a senha continua obrigatória. --}}
+        <details class="tfa-toggle" @if ($errors->twoFactorDesligar->isNotEmpty()) open @endif>
+            <summary class="sec-2fa-row" role="button" aria-label="Desativar verificação em duas etapas">
+                <div class="sec-2fa-txt">
+                    <strong>App autenticador (TOTP)</strong>
+                    <span>Ativa desde {{ $user->two_factor_confirmed_at->translatedFormat('j \d\e F \d\e Y') }}
+                        · {{ $user->codigosDeRecuperacaoRestantes() }} código(s) de recuperação restante(s)</span>
+                </div>
+                <span class="switch is-on" aria-hidden="true"><span class="switch-dot"></span></span>
+            </summary>
+
+            <form method="POST" action="{{ route('settings.2fa.desativar') }}" class="sess-logout-form">
+                @csrf
+                @method('delete')
+                <p>Sua conta volta a ser protegida só pela senha. Digite a senha atual para confirmar.</p>
+                <div class="field">
+                    <label for="senha_desativar_2fa" class="sr-only">Senha</label>
+                    <input id="senha_desativar_2fa" class="input" type="password" name="password"
+                           placeholder="Sua senha" autocomplete="current-password" />
+                    @error('password', 'twoFactorDesligar')
+                        <p class="field-error">{{ $message }}</p>
+                    @enderror
+                </div>
+                <button type="submit" class="btn-danger">Desativar</button>
+            </form>
+        </details>
 
         @if ($user->codigosDeRecuperacaoRestantes() === 0)
             <div class="flash-error" role="alert">
@@ -178,43 +198,21 @@
             </form>
         </details>
 
-        {{-- Desativar (exige a senha) --}}
-        <details class="sess-logout tfa-acao" @if ($errors->twoFactorDesligar->isNotEmpty()) open @endif>
-            <summary class="sess-logout-trigger">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4.5 4.5l15 15"/><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 6.9-2.8"/></svg>
-                Desativar verificação em duas etapas
-            </summary>
-            <form method="POST" action="{{ route('settings.2fa.desativar') }}" class="sess-logout-form">
-                @csrf
-                @method('delete')
-                <p>Sua conta volta a ser protegida só pela senha. Digite a senha atual para confirmar.</p>
-                <div class="field">
-                    <label for="senha_desativar_2fa" class="sr-only">Senha</label>
-                    <input id="senha_desativar_2fa" class="input" type="password" name="password"
-                           placeholder="Sua senha" autocomplete="current-password" />
-                    @error('password', 'twoFactorDesligar')
-                        <p class="field-error">{{ $message }}</p>
-                    @enderror
-                </div>
-                <button type="submit" class="btn-danger">Desativar</button>
-            </form>
-        </details>
-
     {{-- ========================= ESTADO 3: desativada ========================= --}}
     @else
-        <div class="sec-2fa-row">
-            <div class="sec-2fa-txt">
-                <strong>App autenticador (TOTP)</strong>
-                <span>Desativada. Hoje sua conta é protegida apenas pela senha.</span>
-            </div>
-            <span class="switch is-off" aria-hidden="true"><span class="switch-dot"></span></span>
-        </div>
-
-        <details class="sess-logout tfa-acao" @if ($errors->twoFactor->isNotEmpty()) open @endif>
-            <summary class="sess-logout-trigger tfa-trigger">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3 5 6v5c0 4.2 2.9 7.7 7 9 4.1-1.3 7-4.8 7-9V6l-7-3Z"/><path d="m9.2 12 1.9 1.9 3.7-3.8"/></svg>
-                Ativar verificação em duas etapas
+        {{-- O SWITCH é o controle: clicar nele abre a confirmação por senha logo
+             abaixo, dentro do próprio card. O <details>/<summary> envolve a linha
+             inteira, então o alvo de clique é a linha toda (e o teclado alcança
+             pelo summary, sem JS). --}}
+        <details class="tfa-toggle" @if ($errors->twoFactor->isNotEmpty()) open @endif>
+            <summary class="sec-2fa-row" role="button" aria-label="Ativar verificação em duas etapas">
+                <div class="sec-2fa-txt">
+                    <strong>App autenticador (TOTP)</strong>
+                    <span>Desativada. Hoje sua conta é protegida apenas pela senha.</span>
+                </div>
+                <span class="switch is-off" aria-hidden="true"><span class="switch-dot"></span></span>
             </summary>
+
             <form method="POST" action="{{ route('settings.2fa.ativar') }}" class="sess-logout-form">
                 @csrf
 
@@ -246,6 +244,9 @@
             </form>
         </details>
     @endif
+
+    {{-- ============ Aparelhos com autenticador na família ============ --}}
+    @include('settings.partials.two-factor-familia')
 </div>
 
 {{-- ================== Card lateral: o que é e como se recupera ================== --}}

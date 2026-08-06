@@ -211,6 +211,15 @@ export function initLaunch() {
         if (resp.ok) {
             // Salvou: o próximo lançamento é outro, então renova a chave.
             clientUuid = novoUuid();
+            // FECHA antes de recarregar. O recarregamento é por pjax, que troca só o
+            // #content — o modal vive no shell e SOBREVIVE. Sem isto ele ficava
+            // aberto por cima do resultado, escondendo justamente o lançamento que
+            // acabou de entrar. (Com `location.reload()` sumiria por tabela, mas o
+            // caminho normal é o pjax.)
+            setSaving(false);
+            form.reset();
+            applyType();
+            close();
             // Transação criada — recarrega a página atual p/ refletir os novos dados.
             if (typeof window.smPjaxReload === 'function') window.smPjaxReload();
             else window.location.reload();
