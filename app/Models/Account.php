@@ -40,6 +40,7 @@ class Account extends Model
         'savings' => 'Conta Poupança',
         'debit_card' => 'Cartão de Débito',
         'credit_card' => 'Cartão de Crédito',
+        'pix' => 'Pix',
     ];
 
     /** Bancos suportados (valor => rótulo). A imagem é `public/assets/banks/{valor}.png`. */
@@ -82,7 +83,15 @@ class Account extends Model
      *
      * - `caixa`   (checking/savings): saldo próprio = inicial + receitas − despesas;
      * - `credito` (credit_card):      não é caixa, tem limite/fatura/ciclo;
-     * - `debito`  (debit_card):       não tem saldo próprio, espelha as vinculadas.
+     * - `debito`  (debit_card, pix):  não tem saldo próprio, espelha as vinculadas.
+     *
+     * Pix entra em `debito` de propósito: do ponto de vista de quem paga, os dois
+     * são a mesma coisa — o dinheiro sai da conta na hora e, se o saldo zerar, o
+     * cheque especial entra automaticamente. A diferença (liquidação instantânea
+     * × D+1, rede de cartão × transferência do BC) é do LOJISTA, não de quem
+     * controla o próprio dinheiro. Estar na mesma classe também permite converter
+     * um método no outro sem a `travaDeClasse` reclamar: nenhum dos dois tem saldo
+     * próprio, então não há dinheiro para sumir na troca.
      *
      * Trocar de classe muda a fórmula do dinheiro. Numa conta que já tem
      * histórico isso faz saldo sumir (ou contar em dobro) — ver `travaDeClasse()`.
@@ -92,7 +101,7 @@ class Account extends Model
         return match ($type) {
             'checking', 'savings' => 'caixa',
             'credit_card' => 'credito',
-            'debit_card' => 'debito',
+            'debit_card', 'pix' => 'debito',
             default => 'desconhecida',
         };
     }
@@ -164,7 +173,7 @@ class Account extends Model
 
         return $contas
             ->map(function (Account $conta) use ($contas) {
-                if (! $conta->isDebit()) {
+                if (! $conta->espelhaConta()) {
                     return new Fluent([
                         'id' => $conta->id,
                         'name' => $conta->name,
@@ -197,6 +206,36 @@ class Account extends Model
     public function isDebit(): bool
     {
         return $this->type === 'debit_card';
+    }
+
+    /**
+     * É Pix? Uma chave Pix é registrada em UMA conta (CPF, telefone, e-mail ou
+     * chave aleatória apontam para uma conta só), ao contrário do cartão de
+     * débito, que pode sacar da corrente e da poupança.
+     */
+    public function isPix(): bool
+    {
+        return $this->type === 'pix';
+    }
+
+    /**
+     * Método ESPELHO: não tem saldo próprio, o dinheiro é o da(s) conta(s)
+     * vinculada(s). Cartão de débito e Pix.
+     *
+     * É esta a pergunta que o cálculo de dinheiro precisa fazer — não "é débito?".
+     * Todo lugar que somava saldo, montou o select de pagamento ou excluiu do
+     * patrimônio usava `isDebit()`; com o Pix, usar isso significaria contar o
+     * mesmo dinheiro duas vezes no patrimônio.
+     */
+    public function espelhaConta(): bool
+    {
+        return $this->isDebit() || $this->isPix();
+    }
+
+    /** A conta que este método espelha, quando é Pix (a chave vive em UMA conta). */
+    public function contaDoPix(): ?self
+    {
+        return $this->linkedChecking ?? $this->linkedSavings;
     }
 
     /** Rótulo PT-BR do tipo (ex.: "Conta Corrente"). */
@@ -344,9 +383,9 @@ class Account extends Model
 
         foreach ($porId as $id => $instancias) {
             foreach ($instancias as $conta) {
-                // O cartão de débito não tem saldo próprio: o accessor soma as
-                // vinculadas (que já estão com o cache preenchido, sem query).
-                if (! $conta->isDebit()) {
+                // Método espelho (débito/Pix) não tem saldo próprio: o accessor
+                // soma as vinculadas (já com o cache preenchido, sem query).
+                if (! $conta->espelhaConta()) {
                     $conta->balanceCache = round(
                         (float) $conta->initial_balance + (float) ($deltas[$id] ?? 0),
                         2,
@@ -385,7 +424,9 @@ class Account extends Model
     public function getBalanceAttribute(): float
     {
         return $this->balanceCache ??= (function (): float {
-            if ($this->isDebit()) {
+            // Débito soma as duas vinculadas; no Pix só uma existe, então a outra
+            // entra como 0 e a mesma conta serve para os dois.
+            if ($this->espelhaConta()) {
                 return round($this->checkingBalance + $this->savingsBalance, 2);
             }
 
@@ -455,10 +496,10 @@ class Account extends Model
      */
     public function getAvailableAttribute(): float
     {
-        // Cartão de débito não tem saldo próprio: espelha o DISPONÍVEL das
-        // vinculadas. Espelhar o bruto mostrava, no cartão, dinheiro que já
+        // Método espelho (débito/Pix) não tem saldo próprio: espelha o DISPONÍVEL
+        // das vinculadas. Espelhar o bruto mostrava, no método, dinheiro que já
         // estava aplicado num investimento — R$ 6.000 onde havia R$ 4.000.
-        if ($this->isDebit()) {
+        if ($this->espelhaConta()) {
             return round($this->availableChecking + $this->availableSavings, 2);
         }
 

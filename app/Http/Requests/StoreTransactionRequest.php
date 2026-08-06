@@ -50,7 +50,9 @@ class StoreTransactionRequest extends FormRequest
                 // vinculada quando o usuário escolhe o cartão.
                 Rule::exists('accounts', 'id')->where(fn ($q) => $q
                     ->where('user_id', $userId)
-                    ->where('type', '!=', 'debit_card')),
+                    // Métodos ESPELHO (débito e Pix) não têm saldo próprio: os
+                    // selects já mandam o id da conta vinculada.
+                    ->whereNotIn('type', ['debit_card', 'pix'])),
             ],
             'category_id' => [
                 'nullable',
@@ -123,7 +125,7 @@ class StoreTransactionRequest extends FormRequest
             'amount.min' => 'O valor mínimo é R$ 0,01.',
             'amount.max' => 'O valor informado é alto demais (o máximo é R$ 999.999.999.999,99).',
             'account_id.required' => 'Escolha a conta da transação.',
-            'account_id.exists' => 'A conta escolhida não existe ou não pertence a você. Cartão de débito não tem saldo próprio — escolha a conta que ele usa.',
+            'account_id.exists' => 'A conta escolhida não existe ou não pertence a você. Cartão de débito e Pix não têm saldo próprio — escolha a conta que eles usam.',
             'category_id.exists' => 'A categoria escolhida não existe ou não pertence a você.',
             'description.max' => 'A descrição pode ter no máximo 255 caracteres.',
             'funding_source.in' => 'Escolha de onde sai o dinheiro é inválida.',

@@ -43,9 +43,27 @@ class StoreAccountRequest extends FormRequest
         if ($type !== 'credit_card') {
             $this->merge(['credit_limit' => null, 'closing_day' => null, 'due_day' => null]);
         }
-        // Vínculos só existem para cartão de débito.
-        if ($type !== 'debit_card') {
+        // Vínculos existem para os métodos ESPELHO: cartão de débito e Pix.
+        if (! in_array($type, ['debit_card', 'pix'], true)) {
             $this->merge(['checking_account_id' => null, 'savings_account_id' => null]);
+        }
+
+        // O formulário do Pix tem UM select só (`pix_account_id`), porque a chave
+        // vive numa conta só. Aqui ele é devolvido para a coluna que corresponde ao
+        // TIPO da conta escolhida — assim o Pix reaproveita o mesmo par de colunas
+        // do cartão de débito (e o `paymentOptions`, que já resolve com
+        // `checking_account_id ?? savings_account_id`, funciona sem mudança).
+        if ($type === 'pix') {
+            $escolhida = $this->input('pix_account_id');
+
+            $conta = $escolhida
+                ? Account::where('id', $escolhida)->where('user_id', $this->user()->ownerId())->first()
+                : null;
+
+            $this->merge([
+                'checking_account_id' => $conta?->type === 'checking' ? $conta->id : null,
+                'savings_account_id' => $conta?->type === 'savings' ? $conta->id : null,
+            ]);
         }
     }
 
@@ -55,6 +73,9 @@ class StoreAccountRequest extends FormRequest
         $isAccount = in_array($type, ['checking', 'savings'], true); // tem saldo próprio
         $isCredit = $type === 'credit_card';
         $isDebit = $type === 'debit_card';
+        $isPix = $type === 'pix';
+        // Débito e Pix espelham conta: os dois precisam de vínculo.
+        $espelho = $isDebit || $isPix;
         $ownerId = $this->user()->ownerId();
 
         return [
@@ -80,12 +101,17 @@ class StoreAccountRequest extends FormRequest
             'closing_day' => $isCredit ? ['required', 'integer', 'between:1,28'] : ['nullable', 'integer'],
             'due_day' => $isCredit ? ['required', 'integer', 'between:1,28'] : ['nullable', 'integer'],
 
-            // Cartão de débito: espelha uma conta corrente e/ou poupança da família.
-            // Pelo menos uma é obrigatória (required_without) e precisa ser do tipo certo.
-            'checking_account_id' => $isDebit
+            // Métodos ESPELHO precisam apontar para uma conta de caixa da família.
+            //
+            // Débito: corrente E/OU poupança — o cartão saca das duas.
+            // Pix: EXATAMENTE UMA. Uma chave Pix (CPF, telefone, e-mail, aleatória)
+            // é registrada numa conta só; deixar as duas faria o método somar saldo
+            // de dois lugares e mostrar dinheiro que aquela chave não alcança.
+            // A exclusividade é checada em `regraDaContaDoPix()`.
+            'checking_account_id' => $espelho
                 ? ['nullable', 'required_without:savings_account_id', $this->linkRule($ownerId, 'checking')]
                 : ['nullable'],
-            'savings_account_id' => $isDebit
+            'savings_account_id' => $espelho
                 ? ['nullable', 'required_without:checking_account_id', $this->linkRule($ownerId, 'savings')]
                 : ['nullable'],
         ];
@@ -96,6 +122,30 @@ class StoreAccountRequest extends FormRequest
     {
         return Rule::exists('accounts', 'id')->where(function ($q) use ($ownerId, $type) {
             $q->where('user_id', $ownerId)->where('type', $type);
+        });
+    }
+
+    /**
+     * Regra cruzada do Pix: exatamente UMA conta vinculada.
+     *
+     * O `required_without` das regras já garante que pelo menos uma veio; aqui
+     * barramos as DUAS. Uma chave Pix vive numa conta só — aceitar duas faria o
+     * método somar corrente + poupança e anunciar um saldo que aquela chave não
+     * consegue movimentar.
+     */
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            if ($this->input('type') !== 'pix') {
+                return;
+            }
+
+            if ($this->input('checking_account_id') && $this->input('savings_account_id')) {
+                $validator->errors()->add(
+                    'checking_account_id',
+                    'Uma chave Pix fica registrada em uma conta só. Escolha a corrente OU a poupança.',
+                );
+            }
         });
     }
 

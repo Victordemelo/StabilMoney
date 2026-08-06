@@ -76,6 +76,16 @@
                                 <span>Poupança <b>@brl($conta->availableSavings)</b></span>
                             </div>
                             <div class="acct-balance {{ $conta->available < 0 ? 'neg' : '' }}">@brl($conta->available) <span class="acct-balance-lbl">total disponível</span></div>
+                        @elseif ($conta->isPix())
+                            {{-- Pix espelha UMA conta (a chave vive numa conta só), então
+                                 mostra a origem em vez de somar corrente + poupança. --}}
+                            @php
+                                $origem = $conta->contaDoPix();
+                            @endphp
+                            @if ($origem)
+                                <div class="acct-sub"><span>Sai de <b>{{ $origem->name }}</b></span></div>
+                            @endif
+                            <div class="acct-balance {{ $conta->available < 0 ? 'neg' : '' }}">@brl($conta->available) <span class="acct-balance-lbl">disponível para Pix</span></div>
                         @elseif ($conta->isCard())
                             <div class="acct-balance">@brl($conta->availableLimitDisplay) <span class="acct-balance-lbl">limite disponível</span></div>
                         @else

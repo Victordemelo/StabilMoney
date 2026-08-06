@@ -67,7 +67,9 @@ class StoreFaturaLaunchRequest extends FormRequest
                 // manda a conta corrente/poupança que ele espelha.
                 Rule::exists('accounts', 'id')->where(fn ($q) => $q
                     ->where('user_id', $userId)
-                    ->where('type', '!=', 'debit_card')),
+                    // Métodos ESPELHO (débito e Pix) não têm saldo próprio: os
+                    // selects já mandam o id da conta vinculada.
+                    ->whereNotIn('type', ['debit_card', 'pix'])),
             ],
             // De onde sai o dinheiro quando o disponível não cobre (o
             // FundingService responde 409 pedindo a escolha).
@@ -161,7 +163,7 @@ class StoreFaturaLaunchRequest extends FormRequest
             'date.after_or_equal' => 'A data deve ser a partir de 01/01/2000.',
             'date.before_or_equal' => 'A data está longe demais no futuro.',
             'account_id.required' => 'Escolha o método de pagamento.',
-            'account_id.exists' => 'O método escolhido não existe ou não pertence a você. Cartão de débito não tem saldo próprio — escolha a conta que ele usa.',
+            'account_id.exists' => 'O método escolhido não existe ou não pertence a você. Cartão de débito e Pix não têm saldo próprio — escolha a conta que eles usam.',
             'funding_source.in' => 'Escolha de onde sai o dinheiro é inválida.',
             'funding_investment_id.required_if' => 'Escolha de qual investimento resgatar.',
             'funding_investment_id.exists' => 'O investimento escolhido não existe ou não é da sua família.',

@@ -45,7 +45,9 @@ class StoreFixedBillRequest extends FormRequest
                 // cartão de débito não tem saldo próprio.
                 Rule::exists('accounts', 'id')->where(fn ($q) => $q
                     ->where('user_id', $ownerId)
-                    ->where('type', '!=', 'debit_card')),
+                    // Métodos ESPELHO (débito e Pix) não têm saldo próprio: os
+                    // selects já mandam o id da conta vinculada.
+                    ->whereNotIn('type', ['debit_card', 'pix'])),
             ],
             'category_id' => [
                 'nullable',

@@ -84,7 +84,9 @@ class DashboardService
         // senão somaria duas vezes o mesmo dinheiro.)
         $byId = $accounts->keyBy('id');
         foreach ($accounts as $account) {
-            if ($account->type === 'debit_card') {
+            // Métodos ESPELHO (débito e Pix) exibem o saldo das contas vinculadas.
+            // No Pix só uma existe; a outra entra como 0.
+            if (in_array($account->type, ['debit_card', 'pix'], true)) {
                 $c = $account->checking_account_id ? (float) ($byId[$account->checking_account_id]->current_balance ?? 0) : 0;
                 $s = $account->savings_account_id ? (float) ($byId[$account->savings_account_id]->current_balance ?? 0) : 0;
                 $account->current_balance = round($c + $s, 2);
@@ -93,7 +95,10 @@ class DashboardService
 
         // Crédito e débito NÃO são caixa próprio: ficam fora do saldo/patrimônio
         // (stat "saldo", trend, sparkline). Continuam na LISTA de contas (exibição).
-        $excludedTypes = ['credit_card', 'debit_card'];
+        // Fora do patrimônio: crédito (não é caixa) e os métodos espelho (débito e
+        // Pix), que mostram dinheiro que JÁ está sendo contado na conta vinculada.
+        // Deixar o Pix de fora desta lista somaria a mesma conta corrente duas vezes.
+        $excludedTypes = ['credit_card', 'debit_card', 'pix'];
         $cardIds = $accounts->whereIn('type', $excludedTypes)->pluck('id')->all();
         // Só CARTÃO DE CRÉDITO: nele um `income` é estorno de compra, não receita.
         // (O de débito não recebe lançamento — o select manda a conta que ele espelha.)

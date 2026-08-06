@@ -56,6 +56,20 @@ class AccountFactory extends Factory
         ]);
     }
 
+    /**
+     * Pix registrado numa conta. A chave vive em UMA conta só, então só uma das
+     * duas colunas é preenchida (a outra fica nula, valendo 0 no espelho).
+     */
+    public function pix(?int $contaId = null, string $tipoDaConta = 'checking'): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => 'pix',
+            'initial_balance' => null,
+            'checking_account_id' => $tipoDaConta === 'checking' ? $contaId : null,
+            'savings_account_id' => $tipoDaConta === 'savings' ? $contaId : null,
+        ]);
+    }
+
     /** Cartão de crédito com limite e dias de fechamento/vencimento. */
     public function creditCard(): static
     {

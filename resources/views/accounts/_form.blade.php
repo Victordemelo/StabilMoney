@@ -14,6 +14,9 @@
         ? number_format((float) $account->overdraft_limit, 2, ',', '.') : '');
     $checkingAtual = (int) old('checking_account_id', $account->checking_account_id ?? 0);
     $savingsAtual = (int) old('savings_account_id', $account->savings_account_id ?? 0);
+    // Pix usa UM select só (a chave vive numa conta), então a conta atual é a que
+    // estiver preenchida — o servidor devolve para a coluna certa conforme o tipo.
+    $pixAtual = (int) old('pix_account_id', $checkingAtual ?: $savingsAtual);
     // Conta que já tem dinheiro (saldo, lançamentos ou aportes) não troca de
     // tipo: a fórmula do saldo mudaria e o dinheiro sumiria (ou contaria duas
     // vezes). O servidor recusa; aqui o campo já aparece travado.
@@ -156,6 +159,40 @@
                 @endif
             </div>
 
+            <div data-fields-pix @if ($tipoAtual !== 'pix') hidden @endif>
+                <p class="form-hint">
+                    O Pix não tem saldo próprio: o dinheiro sai da conta em que a chave está
+                    registrada, na hora. Se o saldo acabar, o cheque especial daquela conta entra —
+                    igual a débito. Uma chave Pix fica em <strong>uma</strong> conta só.
+                </p>
+                <div class="field">
+                    <label for="pix_account_id">Conta da chave Pix</label>
+                    <select class="input @error('checking_account_id') input-error @enderror @error('savings_account_id') input-error @enderror"
+                            id="pix_account_id" name="pix_account_id">
+                        <option value="">Selecione a conta</option>
+                        @if ($checkingAccounts->isNotEmpty())
+                            <optgroup label="Conta Corrente">
+                                @foreach ($checkingAccounts as $c)
+                                    <option value="{{ $c->id }}" @selected($pixAtual === $c->id)>{{ $c->name }}</option>
+                                @endforeach
+                            </optgroup>
+                        @endif
+                        @if ($savingsAccounts->isNotEmpty())
+                            <optgroup label="Conta Poupança">
+                                @foreach ($savingsAccounts as $sv)
+                                    <option value="{{ $sv->id }}" @selected($pixAtual === $sv->id)>{{ $sv->name }}</option>
+                                @endforeach
+                            </optgroup>
+                        @endif
+                    </select>
+                    @error('checking_account_id')<div class="field-error">{{ $message }}</div>@enderror
+                    @error('savings_account_id')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+                @if ($checkingAccounts->isEmpty() && $savingsAccounts->isEmpty())
+                    <p class="form-hint">Você ainda não tem contas corrente/poupança. Crie uma primeiro para registrar a chave Pix.</p>
+                @endif
+            </div>
+
             <div class="form-actions">
                 <a class="btn-ghost" href="{{ route('accounts.index') }}">Cancelar</a>
                 <button class="btn-primary" type="submit">Salvar</button>
@@ -177,6 +214,7 @@
             overdraft: form.querySelector('[data-fields-overdraft]'),
             credit: form.querySelector('[data-fields-credit]'),
             debit: form.querySelector('[data-fields-debit]'),
+            pix: form.querySelector('[data-fields-pix]'),
         };
 
         function aplicarTipo() {
@@ -186,6 +224,7 @@
             if (grupos.overdraft) grupos.overdraft.hidden = t !== 'checking';
             if (grupos.credit) grupos.credit.hidden = t !== 'credit_card';
             if (grupos.debit) grupos.debit.hidden = t !== 'debit_card';
+            if (grupos.pix) grupos.pix.hidden = t !== 'pix';
         }
         function aplicarBanco() {
             if (preview && banco) preview.src = "{{ asset('assets/banks') }}/" + banco.value + '.png';

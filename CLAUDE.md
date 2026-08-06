@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **474 testes / 1.801 asserções** verdes |
+| Suíte de testes | ✅ **700 testes / 2.744 asserções** verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | PWA (manifest + SW + lançamento offline com fila e Background Sync) | ✅ Instalável + offline (Fases 1-2) |
@@ -180,7 +180,7 @@ database/
 │                           # + 2026_07_28_*: cheque especial, funding_source, fixed_bills
 ├── factories/              # User, Account (states creditCard/overdraft/debitCard), Category, Transaction
 └── seeders/                # DatabaseSeeder (só roda em APP_ENV=local; credenciais via .env)
-tests/Feature/              # 474 testes: auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 700 testes: auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite) e FixedBillTest
 ```
 
@@ -244,7 +244,7 @@ tests/Feature/              # 474 testes: auth, dashboard, CRUD, validação, is
 |---|---|---|
 | `GET /` (`dashboard`) | `dashboard.blade.php` | Stats com sparklines, segmented semana/mês/ano, fluxo de caixa, donut por categoria, transações recentes, "Meu cartão" (rótulo "Limite disponível" p/ crédito) + contas, e cards **com dados reais** de Metas / Contas a pagar (faturas de cartão em aberto) / Investimentos — resumos via `DashboardService::featureResumos`. |
 | `/transactions` (resource, sem `show`) | `transactions/*` | Lista com filtros GET (tipo/conta), paginação; form com type-toggle, valor com vírgula, conta, categoria filtrada por tipo. |
-| `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"**. 4 tipos (Conta Corrente/Poupança, Cartão de Débito/Crédito) + **banco** com logo (imagem `public/assets/banks/`, preview no form). Form com campos condicionais por tipo (JS): conta = saldo inicial; **corrente = + limite do cheque especial**; crédito = limite + fechamento/vencimento; débito = vincula corrente/poupança que ele espelha. **Sem picker de ícone/cor.** O card mostra a imagem do banco e o **"Saldo em conta" = `available`** (vermelho quando negativo), com barra de uso do cheque especial; débito mostra corrente/poupança separados + total. |
+| `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"**. 5 tipos (Conta Corrente/Poupança, Cartão de Débito/Crédito, **Pix**) + **banco** com logo (imagem `public/assets/banks/`, preview no form). Form com campos condicionais por tipo (JS): conta = saldo inicial; **corrente = + limite do cheque especial**; crédito = limite + fechamento/vencimento; débito = vincula corrente/poupança que ele espelha. **Sem picker de ícone/cor.** O card mostra a imagem do banco e o **"Saldo em conta" = `available`** (vermelho quando negativo), com barra de uso do cheque especial; débito mostra corrente/poupança separados + total. |
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
 | `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais: nome, e-mail, telefone, foto (preview antes de salvar). **Acesso pelo popover do perfil** (sidebar). |
 | `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security`) | Subabas-pílula numa coluna centrada (680px). **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), e **2FA "em breve"**. **Conta** = excluir conta (modal). |
@@ -348,7 +348,8 @@ Saldo total = atual de todas as contas, independe do período.
   (e servidas pelo symlink de `storage/`). Coberto por `AccountDeletionPurgeTest`. **Regra geral:
   ao excluir algo que tenha arquivo em disco, o cascade da FK não basta.**
 - **accounts** — `user_id`, `name`, `type` (`Account::TYPES`: `checking`=Conta Corrente,
-  `savings`=Conta Poupança, `debit_card`=Cartão de Débito, `credit_card`=Cartão de Crédito),
+  `savings`=Conta Poupança, `debit_card`=Cartão de Débito, `credit_card`=Cartão de Crédito,
+  **`pix`**=Pix),
   `bank` (`Account::BANKS`: banco_do_brasil/bradesco/caixa/inter/itau/mercado_pago/nubank/santander
   — imagem em `public/assets/banks/{bank}.png`), `initial_balance` (**nullable**: só corrente/poupança
   têm; cartões = null), **`overdraft_limit`** (decimal 15,2 **NOT NULL default 0** — cheque
@@ -512,11 +513,39 @@ uma vez e sabotaria o limite de gasto, que depende de um saldo confiável.
 **Corolário: não é preciso agendador** — a competência do mês existe sempre porque é calculada.
 Um comando agendado só entraria depois, para NOTIFICAR, nunca para criar dado.
 
-### Cartão de débito NÃO é conta de lançamento
+### Pix (05/08/2026) — `PixComoMetodoTest`
 
-Ele não tem saldo próprio (espelha corrente/poupança). Os Form Requests recusam `debit_card` em
-`account_id`, e os selects usam **`Account::paymentOptions($ownerId)`**: o cartão aparece com o
-rótulo dele, mas o `id` submetido é o da conta que ele espelha.
+**Pix é método ESPELHO, na mesma classe do cartão de débito.** Do ponto de vista de quem PAGA —
+que é o que este app modela — os dois são idênticos: o dinheiro sai da conta na hora, não há
+fatura nem limite, e o cheque especial daquela conta entra sozinho se o saldo acabar. As
+diferenças que a literatura cita (liquidação instantânea × D+1, rede de cartão × transferência do
+BC, tarifa) são do **lojista que recebe**, não de quem controla o próprio dinheiro.
+
+- **Uma chave Pix vive em UMA conta** (ao contrário do débito, que saca da corrente E da poupança).
+  O formulário tem **um** select (`pix_account_id`) e o `prepareForValidation` o devolve para
+  `checking_account_id` ou `savings_account_id` conforme o TIPO da conta escolhida — assim o Pix
+  reaproveita o par de colunas do débito, sem migration, e `paymentOptions()` (que já resolvia com
+  `checking_account_id ?? savings_account_id`) funcionou sem mudança. `withValidator` recusa as duas.
+- **`Account::espelhaConta()`** (= débito **ou** Pix) é a pergunta que o cálculo de dinheiro faz.
+  Todo lugar que somava saldo, montava o select ou excluía do patrimônio usava `isDebit()`;
+  manter isso com o Pix contaria **a mesma conta duas vezes** no patrimônio. Use `espelhaConta()`,
+  não `isDebit()`, sempre que a questão for "tem saldo próprio?".
+- `classeDoTipo('pix') === 'debito'`: converter débito ↔ Pix é livre (nenhum dos dois tem saldo
+  próprio, não há dinheiro para sumir), enquanto virar caixa/crédito continua travado.
+- **Requests que aceitam conta de lançamento usam lista de NEGAÇÃO** (`whereNotIn ['debit_card','pix']`)
+  — ao criar um método espelho novo, os 4 precisam ser atualizados. Já `PayInvoiceRequest` e o
+  `cashAccounts` do `FaturaService` usam lista de PERMISSÃO (`whereIn ['checking','savings']`) e
+  ficaram corretos sem tocar. Prefira a lista de permissão em código novo.
+- ⚠️ **`@php($x = $obj->metodo())` quebrou o Blade** em `accounts/index`: compilou como
+  `<?php($x = ...)` sem fechar a tag, e o `@if` seguinte virou erro de sintaxe **em tempo de
+  execução** — `view:cache` passou, porque ele só compila, não executa. Use a forma em bloco
+  `@php ... @endphp`.
+
+### Cartão de débito e Pix NÃO são contas de lançamento
+
+Nenhum dos dois tem saldo próprio (espelham corrente/poupança). Os Form Requests recusam
+`debit_card` e `pix` em `account_id`, e os selects usam **`Account::paymentOptions($ownerId)`**:
+o método aparece com o rótulo dele, mas o `id` submetido é o da conta que ele espelha.
 
 ⚠️ `paymentOptions()` devolve **`Fluent`**, não `Account`. Nas views use `$conta->isCard`
 (propriedade), **nunca** `$conta->isCard()` — o `__call` do Fluent devolveria `$this` (truthy) e
@@ -884,7 +913,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte completa (474 testes)
+docker compose exec app php artisan test                       # suíte completa (700 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan tinker                     # console interativo
 docker compose exec app php artisan view:cache                 # valida sintaxe de TODAS as views
