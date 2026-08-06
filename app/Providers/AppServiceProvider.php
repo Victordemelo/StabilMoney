@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Models\Account;
 use App\Models\Category;
 use App\Models\User;
@@ -127,5 +128,29 @@ class AppServiceProvider extends ServiceProvider
         // Aquele protege UMA conta; este barra "password spraying" — uma senha comum
         // testada contra milhares de e-mails diferentes, que não repete a chave de lá.
         RateLimiter::for('login-ip', fn (Request $request) => Limit::perMinute(20)->by($request->ip()));
+
+        // Verificação em duas etapas: o desafio do login e a confirmação do setup.
+        //
+        // O código tem 6 dígitos (10^6) e a janela de tolerância aceita 3 deles por vez,
+        // então cada palpite acerta com chance ~3 em 1.000.000. Só o limite por MINUTO
+        // não bastaria: 5/min sustentados dariam ~2% de chance por dia. Daí o teto por
+        // HORA, que derruba isso para ~0,1% ao dia e continua folgado para quem
+        // simplesmente errou de digitar — 20 códigos errados em uma hora não é engano,
+        // e nenhum número de tentativas conserta um relógio de celular fora de hora.
+        //
+        // A chave é a CONTA + o IP: no desafio a pessoa ainda não está autenticada, então
+        // o alvo vem do login pendente na sessão (ver TwoFactorChallengeController).
+        RateLimiter::for('dois-fatores', function (Request $request) {
+            $conta = $request->user()?->getKey()
+                ?? $request->session()->get(TwoFactorChallengeController::CHAVE_ID)
+                ?? $request->ip();
+
+            $chave = '2fa|'.$conta.'|'.$request->ip();
+
+            return [
+                Limit::perMinute(5)->by($chave),
+                Limit::perHour(20)->by($chave),
+            ];
+        });
     }
 }

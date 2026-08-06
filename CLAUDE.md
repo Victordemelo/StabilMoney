@@ -47,9 +47,10 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **700 testes / 2.744 asserções** verdes |
+| Suíte de testes | ✅ **755 testes / 2.965 asserções** verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
+| **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
 | PWA (manifest + SW + lançamento offline com fila e Background Sync) | ✅ Instalável + offline (Fases 1-2) |
 | Deploy (VPS) / domínio | ⬜ Futuro (ver "Visão de infraestrutura") |
 
@@ -128,7 +129,8 @@ system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 | Runtime | **Docker** (php:8.4-apache) | Container `app`, site em **http://localhost:8001** (porta do host → 80 no container). Host não precisa de PHP. |
 | Frontend | **Blade + design system próprio** | `resources/css/design-system.css` (portado de `design/project/styles.css` v2) + `forms.css` + `auth.css` (telas de auth, escopado sob `.auth`). Tailwind 4 carregado como base utilitária via Vite 7. |
 | JS | **Vanilla** em `resources/js/sm/` (padrão atual) | Módulos em `resources/js/sm/` (ver mapa de pastas). **Frameworks/bibliotecas JS são liberados** quando a feature se beneficiar (decisão do Victor, jun/2026) — escolher a ferramenta certa caso a caso; "vanilla" deixou de ser obrigatório. |
-| Auth | **Laravel Breeze 2.4** (blade) | Login/cadastro no layout split v2 com vídeo (`layouts/auth.blade.php`); demais telas no `layouts/guest.blade.php`. Tudo PT-BR. Hash de senha em **argon2id** (`config/hashing.php`). |
+| Auth | **Laravel Breeze 2.4** (blade) | **Todas** as telas de auth no layout split v2 com vídeo (`layouts/auth.blade.php` — o `layouts/guest.blade.php` foi removido em 06/08/2026). Tudo PT-BR. Hash de senha em **argon2id** (`config/hashing.php`). **2FA opcional** por app autenticador (TOTP) — seção própria abaixo. |
+| QR do 2FA | **bacon/bacon-qr-code 3.x** | Única dependência de produção fora do Laravel. Só desenha o QR (SVG puro, sem imagick/GD); o algoritmo TOTP é nosso (`App\Support\Totp`). |
 | i18n | **laravel-lang/common** | `lang/pt_BR` completo (validation, auth, passwords). `APP_LOCALE=pt_BR`; `Carbon::setLocale` no `AppServiceProvider`. |
 | Fontes | Google Fonts | Sora (títulos/números) + Plus Jakarta Sans (corpo) — link nos layouts. |
 | Mobile | **PWA** (Fase 1, pendente) | Web instalável; sem Android Studio por enquanto. |
@@ -141,14 +143,17 @@ system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 app/
 ├── Exceptions/             # RequiresFundingChoice (vira HTTP 409 com as opções de fonte)
 ├── Http/
-│   ├── Controllers/        # Dashboard, Transaction, Account, Category, Fatura, FixedBill, Goal, Investment, Profile, Settings, Security, Dependent + Auth/ (Breeze)
+│   ├── Controllers/        # Dashboard, Transaction, Account, Category, Fatura, FixedBill, Goal, Investment, Profile, Settings, Security, Dependent,
+│   │                       # TwoFactor (2FA nas Configurações) + Auth/ (Breeze + TwoFactorChallengeController = 2ª etapa do login)
 │   └── Requests/           # Form Requests com mensagens/attributes PT-BR (Store/Update por recurso) + PayInvoiceRequest, PayFixedBillRequest
-├── Models/                 # User, Account (bolsos: balance/reserved/available/spendable), Category, Transaction, Goal, Investment, FixedBill
+├── Models/                 # User (bolsos de auth: two_factor_*), Account (bolsos: balance/reserved/available/spendable), Category, Transaction, Goal, Investment, FixedBill
 ├── Policies/               # Account/Category/Transaction/FixedBillPolicy (update+delete = família); descoberta automática
 ├── Services/               # DashboardService, SidebarService, FaturaService,
 │                           # SpendingGuard (calcula os bolsos e decide), FundingService (grava sob lock),
-│                           # FixedBillService (projeta as competências das contas fixas)
-├── Support/                # DefaultCategories, BrowserSessions, Brl (formato R$ pt-BR), FundingSource (constantes)
+│                           # FixedBillService (projeta as competências das contas fixas),
+│                           # TwoFactorService (liga/confirma/desliga o 2FA, valida sob lock e gera o QR)
+├── Support/                # DefaultCategories, BrowserSessions, Brl (formato R$ pt-BR), FundingSource (constantes),
+│                           # Totp (RFC 6238, sem biblioteca), RecoveryCodes (códigos de emergência), Mailer, ImageMetadata
 ├── Listeners/              # SeedDefaultCategoriesForNewUser (evento Registered, auto-descoberto)
 └── Providers/              # AppServiceProvider (Carbon::setLocale, directive @brl, View Composers, rate limits)
 
@@ -167,7 +172,8 @@ resources/
     │                       # bottom-nav, flash, launch-modal, funding-modal
     ├── dashboard.blade.php
     ├── transactions|accounts|categories/   # index/create/edit + _form por recurso
-    ├── auth/               # 6 telas Breeze reescritas (login, register, etc.)
+    ├── auth/               # telas Breeze reescritas (login, register, etc.) + two-factor-challenge (2ª etapa do login)
+    ├── settings/           # index + partials/security e partials/two-factor (card de 2FA, três estados)
     ├── profile/            # edit + partials (perfil, senha, excluir conta com modal)
     └── coming-soon.blade.php   # placeholder das seções futuras
 
@@ -178,10 +184,12 @@ routes/web.php              # Rotas do app | routes/auth.php (Breeze)
 database/
 ├── migrations/             # users/cache/jobs + accounts/categories/transactions + goals/investments
 │                           # + 2026_07_28_*: cheque especial, funding_source, fixed_bills
+│                           # + 2026_08_05_000000: two_factor_* (2FA — colunas `text`, ver a seção do 2FA)
 ├── factories/              # User, Account (states creditCard/overdraft/debitCard), Category, Transaction
 └── seeders/                # DatabaseSeeder (só roda em APP_ENV=local; credenciais via .env)
-tests/Feature/              # 700 testes: auth, dashboard, CRUD, validação, isolamento multiusuário,
-                            # ModeloDeDinheiroTest (cheque especial/fonte/limite) e FixedBillTest
+tests/Unit/                 # TotpTest — o algoritmo do 2FA contra os vetores oficiais da RFC 6238
+tests/Feature/              # 755 testes: auth, dashboard, CRUD, validação, isolamento multiusuário,
+                            # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
 ---
@@ -191,6 +199,11 @@ tests/Feature/              # 700 testes: auth, dashboard, CRUD, validação, is
 - Login obrigatório: **todas** as rotas do app ficam sob `middleware('auth')`.
 - **REGRA: NUNCA usar `Auth::id() ?? 1`** (fallback antigo, já removido). Use
   `auth()->id()` / `$request->user()->id` e escope **toda** query pelo dono.
+- **Verificação em duas etapas (2FA): OPCIONAL, desligada por padrão.** Cada pessoa liga a
+  sua em Configurações › Segurança — inclusive dependentes, porque o 2FA protege o LOGIN
+  (individual), ao contrário do dinheiro (da família). ⚠️ Quem ligou **não entra só com a
+  senha**: `LoginRequest::authenticate()` confere a credencial sem abrir sessão e o
+  controller manda para o desafio. Ver a seção "🔐 Verificação em duas etapas".
 - **Registro (design v2):** **sem campo de confirmação de senha** (decisão do design) e com
   **aceite de Termos de Uso/Política de Privacidade obrigatório** (`terms => required|accepted`,
   validado no servidor com mensagem PT-BR). As páginas de Termos/Privacidade **já existem**
@@ -247,7 +260,9 @@ tests/Feature/              # 700 testes: auth, dashboard, CRUD, validação, is
 | `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"**. 5 tipos (Conta Corrente/Poupança, Cartão de Débito/Crédito, **Pix**) + **banco** com logo (imagem `public/assets/banks/`, preview no form). Form com campos condicionais por tipo (JS): conta = saldo inicial; **corrente = + limite do cheque especial**; crédito = limite + fechamento/vencimento; débito = vincula corrente/poupança que ele espelha. **Sem picker de ícone/cor.** O card mostra a imagem do banco e o **"Saldo em conta" = `available`** (vermelho quando negativo), com barra de uso do cheque especial; débito mostra corrente/poupança separados + total. |
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas Despesas/Receitas com chips emoji+nome; **drag & drop entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. |
 | `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais: nome, e-mail, telefone, foto (preview antes de salvar). **Acesso pelo popover do perfil** (sidebar). |
-| `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security`) | Subabas-pílula numa coluna centrada (680px). **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), e **2FA "em breve"**. **Conta** = excluir conta (modal). |
+| `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security`) | Subabas-pílula numa coluna centrada (680px). **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), e **verificação em duas etapas** (card com três estados: desativada / configurando com QR / ativada — ver seção "🔐 Verificação em duas etapas"). **Conta** = excluir conta (modal). |
+| `POST/DELETE /configuracoes/2fa` (`settings.2fa.ativar` / `.desativar`), `POST /configuracoes/2fa/confirmar` (`.confirmar`), `POST /configuracoes/2fa/codigos` (`.codigos`) → `TwoFactorController` | bloco em `settings/partials/two-factor` | **2FA (opcional).** Ligar/desligar/trocar códigos exigem a **senha atual** (`throttle:senha`); confirmar o setup exige o **código** (`throttle:dois-fatores`). Sem rota de listagem — tudo acontece no card da aba Segurança. |
+| `GET/POST /verificacao-em-duas-etapas` (`two-factor.login`) + `POST /verificacao-em-duas-etapas/cancelar` (`two-factor.cancel`) → `Auth\TwoFactorChallengeController` | `auth/two-factor-challenge` | **Segunda etapa do login.** Grupo `guest`: quem está aqui ainda NÃO tem sessão. Aceita o código do autenticador ou um **código de recuperação** (`?recuperacao=1`, sem depender de JS). |
 | `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais **fora da `.card`** — ela tem `overflow:hidden`+animação `transform`, que prendia o `position:fixed`). Cada card mostra **foto** (avatar), nome/e-mail e **quanto gastou no mês** (`Σ` despesas do mês corrente com `made_by_user_id` da pessoa; titular incluso), com botões **editar** e **excluir**. No cadastro/edição define-se nome, e-mail, **foto** (avatar central clicável — a bolinha É o botão de upload, classe `.avatar-pick`), **parentesco** (select `User::RELATIONSHIPS`) e senha (Store/UpdateDependentRequest; senha opcional na edição). **Lançar em nome de um dependente** é feito no formulário de transação, pelo seletor "quem fez a compra" (suporta deep-link `transactions.create?autor=ID`). Só titular acessa (403 p/ dependente). |
 | `/metas` (`GoalController` index/store/update/destroy + aportes/resgates) | `metas/index` | **Metas (implementado).** Objetivos de poupança modelo "cofrinho": aporte reserva, resgate devolve à conta. Compartilhadas na família (`ownerId`). |
 | `/investimentos` (`InvestmentController` index/store/update/destroy + aportes/resgates) | `investimentos/index` | **Investimentos (implementado).** Cofrinho + metadados/projeções (indexador CDI/Selic/IPCA+/Prefixado, % do indexador, prévia de IR/IOF). Compartilhados na família. |
@@ -797,6 +812,94 @@ CSP com nonce (ver abaixo); revisão jurídica dos documentos legais. Detalhes n
 
 ---
 
+## 🔐 Verificação em duas etapas (2FA — 05/08/2026)
+
+Testes: `tests/Unit/TotpTest.php` (algoritmo) e `tests/Feature/DoisFatoresTest.php` (fluxo).
+
+**É OPCIONAL, e opcional de verdade.** Nasce desligada, nenhum caminho a liga sozinha
+(nem cadastro, nem dependente, nem padrão), e quem não ligar não vê diferença nenhuma no
+login. Conta com as quatro colunas `users.two_factor_*` nulas = 2FA desligado.
+
+### As três peças
+
+| Arquivo | Papel |
+|---|---|
+| `App\Support\Totp` | O algoritmo (RFC 6238/4226): base32, HMAC-SHA1, truncamento, janela. **Sem biblioteca** — cabe em 40 linhas e permite devolver **qual passo casou**, que é o que torna possível barrar replay. |
+| `App\Support\RecoveryCodes` | Os códigos de emergência: alfabeto **sem 0/O, 1/I/L e U** (são anotados no papel), uso único, comparação em tempo constante. |
+| `App\Services\TwoFactorService` | Liga/confirma/desliga e valida, com `lockForUpdate` no que é de uso único. Gera o QR (`bacon/bacon-qr-code` → SVG inline). |
+
+### Ligar tem DUAS etapas, e o motivo é não trancar ninguém fora
+
+`two_factor_secret` preenchido **não** liga a exigência no login — quem liga é
+**`two_factor_confirmed_at`**. Entre "gerei o QR" e "digitei o primeiro código" existe uma
+janela em que o autenticador talvez nem tenha sido escaneado; cobrar o código ali trancaria
+a pessoa fora da própria conta com um QR que ela não chegou a ler. Fechar a aba no meio não
+tem consequência alguma. **Ao mexer aqui, pergunte sempre por `temDoisFatores()`, nunca por
+`two_factor_secret !== null`.**
+
+Pelo mesmo motivo `ativar` **recusa** regerar o segredo de quem já está protegido: `iniciar()`
+limpa o `confirmed_at`, e quem desistisse no meio ficaria SEM 2FA sem ter pedido para desligar.
+Trocar de aparelho passa por desligar e ligar de novo, que é explícito.
+
+### O login não usa mais `Auth::attempt()`
+
+`LoginRequest::authenticate()` chama **`Auth::guard('web')->validate()`** e só depois decide:
+sem 2FA, `login()`; com 2FA, **não abre sessão nenhuma** e o controller manda para o desafio.
+A alternativa óbvia (logar e deslogar) tem um efeito colateral traiçoeiro:
+`SessionGuard::logout()` **recicla o remember token**, o que derrubaria o "Lembrar de mim" de
+todos os outros aparelhos daquele usuário a cada login — e só em quem ligasse o 2FA.
+
+O login pendente vive na sessão (`login.id` / `login.remember` / `login.at`) e **expira em 5
+minutos**: sem prazo, um computador compartilhado ficaria com a porta encostada, já com a
+senha vencida. A sessão autenticada só nasce em `TwoFactorChallengeController::store`.
+
+**O login por AJAX (`sm/auth.js`) não precisou de uma linha nova**: ele já navega para o
+`redirect` que vier no JSON, e o desafio é só outro destino.
+
+### Uso único dos dois lados
+
+- **TOTP:** `two_factor_last_step` guarda o último passo de 30 s gasto; `Totp::verificar`
+  recusa passos `<=` ele. Sem isso, quem espia a tela por cima do ombro tem 30 segundos para
+  reusar o mesmo número, e a segunda etapa deixa de ser "algo que você tem".
+- **Recuperação:** o código sai da lista ao ser usado.
+- Ambos gravam sob `lockForUpdate` — verificar e gravar em passos separados é uma janela de
+  corrida, e aqui a corrida vale o login.
+
+### Limite de tentativas: minuto **e** hora
+
+Limitador `dois-fatores` (`AppServiceProvider`), chave = conta + IP: `Limit::perMinute(5)`
+**somado a** `Limit::perHour(20)`. São 6 dígitos e a janela aceita 3 códigos por vez, então
+5/min sustentados dariam ~2% de chance por dia; o teto por hora derruba para ~0,1%. O contador
+**não é zerado no acerto**, de propósito — zerar daria ao atacante como renovar a cota.
+
+### Códigos de recuperação são a ÚNICA porta de volta
+
+Enquanto `MAIL_MAILER=log`, nem "esqueci a senha" entrega e-mail (`App\Support\Mailer`), então
+**não existe recuperação por e-mail**. A tela avisa isso **antes** de ligar e mostra a lista
+logo depois de confirmar (flash, uma vez). Ficam **cifrados** e não com hash porque o segredo
+TOTP ao lado é obrigatoriamente reversível — hash nos códigos não fecharia buraco nenhum e
+impediria reexibi-los.
+
+### Cuidados que já custaram caro
+
+- ⚠️ **`text`, nunca `varchar`, para campo com cast `encrypted`.** Medido em MySQL: o segredo
+  cifrado tem **256 caracteres** e a lista de códigos, **400**. Um `varchar(255)` seria erro
+  1406 em produção **passando verde na suíte**, que roda em sqlite (sem limite de tamanho).
+  Mesma armadilha do `terms_accepted_ip`.
+- ⚠️ **Rotacionar `APP_KEY` sem `APP_PREVIOUS_KEYS`** torna o segredo ilegível e tranca fora
+  todo mundo que tiver 2FA ligado — sobram só os códigos de recuperação.
+- ⚠️ **Nunca escreva a tag de fechamento do PHP dentro de um comentário `//`** (ex.: citando
+  uma declaração XML): o interpretador encerra o bloco ali e o arquivo deixa de compilar.
+  Custou um `ParseError` no `TwoFactorService`.
+- **"Lembrar de mim" pula o desafio nas visitas seguintes** — é a semântica padrão de
+  "dispositivo confiável" (Fortify e a maioria dos sites fazem igual), mas note que a tela de
+  login deste app deixa a caixa **marcada por padrão**. O 2FA continua protegendo qualquer
+  login em aparelho novo, que é o ataque real.
+- **O `switch` do card é decorativo** (`aria-hidden`). Quem liga/desliga são os formulários —
+  um interruptor de um clique não teria onde pedir a senha nem mostrar o QR.
+
+---
+
 ## Convenções
 
 - **Validação em Form Requests** com `messages()`/`attributes()` PT-BR. Valores aceitam vírgula
@@ -825,6 +928,12 @@ CSP com nonce (ver abaixo); revisão jurídica dos documentos legais. Detalhes n
   devolve **Fluent** — nas views, `$conta->isCard` (propriedade), nunca `$conta->isCard()`.
 - **Ownership sempre**: queries escopadas por `auth()->id()`; `account_id`/`category_id` validados
   com `Rule::exists()->where('user_id', ...)`; categoria deve casar com o `type` da transação.
+- **🚨 Coluna com cast `encrypted` é `text`, nunca `varchar`.** O cifrado do Laravel tem 200–400
+  caracteres; `varchar(255)` estoura em MySQL (erro 1406) e **passa verde na suíte**, que roda em
+  sqlite — sem limite de tamanho. Já mordeu duas vezes: `terms_accepted_ip` e `two_factor_secret`.
+- **2FA ligado se pergunta por `$user->temDoisFatores()`**, nunca por `two_factor_secret !== null`:
+  entre gerar o QR e confirmar o primeiro código o segredo já existe, mas cobrar o código ali
+  trancaria a pessoa fora da conta. Rota nova que valide código de 2FA leva `throttle:dois-fatores`.
 - **Policies** para `update`/`delete` (dono); controllers usam `$this->authorize()`
   (trait `AuthorizesRequests` adicionado localmente — o `Controller` base do Laravel 12 é vazio).
 - Controllers como **resource controllers**; lógica pesada em **Services** (ex.: `DashboardService`).

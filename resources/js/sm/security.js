@@ -24,6 +24,45 @@ const RULES = {
 };
 
 export function initSecurity() {
+    initCardDeSenha();
+    initCardDeDoisFatores();
+}
+
+/**
+ * Botão "Copiar" da lista de códigos de recuperação (2FA).
+ *
+ * Nasce escondido no Blade e só aparece quando o navegador REALMENTE consegue copiar:
+ * `navigator.clipboard` exige contexto seguro, então some ao abrir o app pelo IP da rede
+ * local (http://192.168.x.x:8001). Um botão que não faz nada, justamente na tela que pede
+ * "guarde estes códigos", seria pior do que não ter botão — e os códigos continuam
+ * visíveis para copiar à mão de qualquer forma.
+ */
+function initCardDeDoisFatores() {
+    const btn = document.querySelector('[data-copiar-codigos]');
+    const lista = document.querySelector('.tfa-codigos-lista');
+    if (!btn || !lista || !navigator.clipboard) return;
+
+    const rotulo = btn.querySelector('[data-copiar-rotulo]');
+    btn.hidden = false;
+
+    btn.addEventListener('click', async () => {
+        const texto = Array.from(lista.querySelectorAll('li'))
+            .map((li) => li.textContent.trim())
+            .join('\n');
+
+        try {
+            await navigator.clipboard.writeText(texto);
+        } catch (_) {
+            return; // permissão negada: nada a fazer, a lista segue na tela
+        }
+
+        if (!rotulo) return;
+        rotulo.textContent = 'Copiado!';
+        setTimeout(() => { rotulo.textContent = 'Copiar'; }, 2000);
+    });
+}
+
+function initCardDeSenha() {
     const form = document.getElementById('passwordForm');
     if (!form) return;
 

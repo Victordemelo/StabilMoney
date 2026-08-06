@@ -285,7 +285,7 @@ financeiro de terceiros.
 | `SESSION_ENCRYPT=true` | `.env` | Defesa em profundidade: protege o payload da sessão se alguém ler a tabela `sessions` sem a `APP_KEY`. |
 | `same_site=strict` | `config/session.php` | O app não recebe navegação cross-site legítima; `lax` já está coberto pelo CSRF. |
 | CSP com nonce | `SecurityHeaders` | Hoje usa `'unsafe-inline'` em `script-src` por causa dos scripts inline e do `nav.js`, que recria `<script>` no pjax. Trocar por nonce exige refatorar os três. |
-| 2FA | tela de Segurança | Já está na interface como "em breve". |
+| ~~2FA~~ | ~~tela de Segurança~~ | ✅ **Feito** (05/08/2026): verificação em duas etapas por app autenticador (TOTP), **opcional**, ligada pelo próprio usuário em Configurações › Segurança. Ver a seção "🔐 Verificação em duas etapas" no CLAUDE.md. ⚠️ Depende da `APP_KEY`: rotacioná-la sem `APP_PREVIOUS_KEYS` deixa o segredo ilegível e tranca fora quem tiver 2FA ligado. |
 | `is_admin`/`account_owner_id` fora de `$fillable` | `app/Models/User.php` | Não é explorável hoje (nenhum `update($request->all())`), mas é armadilha para o futuro: um único uso descuidado viraria escalada de privilégio. |
 | Retenção/criptografia de IP | `sessions`, `terms_accepted_ip` | Se quiser proteger IPs em repouso, use o cast `encrypted` (reversível). **Não** use hash — quebraria a tela de dispositivos e a prova do aceite. |
 | ~~Rotina de limpeza de sessões~~ | ~~agendador~~ | ✅ **Feito** (02/08/2026): `php artisan sessoes:limpar`, agendado às 3h10 em `routes/console.php`. Só falta o cron do item 12. Cuidado: `session:prune` **não existe** no Laravel 12 — o framework limpa por loteria (2% das requisições), o que num app de pouco tráfego deixa IP e user-agent parados na tabela por meses. |

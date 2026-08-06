@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +26,20 @@ Route::middleware('guest')->group(function () {
     // limite por IP, que é o que barra password spraying em muitas contas.
     Route::post('login', [AuthenticatedSessionController::class, 'store'])
         ->middleware('throttle:login-ip');
+
+    // Segunda etapa do login (2FA por app autenticador, OPCIONAL). Fica no grupo `guest`
+    // porque quem está aqui ainda não tem sessão autenticada: passou pela senha e espera
+    // o código. Sem um login pendente na sessão, as três rotas devolvem para /login.
+    Route::get('verificacao-em-duas-etapas', [TwoFactorChallengeController::class, 'create'])
+        ->name('two-factor.login');
+
+    // São 6 dígitos: sem limite, a força bruta acha o número. Ver 'dois-fatores'
+    // no AppServiceProvider.
+    Route::post('verificacao-em-duas-etapas', [TwoFactorChallengeController::class, 'store'])
+        ->middleware('throttle:dois-fatores');
+
+    Route::post('verificacao-em-duas-etapas/cancelar', [TwoFactorChallengeController::class, 'destroy'])
+        ->name('two-factor.cancel');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');

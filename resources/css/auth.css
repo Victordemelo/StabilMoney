@@ -222,6 +222,20 @@
 .auth .ac-alt a { color: var(--brand-600); font-weight: 700; text-decoration: none; }
 .auth .ac-alt a:hover { text-decoration: underline; }
 
+/* ===== Desafio de 2FA (código do autenticador) ===== */
+/* Campo de código: fonte de título, grande e espaçada. Digitar 6 dígitos é uma
+   transcrição — o olho precisa conferir dígito a dígito com a tela do celular. */
+.auth .input input.otp {
+  padding-left: 46px; text-align: center; letter-spacing: .38em; text-indent: .38em;
+  font-family: var(--font-head); font-size: 21px; font-weight: 600;
+}
+/* O de recuperação tem letras e hífen: espaçamento menor para caber sem quebrar. */
+.auth .input input.otp-wide { letter-spacing: .16em; text-indent: .16em; font-size: 18px; }
+.auth .input input.otp::placeholder { letter-spacing: .38em; font-weight: 500; }
+.auth .input input.otp-wide::placeholder { letter-spacing: .16em; }
+.auth .tfa-sair { margin-top: 14px; display: flex; justify-content: center; }
+.auth .tfa-sair .btn-quiet { width: auto; padding: 0 18px; }
+
 /* ===== Responsive ===== */
 @media (max-width: 980px) {
   .auth { grid-template-columns: 1fr; }

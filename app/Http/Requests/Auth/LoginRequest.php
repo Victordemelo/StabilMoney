@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -12,6 +13,9 @@ use Illuminate\Validation\ValidationException;
 
 class LoginRequest extends FormRequest
 {
+    /** Conta cuja senha acabou de ser conferida (preenchida por authenticate()). */
+    private ?User $usuario = null;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -34,7 +38,16 @@ class LoginRequest extends FormRequest
     }
 
     /**
-     * Attempt to authenticate the request's credentials.
+     * Confere as credenciais e — quando a conta NÃO usa verificação em duas etapas —
+     * abre a sessão.
+     *
+     * Por que `validate()` em vez de `attempt()`: `attempt()` já loga a pessoa, e nas
+     * contas com 2FA seria preciso deslogá-la em seguida para exigir o código. O problema
+     * é que `SessionGuard::logout()` **recicla o remember token**, o que derrubaria o
+     * "Lembrar de mim" de TODOS os outros aparelhos daquele usuário a cada login — um
+     * efeito colateral que só apareceria em quem ligasse o 2FA. `validate()` confere a
+     * senha sem abrir sessão nenhuma, então quem tem 2FA simplesmente não entra ainda: o
+     * controller manda para o desafio, e a sessão só nasce depois do código certo.
      *
      * @throws ValidationException
      */
@@ -42,7 +55,9 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        $guard = Auth::guard('web');
+
+        if (! $guard->validate($this->only('email', 'password'))) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -51,6 +66,29 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        $this->usuario = $guard->getLastAttempted();
+
+        // Sem 2FA (o caso da imensa maioria — o recurso é opcional): entra direto,
+        // exatamente como antes.
+        if (! $this->precisaDeSegundaEtapa()) {
+            $guard->login($this->usuario, $this->boolean('remember'));
+        }
+    }
+
+    /**
+     * A senha conferiu, mas a conta ainda precisa do código do autenticador?
+     * Só é verdade para quem LIGOU e CONFIRMOU o 2FA nas Configurações.
+     */
+    public function precisaDeSegundaEtapa(): bool
+    {
+        return $this->usuario !== null && $this->usuario->temDoisFatores();
+    }
+
+    /** A conta cuja senha acabou de ser conferida. Só válida depois de authenticate(). */
+    public function usuarioAutenticado(): User
+    {
+        return $this->usuario;
     }
 
     /**

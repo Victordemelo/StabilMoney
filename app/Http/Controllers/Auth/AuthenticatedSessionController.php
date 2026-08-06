@@ -29,6 +29,25 @@ class AuthenticatedSessionController extends Controller
         // que para requisições AJAX (expectsJson) já volta como 422 JSON com os erros.
         $request->authenticate();
 
+        // Verificação em duas etapas (opcional): quem ligou o 2FA ainda NÃO está logado
+        // aqui — a senha foi conferida sem abrir sessão. Vai para a tela do código, e a
+        // sessão só nasce lá. Quem não ligou (o padrão) segue direto, como sempre.
+        if ($request->precisaDeSegundaEtapa()) {
+            TwoFactorChallengeController::aguardar(
+                $request->session(),
+                $request->usuarioAutenticado(),
+                $request->boolean('remember'),
+            );
+
+            $destino = route('two-factor.login');
+
+            // O login por AJAX (sm/auth.js) só navega para o `redirect` que vier no JSON,
+            // então a segunda etapa funciona sem uma linha de JavaScript nova.
+            return $request->expectsJson()
+                ? response()->json(['redirect' => $destino])
+                : redirect()->to($destino);
+        }
+
         $request->session()->regenerate();
 
         $redirect = redirect()->intended(route('dashboard', absolute: false));

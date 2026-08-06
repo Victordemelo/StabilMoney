@@ -16,6 +16,7 @@ use App\Http\Controllers\SecurityController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\TwoFactorController;
 use Illuminate\Support\Facades\Route;
 
 // PWA — PÚBLICO de propósito (fora do 'auth'): o navegador lê o manifest
@@ -74,6 +75,28 @@ Route::middleware('auth')->group(function () {
     Route::delete('/configuracoes/sessoes', [SecurityController::class, 'destroyOtherSessions'])
         ->middleware('throttle:senha')
         ->name('settings.sessions.destroy');
+
+    // Verificação em duas etapas (2FA por app autenticador) — OPCIONAL: nasce desligada e
+    // só o dono da conta liga, informando a senha atual. Ligar, desligar e trocar os
+    // códigos de recuperação decidem quem entra na conta, então pedem senha e têm limite
+    // (mesma razão de "encerrar outras sessões" e "excluir conta").
+    Route::post('/configuracoes/2fa', [TwoFactorController::class, 'ativar'])
+        ->middleware('throttle:senha')
+        ->name('settings.2fa.ativar');
+
+    // Confirmar não pede senha (a pessoa acabou de digitá-la para gerar o QR): o que ela
+    // prova aqui é a posse do aparelho. Limite próprio, o mesmo do desafio do login.
+    Route::post('/configuracoes/2fa/confirmar', [TwoFactorController::class, 'confirmar'])
+        ->middleware('throttle:dois-fatores')
+        ->name('settings.2fa.confirmar');
+
+    Route::post('/configuracoes/2fa/codigos', [TwoFactorController::class, 'regerarCodigos'])
+        ->middleware('throttle:senha')
+        ->name('settings.2fa.codigos');
+
+    Route::delete('/configuracoes/2fa', [TwoFactorController::class, 'desativar'])
+        ->middleware('throttle:senha')
+        ->name('settings.2fa.desativar');
 
     // Dependentes (conta-família) — só o titular gerencia
     Route::get('/dependentes', [DependentController::class, 'index'])->name('dependentes');

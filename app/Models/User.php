@@ -61,6 +61,11 @@ class User extends Authenticatable implements MustVerifyEmail
         'relationship',
         // `pending_email` fica FORA: quem o define é o ProfileController, depois de
         // exigir a senha atual. Nunca vem direto de um formulário.
+        //
+        // As quatro colunas `two_factor_*` também ficam FORA, pela mesma razão dos campos
+        // de privilégio: são o que decide se o login vai cobrar a segunda etapa. Quem as
+        // grava é o TwoFactorService, sempre depois de conferir a senha atual ou um código
+        // válido — nunca a partir de um campo de formulário.
         'terms_accepted_at',
         'terms_version',
         'terms_accepted_ip',
@@ -92,6 +97,10 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $hidden = [
         'password',
         'remember_token',
+        // Quem tiver o segredo TOTP calcula os códigos sozinho, e os de recuperação
+        // pulam a segunda etapa inteira: nenhum dos dois pode escapar num `toJson()`.
+        'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
     /**
@@ -114,6 +123,14 @@ class User extends Authenticatable implements MustVerifyEmail
             // `text` na migration 2026_08_02_000200 porque o cifrado tem 200-256
             // caracteres e ela era varchar(45).
             'terms_accepted_ip' => 'encrypted',
+            // 2FA — o segredo TOTP precisa ser REVERSÍVEL (é com ele que o servidor
+            // recalcula o código de 6 dígitos), então cifra, jamais hash. Cifrado em
+            // repouso para um dump de backup vazado não entregar a segunda etapa de todo
+            // mundo de uma vez.
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
+            'two_factor_last_step' => 'integer',
         ];
     }
 
@@ -234,6 +251,32 @@ class User extends Authenticatable implements MustVerifyEmail
     public function relationshipLabel(): ?string
     {
         return self::RELATIONSHIPS[$this->relationship] ?? null;
+    }
+
+    /**
+     * A verificação em duas etapas está LIGADA nesta conta?
+     *
+     * O que vale é `two_factor_confirmed_at`, não o segredo. Entre gerar o QR e confirmar
+     * o primeiro código existe uma janela em que o segredo já existe mas o autenticador
+     * talvez nem tenha sido escaneado — cobrar o código ali trancaria a pessoa fora da
+     * própria conta. É por isso que o login pergunta por este método, e nunca por
+     * `two_factor_secret !== null`.
+     */
+    public function temDoisFatores(): bool
+    {
+        return $this->two_factor_confirmed_at !== null && $this->two_factor_secret !== null;
+    }
+
+    /** Segredo gerado, esperando o usuário confirmar o primeiro código (setup em andamento). */
+    public function doisFatoresPendente(): bool
+    {
+        return $this->two_factor_secret !== null && $this->two_factor_confirmed_at === null;
+    }
+
+    /** Quantos códigos de recuperação ainda restam (0 quando o 2FA está desligado). */
+    public function codigosDeRecuperacaoRestantes(): int
+    {
+        return count($this->two_factor_recovery_codes ?? []);
     }
 
     /** Há um e-mail novo esperando confirmação no próprio endereço novo? */

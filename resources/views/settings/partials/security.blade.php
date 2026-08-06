@@ -110,21 +110,5 @@
     </details>
 </div>
 
-{{-- Card "Verificação em duas etapas" (2FA) — em breve --}}
-<div class="card sec-card">
-    <div class="card-head">
-        <h3>Verificação em duas etapas</h3>
-        <span class="chip chip-soon">Em breve</span>
-    </div>
-    <p class="sec-card-desc">
-        Uma camada extra de proteção: além da senha, um código do app autenticador
-        (Google Authenticator, Authy, etc.) é pedido a cada novo acesso.
-    </p>
-    <div class="sec-2fa-row">
-        <div class="sec-2fa-txt">
-            <strong>App autenticador (TOTP)</strong>
-            <span>Disponível em uma próxima atualização.</span>
-        </div>
-        <span class="switch is-off" aria-hidden="true"><span class="switch-dot"></span></span>
-    </div>
-</div>
+{{-- Card "Verificação em duas etapas" (2FA por app autenticador) --}}
+@include('settings.partials.two-factor')
