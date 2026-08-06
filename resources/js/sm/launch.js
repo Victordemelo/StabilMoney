@@ -10,7 +10,7 @@
 // topbar + FAB), sem isso "lançar offline" praticamente não existia.
 
 import { pedirFonte } from './funding';
-import { enfileirarLancamento } from './offline-queue';
+import { enfileirarLancamento, refreshCsrfToken } from './offline-queue';
 
 // FormData → objeto simples, que é o formato que a fila reenvia (JSON).
 // `_token`/`_method` ficam de fora: são controle do Laravel, não do lançamento —
@@ -61,9 +61,18 @@ export function initLaunch() {
     };
     const close = () => modal.classList.remove('open');
 
-    // Abrir: botão "Lançar" (topbar) e FAB (bottom-nav) — o href fica de fallback.
-    document.querySelectorAll('[data-launch-open]').forEach((a) => {
-        a.addEventListener('click', (e) => { e.preventDefault(); open(); });
+    // Abrir: botão "Lançar" (topbar), FAB (bottom-nav) e "Nova transação" (Histórico).
+    // O href de cada um fica como fallback sem JS.
+    //
+    // DELEGAÇÃO no document, não bind elemento a elemento: `initLaunch` roda UMA vez
+    // (o modal vive no shell), mas há gatilhos DENTRO do #content — e o pjax troca o
+    // #content inteiro. Com bind direto, o botão do Histórico funcionava no primeiro
+    // carregamento e virava um link comum depois de qualquer navegação.
+    document.addEventListener('click', (e) => {
+        const gatilho = e.target.closest?.('[data-launch-open]');
+        if (!gatilho) return;
+        e.preventDefault();
+        open();
     });
 
     // Fechar: clique no fundo, botões de fechar, Esc — tudo com transição do scrim.
@@ -155,13 +164,13 @@ export function initLaunch() {
         // Manda o lançamento para a fila offline e conta a VERDADE ao usuário:
         // está pendente de envio, não salvo. Nada de "sucesso" aqui — o toast da
         // fila diz "na fila" e o selo de pendências fica visível até sincronizar.
-        const enfileirar = async () => {
-            const guardou = await enfileirarLancamento(paraJson(payload));
+        const enfileirar = async (msgFila) => {
+            const guardou = await enfileirarLancamento(paraJson(payload), msgFila);
             setSaving(false);
             if (!guardou) {
                 // IndexedDB indisponível/cheio: o lançamento se perderia em
                 // silêncio se a gente fechasse o modal — então fica na tela.
-                showError('Sem conexão e não deu para guardar no aparelho. Mantenha esta tela aberta e tente de novo.');
+                showError('Não deu para guardar o lançamento neste aparelho. Mantenha esta tela aberta e tente de novo.');
                 return;
             }
             clientUuid = novoUuid(); // este lançamento já tem chave própria na fila
@@ -204,6 +213,35 @@ export function initLaunch() {
                 // resgate de investimento nunca é automático — mas este aqui foi
                 // o próprio usuário quem pediu, então vai junto no payload.
                 await enfileirar();
+                return;
+            }
+        }
+
+        // 419 = token CSRF morto. Não é erro de preenchimento, e cair no texto de
+        // validação ("confira os campos") numa tela sem campo errado deixava o
+        // usuário reenviando para sempre — e o lançamento se perdia, nem gravado nem
+        // enfileirado. Acontece com ou sem PWA: trocar a senha derruba as outras
+        // sessões, e qualquer aba aberta fica com token velho (a página vinda do
+        // cache do service worker é só um dos casos).
+        //
+        // Mesmo tratamento do formulário cheio: busca um token fresco e refaz UMA vez.
+        if (resp.status === 419) {
+            const fresco = await refreshCsrfToken(form);
+
+            if (fresco) {
+                payload.set('_token', fresco);
+                try {
+                    resp = await enviar();
+                } catch (_) {
+                    await enfileirar();
+                    return;
+                }
+            }
+
+            // Sessão morreu de vez (ou o retry bateu 419 de novo): o lançamento NÃO
+            // se perde — vai para a fila e sobe depois do login.
+            if (resp.status === 419) {
+                await enfileirar('Sua sessão expirou — lançamento na fila. Entre de novo para sincronizar.');
                 return;
             }
         }

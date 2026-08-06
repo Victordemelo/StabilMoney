@@ -188,7 +188,14 @@ class CreditCardTest extends TestCase
 
         $this->assertSame(1, $data['stats']['numCartoes']);
         $this->assertSame(1000.0, $data['stats']['totalFaturas']);
-        $this->assertSame(4000.0, $data['stats']['limiteDisponivel']);
+        // `limiteDisponivel` saiu dos stats em 06/08/2026: o limite já aparece no
+        // card de cada cartão, e o terceiro stat do topo passou a mostrar o que
+        // faltava na tela — o total das CONTAS FIXAS ainda por pagar.
+        $this->assertArrayNotHasKey('limiteDisponivel', $data['stats']);
+        $this->assertSame(0.0, $data['stats']['totalContas'], 'sem conta fixa cadastrada');
+        $this->assertSame(0, $data['stats']['numContas']);
+        // O limite continua vivo POR CARTÃO, que é onde ele importa.
+        $this->assertSame(4000.0, $data['cards']->first()['availableLimit']);
         $this->assertCount(1, $data['cards']);
         $this->assertSame(1000.0, $data['cards']->first()['currentInvoice']);
     }

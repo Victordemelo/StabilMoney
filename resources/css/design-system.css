@@ -783,9 +783,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 /* Painel de notificações (sino da topbar): vencimentos próximos */
 .topbar-notif { position: relative; flex: none; }
 /* .notif-pop herda a base de .profile-pop (seção "Profile popover"); só sobrescreve a posição */
-.notif-pop { position: absolute; top: calc(100% + 10px); right: 0; width: 300px; transform-origin: top right; }
-.notif-head { padding: 8px 10px 6px; }
+/* 360px, não 300: com 300 o subtítulo ("vence em 4 dias · 10 de ago") não cabia
+   e quebrava em duas/três linhas, deixando o item com o dobro da altura. */
+.notif-pop { position: absolute; top: calc(100% + 10px); right: 0; width: 360px; transform-origin: top right; }
+/* `gap` porque o strong e o span são irmãos sem espaço no HTML — sem isto saía
+   "Vencimentospróximos 7 dias", tudo grudado. */
+.notif-head { padding: 8px 10px 6px; display: flex; align-items: baseline; gap: 7px; }
 .notif-head strong { font-size: 13.5px; }
+.notif-head .notif-sub { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
 .notif-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 16px 16px 20px; }
 .notif-empty svg { width: 30px; height: 30px; color: var(--ink-3); stroke-width: 1.6; }
 .notif-empty p { font-size: 13px; font-weight: 600; color: var(--ink); }
@@ -809,7 +814,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 [data-theme="dark"] .ni-ico.ni-fatura { background: rgba(28,154,112,.14); color: var(--brand-300); }
 .ni-txt { min-width: 0; flex: 1; }
 .ni-txt strong { display: block; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ni-txt span { font-size: 11.5px; color: var(--ink-3); }
+/* UMA linha só: o item da notificação é uma varredura rápida, não leitura. Sem o
+   nowrap o texto quebrava e a altura do item dobrava. */
+.ni-txt span { display: block; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ni-late { color: var(--neg); font-weight: 700; font-style: normal; }
 .ni-val { font-family: var(--font-head); font-size: 13px; font-weight: 800; flex: none; }
 
@@ -825,6 +832,13 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    visualmente com "Marcar como paga" — só existe para consertar um clique errado. */
 .fatura-estorno { display: inline-flex; }
 .fatura-estorno .btn { padding: 7px 12px; font-size: 12.5px; border-radius: 10px; }
+/* Rodapé do stat card: contexto curto sob o número (ex.: "3 em aberto · valor
+   previsto"). Fica em uma linha; se não couber, corta com reticências. */
+.stat-nota {
+  display: block; margin-top: 6px; font-size: 11.5px; color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stat-nota .neg { color: var(--neg); font-weight: 700; }
 .pay-summary { font-size: 14px; color: var(--ink-2); margin-bottom: 6px; }
 .pay-summary b { color: var(--ink); }
 
@@ -893,9 +907,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 [data-theme="dark"] .pm-plus { background: rgba(28,154,112,.14); color: var(--brand-300); }
 .pm-plus svg { width: 24px; height: 24px; }
 .pm-add-inner strong { font-size: 13.5px; }
-.modal-lg { max-width: 480px; }
+/* Modais de LANÇAMENTO. Eram estreitos demais: 480/560px com campos empilhados um
+   por linha deixavam o painel comprido e apertado, e valor/data (que se leem
+   juntos) ficavam distantes. Mais largura permite pares lado a lado. */
+.modal-lg { max-width: 620px; }
 /* Modal amplo (ex.: "Lançar" nova transação): mais largo p/ 2 colunas respirarem */
-.modal-wide { max-width: 560px; }
+.modal-wide { max-width: 620px; }
 
 /* Botão .btn.primary com spinner de carregamento (modais) */
 .btn.primary { position: relative; }

@@ -305,13 +305,24 @@ propriedade continua "animada" depois de terminar, e um `transform: none` animad
 `#content`; o modal vive no shell e **sobrevive**. Sem chamar `close()` explicitamente ele ficava
 aberto por cima do resultado, escondendo o lançamento que acabou de entrar.
 
-**Modal "Lançar" (global):** o botão da topbar e o FAB (`data-launch-open`) abrem um modal de
+**`[data-launch-open]` usa DELEGAÇÃO no document.** O `initLaunch` roda uma vez (o modal vive no
+shell), mas há gatilhos DENTRO do `#content` — o "Nova transação" do Histórico — e o pjax troca o
+`#content` inteiro. Com bind elemento a elemento o botão funcionava no primeiro carregamento e
+virava link comum depois de qualquer navegação.
+
+**Modal "Lançar" (global):** o botão da topbar, o FAB e o "Nova transação" do Histórico
+(`data-launch-open`) abrem um modal de
 **nova transação** (`partials/launch-modal.blade.php`, dados via View Composer em `AppServiceProvider`
 = contas/categorias/família da família), em vez de navegar para `transactions.create` (que segue
 de fallback no `href` e como página cheia). Abre/fecha com a animação do `.modal-scrim`; envia por
 AJAX (`sm/launch.js` → `transactions.store` com `Accept: json`), spinner no "Salvar", erro treme +
 banner, sucesso recarrega via `smPjaxReload`. Gera **`client_uuid`** por abertura (idempotência —
 antes o caminho mais usado do app não tinha) e trata **409** abrindo o modal de escolha de fonte.
+**Trata 419 também** (06/08/2026): token vencido busca um fresco (`refreshCsrfToken`, exportado do
+`offline-queue.js`), reescreve o `_token` do payload e refaz UMA vez; se a sessão morreu de vez, o
+lançamento vai para a FILA em vez de sumir. Antes o 419 caía no texto de validação ("confira os
+campos", numa tela sem campo errado) e o lançamento não era gravado nem enfileirado. Não é defeito
+só de PWA: trocar a senha derruba as outras sessões e toda aba aberta fica com token morto.
 **Offline (02/08/2026):** o modal AGORA passa pela fila (`enfileirarLancamento`) — sem rede ele nem
 tenta o POST, enfileira, e o toast diz "na fila", nunca "salvo". Antes usava `fetch` direto, então o
 caminho mais usado do app perdia o lançamento feito sem internet.
@@ -680,6 +691,13 @@ Testes: `VerificacaoDeEmailTest`, `LimpezaDeSessoesTest`, `FilaOfflineNaTrocaDeU
   ao `balance` — decisão D-4), então aporte futuro derrubava o disponível de HOJE e resgate futuro
   o levantava. Barrar a entrada é a saída coerente: tornar só o `reserved` sensível à data o faria
   discordar do `balance`.
+  **São CINCO portas, não quatro** (06/08/2026): além dos 4 Form Requests de aporte/resgate, o
+  **`StoreInvestmentRequest`** grava o aporte inicial na mesma tabela e ficou aceitando +10 anos por
+  uma rodada inteira. Ao criar caminho novo que escreva em `goal_contributions`/
+  `investment_contributions`, a regra `before_or_equal:now()` vai junto. Os **5 inputs de data**
+  (`inv-c-date`, `inv-aporte-date`, `inv-resgate-date`, `meta-aporte-date`, `meta-resgate-date`)
+  levam `max` — tela que oferece o que o servidor recusa é o mesmo defeito das contas fixas.
+  Coberto por `AporteInicialSemDataFuturaTest`.
 - **Sinal do dinheiro na tela:** `−R$ 150,00`, traço U+2212 **antes** do símbolo. Nos 4 stat cards
   e no card Patrimônio o valor é montado à mão (o design separa "R$" e centavos em `<span>`), então
   o sinal vive num `<span class="sign">` próprio e o `.num` anima o **valor absoluto** — senão o
@@ -1091,8 +1109,12 @@ impediria reexibi-los.
   pt-BR ("1.234,56") normalizada em `prepareForValidation` (trait `NormalizesMoneyInput`).
 - **Dinheiro nunca é negativo.** O sinal vem do `type`, então todo campo de valor valida `min:0`
   (ou `min:0.01` para os obrigatórios > 0); `initial_balance` é `min:0`. No cliente, `sm/money.js`
-  formata todo `input[inputmode="decimal"]` para BRL ("1.234,56") **ao sair do campo (blur)** e
-  **descarta o sinal de menos** — entrada negativa vira positiva. Ao adicionar um novo campo de
+  formata todo `input[inputmode="decimal"]` para BRL **A CADA TECLA** (06/08/2026) e **descarta o
+  sinal de menos**. Os dígitos entram pelos **centavos** (`1` → `0,01`, `130000` → `1.300,00`),
+  como nos apps de banco: assim o campo nunca é ambíguo — no modo antigo, formatado só no blur,
+  "1300" tanto podia ser mil e trezentos quanto treze reais, e o valor "pulava" depois de digitado.
+  Consequência aceita: vírgula e ponto digitados são ignorados (a casa decimal é fixa); colar
+  "1.234,56" ou "1234.56" dá o mesmo resultado. Ao adicionar um novo campo de
   valor, use `inputmode="decimal"` para herdar esse comportamento. Campos que NÃO são moeda
   (ex.: taxa em %) marcam `data-no-money` para o `money.js` ignorá-los.
 - **Exibir dinheiro: `@brl($valor)`** (ou `App\Support\Brl::format()`), nunca `number_format` cru —
@@ -1218,7 +1240,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte completa (833 testes)
+docker compose exec app php artisan test                       # suíte completa (850 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan tinker                     # console interativo
 docker compose exec app php artisan view:cache                 # valida sintaxe de TODAS as views

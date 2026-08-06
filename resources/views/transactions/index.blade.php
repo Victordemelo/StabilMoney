@@ -7,7 +7,11 @@
         <h2>Histórico</h2>
         <span class="sub">Todas as movimentações</span>
         <div class="head-actions">
-            <a class="btn-primary" href="{{ route('transactions.create') }}">
+            {{-- Abre o modal GLOBAL de lançamento (partials/launch-modal), o mesmo do
+                 botão da topbar e do FAB. Lançar sem sair da lista deixa o resultado
+                 aparecer atrás, na hora. O `href` fica como FALLBACK: sem JS, o link
+                 continua levando para o formulário em página cheia. --}}
+            <a class="btn-primary" href="{{ route('transactions.create') }}" data-launch-open>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
                 Nova transação
             </a>
@@ -53,7 +57,7 @@
                     @else
                         <h3>Nenhuma transação ainda</h3>
                         <p>Registre sua primeira movimentação para acompanhar suas finanças.</p>
-                        <a class="btn-primary" href="{{ route('transactions.create') }}">
+                        <a class="btn-primary" href="{{ route('transactions.create') }}" data-launch-open>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
                             Nova transação
                         </a>

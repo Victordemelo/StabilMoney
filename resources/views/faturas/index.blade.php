@@ -60,12 +60,28 @@
             </div>
             <div class="value">{{ $stats['numCartoes'] ?? 0 }}</div>
         </div>
+        {{-- Contas fixas EM ABERTO. O valor é o PREVISTO de cada conta: luz e água
+             variam todo mês, e o valor real só nasce no pagamento. Por isso o card
+             se chama "a pagar" e traz "previsto" no rodapé — prometer exatidão num
+             número que muda seria enganar quem se programa por ele. --}}
         <div class="card stat span4">
             <div class="stat-top">
-                <div class="ico g4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M5 9a7 7 0 1 1 14 0c0 4-3 5-3 8H8c0-3-3-4-3-8Z"/></svg></div>
-                <span class="label">Limite disponível</span>
+                <div class="ico g4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/></svg></div>
+                <span class="label">Contas a pagar</span>
             </div>
-            <div class="value"><span class="cur">R$</span>{{ number_format((float) ($stats['limiteDisponivel'] ?? 0), 2, ',', '.') }}</div>
+            <div class="value {{ ($stats['contasVencidas'] ?? 0) > 0 ? 'neg' : '' }}">
+                <span class="cur">R$</span>{{ number_format((float) ($stats['totalContas'] ?? 0), 2, ',', '.') }}
+            </div>
+            <span class="stat-nota">
+                @if (($stats['numContas'] ?? 0) === 0)
+                    Nenhuma conta fixa em aberto
+                @else
+                    {{ $stats['numContas'] }} em aberto · valor previsto
+                    @if (($stats['contasVencidas'] ?? 0) > 0)
+                        · <b class="neg">{{ $stats['contasVencidas'] }} vencida{{ $stats['contasVencidas'] > 1 ? 's' : '' }}</b>
+                    @endif
+                @endif
+            </span>
         </div>
     </div>
 

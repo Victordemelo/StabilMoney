@@ -27,6 +27,14 @@ class FaturaService
     {
         $cards = $this->cards($userId);
         $accountExpenses = $this->accountExpenses($userId);
+        $contasFixas = app(FixedBillService::class)->currentAndOverdue($userId);
+
+        // Contas fixas ainda EM ABERTO. O valor é o previsto da conta — conta de luz
+        // varia, e o valor real só existe quando o pagamento acontece (é ele que vai
+        // na transação). Então este total é uma ESTIMATIVA do que falta pagar, e a
+        // tela precisa dizer isso: prometer exatidão num número que muda todo mês
+        // seria mentir para quem se programa por ele.
+        $fixasEmAberto = $contasFixas->where('paga', false);
 
         $stats = [
             // Fatura do ciclo aberto + o que já fechou e não foi pago. Somar só
@@ -38,7 +46,14 @@ class FaturaService
                 2,
             ),
             'numCartoes' => $cards->count(),
-            'limiteDisponivel' => round($cards->sum(fn ($c) => max(0.0, (float) $c['availableLimit'])), 2),
+
+            // Total das CONTAS FIXAS em aberto (o que ainda falta pagar) + quantas
+            // são e quantas já venceram. Substituiu "Limite disponível" no topo: o
+            // limite já aparece no card de cada cartão, e o que faltava na tela era
+            // justamente o tamanho do que ainda tem de ser pago.
+            'totalContas' => round((float) $fixasEmAberto->sum('valor'), 2),
+            'numContas' => $fixasEmAberto->count(),
+            'contasVencidas' => $fixasEmAberto->where('vencida', true)->count(),
         ];
 
         return [
@@ -57,7 +72,7 @@ class FaturaService
                 ->orderBy('name')
                 ->get(['id', 'name', 'type', 'bank']),
             // Contas fixas mensais: competência do mês + as atrasadas.
-            'contasFixas' => app(FixedBillService::class)->currentAndOverdue($userId),
+            'contasFixas' => $contasFixas,
             // Cadastro/edição de conta fixa (select de categoria de despesa).
             'fixedBills' => \App\Models\FixedBill::where('user_id', $userId)
                 ->orderBy('due_day')->get(),
