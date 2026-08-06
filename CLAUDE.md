@@ -375,9 +375,11 @@ Saldo total = atual de todas as contas, independe do período.
   tabela) + `competence` (date, sempre dia 01), com **`unique(fixed_bill_id, competence)`** como
   trava de idempotência. Nos dois drivers o índice único ignora linhas com NULL, então as
   transações comuns não colidem.
-  Coluna temporária `legacy_account_id` (nullable): guarda de onde veio o movimento que a migration
-  `2026_07_28_000000` moveu de cartão de débito para a conta vinculada — existe só para o `down()`
-  ser real; uma migration de faxina pode removê-la.
+  A coluna temporária `legacy_account_id` foi **REMOVIDA** em 05/08/2026 (migration
+  `2026_08_05_000100_drop_legacy_account_id`), das três tabelas em que existia. Estava vazia em
+  todas, então a reversibilidade que comprava já era zero; o `down()` de `2026_07_28_000000` vira
+  no-op limpo (ele já se protegia com `hasColumn`). A cobertura do bug C-5 continua em
+  `MigracoesReversiveisTest`, que agora RECRIA as colunas para montar o cenário histórico.
 - **fixed_bills** (contas fixas mensais) — `user_id` (titular), `made_by_user_id`, `name`,
   `amount` (valor **esperado**; o real vai na transação do pagamento, porque conta de luz varia),
   `due_day` (**1..31** — o clamp de mês curto é feito em PHP, ao contrário do 1..28 dos cartões),
@@ -630,7 +632,9 @@ Testes: `VerificacaoDeEmailTest`, `LimpezaDeSessoesTest`, `FilaOfflineNaTrocaDeU
   o sinal vive num `<span class="sign">` próprio e o `.num` anima o **valor absoluto** — senão o
   formato "pulava" no primeiro clique do segmented, que é quando o `dashboard.js` reescreve o número.
 - **Telas secundárias de auth** (esqueci/redefinir/confirmar senha, verificar e-mail) usam
-  `layouts/auth.blade.php`. **`layouts/guest.blade.php` ficou órfão** — candidato a remoção.
+  `layouts/auth.blade.php`; **`layouts/guest.blade.php` foi REMOVIDO** em 05/08/2026 (sem uso).
+  O `layouts/auth` compõe o `<title>` a partir de `@section('title')`, como o `layouts/app` —
+  antes era fixo e as cinco telas ficavam idênticas na aba do navegador.
 - **Bottom-nav tem teto de 4 destinos + FAB**: com 5 rótulos a barra passa de ~388px e quebra num
   aparelho de 360px. Hoje: Início · Extrato · [FAB] · Pagar · Metas.
 - **CSP com nonce continua PENDENTE, e o motivo mudou.** O obstáculo NÃO é o pjax: `DOMParser`
@@ -835,6 +839,10 @@ CSP com nonce (ver abaixo); revisão jurídica dos documentos legais. Detalhes n
   (testes rodam em sqlite `:memory:` — cuidado com funções tipo `MONTH()`, ver
   `DashboardService` para o padrão por driver).
 - Commits: prefixos `Feat:`, `Fix:`, `style:`.
+- **Pint:** `pint.json` exclui `lang/` (gerado pelo laravel-lang, ninguém edita à mão). O job no
+  CI existe **comentado**: o baseline ainda reprova 85 arquivos, e ligar antes de um commit só de
+  formatação deixaria o CI vermelho permanente — o que treina todo mundo a ignorá-lo. A rodada de
+  formatação precisa de um momento em que ninguém mais esteja com trabalho pendente no repo.
 - **Fluxo git — modelo principal/secundário (jun/2026):** há um **agente principal** (o que
   conversa com o Victor) e **agentes secundários** (subagentes despachados para implementar
   partes em paralelo). **SOMENTE o agente principal commita e dá `push`.** Agentes secundários

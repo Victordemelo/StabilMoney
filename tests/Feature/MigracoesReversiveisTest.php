@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Goal;
 use App\Models\Investment;
 use App\Models\User;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -40,8 +41,33 @@ class MigracoesReversiveisTest extends TestCase
      * de `transactions` virava pó e o rollback travava naquele ponto para
      * sempre.
      */
+    /**
+     * Recria as colunas `legacy_account_id` que a faxina de 05/08/2026 removeu
+     * (migration `drop_legacy_account_id`).
+     *
+     * O bug C-5 mora no `down()` da migration de 28/07, que só faz sentido num
+     * banco que AINDA tem essas colunas. Elas saíram do schema vivo por estarem
+     * vazias — a reversibilidade que compravam já era zero —, mas a garantia
+     * continua valendo para qualquer banco que as tenha, então o teste monta o
+     * cenário histórico em vez de depender do schema atual.
+     */
+    private function recriarColunasLegadas(): void
+    {
+        foreach (['transactions', 'goal_contributions', 'investment_contributions'] as $tabela) {
+            if (Schema::hasColumn($tabela, 'legacy_account_id')) {
+                continue;
+            }
+
+            Schema::table($tabela, function (Blueprint $table) {
+                $table->unsignedBigInteger('legacy_account_id')->nullable()->after('account_id');
+            });
+        }
+    }
+
     public function test_down_do_cartao_de_debito_ignora_ponteiro_morto_e_nao_perde_o_mapeamento(): void
     {
+        $this->recriarColunasLegadas();
+
         $user = User::factory()->create();
         $corrente = Account::factory()->for($user)->create(['type' => 'checking']);
         $cartaoVivo = Account::factory()->for($user)->create(['type' => 'debit_card']);
@@ -100,12 +126,49 @@ class MigracoesReversiveisTest extends TestCase
     /** O down() precisa poder rodar de novo num banco que ficou meio-revertido. */
     public function test_down_do_cartao_de_debito_e_reentrante(): void
     {
+        $this->recriarColunasLegadas();
+
         $migration = require base_path(self::MIG_DEBITO);
 
         $migration->down();
         $migration->down(); // não pode estourar por a coluna já não existir
 
         $this->assertFalse(Schema::hasColumn('transactions', 'legacy_account_id'));
+    }
+
+    /**
+     * A faxina de 05/08/2026 removeu as três colunas — e num banco que já não as
+     * tem (o normal, depois desta migration) o `down()` de 28/07 precisa sair em
+     * silêncio, não estourar. É o que as guardas `hasColumn` dele garantem.
+     */
+    public function test_down_do_cartao_de_debito_e_no_op_depois_da_faxina(): void
+    {
+        // Schema vivo: a faxina já rodou, as colunas não existem.
+        $this->assertFalse(Schema::hasColumn('transactions', 'legacy_account_id'));
+
+        $migration = require base_path(self::MIG_DEBITO);
+        $migration->down();
+
+        $this->assertFalse(Schema::hasColumn('transactions', 'legacy_account_id'));
+    }
+
+    /** A própria faxina é reversível: o down() devolve as três colunas. */
+    public function test_faxina_do_legacy_account_id_e_reversivel(): void
+    {
+        $migration = require base_path('database/migrations/2026_08_05_000100_drop_legacy_account_id.php');
+
+        $migration->down();
+
+        foreach (['transactions', 'goal_contributions', 'investment_contributions'] as $tabela) {
+            $this->assertTrue(Schema::hasColumn($tabela, 'legacy_account_id'), $tabela);
+        }
+
+        $migration->up();
+        $migration->up(); // reentrante: rodar de novo não pode estourar
+
+        foreach (['transactions', 'goal_contributions', 'investment_contributions'] as $tabela) {
+            $this->assertFalse(Schema::hasColumn($tabela, 'legacy_account_id'), $tabela);
+        }
     }
 
     /**

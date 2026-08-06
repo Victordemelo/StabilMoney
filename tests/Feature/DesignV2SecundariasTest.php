@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -210,5 +211,34 @@ class DesignV2SecundariasTest extends TestCase
         // Sinal ANTES do símbolo, com o traço U+2212 (App\Support\Brl)
         $this->assertStringContainsString('−R$ 150,00', $m[0]);
         $this->assertStringNotContainsString('R$ -150', $m[0]);
+    }
+
+    /**
+     * O `layouts/auth` tinha `<title>StabilMoney</title>` fixo, então as cinco
+     * telas de auth apareciam idênticas na aba do navegador — quem deixa a
+     * redefinição de senha aberta numa aba não achava mais qual era.
+     */
+    #[DataProvider('telasComTitulo')]
+    public function test_cada_tela_de_auth_tem_titulo_proprio_na_aba(string $rota, string $esperado): void
+    {
+        $html = $this->get($rota)->assertOk()->getContent();
+
+        $this->assertStringContainsString('<title>' . $esperado . ' · StabilMoney</title>', $html);
+    }
+
+    public static function telasComTitulo(): array
+    {
+        return [
+            'login' => ['/login', 'Entrar'],
+            'cadastro' => ['/register', 'Criar conta'],
+            'esqueci a senha' => ['/forgot-password', 'Recuperar senha'],
+        ];
+    }
+
+    public function test_o_layout_guest_foi_removido(): void
+    {
+        // Nenhuma view o estende mais (as secundárias migraram para o layout v2).
+        // Deixá-lo no repo convidaria uma tela nova a nascer no visual antigo.
+        $this->assertFileDoesNotExist(resource_path('views/layouts/guest.blade.php'));
     }
 }

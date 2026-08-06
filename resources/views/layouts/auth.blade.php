@@ -4,8 +4,9 @@
     painel visual com vídeo de fundo à esquerda + card do formulário à direita.
     Os textos do painel visual variam por tela e chegam via @section
     (eyebrow, headline, sub, features); o formulário via @section('card').
-    As demais telas de auth (esqueci/redefinir/confirmar senha, verificar
-    e-mail) continuam no layouts.guest.
+    Vale para TODAS as telas de auth: login, cadastro e também as secundárias
+    (esqueci/redefinir/confirmar senha, verificar e-mail), que migraram para cá
+    em 02/08/2026 — o antigo layouts.guest foi removido por ficar sem uso.
 --}}
 <html lang="pt-BR">
 <head>
@@ -14,7 +15,12 @@
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <meta name="theme-color" content="#0C3D2B" />
 
-    <title>StabilMoney</title>
+    {{-- Mesmo padrão do layouts/app: a view informa `@section('title')` e o
+         layout compõe. Com o título fixo, as cinco telas de auth apareciam
+         idênticas na aba do navegador — e quem deixa a redefinição de senha
+         aberta numa aba não achava mais qual era. --}}
+    @php($tituloPagina = trim($__env->yieldContent('title')))
+    <title>{{ $tituloPagina ? $tituloPagina . ' · StabilMoney' : 'StabilMoney' }}</title>
 
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
     @include('partials.pwa-head')
