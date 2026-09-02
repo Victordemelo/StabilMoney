@@ -47,11 +47,12 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **755 testes / 2.965 asserções** verdes |
+| Suíte de testes | ✅ **995 testes / 4.026 asserções** verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
 | PWA (manifest + SW + lançamento offline com fila e Background Sync) | ✅ Instalável + offline (Fases 1-2) |
+| **Painel administrativo** (guard próprio, 2FA obrigatório, banir/excluir, sem ver valores) | ✅ **Implementado** (02/09/2026) — **desligado por padrão**, ver seção própria |
 | Deploy (VPS) / domínio | ⬜ Futuro (ver "Visão de infraestrutura") |
 
 **Para subir o ambiente:** seção "Fluxo de trabalho" abaixo. **Login de dev:** o usuário do
@@ -1158,6 +1159,52 @@ sequestrasse uma sessão pegaria o caminho mais destrutivo justamente por ser o 
   deixaria o atacante gastar a cota inteira num dos campos.
 - O modal avisa que a verificação em duas etapas **some junto com a conta**, com o caminho certo
   para quem só quer trocar de aparelho (Configurações › 2FA).
+
+---
+
+## 🛡️ Painel administrativo (02/09/2026)
+
+Testes: `PainelAdminAcessoTest`, `PainelAdminModeracaoTest`, `PainelAdminNaoVeValoresTest`.
+Rotas em **`routes/admin.php`** (arquivo próprio, carregado no `bootstrap/app.php`), config em
+`config/admin.php`, dados via `AdminPanelService`, views em `resources/views/admin/` com os
+layouts `layouts/admin` e `layouts/admin-auth`.
+
+- **Desligado por padrão.** `ADMIN_PANEL_ENABLED=false` ⇒ toda rota do painel é **404** (não
+  403, não tela de login): quem varre o site nem descobre que existe. Caminho base em
+  `ADMIN_PANEL_PATH` (padrão `painel_admin`). Chaves documentadas no `.env.example`.
+- **Guard PRÓPRIO (`admin`) e tabela própria (`admins`)** — nunca uma flag em `users`. Com
+  flag, qualquer falha na área logada do app (XSS, IDOR, sessão sequestrada) viraria acesso
+  ao painel. O cookie do app não autentica no painel e vice-versa. ⚠️ `users.is_admin`
+  significa **"titular da família"**, não tem nada a ver com isto. **Sem `remember_token`**
+  de propósito.
+- **Admin só nasce por shell:** `php artisan admin:criar` (senha pedida de forma oculta,
+  mesma `Password::defaults()` do app). Não existe e não pode existir tela de cadastro.
+- **2FA OBRIGATÓRIO** (`ExigeDoisFatoresDoAdmin`): o admin nasce sem segredo e configura no
+  primeiro acesso, numa tela da qual não sai antes de confirmar. Reusa `App\Support\Totp` e
+  `RecoveryCodes`. Colunas cifradas são `text` (mesma regra do app).
+- **Camadas, na ordem:** `PainelAdminLigado` → throttle (`painel-login` 3/min + 10/h por IP,
+  `painel-totp` idem, `painel-acao` 5/min + 30/h por admin) → `auth:admin` →
+  `ExigeDoisFatoresDoAdmin`. Limites bem mais apertados que os do app porque há UM usuário
+  legítimo: qualquer volume acima disso é ataque.
+- **🚨 O painel NUNCA vê valor em dinheiro.** Mostra a ESTRUTURA da conta (existe, quantos
+  dependentes/contas/lançamentos, último acesso), jamais saldo, valor, limite, meta ou
+  investimento. A parede fica na **query** (`AdminPanelService::COLUNAS`, lista fechada;
+  `withCount` permitido, `withSum`/`sum` sobre coluna monetária **não**), não no Blade — uma
+  parede só na view some no primeiro `dd()`. `PainelAdminNaoVeValoresTest` garante.
+- **Banimento** vive em `users` (`banned_at`/`banned_reason`/`banned_by_admin_id`, sem FK):
+  é atributo da pessoa, reversível; a exclusão é outra ação (LGPD). **Banir o titular alcança
+  os dependentes** (`User::estaBanido()` consulta o titular só quando é dependente); banir um
+  dependente afeta só ele. `BloqueiaUsuarioBanido` roda no grupo `web` em **toda** requisição
+  — checar só no login não basta, o cookie de "lembrar de mim" re-autentica quem acabou de
+  ser banido. Ele lê `$request->user('web')` com guard explícito: numa requisição do painel o
+  guard padrão é `admin`.
+- **Auditoria** em `admin_audit_logs` (`AdminAudit::registrar`): `admin_id` `nullOnDelete`,
+  `target_user_id` **sem FK** (excluir a pessoa é uma das ações registradas — cascade apagaria
+  a prova), `alvo_descricao` guarda nome/e-mail no momento da ação. Login no painel, código TOTP
+  errado, banir, desbanir e excluir disparam **`AlertaDoPainel`** por e-mail (`ADMIN_ALERT_EMAIL`, ou o
+  e-mail do próprio admin).
+- **Sem protótipo do Claude Design**: as views seguem os tokens do design system, mas não
+  passaram por handoff. Se quiser o padrão pixel-fiel do resto, é uma rodada no Design.
 
 ---
 
