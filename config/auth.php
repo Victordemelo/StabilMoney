@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Admin;
 use App\Models\User;
 
 return [
@@ -42,6 +43,14 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Painel administrativo. Guard PRÓPRIO, tabela própria: o cookie de sessão do
+        // app não autentica aqui, e uma sessão de admin não dá acesso a nada do app.
+        // Ver o docblock da migration 2026_08_06_100000 para o porquê.
+        'admin' => [
+            'driver' => 'session',
+            'provider' => 'admins',
+        ],
     ],
 
     /*
@@ -67,10 +76,10 @@ return [
             'model' => env('AUTH_MODEL', User::class),
         ],
 
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
+        'admins' => [
+            'driver' => 'eloquent',
+            'model' => Admin::class,
+        ],
     ],
 
     /*

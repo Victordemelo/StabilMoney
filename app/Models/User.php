@@ -143,6 +143,7 @@ class User extends Authenticatable implements MustVerifyEmail
             // voltava vazio ao reabrir a tela. Mesma pegadinha de `transactions.date`.
             'birth_date' => 'date:Y-m-d',
             'terms_accepted_at' => 'datetime',
+            'banned_at' => 'datetime',
             // Prova do aceite (LGPD art. 8º, §1º) cifrada em repouso: um dump de
             // backup vazado não entrega o IP de ninguém. `encrypted`, NUNCA hash —
             // hash é mão única e prova ilegível não prova nada. A coluna virou
@@ -240,6 +241,19 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Transaction::class);
     }
 
+    // Metas e investimentos pertencem ao TITULAR (como todo o resto da família). As
+    // relações existem para poder CONTÁ-LOS sem carregar valor nenhum — é o que o
+    // painel administrativo usa (ver AdminPanelService).
+    public function goals(): HasMany
+    {
+        return $this->hasMany(Goal::class);
+    }
+
+    public function investments(): HasMany
+    {
+        return $this->hasMany(Investment::class);
+    }
+
     /** Id do dono da família: o próprio id se titular, ou o do titular se dependente. */
     public function ownerId(): int
     {
@@ -271,6 +285,31 @@ class User extends Authenticatable implements MustVerifyEmail
     public function titular(): BelongsTo
     {
         return $this->belongsTo(User::class, 'account_owner_id');
+    }
+
+    /**
+     * A pessoa está impedida de entrar? (banimento aplicado pelo painel administrativo)
+     *
+     * Banir o TITULAR alcança os dependentes: eles enxergam exatamente os mesmos dados
+     * da família, então deixá-los entrar manteria a conta banida totalmente acessível —
+     * o banimento não teria efeito nenhum. Banir um dependente afeta só ele.
+     */
+    public function estaBanido(): bool
+    {
+        if ($this->banned_at !== null) {
+            return true;
+        }
+
+        // Só consulta o titular quando é dependente: a maioria das requisições é de
+        // titular e sai daqui sem query nenhuma.
+        return $this->account_owner_id !== null
+            && $this->titular()->whereNotNull('banned_at')->exists();
+    }
+
+    /** Banido por si mesmo, e não por arrasto do titular. */
+    public function estaBanidoDiretamente(): bool
+    {
+        return $this->banned_at !== null;
     }
 
     /** Rótulo PT-BR do parentesco do dependente (ou null se não informado). */
