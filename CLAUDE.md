@@ -188,6 +188,16 @@ database/
 │                           # + 2026_08_05_000000: two_factor_* (2FA — colunas `text`, ver a seção do 2FA)
 ├── factories/              # User, Account (states creditCard/overdraft/debitCard), Category, Transaction
 └── seeders/                # DatabaseSeeder (só roda em APP_ENV=local; credenciais via .env)
+                            # + DadosDeDemonstracaoSeeder: família com 6 meses de histórico
+                            #   para VER as telas cheias. RE-EXECUTÁVEL (apaga o financeiro
+                            #   da família e refaz), mantém o usuário e a foto dele, e só
+                            #   roda em `local`. Coberto por SeederDeDemonstracaoTest, que
+                            #   confere os INVARIANTES do modelo de dinheiro — foi ele que
+                            #   pegou `goal_contributions.type = 'deposit'` (o certo é
+                            #   'aporte'), que zerava o `reserved` e mostrava a poupança com
+                            #   R$ 80.700 disponíveis em vez de R$ 3.300, sem erro nenhum na
+                            #   tela. Seeder escreve por baixo dos Services: sem teste, nada
+                            #   valida o que ele grava.
 tests/Unit/                 # TotpTest — o algoritmo do 2FA contra os vetores oficiais da RFC 6238
 tests/Feature/              # 755 testes: auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
@@ -1348,6 +1358,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 ```powershell
 docker compose exec app php artisan test                       # suíte completa (956 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
+docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
 docker compose exec app php artisan view:cache                 # valida sintaxe de TODAS as views
 docker compose exec app bash                                   # shell no container
