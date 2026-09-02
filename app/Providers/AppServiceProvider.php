@@ -152,5 +152,31 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perHour(20)->by($chave),
             ];
         });
+
+        // ── Painel administrativo ───────────────────────────────────────────────
+        //
+        // Limites bem mais apertados que os do app, e a razão não é simetria: aqui
+        // existe UM usuário legítimo (o Victor), que erra a senha uma ou duas vezes por
+        // mês. Qualquer volume acima disso é ataque, não uso. Apertar não incomoda
+        // ninguém e derruba força bruta automatizada.
+        RateLimiter::for('painel-login', fn (Request $request) => [
+            Limit::perMinute(3)->by($request->ip()),
+            Limit::perHour(10)->by($request->ip()),
+        ]);
+
+        // Segundo fator do painel: o mesmo raciocínio de 10^6 palpites do 2FA do app,
+        // com teto ainda menor porque não há base de usuários para acomodar.
+        RateLimiter::for('painel-totp', fn (Request $request) => [
+            Limit::perMinute(3)->by('painel-totp|'.$request->ip()),
+            Limit::perHour(10)->by('painel-totp|'.$request->ip()),
+        ]);
+
+        // Banir/desbanir/excluir. Um humano faz isso poucas vezes ao dia; um pico é
+        // sinal de sessão sequestrada, e o limite transforma "apagou a base inteira"
+        // em "apagou dez e parou" — tempo para o alerta por e-mail chegar.
+        RateLimiter::for('painel-acao', fn (Request $request) => [
+            Limit::perMinute(5)->by($request->user('admin')?->id ?: $request->ip()),
+            Limit::perHour(30)->by($request->user('admin')?->id ?: $request->ip()),
+        ]);
     }
 }
