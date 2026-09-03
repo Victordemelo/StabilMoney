@@ -38,12 +38,17 @@ class FaturaService
         $fixasEmAberto = $contasFixas->where('paga', false);
 
         $stats = [
-            // Fatura do ciclo aberto + o que já fechou e não foi pago. Somar só
-            // o ciclo aberto anunciava "R$ 0,00" a quem devia três faturas
+            // SÓ o que está EM ABERTO: fatura a pagar do ciclo aberto
+            // (`openInvoiceDue`) + o que já fechou e não foi pago. Somar só o
+            // ciclo aberto anunciava "R$ 0,00" a quem devia três faturas
             // atrasadas — a mesma dívida que sumia dos cards sumia do topo.
-            // As duas janelas são disjuntas, então não há dupla contagem.
+            // E somar `currentInvoice` (T-3, auditoria de 02/09/2026) contava
+            // a fatura do ciclo aberto JÁ PAGA: o card dizia "Fatura paga" e o
+            // topo seguia cobrando. É a mesma conta do dashboard
+            // (`DashboardService::obrigacoesEmAberto`). As duas janelas são
+            // disjuntas, então não há dupla contagem.
             'totalFaturas' => round(
-                $cards->sum(fn ($c) => (float) $c['currentInvoice'] + (float) ($c['closedInvoice']['valor'] ?? 0)),
+                $cards->sum(fn ($c) => (float) $c['invoiceDue'] + (float) ($c['closedInvoice']['valor'] ?? 0)),
                 2,
             ),
             'numCartoes' => $cards->count(),

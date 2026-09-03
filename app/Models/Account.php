@@ -427,6 +427,7 @@ class Account extends Model
         $this->committedCache = null;
         $this->openInvoiceDueCache = null;
         $this->closedInvoiceDueCache = null;
+        $this->closedInvoiceNetCache = null;
 
         return $this;
     }
@@ -730,9 +731,40 @@ class Account extends Model
     private ?float $openInvoiceDueCache = null;
 
     /**
-     * Fatura EM ABERTO (a pagar) do ciclo atual: soma das despesas do ciclo que
-     * ainda NÃO foram pagas (paid_at null). Só cartão de crédito. Ao "pagar a
-     * fatura", essas despesas ganham paid_at e este valor zera.
+     * Fatura EM ABERTO (a pagar) do ciclo atual: soma COM SINAL das linhas do
+     * ciclo que ainda NÃO foram pagas (paid_at null), MAIS o crédito que sobrou
+     * do que já fechou (ver `closedInvoiceNet`). Só cartão de crédito. Ao
+     * "pagar a fatura", essas linhas ganham paid_at e este valor zera.
+     *
+     * ===== Crédito de estorno ROLA entre ciclos (F-2, auditoria de 02/09/2026) =====
+     *
+     * Um estorno (income no cartão) maior que as compras do ciclo dele deixa
+     * um CRÉDITO. No cartão de verdade esse crédito aparece na fatura seguinte
+     * abatendo as compras novas. Aqui o desenho é:
+     *
+     *  - Toda linha NÃO PAGA é a portadora do seu próprio valor — inclusive o
+     *    estorno. Não existe "saldo de crédito" guardado em lugar nenhum: o
+     *    crédito é simplesmente a parte negativa da soma com sinal do que ainda
+     *    não recebeu `paid_at`. É a mesma régua de `committed`, que já era a
+     *    soma com sinal de tudo não pago — por isso limite e fatura nunca
+     *    discordam.
+     *  - `closedInvoiceNet` = líquido com sinal do que já fechou e não foi pago.
+     *    Positivo é dívida (`closedInvoiceDue`); NEGATIVO é crédito, e ele entra
+     *    aqui, reduzindo a fatura do ciclo aberto.
+     *  - O valor exibido/cobrado tem piso 0; quem decide é o líquido com sinal.
+     *  - Pagar uma janela cujo líquido é ≤ 0 não tira dinheiro do caixa. Se o
+     *    líquido é exatamente 0, as linhas são marcadas como pagas (o crédito
+     *    foi todo consumido); se ainda sobra crédito, as linhas FICAM em aberto
+     *    de propósito — são elas que carregam o crédito para a fatura seguinte,
+     *    onde serão quitadas junto com as compras novas que ele abater. Pagar
+     *    o ciclo aberto, havendo crédito fechado, quita as duas janelas de uma
+     *    vez (o caixa sai só o que falta depois do crédito). Ver
+     *    `FaturaController::payInvoice`.
+     *
+     * Antes, o piso 0 era aplicado janela a janela e o crédito era perdido: com
+     * compra de 1.000, estorno de 1.000 no ciclo seguinte + compra de 400, e
+     * compra de 700 no outro, o caixa pagava 1.700 em vez de 1.100 — e o
+     * estorno e a compra de 400 nunca recebiam `paid_at`.
      */
     public function getOpenInvoiceDueAttribute(): float
     {
@@ -744,12 +776,17 @@ class Account extends Model
 
             [$start, $end] = $cycle;
 
-            return max(0.0, $this->somaAssinadaDoCartao(
+            $liquidoDoCiclo = $this->somaAssinadaDoCartao(
                 $this->transactions()
                     ->whereNull('paid_at')
                     ->where('date', '>', $start->toDateString())
                     ->where('date', '<=', $end->toDateString())
-            ));
+            );
+
+            // Crédito que sobrou do que já fechou (parte negativa do líquido).
+            $creditoFechado = min(0.0, $this->closedInvoiceNet);
+
+            return max(0.0, round($liquidoDoCiclo + $creditoFechado, 2));
         })();
     }
 
@@ -828,15 +865,16 @@ class Account extends Model
 
     private ?float $closedInvoiceDueCache = null;
 
+    private ?float $closedInvoiceNetCache = null;
+
     /**
-     * Fatura JÁ FECHADA que continua sem pagamento — a dívida acumulada de
-     * todos os ciclos que já viraram, não só a do mês passado (ver
-     * `closedCycle()`). Sem isto, a dívida sumia da tela no dia em que o ciclo
-     * virava: o `openInvoiceDue` só enxerga o ciclo aberto.
+     * Líquido COM SINAL de tudo que já fechou e continua sem `paid_at`.
+     * Positivo = dívida fechada; negativo = CRÉDITO de estorno que sobrou e
+     * que abate a fatura do ciclo aberto (ver `openInvoiceDue`).
      */
-    public function getClosedInvoiceDueAttribute(): float
+    public function getClosedInvoiceNetAttribute(): float
     {
-        return $this->closedInvoiceDueCache ??= (function (): float {
+        return $this->closedInvoiceNetCache ??= (function (): float {
             $cycle = $this->closedCycle();
             if (! $cycle) {
                 return 0.0;
@@ -844,13 +882,27 @@ class Account extends Model
 
             [$start, $end] = $cycle;
 
-            return max(0.0, $this->somaAssinadaDoCartao(
+            return $this->somaAssinadaDoCartao(
                 $this->transactions()
                     ->whereNull('paid_at')
                     ->where('date', '>', $start->toDateString())
                     ->where('date', '<=', $end->toDateString())
-            ));
+            );
         })();
+    }
+
+    /**
+     * Fatura JÁ FECHADA que continua sem pagamento — a dívida acumulada de
+     * todos os ciclos que já viraram, não só a do mês passado (ver
+     * `closedCycle()`). Sem isto, a dívida sumia da tela no dia em que o ciclo
+     * virava: o `openInvoiceDue` só enxerga o ciclo aberto.
+     *
+     * Piso 0: quando o líquido é negativo não há o que cobrar do fechado — o
+     * crédito segue para o ciclo aberto por `closedInvoiceNet`.
+     */
+    public function getClosedInvoiceDueAttribute(): float
+    {
+        return $this->closedInvoiceDueCache ??= max(0.0, $this->closedInvoiceNet);
     }
 
     /**
@@ -870,11 +922,28 @@ class Account extends Model
             return null;
         }
 
-        $primeira = $this->transactions()
+        // Linhas em aberto da janela, em ordem cronológica, com sinal. A dívida
+        // "começa" na primeira linha DEPOIS do último ponto em que o acumulado
+        // era ≤ 0: tudo antes dele foi coberto por estorno (crédito que rolou).
+        // Sem isto, uma compra de agosto quitada pelo crédito de um estorno
+        // faria a dívida de setembro aparecer "vencida desde 20/09".
+        $linhas = $this->transactions()
             ->whereNull('paid_at')
-            ->where('type', 'expense')
             ->where('date', '<=', $fimDaJanela->toDateString())
-            ->min('date');
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get(['date', 'type', 'amount']);
+
+        $primeira = null;
+        $acumulado = 0.0;
+        foreach ($linhas as $linha) {
+            $acumulado = round($acumulado + ($linha->type === 'expense' ? (float) $linha->amount : -(float) $linha->amount), 2);
+            if ($acumulado <= 0) {
+                $primeira = null;   // coberto até aqui: a dívida recomeça adiante
+            } else {
+                $primeira ??= $linha->date;
+            }
+        }
 
         if (! $primeira) {
             return null;

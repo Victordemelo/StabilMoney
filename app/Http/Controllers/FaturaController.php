@@ -10,10 +10,12 @@ use App\Services\FaturaService;
 use App\Services\FundingService;
 use App\Support\Brl;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -88,7 +90,7 @@ class FaturaController extends Controller
                 maxFonte: $maxFonte,
                 write: function (array $auditoria) use ($mode, $common, $total, $base, $data, $conta) {
                     if ($mode === 'parcelado') {
-                        return $this->createInstallments($common + $auditoria, $total, $base, (int) $data['installments']);
+                        return $this->createInstallments($common + $auditoria, $total, $base, (int) $data['installments'], $conta);
                     }
 
                     if ($mode === 'recorrente') {
@@ -239,35 +241,24 @@ class FaturaController extends Controller
         // `closedCycle()` hoje devolve a janela do que já fechou INTEIRA (ver o
         // model): com dois ou três ciclos sem pagar, um pagamento quita a dívida
         // acumulada, como a fatura de verdade — em que o saldo rola de mês a mês.
-        $cycle = ($data['ciclo'] ?? 'aberto') === 'fechado'
-            ? $account->closedCycle()
-            : $account->billingCycle();
+        $ciclo = ($data['ciclo'] ?? 'aberto') === 'fechado' ? 'fechado' : 'aberto';
 
-        if (! $cycle) {
+        if (! $account->billingCycle()) {
             return redirect()->route('faturas.index');
         }
-        [$start, $end] = $cycle;
 
-        // Despesas EM ABERTO do ciclo (trava para evitar corrida/duplo pagamento).
-        // Soma COM SINAL: estorno (income) lançado no cartão abate a fatura, como no
-        // mundo real. Somando tudo como despesa, uma compra de 1.000 com estorno de 300
-        // cobrava 1.300 do caixa — e o `committed` do cartão, que já considera o sinal,
+        // Linhas EM ABERTO da janela (pré-checagem, fora do lock). Soma COM SINAL:
+        // estorno (income) lançado no cartão abate a fatura, como no mundo real.
+        // Somando tudo como despesa, uma compra de 1.000 com estorno de 300 cobrava
+        // 1.300 do caixa — e o `committed` do cartão, que já considera o sinal,
         // discordaria do valor cobrado.
-        $abertas = Transaction::where('account_id', $account->id)
-            ->whereNull('paid_at')
-            ->where('date', '>', $start->toDateString())
-            ->where('date', '<=', $end->toDateString())
-            ->get();
+        $abertas = $this->linhasDaFatura($account, $ciclo);
+        $total = $this->liquidoComSinal($abertas);
 
-        $total = round(
-            (float) $abertas->sum(fn (Transaction $t) => $t->type === 'expense'
-                ? (float) $t->amount
-                : -(float) $t->amount),
-            2,
-        );
+        // Líquido ≤ 0: não há o que cobrar do caixa. Ver o desenho do crédito de
+        // estorno em `Account::getOpenInvoiceDueAttribute`.
         if ($total <= 0) {
-            return redirect()->route('faturas.index')
-                ->with('status', 'Esta fatura já estava quitada.');
+            return $this->quitarPeloCredito($account, $abertas, $total, $pagoEm);
         }
 
         $caixa = Account::whereKey($data['pay_account_id'])->firstOrFail();
@@ -282,27 +273,17 @@ class FaturaController extends Controller
             // Teto do resgate aprovado no modal: estourou, o guard devolve 409
             // com as opções recalculadas em vez de sacar mais do investimento.
             maxFonte: isset($data['funding_max_amount']) ? (float) $data['funding_max_amount'] : null,
-            write: function (array $auditoria) use ($ownerId, $request, $data, $account, $pagoEm, $start, $end) {
+            write: function (array $auditoria) use ($ownerId, $request, $data, $account, $pagoEm, $ciclo) {
                 // A LEITURA AUTORITATIVA é esta, sob lock e dentro da transação.
                 //
                 // Antes, a lista e o total vinham de fora e a saída de caixa era criada
                 // incondicionalmente: com 4 POSTs paralelos, uma fatura de R$ 300 gerava
                 // 4 pagamentos de R$ 300 (a conta ia a −R$ 1.100). O relock existia, mas
                 // só decidia o que MARCAR como pago — nunca se havia o que pagar.
-                $abertasAgora = Transaction::where('account_id', $account->id)
-                    ->whereNull('paid_at')
-                    ->where('date', '>', $start->toDateString())
-                    ->where('date', '<=', $end->toDateString())
-                    ->lockForUpdate()
-                    ->get();
+                $abertasAgora = $this->linhasDaFatura($account, $ciclo, lock: true);
 
                 // Mesma soma com sinal da pré-checagem: o estorno abate.
-                $totalAgora = round(
-                    (float) $abertasAgora->sum(fn (Transaction $t) => $t->type === 'expense'
-                        ? (float) $t->amount
-                        : -(float) $t->amount),
-                    2,
-                );
+                $totalAgora = $this->liquidoComSinal($abertasAgora);
 
                 // Outra requisição pagou primeiro: nada a fazer, e nada a debitar.
                 if ($totalAgora <= 0) {
@@ -350,6 +331,101 @@ class FaturaController extends Controller
             : 'Fatura marcada como paga.';
 
         return redirect()->route('faturas.index')->with('status', $aviso);
+    }
+
+    /**
+     * Linhas EM ABERTO que um pagamento de fatura quita, conforme a janela:
+     *
+     *  - `fechado`: tudo que já fechou (date ≤ início do ciclo aberto);
+     *  - `aberto`:  o ciclo aberto — e, se o que já fechou está em CRÉDITO
+     *    (líquido negativo), as linhas fechadas também, porque é esse crédito
+     *    que abate a fatura aberta (`Account::openInvoiceDue`). Quitar as duas
+     *    janelas juntas consome o crédito exatamente: o caixa sai só o que
+     *    falta depois dele. Se o fechado está em DÍVIDA, ele não é arrastado —
+     *    a dívida atrasada tem botão e vencimento próprios.
+     *
+     * Com `$lock`, a leitura é feita com `lockForUpdate` (dentro da transação
+     * do FundingService) — é a leitura autoritativa.
+     *
+     * @return EloquentCollection<int, Transaction>
+     */
+    private function linhasDaFatura(Account $account, string $ciclo, bool $lock = false): EloquentCollection
+    {
+        [$inicioAberto, $fimAberto] = $account->billingCycle();
+
+        $query = Transaction::where('account_id', $account->id)->whereNull('paid_at');
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        if ($ciclo === 'fechado') {
+            return (clone $query)->where('date', '<=', $inicioAberto->toDateString())->get();
+        }
+
+        // Crédito fechado? Recalculado AQUI (sob o mesmo lock quando `$lock`),
+        // nunca pelo cache do accessor: entre a pré-checagem e a gravação outra
+        // requisição pode ter consumido o crédito.
+        $fechadas = (clone $query)->where('date', '<=', $inicioAberto->toDateString())->get();
+        $creditoFechado = $this->liquidoComSinal($fechadas) < 0;
+
+        $abertas = (clone $query)
+            ->where('date', '>', $inicioAberto->toDateString())
+            ->where('date', '<=', $fimAberto->toDateString())
+            ->get();
+
+        return $creditoFechado ? $fechadas->merge($abertas) : $abertas;
+    }
+
+    /** Soma com sinal (despesa +, estorno −) de um conjunto de linhas do cartão. */
+    private function liquidoComSinal(Collection $linhas): float
+    {
+        return round(
+            (float) $linhas->sum(fn (Transaction $t) => $t->type === 'expense'
+                ? (float) $t->amount
+                : -(float) $t->amount),
+            2,
+        );
+    }
+
+    /**
+     * Fatura cujo líquido é ≤ 0: nada sai do caixa.
+     *
+     *  - Líquido = 0: o estorno cobriu as compras exatamente. As linhas ganham
+     *    `paid_at` (sem quitação em caixa, porque não houve saída) e a fatura
+     *    fica quitada.
+     *  - Líquido < 0: ainda sobra crédito. As linhas FICAM em aberto de
+     *    propósito — são elas que carregam o crédito para a fatura seguinte
+     *    (`Account::closedInvoiceNet`), onde serão quitadas junto com as compras
+     *    que ele abater. Marcar só as despesas como pagas deixaria o estorno
+     *    inteiro em aberto e o crédito contaria em dobro; marcar tudo apagaria o
+     *    crédito. Nenhuma linha nova é criada: uma "linha de crédito" sintética
+     *    entraria no dashboard como um segundo estorno.
+     *
+     * @param  Collection<int, Transaction>  $linhas
+     */
+    private function quitarPeloCredito(Account $account, Collection $linhas, float $liquido, CarbonImmutable $pagoEm)
+    {
+        if ($linhas->isEmpty()) {
+            return redirect()->route('faturas.index')
+                ->with('status', 'Esta fatura já estava quitada.');
+        }
+
+        if ($liquido < 0) {
+            return redirect()->route('faturas.index')->with(
+                'status',
+                'Fatura quitada pelo crédito do estorno — nada saiu da conta. Sobram '
+                .Brl::format(-$liquido).' de crédito, que abatem a próxima fatura do '.$account->name.'.',
+            );
+        }
+
+        DB::transaction(function () use ($linhas, $pagoEm) {
+            Transaction::whereIn('id', $linhas->pluck('id'))
+                ->whereNull('paid_at')
+                ->update(['paid_at' => $pagoEm]);
+        });
+
+        return redirect()->route('faturas.index')
+            ->with('status', 'Fatura quitada pelo crédito do estorno — nada saiu da conta.');
     }
 
     /**
@@ -409,10 +485,19 @@ class FaturaController extends Controller
     }
 
     /**
-     * Parcelado em N: uma transação por mês. A última parcela absorve o
-     * arredondamento para a soma bater o total exato.
+     * Parcelado em N: uma transação por CICLO de fatura (não por mês-calendário).
+     *
+     * A parcela N cai no N-ésimo ciclo a partir do ciclo da compra. A 1ª mantém
+     * a data da compra; as demais partem do candidato "mesmo dia, N−1 meses
+     * depois" e, se ele ainda cair no ciclo da parcela anterior, são empurradas
+     * para o primeiro dia do ciclo seguinte (fechamento + 1).
+     *
+     * Antes era só `addMonthsNoOverflow`: cartão que fecha dia 28 com compra em
+     * 30/01 datava a 2ª parcela em 28/02 — dentro do MESMO ciclo (28/01..28/02]
+     * da 1ª. Fevereiro cobrava duas parcelas e março nenhuma (F-1, auditoria
+     * de 02/09/2026). Ocorria com compra em 29, 30 e 31/01.
      */
-    private function createInstallments(array $common, float $total, CarbonImmutable $base, int $n): Transaction
+    private function createInstallments(array $common, float $total, CarbonImmutable $base, int $n, Account $card): Transaction
     {
         $groupId = (string) Str::uuid();
         $primeira = null;
@@ -436,17 +521,16 @@ class FaturaController extends Controller
         // único (user_id, client_uuid) só admite uma linha por uuid.
         $semUuid = Arr::except($common, 'client_uuid');
 
-        DB::transaction(function () use ($common, $semUuid, $base, $n, $groupId, $porParcela, $sobra, &$primeira) {
+        $datas = $this->datasDasParcelas($base, $n, $card);
+
+        DB::transaction(function () use ($common, $semUuid, $datas, $n, $groupId, $porParcela, $sobra, &$primeira) {
             for ($i = 1; $i <= $n; $i++) {
                 // As `$sobra` primeiras parcelas levam 1 centavo a mais.
                 $amount = ($porParcela + ($i <= $sobra ? 1 : 0)) / 100;
 
                 $linha = Transaction::create(($i === 1 ? $common : $semUuid) + [
                     'amount' => $amount,
-                    // NoOverflow: compra em 31/01 gera 28/02, não 03/03. Com o
-                    // addMonths puro do Carbon, fevereiro ficava sem parcela e
-                    // março levava duas.
-                    'date' => $base->addMonthsNoOverflow($i - 1)->toDateString(),
+                    'date' => $datas[$i - 1]->toDateString(),
                     'group_id' => $groupId,
                     'installment_no' => $i,
                     'installments' => $n,
@@ -457,6 +541,44 @@ class FaturaController extends Controller
         });
 
         return $primeira;
+    }
+
+    /**
+     * Datas das N parcelas, uma por ciclo de fatura (ver `createInstallments`).
+     * Sem dia de fechamento (não deveria acontecer: parcelado é só cartão),
+     * cai no mês-calendário de antes.
+     *
+     * @return list<CarbonImmutable>
+     */
+    private function datasDasParcelas(CarbonImmutable $base, int $n, Account $card): array
+    {
+        $datas = [$base];
+        // Fim do ciclo em que a parcela anterior caiu.
+        $fechamentoAnterior = $card->billingCycle($base)[1] ?? null;
+
+        for ($i = 2; $i <= $n; $i++) {
+            // NoOverflow: compra em 31/01 gera 28/02, não 03/03. Com o addMonths
+            // puro do Carbon, fevereiro ficava sem parcela e março levava duas.
+            $candidata = $base->addMonthsNoOverflow($i - 1);
+
+            if ($fechamentoAnterior === null) {
+                $datas[] = $candidata;
+
+                continue;
+            }
+
+            $fechamento = $card->billingCycle($candidata)[1];
+            if ($fechamento->lessThanOrEqualTo($fechamentoAnterior)) {
+                // Ainda no ciclo da parcela anterior: primeiro dia do ciclo seguinte.
+                $candidata = $fechamentoAnterior->addDay();
+                $fechamento = $card->billingCycle($candidata)[1];
+            }
+
+            $datas[] = $candidata;
+            $fechamentoAnterior = $fechamento;
+        }
+
+        return $datas;
     }
 
     /**
