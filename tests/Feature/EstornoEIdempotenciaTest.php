@@ -255,6 +255,8 @@ class EstornoEIdempotenciaTest extends TestCase
 
     public function test_pagar_a_recorrencia_do_cartao_duas_vezes_gera_uma_unica_proxima(): void
     {
+        // A próxima só nasce depois que o ciclo da atual (10/07, 10/08] FECHOU.
+        Carbon::setTestNow('2026-09-02');
         $cartao = $this->cartao();
 
         $this->actingAs($this->user)->post(route('faturas.lancar'), $this->payloadLancar([

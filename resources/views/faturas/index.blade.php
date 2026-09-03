@@ -322,19 +322,54 @@
                     </div>
                 @endif
 
+                {{-- Recorrências cuja última ocorrência já FECHOU e ainda não têm a
+                     deste ciclo. A ocorrência fechada não está na lista abaixo (que é
+                     do ciclo aberto), então o botão de avançar a recorrência mora aqui.
+                     Some assim que a próxima é lançada. --}}
+                @if ($card->recorrenciasParaAvancar->isNotEmpty())
+                    <div class="fatura-items fatura-recorrencias">
+                        @foreach ($card->recorrenciasParaAvancar as $rec)
+                            <div class="fatura-item">
+                                <span class="fi-ico">{{ $rec->category?->icon ?: '🔁' }}</span>
+                                <div class="fi-txt">
+                                    <strong>{{ $rec->description ?: ($rec->category?->name ?? 'Recorrência') }}</strong>
+                                    <span>
+                                        <em class="fi-badge recorrente">Recorrente</em>
+                                        · última cobrança em {{ $rec->date?->translatedFormat('d/m/Y') }} — ainda não lançada neste ciclo
+                                    </span>
+                                </div>
+                                <div class="fi-val">
+                                    <b>{{ $brl($rec->amount) }}</b>
+                                    <small>por mês</small>
+                                </div>
+                                <form method="POST" action="{{ route('faturas.recorrente.pagar', $rec->id) }}">
+                                    @csrf
+                                    <button class="btn primary" type="submit" title="Lançar a cobrança deste ciclo na fatura aberta">
+                                        Lançar neste ciclo
+                                    </button>
+                                </form>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
                 <div class="fatura-items">
                     @forelse ($card->items as $item)
                         @php
                             $catIcon  = $item->category?->icon;
                             $catName  = $item->category?->name ?? 'Sem categoria';
-                            $badge    = $item->badge;
+                            // Receita lançada no cartão = ESTORNO: abate a fatura e
+                            // devolve limite. Aparece com o valor negativo e selo próprio.
+                            $estorno  = $item->type === 'income';
+                            $badge    = $estorno ? 'Estorno' : $item->badge;
                             // Classe do badge p/ a cor (espelha .fi-badge.parcelado / .recorrente)
                             $badgeCls = 'avista';
-                            if ($badge === 'Recorrente') $badgeCls = 'recorrente';
+                            if ($estorno) $badgeCls = 'estorno';
+                            elseif ($badge === 'Recorrente') $badgeCls = 'recorrente';
                             elseif ($badge && str_contains($badge, '/')) $badgeCls = 'parcelado';
                         @endphp
                         <div class="fatura-item">
-                            <span class="fi-ico">{{ $catIcon ?: '📦' }}</span>
+                            <span class="fi-ico">{{ $estorno ? '↩️' : ($catIcon ?: '📦') }}</span>
                             <div class="fi-txt">
                                 <strong>{{ $item->description ?: $catName }}</strong>
                                 <span>
@@ -344,22 +379,24 @@
                                 </span>
                             </div>
                             <div class="fi-val">
-                                <b>{{ $brl($item->amount) }}</b>
+                                <b @if ($estorno) class="estorno" @endif>{{ $estorno ? \App\Support\Brl::format(-$item->amount) : $brl($item->amount) }}</b>
                                 <small>{{ $item->date?->translatedFormat('d M') }}</small>
                             </div>
-                            {{-- Recorrência em aberto: pagar gera a próxima (+1 mês).
-                                 A rota existia desde sempre, mas sem botão nenhum — então
-                                 a recorrência nunca avançava de mês. --}}
-                            @if ($item->recurring && ! $item->paid_at)
+                            {{-- Recorrência de cartão: a próxima ocorrência só nasce quando
+                                 esta já fechou ou foi quitada com a fatura dela. Na lista do
+                                 ciclo aberto isso só acontece se a fatura foi paga
+                                 antecipada; em aberto, o botão não aparece — clicar geraria
+                                 cobrança em ciclo futuro, consumindo limite antes da hora. --}}
+                            @if ($item->recurring && $item->paid_at)
                                 <form method="POST" action="{{ route('faturas.recorrente.pagar', $item->id) }}">
                                     @csrf
-                                    <button class="btn primary" type="submit" title="Marcar como paga e gerar a próxima">
-                                        Pagar
+                                    <button class="btn primary" type="submit" title="Lançar a próxima ocorrência">
+                                        Lançar próxima
                                     </button>
                                 </form>
                             @endif
                             <form method="POST" action="{{ route('faturas.compra.destroy', $item->id) }}"
-                                  onsubmit="return confirm('Remover esta compra da fatura?');">
+                                  onsubmit="return confirm('{{ $estorno ? 'Remover este estorno da fatura?' : 'Remover esta compra da fatura?' }}');">
                                 @csrf
                                 @method('DELETE')
                                 <button class="fi-rm" type="submit" aria-label="Remover" title="Remover">

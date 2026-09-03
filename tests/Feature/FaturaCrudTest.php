@@ -120,7 +120,9 @@ class FaturaCrudTest extends TestCase
     public function test_recorrente_creates_single_open_occurrence(): void
     {
         // Recorrência "infinita": cria UMA ocorrência em aberto (não 12), datada
-        // no próximo vencimento do cartão. Pagá-la gera a próxima.
+        // no DIA DA COMPRA (antes era no vencimento do cartão — fora do ciclo
+        // aberto, invisível na lista até o ciclo virar). A próxima nasce por
+        // clique, só depois que o ciclo desta fechar.
         $this->card->update(['closing_day' => 8, 'due_day' => 15]);
 
         $this->actingAs($this->user)->post('/faturas/lancar', $this->launch([
@@ -137,17 +139,22 @@ class FaturaCrudTest extends TestCase
         $this->assertNull($tx->installments);
         $this->assertNotNull($tx->group_id);
         $this->assertSame('49.90', (string) $tx->amount);
-        // Datada no vencimento do cartão.
-        $this->assertSame($this->card->dueDate->toDateString(), $tx->date->toDateString());
+        // Datada no dia da compra.
+        $this->assertSame(now()->toDateString(), $tx->date->toDateString());
     }
 
     public function test_paying_recurrence_marks_paid_and_generates_next(): void
     {
         $this->card->update(['closing_day' => 8, 'due_day' => 15]);
 
+        // A ocorrência é lançada num ciclo que JÁ FECHOU: só então a próxima
+        // pode nascer (ver RecorrenciaDeCartaoNoCicloTest para o ciclo aberto).
+        $dataDaCompra = now()->subMonthNoOverflow()->day(1)->toDateString();
+
         $this->actingAs($this->user)->post('/faturas/lancar', $this->launch([
             'description' => 'Streaming',
             'amount' => '49,90',
+            'date' => $dataDaCompra,
             'mode' => 'recorrente',
         ]))->assertSessionHasNoErrors();
 
@@ -177,10 +184,13 @@ class FaturaCrudTest extends TestCase
             ->firstOrFail();
         $this->assertSame($atual->group_id, $proxima->group_id);
         $this->assertSame('49.90', (string) $proxima->amount);
+        // Mesmo dia da compra, um mês depois — e dentro do ciclo aberto.
         $this->assertSame(
-            CarbonImmutable::parse($atual->date)->addMonth()->toDateString(),
+            CarbonImmutable::parse($atual->date)->addMonthNoOverflow()->toDateString(),
             $proxima->date->toDateString(),
         );
+        [$inicio, $fim] = $this->card->fresh()->billingCycle();
+        $this->assertTrue($proxima->date->greaterThan($inicio) && $proxima->date->lessThanOrEqualTo($fim));
     }
 
     public function test_paying_already_paid_recurrence_does_not_duplicate(): void
@@ -189,6 +199,7 @@ class FaturaCrudTest extends TestCase
 
         $this->actingAs($this->user)->post('/faturas/lancar', $this->launch([
             'amount' => '49,90',
+            'date' => now()->subMonthNoOverflow()->day(1)->toDateString(), // ciclo já fechado
             'mode' => 'recorrente',
         ]))->assertSessionHasNoErrors();
 

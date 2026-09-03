@@ -232,6 +232,11 @@ class FaturaService
                 // Último pagamento de fatura deste cartão — é o que o botão
                 // "Estornar" desfaz. Null quando nunca se pagou nada.
                 'settlement' => $this->lastSettlement($card),
+                // Recorrências cuja última ocorrência já FECHOU e ainda não têm
+                // a ocorrência deste ciclo. É onde vive o botão "Lançar neste
+                // ciclo": a ocorrência fechada não está na lista do ciclo aberto,
+                // e sem este bloco a recorrência não teria como avançar.
+                'recorrenciasParaAvancar' => $this->recorrenciasParaAvancar($card, $cycle),
             ]);
         });
     }
@@ -279,6 +284,12 @@ class FaturaService
      * Itens (transações) do cartão dentro do ciclo aberto — date em
      * (cycleStart, cycleEnd]. Cada item carrega category, madeBy e o "badge".
      *
+     * Entram DESPESAS e RECEITAS: a receita lançada num cartão é um ESTORNO —
+     * abate a fatura, devolve limite e, sobrando, rola de ciclo
+     * (`Account::closedInvoiceNet`). Antes só a despesa aparecia: a fatura
+     * "encolhia" sem nenhuma linha explicando por quê, e o estorno não tinha
+     * onde ser visto nem excluído.
+     *
      * @param  array{0: CarbonImmutable, 1: CarbonImmutable}|null  $cycle
      */
     private function cycleItems(Account $card, ?array $cycle): Collection
@@ -291,12 +302,45 @@ class FaturaService
 
         return Transaction::with(['category', 'madeBy'])
             ->where('account_id', $card->id)
-            ->where('type', 'expense')
+            ->whereIn('type', ['expense', 'income'])
             ->where('date', '>', $start->toDateString())
             ->where('date', '<=', $end->toDateString())
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->get();
+    }
+
+    /**
+     * Última ocorrência de cada recorrência deste cartão que já pertence a um
+     * ciclo FECHADO (date ≤ início do ciclo aberto) e ainda não tem sucessora.
+     *
+     * A próxima ocorrência só nasce por clique e só quando a atual já fechou
+     * (`FaturaController::pay`), mas a ocorrência fechada não aparece na lista
+     * do ciclo aberto — este é o lugar dela. Some no instante em que a
+     * sucessora é lançada (ela passa a ser a última, e cai no ciclo aberto).
+     *
+     * @param  array{0: CarbonImmutable, 1: CarbonImmutable}|null  $cycle
+     * @return Collection<int, Transaction>
+     */
+    private function recorrenciasParaAvancar(Account $card, ?array $cycle): Collection
+    {
+        if (! $cycle) {
+            return collect();
+        }
+
+        [$inicioAberto] = $cycle;
+
+        return Transaction::with(['category'])
+            ->where('account_id', $card->id)
+            ->where('type', 'expense')
+            ->where('recurring', true)
+            ->whereNotNull('group_id')
+            ->orderByDesc('date')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('group_id')           // a mais recente de cada grupo
+            ->filter(fn (Transaction $t) => $t->date->lessThanOrEqualTo($inicioAberto))
+            ->values();
     }
 
     /**
@@ -316,6 +360,9 @@ class FaturaService
             ->where('transactions.user_id', $userId)
             ->where('transactions.type', 'expense')
             ->whereNull('transactions.settles_account_id')
+            // A ponta de saída de uma transferência não é despesa avulsa: é o
+            // mesmo dinheiro chegando noutra conta da família.
+            ->whereNull('transactions.transfer_group_id')
             ->where('date', '>=', $today->startOfMonth()->toDateString())
             ->where('date', '<=', $today->endOfMonth()->toDateString())
             ->whereHas('account', fn ($q) => $q->where('type', '!=', 'credit_card'))

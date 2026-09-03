@@ -35,7 +35,7 @@ class FaturaController extends Controller
 
     /**
      * Cria a despesa: à vista (1 linha), parcelada (N linhas) ou recorrente
-     * (1 ocorrência em aberto, datada no vencimento do cartão). type=expense, família.
+     * (1 ocorrência em aberto, datada no dia da compra). type=expense, família.
      */
     public function store(StoreFaturaLaunchRequest $request, FundingService $funding)
     {
@@ -557,42 +557,58 @@ class FaturaController extends Controller
         $fechamentoAnterior = $card->billingCycle($base)[1] ?? null;
 
         for ($i = 2; $i <= $n; $i++) {
-            // NoOverflow: compra em 31/01 gera 28/02, não 03/03. Com o addMonths
-            // puro do Carbon, fevereiro ficava sem parcela e março levava duas.
-            $candidata = $base->addMonthsNoOverflow($i - 1);
-
-            if ($fechamentoAnterior === null) {
-                $datas[] = $candidata;
-
-                continue;
-            }
-
-            $fechamento = $card->billingCycle($candidata)[1];
-            if ($fechamento->lessThanOrEqualTo($fechamentoAnterior)) {
-                // Ainda no ciclo da parcela anterior: primeiro dia do ciclo seguinte.
-                $candidata = $fechamentoAnterior->addDay();
-                $fechamento = $card->billingCycle($candidata)[1];
-            }
-
-            $datas[] = $candidata;
-            $fechamentoAnterior = $fechamento;
+            $datas[] = $data = $this->dataNoCicloSeguinte($base, $i - 1, $fechamentoAnterior, $card);
+            $fechamentoAnterior = $card->billingCycle($data)[1] ?? null;
         }
 
         return $datas;
     }
 
     /**
-     * Recorrente "infinita": cria UMA ocorrência em aberto, datada no próximo
-     * vencimento do cartão. Pagá-la (pay) gera a próxima (+1 mês). Se o cartão
-     * não tiver dia de vencimento, usa a data informada.
+     * A data da ocorrência que vem `$meses` meses depois da compra original,
+     * garantindo que ela caia num ciclo DEPOIS do ciclo cujo fechamento é
+     * `$fechamentoAnterior` (a regra "uma por ciclo" das parcelas, reaproveitada
+     * pela recorrência de cartão).
+     *
+     * NoOverflow: compra em 31/01 gera 28/02, não 03/03. Com o addMonths puro do
+     * Carbon, fevereiro ficava sem parcela e março levava duas. E se o candidato
+     * ainda cair no ciclo anterior (cartão que fecha dia 28, compra em 30/01 →
+     * 28/02 está no mesmo ciclo), ele é empurrado para o primeiro dia do ciclo
+     * seguinte (fechamento + 1).
+     */
+    private function dataNoCicloSeguinte(CarbonImmutable $base, int $meses, ?CarbonImmutable $fechamentoAnterior, Account $card): CarbonImmutable
+    {
+        $candidata = $base->addMonthsNoOverflow($meses);
+
+        if ($fechamentoAnterior === null) {
+            return $candidata;
+        }
+
+        $fechamento = $card->billingCycle($candidata)[1];
+        if ($fechamento->lessThanOrEqualTo($fechamentoAnterior)) {
+            return $fechamentoAnterior->addDay();
+        }
+
+        return $candidata;
+    }
+
+    /**
+     * Recorrente "infinita": cria UMA ocorrência em aberto, datada no DIA DA
+     * COMPRA. As seguintes nascem pelo botão da recorrência, uma por ciclo de
+     * fatura (`gerarProximaOcorrencia`).
+     *
+     * Antes ela nascia datada no VENCIMENTO do cartão — que é sempre depois do
+     * fechamento, portanto FORA do ciclo aberto: a cobrança não aparecia na
+     * lista do cartão até o ciclo virar, e o "Pagar" na ocorrência mais nova
+     * gerava ocorrências mês após mês no futuro (20/08, 20/09, 20/10…), todas
+     * comendo limite de uma vez. A assinatura é cobrada no dia em que foi
+     * contratada, como uma compra qualquer; o vencimento é da FATURA, não dela.
      */
     private function createRecurring(array $common, float $total, CarbonImmutable $base, Account $card): Transaction
     {
-        $vencimento = $card->dueDate ?? $base;
-
         return Transaction::create($common + [
             'amount' => $total,
-            'date' => $vencimento->toDateString(),
+            'date' => $base->toDateString(),
             'group_id' => (string) Str::uuid(),
             'recurring' => true,
         ]);
@@ -623,6 +639,25 @@ class FaturaController extends Controller
         $conta = $transaction->account;
 
         if ($conta !== null && $conta->type === 'credit_card') {
+            // A próxima ocorrência só nasce quando a atual JÁ FECHOU (pertence a um
+            // ciclo que já virou) ou foi quitada com a fatura do ciclo dela. Clicar
+            // numa ocorrência cujo ciclo ainda está aberto NÃO gera nada: era assim
+            // que um clique atrás do outro empilhava cobranças meses adiante, todas
+            // consumindo limite antes de a assinatura sequer ser cobrada.
+            $fechamento = $conta->billingCycle(CarbonImmutable::parse($transaction->date))[1] ?? null;
+            $cicloAindaAberto = $fechamento !== null
+                && $fechamento->greaterThanOrEqualTo(CarbonImmutable::today())
+                && $transaction->paid_at === null;
+
+            if ($cicloAindaAberto) {
+                return redirect()->route('faturas.index')->with(
+                    'status',
+                    'Esta cobrança ainda está na fatura aberta do cartão (fecha em '
+                    .$fechamento->translatedFormat('d/m/Y').'). A próxima ocorrência é lançada '
+                    .'depois que esta fatura fechar — assim ela não consome limite antes da hora.',
+                );
+            }
+
             // A recorrência precisa continuar andando, então a próxima ocorrência é
             // lançada; a atual permanece EM ABERTO, dentro da fatura.
             $proxima = $this->gerarProximaOcorrencia($transaction, $funding);
@@ -630,7 +665,7 @@ class FaturaController extends Controller
             return redirect()->route('faturas.index')->with(
                 'status',
                 $proxima
-                    ? 'Próxima ocorrência lançada. Esta despesa é quitada junto com a fatura do cartão.'
+                    ? 'Próxima ocorrência lançada na fatura aberta. Esta despesa é quitada junto com a fatura do cartão.'
                     : 'A próxima ocorrência já estava lançada. No cartão, a cobrança é quitada com a fatura.',
             );
         }
@@ -656,29 +691,55 @@ class FaturaController extends Controller
     }
 
     /**
-     * Lança a próxima ocorrência de uma recorrência (+1 mês, mesmo grupo, em aberto).
+     * Lança a próxima ocorrência de uma recorrência (mesmo grupo, em aberto).
      *
-     * Idempotente: se a ocorrência daquele mês já existe no grupo, não cria outra — é o
-     * que permite chamar isto no caminho do cartão, onde não há `paid_at` para servir de
-     * trava contra o clique repetido.
+     * No CARTÃO a data é o dia da compra original avançado N meses, uma
+     * ocorrência por ciclo de fatura (a mesma régua das parcelas — ver
+     * `dataNoCicloSeguinte`). Fora do cartão (recorrência legada em conta), é
+     * +1 mês da ocorrência atual, como sempre foi.
+     *
+     * Idempotente: se a ocorrência clicada já tem SUCESSORA no grupo, não cria
+     * outra — é o que permite chamar isto no caminho do cartão, onde não há
+     * `paid_at` para servir de trava contra o clique repetido. Comparar pela
+     * existência de uma sucessora (e não por "a data X já existe") é o que
+     * impede um clique na ocorrência antiga de gerar uma terceira depois da
+     * segunda.
      *
      * @return bool true se criou, false se já existia
      */
     private function gerarProximaOcorrencia(Transaction $transaction, FundingService $funding): bool
     {
-        $proxima = CarbonImmutable::parse($transaction->date)->addMonthNoOverflow();
         $conta = $transaction->account;
+        $atual = CarbonImmutable::parse($transaction->date);
 
-        // Caminho rápido (time-of-check): a ocorrência já está lá, então nem
+        if ($conta !== null && $conta->type === 'credit_card' && $transaction->group_id) {
+            $primeira = Transaction::where('group_id', $transaction->group_id)
+                ->orderBy('date')->orderBy('id')
+                ->first();
+            $posicao = Transaction::where('group_id', $transaction->group_id)
+                ->where('date', '<=', $atual->toDateString())
+                ->count();
+            $proxima = $this->dataNoCicloSeguinte(
+                CarbonImmutable::parse($primeira?->date ?? $atual),
+                max(1, $posicao),
+                $conta->billingCycle($atual)[1] ?? null,
+                $conta,
+            );
+        } else {
+            $proxima = $atual->addMonthNoOverflow();
+        }
+
+        $temSucessora = fn (bool $lock) => Transaction::where('group_id', $transaction->group_id)
+            ->whereNotNull('group_id')
+            ->where('date', '>', $atual->toDateString())
+            ->when($lock, fn ($q) => $q->lockForUpdate())
+            ->exists();
+
+        // Caminho rápido (time-of-check): a sucessora já está lá, então nem
         // abrimos transação nem incomodamos o guard de limite. A checagem que
         // VALE é a de dentro do write, sob lock — esta só evita erro de limite
         // num clique repetido em cartão sem folga.
-        $jaExiste = Transaction::where('group_id', $transaction->group_id)
-            ->whereNotNull('group_id')
-            ->where('date', $proxima->toDateString())
-            ->exists();
-
-        if ($jaExiste) {
+        if ($temSucessora(false)) {
             return false;
         }
 
@@ -700,14 +761,8 @@ class FaturaController extends Controller
             // dois POSTs simultâneos liam "não existe" ao mesmo tempo e criavam
             // duas ocorrências do mesmo mês — dívida em dobro no cartão, com a
             // recorrência andando dois meses de uma vez.
-            write: function (array $auditoria) use ($transaction, $proxima) {
-                $jaExiste = Transaction::where('group_id', $transaction->group_id)
-                    ->whereNotNull('group_id')
-                    ->where('date', $proxima->toDateString())
-                    ->lockForUpdate()
-                    ->exists();
-
-                if ($jaExiste) {
+            write: function (array $auditoria) use ($transaction, $proxima, $temSucessora) {
+                if ($temSucessora(true)) {
                     return null;
                 }
 

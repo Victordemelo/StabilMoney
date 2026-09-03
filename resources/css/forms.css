@@ -779,8 +779,12 @@ a.tx { text-decoration: none; color: inherit; }
 .fi-badge { font-style: normal; font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--surface-3); color: var(--ink-2); }
 .fi-badge.parcelado { background: var(--brand-50); color: var(--brand-700); }
 .fi-badge.recorrente { background: #DEF3F4; color: #0d8a91; }
+/* Estorno lançado no cartão: receita que ABATE a fatura — o valor sai negativo ao lado. */
+.fi-badge.estorno { background: var(--pos-bg, rgba(31,160,110,.14)); color: var(--pos, #1FA06E); }
+.fi-val b.estorno { color: var(--pos, #1FA06E); }
 [data-theme="dark"] .fi-badge.parcelado { background: rgba(28,154,112,.16); color: var(--brand-300); }
 [data-theme="dark"] .fi-badge.recorrente { background: rgba(24,182,190,.16); color: #4fd3da; }
+[data-theme="dark"] .fi-badge.estorno { background: rgba(31,160,110,.18); color: #4fd39a; }
 
 /* "Quem fez a compra" inline (avatar com iniciais + primeiro nome) */
 .fi-who { display: inline-flex; align-items: center; gap: 4px; font-style: normal; font-weight: 600; font-size: 11px; color: var(--ink-2); }
