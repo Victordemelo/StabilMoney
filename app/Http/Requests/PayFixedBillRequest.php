@@ -110,6 +110,10 @@ class PayFixedBillRequest extends FormRequest
                 'required_if:funding_source,'.FundingSource::RESGATE_INVESTIMENTO,
                 Rule::exists('investments', 'id')->where('user_id', $ownerId),
             ],
+            // TETO do resgate aprovado no modal (F-3, auditoria de 02/09/2026):
+            // o faltante é recalculado sob lock na gravação e, sem o teto, o
+            // pagamento resgatava o que fosse preciso — não o que foi aprovado.
+            'funding_max_amount' => $this->regrasDeDinheiro(obrigatorio: false),
         ];
     }
 
@@ -263,6 +267,7 @@ class PayFixedBillRequest extends FormRequest
             'account_id' => 'método de pagamento',
             'amount' => 'valor pago',
             'paid_on' => 'data do pagamento',
+            'funding_max_amount' => 'teto do resgate',
         ];
     }
 

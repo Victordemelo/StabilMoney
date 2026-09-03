@@ -110,12 +110,22 @@ class FixedBillController extends Controller
         $hoje = CarbonImmutable::today();
         $vencimento = $conta->dueDateFor($competence);
 
-        // Competência FUTURA só se paga se ela JÁ APARECE na tela — ou seja, se
-        // o vencimento cabe na janela de projeção (hoje + DIAS_A_FRENTE). Pagar
-        // o aluguel do dia 5 no dia 30 do mês anterior é normal; pagar dezembro
-        // em julho não é, e o dinheiro sairia para uma competência que nenhuma
-        // tela mostra.
-        if ($vencimento->greaterThan($hoje->addDays(FixedBillService::DIAS_A_FRENTE))) {
+        // Competência de MÊS FUTURO só se paga se ela JÁ APARECE na tela — ou
+        // seja, se o vencimento cabe na janela de projeção (hoje + DIAS_A_FRENTE).
+        // Pagar o aluguel do dia 5 no dia 30 do mês anterior é normal; pagar
+        // dezembro em julho não é, e o dinheiro sairia para uma competência que
+        // nenhuma tela mostra.
+        //
+        // A do MÊS CORRENTE (e as anteriores) é SEMPRE pagável (T-4, auditoria de
+        // 02/09/2026): a projeção (`FixedBillService::currentAndOverdue`) só aplica
+        // a janela à competência de mês futuro, então a tela mostrava "Pagar" no
+        // condomínio do dia 10 no dia 1 e o servidor recusava com "ainda está
+        // longe". Pagar no começo do mês o que vence no meio é o caso mais comum.
+        // A regra é cópia da projeção, de propósito — botão que aparece tem de
+        // ser botão que funciona.
+        $mesFuturo = $competence->greaterThan($hoje->startOfMonth());
+
+        if ($mesFuturo && $vencimento->greaterThan($hoje->addDays(FixedBillService::DIAS_A_FRENTE))) {
             throw ValidationException::withMessages([
                 'amount' => 'Esta competência ainda está longe — ela fica disponível para pagamento a partir de '
                     .$vencimento->subDays(FixedBillService::DIAS_A_FRENTE)->translatedFormat('d/m/Y').'.',
@@ -152,6 +162,9 @@ class FixedBillController extends Controller
                 amount: $valor,
                 source: $data['funding_source'] ?? null,
                 investmentId: isset($data['funding_investment_id']) ? (int) $data['funding_investment_id'] : null,
+                // Teto do resgate aprovado no modal (F-3): estourou, 409 com as
+                // opções recalculadas — nunca saca mais do que foi aprovado.
+                maxFonte: isset($data['funding_max_amount']) ? (float) $data['funding_max_amount'] : null,
                 write: fn (array $auditoria) => Transaction::create($auditoria + [
                     'user_id' => $ownerId,
                     'made_by_user_id' => $request->user()->id,

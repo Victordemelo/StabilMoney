@@ -80,6 +80,11 @@ class StoreFaturaLaunchRequest extends FormRequest
                 'required_if:funding_source,'.FundingSource::RESGATE_INVESTIMENTO,
                 Rule::exists('investments', 'id')->where('user_id', $userId),
             ],
+            // TETO do resgate aprovado no modal (F-3, auditoria de 02/09/2026).
+            // Aqui o estrago era o maior: a tela de faturas é justamente o
+            // cenário da fila offline que motivou o teto, e era um dos que não
+            // o consumia.
+            'funding_max_amount' => $this->regrasDeDinheiro(obrigatorio: false),
             'category_id' => [
                 'nullable',
                 // CRÍTICO: a categoria precisa pertencer à família e ser de despesa.
@@ -146,6 +151,7 @@ class StoreFaturaLaunchRequest extends FormRequest
             'made_by_user_id' => 'responsável',
             'mode' => 'forma de pagamento',
             'installments' => 'parcelas',
+            'funding_max_amount' => 'teto do resgate',
         ];
     }
 

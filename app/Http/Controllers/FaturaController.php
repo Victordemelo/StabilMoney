@@ -76,6 +76,8 @@ class FaturaController extends Controller
         // No parcelado o que pesa é o TOTAL da compra — é ele que fica retido.
         $fonte = $data['funding_source'] ?? null;
         $investimentoId = isset($data['funding_investment_id']) ? (int) $data['funding_investment_id'] : null;
+        // Teto do resgate aprovado no modal — instrução para o guard, nunca coluna.
+        $maxFonte = isset($data['funding_max_amount']) ? (float) $data['funding_max_amount'] : null;
 
         try {
             $funding->spend(
@@ -83,6 +85,7 @@ class FaturaController extends Controller
                 amount: $total,
                 source: $fonte,
                 investmentId: $investimentoId,
+                maxFonte: $maxFonte,
                 write: function (array $auditoria) use ($mode, $common, $total, $base, $data, $conta) {
                     if ($mode === 'parcelado') {
                         return $this->createInstallments($common + $auditoria, $total, $base, (int) $data['installments']);
@@ -276,6 +279,9 @@ class FaturaController extends Controller
             amount: $total,
             source: $data['funding_source'] ?? null,
             investmentId: isset($data['funding_investment_id']) ? (int) $data['funding_investment_id'] : null,
+            // Teto do resgate aprovado no modal: estourou, o guard devolve 409
+            // com as opções recalculadas em vez de sacar mais do investimento.
+            maxFonte: isset($data['funding_max_amount']) ? (float) $data['funding_max_amount'] : null,
             write: function (array $auditoria) use ($ownerId, $request, $data, $account, $pagoEm, $start, $end) {
                 // A LEITURA AUTORITATIVA é esta, sob lock e dentro da transação.
                 //

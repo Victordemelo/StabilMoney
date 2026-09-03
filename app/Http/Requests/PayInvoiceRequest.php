@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\NormalizesMoneyInput;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Support\FundingSource;
@@ -22,6 +23,8 @@ use Illuminate\Validation\Rule;
  */
 class PayInvoiceRequest extends FormRequest
 {
+    use NormalizesMoneyInput;
+
     /**
      * Posse do cartão ANTES da validação.
      *
@@ -73,6 +76,12 @@ class PayInvoiceRequest extends FormRequest
                 'required_if:funding_source,'.FundingSource::RESGATE_INVESTIMENTO,
                 Rule::exists('investments', 'id')->where('user_id', $ownerId),
             ],
+            // TETO do resgate que o usuário aprovou no modal de fonte (F-3 da
+            // auditoria de 02/09/2026). O front já mandava o campo neste caminho,
+            // mas ele não era validado nem repassado ao FundingService — um
+            // pagamento de fatura que dormiu na fila resgatava mais do que o
+            // número que a pessoa viu. Mesma regra do StoreTransactionRequest.
+            'funding_max_amount' => $this->regrasDeDinheiro(obrigatorio: false),
         ];
     }
 
@@ -102,6 +111,7 @@ class PayInvoiceRequest extends FormRequest
             'pay_account_id' => 'conta de pagamento',
             'paid_on' => 'data do pagamento',
             'ciclo' => 'fatura',
+            'funding_max_amount' => 'teto do resgate',
         ];
     }
 

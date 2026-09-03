@@ -121,6 +121,12 @@ class ContasFixasCorrecoesTest extends TestCase
     /**
      * C-2 (c): competência do mês corrente que AINDA NÃO venceu não é obrigação
      * — a trava de gasto volta a valer e o pagamento é recusado.
+     *
+     * ⚠️ Auditoria de 02/09/2026 (T-4): este teste passava pelo motivo ERRADO. O
+     * vencimento (28/07) ficava fora da janela de 7 dias e o 422 vinha da guarda
+     * "ainda está longe", não da trava de gasto — a cobertura original era zero.
+     * Agora a competência do mês corrente é sempre pagável, e o que se afirma
+     * aqui é a MENSAGEM de saldo insuficiente.
      */
     public function test_competencia_ainda_nao_vencida_respeita_a_trava_de_gasto(): void
     {
@@ -129,14 +135,105 @@ class ContasFixasCorrecoesTest extends TestCase
             ->create(['type' => 'checking', 'initial_balance' => 50, 'overdraft_limit' => 0]);
         $bill = $this->condominio(['due_day' => 28, 'account_id' => $pobre->id]);
 
-        $this->actingAs($this->user)
+        $resposta = $this->actingAs($this->user)
             ->post(route('contas-fixas.pagar', [$bill, '2026-07']), [
                 'account_id' => $pobre->id,
                 'amount' => '800,00',
             ])->assertSessionHasErrors('amount');
 
+        $erro = (string) $resposta->getSession()->get('errors')->first('amount');
+        $this->assertStringContainsString('Saldo insuficiente', $erro);
+        $this->assertStringNotContainsString('ainda está longe', $erro);
+
         $this->assertDatabaseCount('transactions', 0);
         $this->assertSame(50.0, $pobre->fresh()->balance);
+
+        $this->travelBack();
+    }
+
+    // ------------------------------------------------------------------
+    // T-4 (02/09/2026) — competência do mês corrente é sempre pagável
+    // ------------------------------------------------------------------
+
+    /**
+     * O caso mais comum de todos: pagar no dia 1 o condomínio que vence dia 10.
+     * A tela mostrava "Pagar" e o servidor recusava com "fica disponível a
+     * partir de 03/07".
+     */
+    public function test_competencia_do_mes_corrente_e_pagavel_no_comeco_do_mes(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-01'));
+        $bill = $this->condominio(['due_day' => 10]);
+
+        $this->actingAs($this->user)
+            ->post(route('contas-fixas.pagar', [$bill, '2026-07']), [
+                'account_id' => $this->conta->id,
+                'amount' => '800,00',
+            ])->assertSessionHasNoErrors()->assertRedirect(route('faturas.index'));
+
+        $this->assertDatabaseHas('transactions', [
+            'fixed_bill_id' => $bill->id,
+            'competence' => '2026-07-01',
+        ]);
+        $this->assertSame(9200.0, $this->conta->fresh()->available);
+
+        $this->travelBack();
+    }
+
+    /** Mesmo com o vencimento a 27 dias, o mês corrente não é "longe". */
+    public function test_competencia_do_mes_corrente_vencendo_no_fim_do_mes_e_pagavel(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-01'));
+        $bill = $this->condominio(['due_day' => 28]);
+
+        $this->actingAs($this->user)
+            ->post(route('contas-fixas.pagar', [$bill, '2026-07']), [
+                'account_id' => $this->conta->id,
+                'amount' => '800,00',
+            ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('transactions', 1);
+
+        $this->travelBack();
+    }
+
+    /** Mês FUTURO vencendo em mais de 7 dias continua recusado (a tela também não o lista). */
+    public function test_competencia_de_mes_futuro_longe_continua_recusada(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-25'));
+        $bill = $this->condominio(['due_day' => 10]); // agosto vence 10/08: 16 dias
+
+        $resposta = $this->actingAs($this->user)
+            ->post(route('contas-fixas.pagar', [$bill, '2026-08']), [
+                'account_id' => $this->conta->id,
+                'amount' => '800,00',
+            ])->assertSessionHasErrors('amount');
+
+        $this->assertStringContainsString(
+            'ainda está longe',
+            (string) $resposta->getSession()->get('errors')->first('amount'),
+        );
+        $this->assertDatabaseCount('transactions', 0);
+
+        $this->travelBack();
+    }
+
+    /** Mês FUTURO vencendo em até 7 dias é aceito — é o que a tela já lista. */
+    public function test_competencia_de_mes_futuro_dentro_da_janela_e_aceita(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-28'));
+        $bill = $this->condominio(['due_day' => 3]); // agosto vence 03/08: 6 dias
+
+        $this->actingAs($this->user)
+            ->post(route('contas-fixas.pagar', [$bill, '2026-08']), [
+                'account_id' => $this->conta->id,
+                'amount' => '800,00',
+            ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('transactions', [
+            'fixed_bill_id' => $bill->id,
+            'competence' => '2026-08-01',
+        ]);
 
         $this->travelBack();
     }
