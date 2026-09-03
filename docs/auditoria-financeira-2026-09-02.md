@@ -11,7 +11,9 @@ dashboard/somas · metas/investimentos.
 
 > **Estado em 02/09/2026 (noite): tudo de 🔴, 🟠 e 🟡 corrigido**, commitado por item, suíte em
 > **1.083 testes verdes**. Cada item abaixo leva a marca ✅ e o teste que o cobre. O que ficou
-> em 🔵 é decisão de produto e continua em aberto.
+> em 🔵 foi decidido e implementado na sequência (mesma noite): transferência entre contas,
+> recorrência de cartão por ciclo, estornos na lista, projeção composta e card do débito.
+> Suíte final: **1.120 testes**.
 
 ---
 
@@ -142,20 +144,20 @@ dashboard/somas · metas/investimentos.
 
 ## 🔵 Comportamentos confusos (decisão de produto, não defeito)
 
-- **Recorrência de cartão nasce datada no `dueDate`** (`FaturaController.php:447-457`): fica
+- ✅ **Recorrência de cartão nascia datada no `dueDate`** (`RecorrenciaDeCartaoNoCicloTest`) (`FaturaController.php:447-457`): fica
   fora do ciclo aberto e **não aparece na lista** do cartão até o ciclo virar. Clicar "Pagar"
   na ocorrência mais nova gera ocorrências indefinidamente no futuro.
-- **Estornos do cartão nunca aparecem na lista de itens** (`FaturaService.php:255` filtra
+- ✅ **Estornos do cartão não apareciam na lista de itens** (`EstornoApareceNaListaDoCartaoTest`) (`FaturaService.php:255` filtra
   `expense`), embora abatam a fatura.
 - **Segundo clique em competência já paga com cheque especial responde 409** em vez de "já
   estava paga" (guard roda antes do UNIQUE). Nada é gravado.
 - **`destroy` apaga uma ocorrência recorrente isolada** (recorrente tem `group_id` mas
   `installments=null`; a guarda de parcela não dispara). Inofensivo em caixa.
-- **Select do débito com corrente E poupança** (`Account.php:197-212`): submete só a corrente
+- ✅ **Select do débito com corrente E poupança** (`CardDoDebitoMostraContaDebitadaTest`) (`Account.php:197-212`): submete só a corrente
   e mostra o saldo dela (700), enquanto o card do método exibe 1.200.
-- **Transferência entre contas não existe:** despesa em A + receita em B infla receitas e
+- ✅ **Transferência entre contas** (`TransferenciaEntreContasTest`) — antes não existia: despesa em A + receita em B infla receitas e
   despesas do mês (300/300, economia 0). Saldo total fica certo.
-- **Projeção de investimento é linear, não composta** (`investimentos.js:247`): 24 meses a
+- ✅ **Projeção de investimento era linear** (`TributosRendaFixaTest`) (`investimentos.js:247`): 24 meses a
   10% a.a. mostra 20% (composto 21%); IPCA+ é aditivo. Rotulada "estimativa".
 - **Ao excluir investimento que financiou despesa**, a transação mantém
   `funding_source=resgate_investimento` apontando para algo que não existe. Dinheiro íntegro.

@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.083 testes / 4.490 asserções** verdes |
+| Suíte de testes | ✅ **1.120 testes / 4.734 asserções** verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -602,6 +602,33 @@ O mesmo banner é a tela dos itens **`failed`** (422), que antes contavam no sel
 pelo drain e não tinham onde ser vistos: agora dão "Tentar de novo" e "Descartar" (com confirmação).
 **Nada é apagado sozinho.** Coberto por `FilaNaoEscolheFonteTest`.
 
+### Transferência entre contas (02/09/2026) — `TransferenciaEntreContasTest`
+
+Mover dinheiro entre corrente e poupança da família **sem inflar receitas e despesas**. Antes
+exigia despesa + receita, e o mês ganhava R$ 300 de gasto e R$ 300 de renda que não existiram.
+
+- **Duas transações ligadas** por `transactions.transfer_group_id` (string 36, indexada): saída
+  `expense` na origem, entrada `income` no destino, mesma data, `category_id` null. Nascem na
+  MESMA `DB::transaction`, dentro do `write` do `FundingService::spend()` da saída — que passa
+  pelo guard como **gasto novo** (422/409 com escolha de fonte, `client_uuid` na saída).
+  `Transaction::isTransferencia()`, `contrapartida()`, scope `semTransferencias()`.
+- **Origem e destino: lista de PERMISSÃO** (`checking`/`savings` da família), diferentes entre
+  si; débito, Pix e crédito recusados. Rota `POST /transactions/transferir`
+  (`transactions.transfer`); **`POST /transactions` com `type=transfer` também transfere** — a
+  fila offline e o SW reenviam para a URL fixa, e sem isso a transferência feita sem internet
+  morreria num 422 ao sincronizar.
+- **Somas:** `whereNull('transfer_group_id')` em receitas/despesas do dashboard (`fluxoDiario`,
+  `categoryBreakdown`, `dailySums`), nas **despesas avulsas de `/faturas`** e no **gasto do mês
+  do card de dependentes**. Séries de SALDO mantêm as pontas (se anulam). Toda soma nova de
+  receita/despesa precisa do mesmo filtro — é o mesmo padrão do `settles_account_id`.
+- **Histórico:** filtro "Receitas"/"Despesas" EXCLUI as pontas; opção própria "Transferências";
+  selo `.tx-tag`. **Editar** uma ponta: só descrição/data/autor, aplicados às duas sob lock;
+  valor/conta/tipo/categoria recusados no TOPO do `update` ("exclua e lance de novo").
+  **Excluir** uma ponta apaga as duas com `estornarFonte` na mesma transação.
+- **Modal Lançar:** terceiro segmento **Transferência** (só com ≥ 2 contas de caixa), selects
+  "De"/"Para" com a origem removida do destino, saldo da origem exibido; `.type-toggle.tt-3`.
+  A página cheia `transactions/create` sem JS **não** oferece transferência (só o POST direto).
+
 ### Cartão de crédito
 
 - `committed` = **tudo que não foi pago** (`paid_at` null), sem filtro de data. O limite volta
@@ -634,6 +661,18 @@ pelo drain e não tinham onde ser vistos: agora dão "Tentar de novo" e "Descart
   1.700 onde devia 1.100 e as linhas ficavam sem `paid_at` para sempre.
   `vencimentoMaisAntigoEmAberto` percorre as linhas com acumulado (a dívida "começa" depois do
   último ponto em que o acumulado era ≤ 0).
+- **Recorrência de cartão nasce no DIA DA COMPRA, não no vencimento** (02/09/2026,
+  `RecorrenciaDeCartaoNoCicloTest`): entra na lista do ciclo aberto no ato. A próxima ocorrência
+  só é gerada quando a atual pertence a ciclo **fechado** (ou foi quitada com a fatura dela);
+  clique numa ocorrência do ciclo aberto é no-op com mensagem — antes gerava cadeia
+  indefinida no futuro. Data da próxima = primeira do grupo + N meses, pelo helper
+  `dataNoCicloSeguinte` (o mesmo "uma por ciclo" das parcelas). Idempotência = "a clicada já
+  tem sucessora", rechecada sob lock. Ocorrência fechada sem sucessora aparece no bloco
+  "Recorrente · Lançar neste ciclo" (`FaturaService::recorrenciasParaAvancar`). Geração segue
+  **dirigida por clique** (catch-up de um ciclo por clique) — nunca no GET nem dentro do
+  `payInvoice`.
+- **Estornos aparecem na lista de itens do cartão** (`cycleItems` inclui `income`), com selo
+  "Estorno" e valor `−R$ 400,00` — `EstornoApareceNaListaDoCartaoTest`.
 - **"Total das faturas" em `/faturas` = `openInvoiceDue` + fechada em aberto**, não
   `currentInvoice` (que inclui linhas já pagas). O `gasto` do card continua sendo o do ciclo.
 - **Parcelado exige `amount × 100 ≥ installments`** (cada parcela ≥ R$ 0,01) —
@@ -667,6 +706,9 @@ BC, tarifa) são do **lojista que recebe**, não de quem controla o próprio din
   Todo lugar que somava saldo, montava o select ou excluía do patrimônio usava `isDebit()`;
   manter isso com o Pix contaria **a mesma conta duas vezes** no patrimônio. Use `espelhaConta()`,
   não `isDebit()`, sempre que a questão for "tem saldo próprio?".
+- **Card do débito marca a CONTA DEBITADA** (`linkedChecking ?? linkedSavings`, a mesma regra de
+  `paymentOptions()`) como saldo principal, com o total das vinculadas em linha secundária —
+  `CardDoDebitoMostraContaDebitadaTest`. Antes o card prometia 1.200 e o select do modal 700.
 - `classeDoTipo('pix') === 'debito'`: converter débito ↔ Pix é livre (nenhum dos dois tem saldo
   próprio, não há dinheiro para sumir), enquanto virar caixa/crédito continua travado.
 - **Requests que aceitam conta de lançamento usam lista de NEGAÇÃO** (`whereNotIn ['debit_card','pix']`)
@@ -926,7 +968,9 @@ Relatório: `docs/auditoria-completa-2026-07-28.md`. Testes: `AuditoriaCorrecoes
 - **IR/IOF:** tabela regressiva por prazo (12 meses = 17,5%, não 15%) e **IOF dos 30 primeiros
   dias modelado** em `App\Support\TributosRendaFixa` (ordem IOF → IR; conferido em 02/09/2026 —
   o texto antigo dizia que IOF não era modelado). A projeção é rotulada como estimativa na tela
-  e é **linear**, não composta.
+  e é **composta** desde 02/09/2026 (`TributosRendaFixa::rendimentoComposto`, `(1+taxa)^(dias/365)−1`;
+  IPCA+ multiplicativo em `taxaBrutaAnual`, fonte única do `Investment::grossRate` e do JS —
+  `TributosRendaFixaTest`).
 - **`DB_TIMEZONE`** (default `+00:00`) fixa o fuso da conexão: sem isso, publicar na VPS
   deslocaria em 3h todo `paid_at`/`created_at` já gravado.
 
