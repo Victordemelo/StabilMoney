@@ -119,73 +119,44 @@ class DashboardService
 
         $hasData = Transaction::where('user_id', $userId)->exists();
 
-        // ----- Semana atual (Seg..Dom) -----
+        // ----- Fluxo de caixa: semana, mês e ano saem da MESMA regra -----
+        // Ver `seriesDeFluxo()`: o estorno de cartão abate só as despesas de CARTÃO
+        // do período do card (nunca as de caixa), com piso 0 no agregado do período,
+        // e a soma dos buckets É o stat. Antes cada fonte aplicava o piso numa
+        // granularidade (dia, mês, período) e o mesmo agosto mostrava três números.
+
+        // Semana atual (Seg..Dom)
         $weekStart = $today->startOfWeek(CarbonImmutable::MONDAY);
         $weekEnd = $weekStart->addDays(6);
-        $weekDaily = $this->dailySums($userId, $weekStart, $weekEnd, refundAccountIds: $creditCardIds);
-
-        $weekIncome = [];
-        $weekExpense = [];
-        for ($i = 0; $i < 7; $i++) {
-            $key = $weekStart->addDays($i)->toDateString();
-            $weekIncome[] = $weekDaily[$key]['income'] ?? 0.0;
-            $weekExpense[] = $weekDaily[$key]['expense'] ?? 0.0;
-        }
+        $semana = $this->seriesDeFluxo(
+            $this->fluxoDiario($userId, $weekStart, $weekEnd, $creditCardIds),
+            7,
+            fn (string $dia) => CarbonImmutable::parse($dia)->dayOfWeekIso - 1,
+        );
         $weekPrev = $this->totals($userId, $weekStart->subWeek(), $weekStart->subDay(), $creditCardIds);
 
-        // ----- Mês atual (buckets Sem 1..Sem N, dias 1-7, 8-14, ...) -----
+        // Mês atual (buckets Sem 1..Sem N, dias 1-7, 8-14, ...)
         $monthStart = $today->startOfMonth();
         $monthEnd = $today->endOfMonth();
         $bucketCount = (int) ceil($today->daysInMonth / 7);
-        $monthDaily = $this->dailySums($userId, $monthStart, $monthEnd, refundAccountIds: $creditCardIds);
-
-        $monthIncome = array_fill(0, $bucketCount, 0.0);
-        $monthExpense = array_fill(0, $bucketCount, 0.0);
-        foreach ($monthDaily as $date => $sums) {
-            $idx = intdiv(((int) substr($date, 8, 2)) - 1, 7);
-            $monthIncome[$idx] = round($monthIncome[$idx] + ($sums['income'] ?? 0.0), 2);
-            $monthExpense[$idx] = round($monthExpense[$idx] + ($sums['expense'] ?? 0.0), 2);
-        }
+        $mes = $this->seriesDeFluxo(
+            $this->fluxoDiario($userId, $monthStart, $monthEnd, $creditCardIds),
+            $bucketCount,
+            fn (string $dia) => intdiv(((int) substr($dia, 8, 2)) - 1, 7),
+        );
         $monthLabels = array_map(fn ($i) => 'Sem '.($i + 1), range(0, $bucketCount - 1));
         $monthPrev = $this->totals($userId, $monthStart->subMonth(), $monthStart->subDay(), $creditCardIds);
 
-        // ----- Ano atual (Jan..Dez, agregado por mês direto no SQL) -----
+        // Ano atual (Jan..Dez). Agregado por DIA no SQL e por mês em PHP — o mesmo
+        // caminho da semana e do mês, para o estorno seguir uma regra só. (Saiu o
+        // MONTH()/strftime por driver: eram no máximo 366 linhas a mais por ano.)
         $yearStart = $today->startOfYear();
         $yearEnd = $today->endOfYear();
-
-        // MONTH() é específico do MySQL; no sqlite (usado nos testes) o
-        // equivalente é strftime('%m', ...). Mantemos o agregado no SQL
-        // escolhendo a expressão conforme o driver da conexão.
-        $monthExpr = Transaction::query()->getConnection()->getDriverName() === 'sqlite'
-            ? "CAST(strftime('%m', date) AS INTEGER)"
-            : 'MONTH(date)';
-
-        // A soma sai separada em três colunas para que o ESTORNO no cartão (income numa
-        // conta de crédito) abata a despesa do mês em vez de virar receita — a mesma
-        // regra de `dailySums`/`totals`. Sem isto, devolver uma compra de R$ 1.000
-        // aparecia como R$ 1.000 de "receita" no gráfico do ano.
-        $emCartao = $this->emCartaoSql($creditCardIds);
-        $yearRows = Transaction::where('user_id', $userId)
-            // Quitação de fatura não é gasto novo — ver `settles_account_id`.
-            ->whereNull('settles_account_id')
-            ->whereBetween('date', [$yearStart->toDateString(), $yearEnd->toDateString()])
-            ->selectRaw(
-                "{$monthExpr} AS month_num, ".
-                "COALESCE(SUM(CASE WHEN type = 'income' AND NOT ({$emCartao}) THEN amount END), 0) AS income_total, ".
-                "COALESCE(SUM(CASE WHEN type = 'expense' THEN amount END), 0) AS expense_total, ".
-                "COALESCE(SUM(CASE WHEN type = 'income' AND {$emCartao} THEN amount END), 0) AS refund_total",
-            )
-            ->groupBy('month_num')
-            ->get();
-
-        $yearIncome = array_fill(0, 12, 0.0);
-        $yearExpense = array_fill(0, 12, 0.0);
-        foreach ($yearRows as $row) {
-            $idx = ((int) $row->month_num) - 1;
-            $yearIncome[$idx] = round((float) $row->income_total, 2);
-            // Piso 0: estorno maior que as compras do mês significa gasto zero.
-            $yearExpense[$idx] = max(0.0, round((float) $row->expense_total - (float) $row->refund_total, 2));
-        }
+        $ano = $this->seriesDeFluxo(
+            $this->fluxoDiario($userId, $yearStart, $yearEnd, $creditCardIds),
+            12,
+            fn (string $dia) => ((int) substr($dia, 5, 2)) - 1,
+        );
         $yearPrev = $this->totals($userId, $yearStart->subYear(), $yearStart->subDay(), $creditCardIds);
 
         // ----- Períodos no formato do contrato -----
@@ -193,24 +164,24 @@ class DashboardService
             'semana' => $this->period(
                 'Esta semana',
                 ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
-                $weekIncome,
-                $weekExpense,
+                $semana['income'],
+                $semana['expense'],
                 $weekPrev,
                 $userId, $hasData, $saldoDisponivel, $initialTotal, $weekStart->subDay(), $cardIds,
             ),
             'mes' => $this->period(
                 Str::ucfirst($today->translatedFormat('F')).' de '.$today->year,
                 $monthLabels,
-                $monthIncome,
-                $monthExpense,
+                $mes['income'],
+                $mes['expense'],
                 $monthPrev,
                 $userId, $hasData, $saldoDisponivel, $initialTotal, $monthStart->subDay(), $cardIds,
             ),
             'ano' => $this->period(
                 (string) $today->year,
                 ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
-                $yearIncome,
-                $yearExpense,
+                $ano['income'],
+                $ano['expense'],
                 $yearPrev,
                 $userId, $hasData, $saldoDisponivel, $initialTotal, $yearStart->subDay(), $cardIds,
             ),
@@ -220,7 +191,7 @@ class DashboardService
         $sparks = $this->sparks($userId, $hasData, $initialTotal, $today, $cardIds, $creditCardIds);
 
         // ----- Gastos do mês por categoria (top 5 + "Outros") -----
-        $cats = $this->categoryBreakdown($userId, $monthStart, $monthEnd);
+        $cats = $this->categoryBreakdown($userId, $monthStart, $monthEnd, $creditCardIds);
 
         // ----- Transações recentes (server-rendered) -----
         $recent = Transaction::with(['account', 'category', 'madeBy'])
@@ -620,18 +591,23 @@ class DashboardService
         }
 
         $start = $today->subDays(6);
-        // Cashflow (receitas/despesas/economia) inclui cartões — é gasto real.
-        $daily = $this->dailySums($userId, $start, $today, refundAccountIds: $creditCardIds);
+        // Cashflow (receitas/despesas/economia) inclui cartões — é gasto real. A janela
+        // de 7 dias é o "período" da regra do estorno (`seriesDeFluxo`): a soma da spark
+        // de despesas é o líquido do cartão na janela, com piso 0, mais o caixa.
+        $fluxo = $this->seriesDeFluxo(
+            $this->fluxoDiario($userId, $start, $today, $creditCardIds),
+            7,
+            fn (string $dia) => (int) $start->diffInDays(CarbonImmutable::parse($dia)),
+        );
         $saved = 0.0;
 
-        // Saldo (patrimônio) NÃO inclui cartões: deixa o saldoSpark montar a própria
-        // série filtrada (passando $daily=null e os ids de cartão a excluir).
-        $sparks['saldo'] = $this->saldoSpark($userId, $initialTotal, $today, null, $cardIds);
+        // Saldo NÃO inclui cartões e DESCONTA as reservas: o stat "saldo" do card é o
+        // disponível, e a linha precisa terminar exatamente nele (ver `saldoSpark`).
+        $sparks['saldo'] = $this->saldoSpark($userId, $initialTotal, $today, null, $cardIds, descontarReservas: true);
 
         for ($i = 0; $i < 7; $i++) {
-            $key = $start->addDays($i)->toDateString();
-            $income = $daily[$key]['income'] ?? 0.0;
-            $expense = $daily[$key]['expense'] ?? 0.0;
+            $income = $fluxo['income'][$i];
+            $expense = $fluxo['expense'][$i];
             $saved = round($saved + $income - $expense, 2);
 
             $sparks['receitas'][] = $income;
@@ -647,26 +623,90 @@ class DashboardService
      * Compartilhado entre o sparkline "saldo" do dashboard e o card
      * "Patrimônio total" da sidebar (SidebarService) — uma lógica só.
      * $daily opcional evita repetir a query quando o chamador já tem dailySums().
+     *
+     * $descontarReservas (T-5 da auditoria de 02/09/2026): o stat "saldo" do dashboard
+     * é o DISPONÍVEL (bruto − guardado em metas − investido), então a spark dele
+     * precisa descontar as reservas dia a dia — senão um aporte de meta derruba o
+     * número do card, não move a linha, e o último ponto nunca coincide com o stat
+     * (medido: card 6.300 × linha 8.050). A sidebar mostra o patrimônio BRUTO e chama
+     * sem o desconto: lá número e linha já concordavam.
      */
-    public function saldoSpark(int $userId, float $initialTotal, CarbonImmutable $today, ?array $daily = null, array $excludeAccountIds = []): array
-    {
+    public function saldoSpark(
+        int $userId,
+        float $initialTotal,
+        CarbonImmutable $today,
+        ?array $daily = null,
+        array $excludeAccountIds = [],
+        bool $descontarReservas = false,
+    ): array {
         $start = $today->subDays(6);
         // `incluirQuitacoes: true` — esta série é o SALDO, e o pagamento da fatura
         // desconta do saldo de verdade.
         $daily ??= $this->dailySums($userId, $start, $today, $excludeAccountIds, incluirQuitacoes: true);
         $balance = round($initialTotal + $this->signedSumUntil($userId, $start->subDay(), $excludeAccountIds), 2);
+
+        $reservas = [];
+        if ($descontarReservas) {
+            // O que já estava reservado antes da janela sai do ponto de partida; o que
+            // foi aportado/resgatado dentro dela move a linha no dia em que aconteceu.
+            $balance = round($balance - $this->reservedTotals($userId, $start->subDay())['total'], 2);
+            $reservas = $this->reservasDiarias($userId, $start, $today);
+        }
+
         $points = [];
 
         for ($i = 0; $i < 7; $i++) {
             $key = $start->addDays($i)->toDateString();
             $balance = round(
-                $balance + ($daily[$key]['income'] ?? 0.0) - ($daily[$key]['expense'] ?? 0.0),
+                $balance
+                + ($daily[$key]['income'] ?? 0.0)
+                - ($daily[$key]['expense'] ?? 0.0)
+                - ($reservas[$key] ?? 0.0),
                 2,
             );
             $points[] = $balance;
         }
 
         return $points;
+    }
+
+    /**
+     * Variação diária do reservado (Σ aportes − Σ resgates de metas e investimentos)
+     * no intervalo: ['Y-m-d' => delta]. Mesma base de `reservedTotals()` (sem filtrar
+     * por conta), para a spark fechar no MESMO número que o stat.
+     *
+     * @return array<string, float>
+     */
+    private function reservasDiarias(int $userId, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $metas = GoalContribution::query()
+            ->join('goals', 'goals.id', '=', 'goal_contributions.goal_id')
+            ->where('goals.user_id', $userId)
+            ->whereBetween('goal_contributions.date', [$from->toDateString(), $to->toDateString()])
+            ->groupBy('goal_contributions.date')
+            ->selectRaw('goal_contributions.date AS dia')
+            ->selectRaw("COALESCE(SUM(CASE WHEN goal_contributions.type = 'aporte' THEN goal_contributions.amount ELSE -goal_contributions.amount END), 0) AS delta")
+            ->get();
+
+        $investimentos = InvestmentContribution::query()
+            ->join('investments', 'investments.id', '=', 'investment_contributions.investment_id')
+            ->where('investments.user_id', $userId)
+            ->whereBetween('investment_contributions.date', [$from->toDateString(), $to->toDateString()])
+            ->groupBy('investment_contributions.date')
+            ->selectRaw('investment_contributions.date AS dia')
+            ->selectRaw("COALESCE(SUM(CASE WHEN investment_contributions.type = 'aporte' THEN investment_contributions.amount ELSE -investment_contributions.amount END), 0) AS delta")
+            ->get();
+
+        $out = [];
+        foreach ([$metas, $investimentos] as $fonte) {
+            foreach ($fonte as $row) {
+                // O alias `dia` escapa do cast do model: chega como string nos dois drivers.
+                $dia = substr((string) $row->dia, 0, 10);
+                $out[$dia] = round(($out[$dia] ?? 0.0) + (float) $row->delta, 2);
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -679,27 +719,59 @@ class DashboardService
      *
      * Sem nenhuma despesa no período devolve [] (o card mostra o estado vazio;
      * um donut todo zerado não diria nada).
+     *
+     * ESTORNO NO CARTÃO (T-2 da auditoria de 02/09/2026): um `income` num cartão de
+     * crédito é devolução de compra e ABATE a categoria em que foi lançado — antes o
+     * donut somava só `type = 'expense'` e mostrava 1.000 ao lado de um stat de
+     * despesas de 600, na mesma tela. A fórmula é a MESMA de `seriesDeFluxo()`, só
+     * que por categoria:
+     *
+     *   fatia = despesas de CAIXA da categoria + max(0, compras − estornos no CARTÃO)
+     *
+     * Decisões:
+     * - o abate cai na categoria DO PRÓPRIO ESTORNO (é o que o usuário escolheu);
+     *   estorno sem categoria abate só as compras de cartão em "Sem categoria";
+     * - o estorno nunca toca despesa de caixa, nem dentro da categoria — o mercado
+     *   pago no débito continua inteiro mesmo que o estorno seja maior;
+     * - estorno em categoria diferente da compra (ou sem categoria) deixa o donut
+     *   somar MAIS que o stat: o stat aplica o piso no cartão inteiro, o donut por
+     *   categoria. Categorizar o estorno igual à compra é o que fecha a conta;
+     * - categoria zerada pelo estorno some do donut (fixa volta zerada na legenda).
      */
-    private function categoryBreakdown(int $userId, CarbonImmutable $monthStart, CarbonImmutable $monthEnd): array
+    private function categoryBreakdown(int $userId, CarbonImmutable $monthStart, CarbonImmutable $monthEnd, array $creditCardIds = []): array
     {
+        // Só `transactions` tem `account_id` neste join — o fragmento não fica ambíguo.
+        $emCartao = $this->emCartaoSql($creditCardIds);
+
         $rows = Transaction::query()
             ->leftJoin('categories', 'categories.id', '=', 'transactions.category_id')
             ->where('transactions.user_id', $userId)
-            ->where('transactions.type', 'expense')
+            // Despesa de qualquer conta + `income` de CARTÃO (estorno). Receita de
+            // caixa continua fora: não é gasto nem devolução de gasto.
+            ->where(fn ($q) => $q->where('transactions.type', 'expense')->orWhereRaw($emCartao))
             // Quitação de fatura não é gasto novo — ver `settles_account_id`.
             ->whereNull('transactions.settles_account_id')
             ->whereBetween('transactions.date', [$monthStart->toDateString(), $monthEnd->toDateString()])
             ->groupBy('transactions.category_id', 'categories.name', 'categories.color', 'categories.is_locked')
-            ->orderByDesc('total')
-            ->selectRaw('categories.name AS cat_name, categories.color AS cat_color, categories.is_locked AS cat_locked, SUM(transactions.amount) AS total')
+            ->selectRaw(
+                'categories.name AS cat_name, categories.color AS cat_color, categories.is_locked AS cat_locked, '.
+                "COALESCE(SUM(CASE WHEN transactions.type = 'expense' AND NOT ({$emCartao}) THEN transactions.amount END), 0) AS caixa_total, ".
+                "COALESCE(SUM(CASE WHEN {$emCartao} THEN (CASE WHEN transactions.type = 'expense' THEN transactions.amount ELSE -transactions.amount END) END), 0) AS cartao_total",
+            )
             ->get();
 
         $items = $rows->map(fn ($row) => [
             'name' => $row->cat_name ?? 'Sem categoria',
-            'value' => round((float) $row->total, 2),
+            // Piso 0 só no líquido do CARTÃO: o caixa da categoria fica inteiro.
+            'value' => round((float) $row->caixa_total + max(0.0, (float) $row->cartao_total), 2),
             'color' => $row->cat_name === null ? self::NO_CATEGORY_COLOR : ($row->cat_color ?: null),
             'locked' => (bool) $row->cat_locked,
-        ])->values();
+        ])
+            // Categoria que ficou em zero (só estorno, ou estorno ≥ compras) não vira
+            // fatia negativa nem fatia de zero — sai do donut.
+            ->filter(fn (array $cat) => $cat['value'] > 0.005)
+            ->sortByDesc('value')
+            ->values();
 
         if ($items->isEmpty()) {
             return [];
@@ -736,9 +808,9 @@ class DashboardService
 
     /**
      * Somas diárias por tipo no intervalo: ['Y-m-d' => ['income' => x, 'expense' => y]].
-     * $excludeAccountIds permite ignorar contas (ex.: cartões de crédito, que
-     * não entram no cálculo de saldo/patrimônio).
-     * $refundAccountIds: contas onde `income` é ESTORNO, não receita — ver `abaterEstornos()`.
+     * Usada pelas séries de SALDO (dashboard e sidebar), que já excluem os cartões
+     * por `$excludeAccountIds` — por isso não há estorno a tratar aqui. Para o
+     * fluxo de caixa (receitas/despesas) a fonte é `fluxoDiario()`.
      */
     private function dailySums(
         int $userId,
@@ -746,7 +818,6 @@ class DashboardService
         CarbonImmutable $to,
         array $excludeAccountIds = [],
         bool $incluirQuitacoes = false,
-        array $refundAccountIds = [],
     ): array {
         $rows = Transaction::where('user_id', $userId)
             // Quitação de fatura não é GASTO novo (o gasto foi a compra no cartão), mas
@@ -755,70 +826,174 @@ class DashboardService
             ->when(! $incluirQuitacoes, fn ($q) => $q->whereNull('settles_account_id'))
             ->when($excludeAccountIds, fn ($q) => $q->whereNotIn('account_id', $excludeAccountIds))
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
-            // account_id entra no group by só quando há cartão a tratar: sem isso a
-            // consulta ficaria mais larga do que precisa nas séries de saldo.
-            ->when(
-                $refundAccountIds,
-                fn ($q) => $q->selectRaw('date, type, account_id, SUM(amount) AS total')->groupBy('date', 'type', 'account_id'),
-                fn ($q) => $q->selectRaw('date, type, SUM(amount) AS total')->groupBy('date', 'type'),
-            )
+            ->selectRaw('date, type, SUM(amount) AS total')
+            ->groupBy('date', 'type')
             ->get();
 
         $out = [];
         foreach ($rows as $row) {
             $dia = $row->date->toDateString();
-            $valor = round((float) $row->total, 2);
-
-            // Estorno no cartão ABATE a despesa do dia em vez de virar receita.
-            $estorno = $row->type === 'income'
-                && $refundAccountIds
-                && in_array((int) $row->account_id, $refundAccountIds, true);
-
-            $chave = $estorno ? 'expense' : $row->type;
-            $delta = $estorno ? -$valor : $valor;
-
-            $out[$dia][$chave] = round(($out[$dia][$chave] ?? 0.0) + $delta, 2);
-        }
-
-        // Piso 0 por dia: um estorno maior que as compras daquele dia significa que não
-        // se gastou nada — não que se "ganhou" com despesa negativa (o gráfico de barras
-        // não representa valor negativo). Mesmo piso que `committed`/`currentInvoice` usam.
-        foreach ($out as $dia => $sums) {
-            if (isset($sums['expense'])) {
-                $out[$dia]['expense'] = max(0.0, $sums['expense']);
-            }
+            $out[$dia][$row->type] = round(($out[$dia][$row->type] ?? 0.0) + round((float) $row->total, 2), 2);
         }
 
         return $out;
     }
 
     /**
-     * Totais de receitas e despesas do intervalo (uma query).
+     * Fluxo de caixa diário, já separado no que a regra do estorno precisa:
      *
-     * $refundAccountIds: contas de CARTÃO DE CRÉDITO. Um `income` lançado num cartão é
-     * ESTORNO de compra, não dinheiro entrando — contá-lo como receita inflava as
-     * "receitas do mês" e a "economia" com dinheiro que nunca existiu. É a mesma regra
-     * de sinal que `committed` e `currentInvoice` já aplicam na fatura.
+     *   ['Y-m-d' => ['income' => receita de CAIXA,
+     *                'caixa'  => despesa fora de cartão (sempre ≥ 0),
+     *                'cartao' => compras − estornos no cartão de crédito, COM sinal]]
+     *
+     * Um `income` num cartão de crédito é ESTORNO de compra (devolução), não dinheiro
+     * entrando: entra negativo em `cartao` e nunca em `income` — contá-lo como receita
+     * inflava as "receitas do mês" e a "economia" com dinheiro que nunca existiu.
+     * Quitação de fatura fica fora: não é gasto novo (ver `settles_account_id`).
+     *
+     * @return array<string, array{income: float, caixa: float, cartao: float}>
      */
-    private function totals(int $userId, CarbonImmutable $from, CarbonImmutable $to, array $refundAccountIds = []): array
+    private function fluxoDiario(int $userId, CarbonImmutable $from, CarbonImmutable $to, array $creditCardIds): array
     {
-        $row = Transaction::where('user_id', $userId)
-            // Quitação de fatura não é gasto novo — ver `settles_account_id`.
+        $emCartao = $this->emCartaoSql($creditCardIds);
+
+        $rows = Transaction::where('user_id', $userId)
             ->whereNull('settles_account_id')
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->selectRaw(
-                "COALESCE(SUM(CASE WHEN type = 'income' THEN amount END), 0) AS income_total, ".
-                "COALESCE(SUM(CASE WHEN type = 'expense' THEN amount END), 0) AS expense_total, ".
-                'COALESCE(SUM(CASE WHEN type = '."'income'".' AND '.$this->emCartaoSql($refundAccountIds).' THEN amount END), 0) AS refund_total',
+                'date, '.
+                "COALESCE(SUM(CASE WHEN type = 'income' AND NOT ({$emCartao}) THEN amount END), 0) AS income_total, ".
+                "COALESCE(SUM(CASE WHEN type = 'expense' AND NOT ({$emCartao}) THEN amount END), 0) AS caixa_total, ".
+                "COALESCE(SUM(CASE WHEN {$emCartao} THEN (CASE WHEN type = 'expense' THEN amount ELSE -amount END) END), 0) AS cartao_total",
             )
-            ->first();
+            ->groupBy('date')
+            ->get();
 
-        $estornos = round((float) ($row->refund_total ?? 0), 2);
+        $out = [];
+        foreach ($rows as $row) {
+            $out[$row->date->toDateString()] = [
+                'income' => round((float) $row->income_total, 2),
+                'caixa' => round((float) $row->caixa_total, 2),
+                'cartao' => round((float) $row->cartao_total, 2),
+            ];
+        }
 
-        return [
-            'income' => round(round((float) ($row->income_total ?? 0), 2) - $estornos, 2),
-            'expense' => max(0.0, round(round((float) ($row->expense_total ?? 0), 2) - $estornos, 2)),
-        ];
+        return $out;
+    }
+
+    /**
+     * Distribui o fluxo diário nos buckets do gráfico e devolve as séries prontas.
+     *
+     * REGRA DO ESTORNO (T-1 da auditoria de 02/09/2026) — UMA só, para as quatro
+     * fontes (semana, mês, ano e sparks; `totals()` é o caso de 1 bucket):
+     *
+     *   despesas(período) = despesas de CAIXA + max(0, compras − estornos no CARTÃO)
+     *
+     * 1. O estorno abate SÓ as despesas de cartão. Antes o piso 0 era aplicado por dia
+     *    sobre a soma de tudo, e um estorno de compra de julho lançado em agosto
+     *    engolia o mercado pago no débito no mesmo dia: agosto ficava com gasto 0.
+     * 2. O piso 0 vale no AGREGADO do período do card — não por dia (dailySums), nem
+     *    por mês (ano). Compra de 1.000 no dia 12 e estorno de 400 no dia 13 dão 600
+     *    na semana, no mês e na barra de agosto; antes o card Mês dizia 1.000 (o −400
+     *    do dia 13 virava 0 e sumia) e o Ano, 600 — e o trend de setembro usava 600.
+     * 3. Σ buckets = stat, sempre: o stat é a soma da série, não uma query à parte.
+     *
+     * Distribuição nos buckets (o gráfico de barras não desenha valor negativo): o
+     * estorno abate as compras de cartão dos buckets ANTERIORES do período, da mais
+     * recente para trás (devolução é de algo comprado antes); o que sobrar abate os
+     * buckets SEGUINTES (estorno lançado antes da compra, no mesmo período); e o que
+     * ainda sobrar é o excedente do piso 0 — descartado. Assim nenhuma barra fica
+     * negativa, nenhuma despesa de caixa é tocada e a soma fecha no líquido.
+     *
+     * @param  array<string, array{income: float, caixa: float, cartao: float}>  $diario
+     * @param  callable(string): int  $bucketOf  índice do bucket de um dia 'Y-m-d'
+     * @return array{income: list<float>, expense: list<float>}
+     */
+    private function seriesDeFluxo(array $diario, int $buckets, callable $bucketOf): array
+    {
+        $income = array_fill(0, $buckets, 0.0);
+        $caixa = array_fill(0, $buckets, 0.0);
+        $cartao = array_fill(0, $buckets, 0.0);
+
+        foreach ($diario as $dia => $sums) {
+            $i = (int) $bucketOf($dia);
+            if ($i < 0 || $i >= $buckets) {
+                continue;
+            }
+            $income[$i] = round($income[$i] + $sums['income'], 2);
+            $caixa[$i] = round($caixa[$i] + $sums['caixa'], 2);
+            $cartao[$i] = round($cartao[$i] + $sums['cartao'], 2);
+        }
+
+        $cartao = $this->abaterEstornos($cartao);
+
+        $expense = [];
+        for ($i = 0; $i < $buckets; $i++) {
+            $expense[$i] = round($caixa[$i] + $cartao[$i], 2);
+        }
+
+        return ['income' => $income, 'expense' => $expense];
+    }
+
+    /**
+     * Aplica os estornos (buckets negativos) sobre as compras de cartão (positivos)
+     * do mesmo período — ver `seriesDeFluxo()`. Devolve buckets todos ≥ 0 cuja soma
+     * é max(0, Σ entrada).
+     *
+     * @param  list<float>  $cartao  líquido do cartão por bucket, com sinal
+     * @return list<float>
+     */
+    private function abaterEstornos(array $cartao): array
+    {
+        $sobra = 0.0; // estorno que não achou compra ANTERIOR para abater
+
+        foreach ($cartao as $i => $valor) {
+            if ($valor >= 0) {
+                continue;
+            }
+
+            $deficit = -$valor;
+            $cartao[$i] = 0.0;
+
+            for ($j = $i - 1; $j >= 0 && $deficit > 0; $j--) {
+                $abate = min($cartao[$j], $deficit);
+                $cartao[$j] = round($cartao[$j] - $abate, 2);
+                $deficit = round($deficit - $abate, 2);
+            }
+
+            $sobra = round($sobra + $deficit, 2);
+        }
+
+        // O que sobrou abate as compras seguintes; o resto é o piso 0 (descartado).
+        foreach ($cartao as $i => $valor) {
+            if ($sobra <= 0) {
+                break;
+            }
+            $abate = min($valor, $sobra);
+            $cartao[$i] = round($valor - $abate, 2);
+            $sobra = round($sobra - $abate, 2);
+        }
+
+        return $cartao;
+    }
+
+    /**
+     * Totais de receitas e despesas do intervalo (uma query) — usados como base do
+     * período ANTERIOR nos trends. É `seriesDeFluxo()` com um bucket só: a mesma
+     * regra do estorno, no agregado do período, sem tocar nas despesas de caixa.
+     * Divergir daqui faria o trend comparar um agosto de 600 com um de 1.000.
+     *
+     * @return array{income: float, expense: float}
+     */
+    private function totals(int $userId, CarbonImmutable $from, CarbonImmutable $to, array $creditCardIds = []): array
+    {
+        $series = $this->seriesDeFluxo(
+            $this->fluxoDiario($userId, $from, $to, $creditCardIds),
+            1,
+            fn () => 0,
+        );
+
+        return ['income' => $series['income'][0], 'expense' => $series['expense'][0]];
     }
 
     /**
