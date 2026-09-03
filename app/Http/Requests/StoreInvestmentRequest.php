@@ -82,6 +82,10 @@ class StoreInvestmentRequest extends FormRequest
                     $q->where('id', $userId)->orWhere('account_owner_id', $userId);
                 }),
             ],
+            // Idempotência (convenção do projeto: toda escrita de dinheiro por
+            // clique leva uuid). Gerado pelo cliente a cada abertura do modal;
+            // o reenvio com o mesmo uuid não grava de novo.
+            'client_uuid' => ['nullable', 'uuid'],
             'date' => [
                 'nullable',
                 'date',

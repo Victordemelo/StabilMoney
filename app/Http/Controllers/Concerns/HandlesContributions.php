@@ -7,6 +7,7 @@ use App\Models\Goal;
 use App\Models\Investment;
 use App\Services\SpendingGuard;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -47,17 +48,48 @@ trait HandlesContributions
      * neste pai (`reservedFromAccount`) — não do total do pai. Só volta para a
      * conta o dinheiro que saiu dela.
      *
+     * IDEMPOTÊNCIA: quando o formulário manda um `client_uuid` (gerado a cada
+     * abertura do modal), a movimentação com aquele uuid é gravada UMA vez. Um
+     * duplo clique, ou o reenvio de um POST que já tinha chegado, cai no
+     * fast-path abaixo (fora do lock) e devolve `false` sem tocar no banco. Se
+     * duas requisições idênticas passarem juntas pelo fast-path, o índice único
+     * `(pai_id, client_uuid)` barra a segunda dentro da transação, e ela também
+     * responde como duplicata — mesmo desenho do `faturas.lancar`.
+     *
      * @param  Model  $parent  Goal ou Investment.
      * @param  string  $type  'aporte' | 'resgate'.
+     * @return bool `true` gravou agora; `false` já existia (duplicata ignorada).
      */
-    protected function record(Request $request, Model $parent, string $type): void
+    protected function record(Request $request, Model $parent, string $type): bool
     {
         $data = $request->validated();
         $ownerId = $request->user()->ownerId();
         $accountId = (int) $data['account_id'];
         $amount = (float) $data['amount'];
+        $clientUuid = $data['client_uuid'] ?? null;
 
-        DB::transaction(function () use ($parent, $type, $data, $ownerId, $accountId, $amount) {
+        // Fast-path da idempotência: já gravado, nada a fazer. Vem ANTES do lock
+        // e das asserções de saldo de propósito — a segunda tentativa de algo que
+        // já entrou não pode nem reservar de novo nem reprovar por "não cabe".
+        if ($clientUuid && $parent->contributions()->where('client_uuid', $clientUuid)->exists()) {
+            return false;
+        }
+
+        try {
+            $this->gravarContribuicao($parent, $type, $data, $ownerId, $accountId, $amount, $clientUuid);
+        } catch (UniqueConstraintViolationException) {
+            // Corrida entre dois POSTs iguais: os dois passaram pelo fast-path e
+            // o índice único barrou o segundo. A transação dele foi desfeita.
+            return false;
+        }
+
+        return true;
+    }
+
+    /** A gravação em si (transação + lock + recheque), separada só para o try/catch ficar legível. */
+    private function gravarContribuicao(Model $parent, string $type, array $data, int $ownerId, int $accountId, float $amount, ?string $clientUuid): void
+    {
+        DB::transaction(function () use ($parent, $type, $data, $ownerId, $accountId, $amount, $clientUuid) {
             // 1) Conta primeiro (ordem fixa conta → pai, igual ao FundingService).
             $account = $this->lockAccount($ownerId, $accountId);
 
@@ -72,6 +104,7 @@ trait HandlesContributions
 
             $lockedParent->contributions()->create([
                 'account_id' => $account->id,
+                'client_uuid' => $clientUuid,
                 // Autor: o informado no form, ou o usuário atual por padrão.
                 'made_by_user_id' => $data['made_by_user_id'] ?? request()->user()->id,
                 'type' => $type,

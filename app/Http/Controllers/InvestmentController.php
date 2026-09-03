@@ -66,12 +66,27 @@ class InvestmentController extends Controller
         $data = $request->validated();
         $ownerId = $request->user()->ownerId();
         $valorInicial = (float) ($data['valor_inicial'] ?? 0);
+        $clientUuid = $data['client_uuid'] ?? null;
+
+        // IDEMPOTÊNCIA do aporte inicial. O uuid vive na contribuição (é ela a
+        // escrita de dinheiro), e aqui o pai ainda não existe — então a checagem
+        // é pela família: um uuid que já tem contribuição em qualquer investimento
+        // desta família é reenvio, e a resposta é a mesma do sucesso. Sem valor
+        // inicial não há contribuição, e criar o cadastro duas vezes não move
+        // dinheiro — o uuid não tem o que proteger.
+        if ($clientUuid && $valorInicial > 0 && InvestmentContribution::where('client_uuid', $clientUuid)
+            ->whereHas('investment', fn ($q) => $q->where('user_id', $ownerId))
+            ->exists()
+        ) {
+            return redirect()->route('investimentos.index')
+                ->with('status', 'Investimento criado com sucesso.');
+        }
 
         // Atômico: ou cria o investimento E o aporte inicial, ou nenhum dos dois.
         // O aporte inicial passa pelo MESMO recheque sob lock dos aportes
         // normais (HandlesContributions) — sem isso, dois submits validados na
         // mesma janela reservavam duas vezes o mesmo dinheiro.
-        DB::transaction(function () use ($request, $data, $ownerId, $valorInicial) {
+        DB::transaction(function () use ($request, $data, $ownerId, $valorInicial, $clientUuid) {
             $temAporte = $valorInicial > 0 && ! empty($data['account_id']);
 
             // ORDEM DE LOCK: conta → pai. A conta é travada ANTES de criar o
@@ -96,6 +111,7 @@ class InvestmentController extends Controller
 
                 $investment->contributions()->create([
                     'account_id' => $conta->id,
+                    'client_uuid' => $clientUuid,
                     'made_by_user_id' => $data['made_by_user_id'] ?? $request->user()->id,
                     'type' => 'aporte',
                     'amount' => $data['valor_inicial'],

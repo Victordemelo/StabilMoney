@@ -255,6 +255,8 @@
 
         <form method="POST" action="{{ route('investimentos.store') }}">
             @csrf
+            {{-- Idempotência: uuid novo a cada render (sem JS) e a cada abertura do modal (com JS). --}}
+            <input type="hidden" name="client_uuid" value="{{ \Illuminate\Support\Str::uuid() }}" data-client-uuid>
             <input type="hidden" name="_form" value="create">
             <div class="modal-body">
                 @if ($reabreCreate)
@@ -481,6 +483,8 @@
         <form method="POST" action="" data-aporte-form>
             @csrf
             <input type="hidden" name="_action" value="" data-action-field>
+            {{-- Idempotência: uuid novo a cada render (sem JS) e a cada abertura do modal (com JS). --}}
+            <input type="hidden" name="client_uuid" value="{{ \Illuminate\Support\Str::uuid() }}" data-client-uuid>
             <div class="modal-body">
                 @if ($reabreAporte)
                     <div class="flash-error" role="alert">
@@ -556,6 +560,8 @@
         <form method="POST" action="" data-resgate-form>
             @csrf
             <input type="hidden" name="_action" value="" data-action-field>
+            {{-- Idempotência: uuid novo a cada render (sem JS) e a cada abertura do modal (com JS). --}}
+            <input type="hidden" name="client_uuid" value="{{ \Illuminate\Support\Str::uuid() }}" data-client-uuid>
             <div class="modal-body">
                 @if ($reabreResgate)
                     <div class="flash-error" role="alert">

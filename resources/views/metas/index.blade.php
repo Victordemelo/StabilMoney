@@ -381,6 +381,8 @@
             @csrf
             {{-- _action: ajuda a reabrir o modal com a URL certa após erro de validação --}}
             <input type="hidden" name="_action" value="" data-action-field>
+            {{-- Idempotência: uuid novo a cada render (sem JS) e a cada abertura do modal (com JS). --}}
+            <input type="hidden" name="client_uuid" value="{{ \Illuminate\Support\Str::uuid() }}" data-client-uuid>
             <div class="modal-body">
                 @if ($reabreAporte)
                     <div class="flash-error" role="alert">
@@ -458,6 +460,8 @@
         <form method="POST" action="" data-resgate-form>
             @csrf
             <input type="hidden" name="_action" value="" data-action-field>
+            {{-- Idempotência: uuid novo a cada render (sem JS) e a cada abertura do modal (com JS). --}}
+            <input type="hidden" name="client_uuid" value="{{ \Illuminate\Support\Str::uuid() }}" data-client-uuid>
             <div class="modal-body">
                 @if ($reabreResgate)
                     <div class="flash-error" role="alert">

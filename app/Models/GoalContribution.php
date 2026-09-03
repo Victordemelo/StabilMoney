@@ -24,6 +24,10 @@ class GoalContribution extends Model
         // Despesa que este resgate cobriu (só quando veio do fluxo de "de onde
         // sai esse dinheiro?"); null nos aportes/resgates feitos direto na tela.
         'transaction_id',
+        // Idempotência: uuid gerado pelo cliente a cada abertura do modal. Um
+        // duplo clique (ou o reenvio de um POST que já chegou) não grava de novo —
+        // índice único em (goal_id, client_uuid), NULL não colide.
+        'client_uuid',
         'made_by_user_id',
         'type',
         'amount',

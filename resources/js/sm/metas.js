@@ -24,6 +24,46 @@ function brl(v) {
     return (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Uuid novo para o `client_uuid` do formulário (idempotência no servidor): um
+// duplo clique ou o reenvio de um POST que já chegou não grava de novo.
+function novoUuid() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+    // Fallback (contexto sem `randomUUID`, ex.: http em rede local): v4 pela API antiga.
+    const b = new Uint8Array(16);
+    window.crypto.getRandomValues(b);
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+// Troca o uuid do form a cada ABERTURA do modal: cada abertura é uma intenção
+// nova; dentro da mesma abertura, reenviar é duplicata.
+function renovarUuid(form) {
+    const campo = form ? form.querySelector('[data-client-uuid]') : null;
+    if (campo) campo.value = novoUuid();
+}
+
+// Desabilita o botão de enviar enquanto o POST está em voo: é a primeira
+// barreira contra o duplo clique (o uuid é a segunda, no servidor). Volta a
+// habilitar se a página for restaurada do bfcache (botão "voltar").
+function travarAoEnviar(form) {
+    if (!form || form.dataset.travaEnvio) return;
+    form.dataset.travaEnvio = '1';
+    form.addEventListener('submit', () => {
+        $$('button[type="submit"]', form).forEach((btn) => {
+            btn.disabled = true;
+            btn.setAttribute('aria-busy', 'true');
+        });
+    });
+    window.addEventListener('pageshow', () => {
+        $$('button[type="submit"]', form).forEach((btn) => {
+            btn.disabled = false;
+            btn.removeAttribute('aria-busy');
+        });
+    });
+}
+
 /**
  * Quantos meses até o prazo (input type="month", "AAAA-MM"), contando o mês
  * atual como um aporte possível — quem tem prazo em dezembro e está em julho
@@ -159,6 +199,7 @@ export function initMetas() {
                 if (remainEl) remainEl.textContent = btn.dataset.remaining || '—';
                 const amount = aporteModal.querySelector('[name="amount"]');
                 if (amount) amount.value = '';
+                renovarUuid(form);
                 abrir(aporteModal);
             });
         });
@@ -181,10 +222,14 @@ export function initMetas() {
                 if (savedEl) savedEl.textContent = btn.dataset.saved || '—';
                 const amount = resgateModal.querySelector('[name="amount"]');
                 if (amount) amount.value = '';
+                renovarUuid(form);
                 abrir(resgateModal);
             });
         });
     }
+
+    // ---- Um envio por vez em todo formulário de modal (aportar/resgatar/criar/editar) ----
+    todosModais.forEach((modal) => $$('form', modal).forEach(travarAoEnviar));
 
     // ---- Reabrir o modal correto após erro de validação do servidor ----
     // Editar/criar usam data-reopen="1" diretamente. Para aportar/resgatar,
