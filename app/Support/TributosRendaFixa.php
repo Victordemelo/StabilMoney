@@ -132,6 +132,48 @@ class TributosRendaFixa
     }
 
     /**
+     * Taxa bruta ANUAL estimada (% a.a.) a partir do indexador e da taxa informada.
+     *
+     * - CDI/Selic → base × (taxa/100): "110% do CDI".
+     * - IPCA+ → composição MULTIPLICATIVA: (1+ipca)(1+taxa)−1. IPCA 4,5% + 6% a.a. não é
+     *   10,5%, é 10,77% — o prêmio rende sobre o principal já corrigido pela inflação.
+     *   Somar as duas taxas (o que a prévia fazia) subestima um pouco a rentabilidade.
+     * - Prefixado / sem indexador → a própria taxa.
+     *
+     * O JS da prévia (`investimentos.js`, `grossRate`) espelha esta função — os dois têm de bater.
+     *
+     * @param  array<string, float>  $base  bases anuais por indexador (Investment::INDEX_BASE)
+     */
+    public static function taxaBrutaAnual(?string $indexador, float $taxa, array $base): float
+    {
+        return match ($indexador) {
+            'CDI', 'Selic' => round(($base[$indexador] ?? 0.0) * $taxa / 100, 2),
+            'IPCA+' => round(((1 + ($base['IPCA+'] ?? 0.0) / 100) * (1 + $taxa / 100) - 1) * 100, 2),
+            default => round($taxa, 2),
+        };
+    }
+
+    /**
+     * Rendimento acumulado (% do principal) de uma taxa anual ao longo de `$dias`, a JUROS
+     * COMPOSTOS: (1 + taxa)^(dias/365) − 1.
+     *
+     * A versão linear (taxa × dias/365) errava para cima do primeiro ano: 10% a.a. em 24
+     * meses dava 20%, quando o composto é 21%; em 36 meses, 30% contra 33,10%. Renda fixa
+     * capitaliza — o rendimento do 1º ano rende no 2º.
+     *
+     * Valores de referência (também conferidos no JS):
+     *   10% a.a. × 365 d = 10,00% · × 730 d = 21,00% · × 1095 d = 33,10% · × 180 d ≈ 4,81%.
+     */
+    public static function rendimentoComposto(float $taxaAnual, int $dias): float
+    {
+        if ($dias <= 0) {
+            return 0.0;
+        }
+
+        return ((1 + $taxaAnual / 100) ** ($dias / 365) - 1) * 100;
+    }
+
+    /**
      * Tabelas em formato pronto para o front, para que JS e PHP nunca divirjam.
      *
      * O projeto já teve esse problema nesta mesma tela (o card mostrava 0,0% e a prévia

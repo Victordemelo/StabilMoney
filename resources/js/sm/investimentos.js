@@ -70,13 +70,24 @@ function travarAoEnviar(form) {
 
 // Rentabilidade bruta projetada por indexador (espelha grossRate/IDX_BASE do finance.js).
 // idxBase = { CDI, Selic, 'IPCA+', Prefixado } vem do data-idx-base do modal.
+// Espelha App\Support\TributosRendaFixa::taxaBrutaAnual — os dois têm de bater.
 function grossRate(indexador, taxa, idxBase) {
     if (indexador === 'CDI' || indexador === 'Selic') return (idxBase[indexador] || 0) * (taxa / 100);
-    if (indexador === 'IPCA+') return (idxBase['IPCA+'] || 0) + taxa;
+    // IPCA+ é MULTIPLICATIVO, não aditivo: o prêmio rende sobre o principal já corrigido.
+    // IPCA 4,5% + 6% a.a. → (1,045 × 1,06 − 1) = 10,77% a.a., não 10,5%.
+    if (indexador === 'IPCA+') return ((1 + (idxBase['IPCA+'] || 0) / 100) * (1 + taxa / 100) - 1) * 100;
     if (indexador === 'Prefixado') return taxa;
     // Não indexado (RV/cripto/fundos): usa a própria taxa informada como rentab. observada.
-    // (O accessor Investment::grossRate no PHP faz o mesmo — os dois têm de bater.)
     return taxa;
+}
+
+// Rendimento acumulado (% do principal) a JUROS COMPOSTOS: (1 + taxa)^(dias/365) − 1.
+// Espelha TributosRendaFixa::rendimentoComposto. A versão linear (taxa × dias/365)
+// subestimava além de 1 ano. Valores de referência, 10% a.a.:
+//   365 d → 10,00% · 730 d → 21,00% · 1095 d → 33,10% · 180 d → ≈4,81%.
+function rendimentoComposto(taxaAnual, dias) {
+    if (!(dias > 0)) return 0;
+    return (Math.pow(1 + taxaAnual / 100, dias / 365) - 1) * 100;
 }
 
 // Prazo padrão da simulação (o seletor da tela troca este valor).
@@ -289,8 +300,8 @@ export function initInvestimentos() {
             const dias = Number(prazoSel ? prazoSel.value : PRAZO_PROJECAO_DIAS) || PRAZO_PROJECAO_DIAS;
             const bruto = grossRate(indexador, taxa, idxBase);
 
-            // Rendimento do PERÍODO simulado (a taxa é anual, então proporcional aos dias).
-            const rendimentoPct = bruto * (dias / 365);
+            // Rendimento do PERÍODO simulado, capitalizado (juros compostos sobre a taxa anual).
+            const rendimentoPct = rendimentoComposto(bruto, dias);
             const rendimento = valor * rendimentoPct / 100;
             const t = decomporRendimento(tributos, rendimento, classe, dias);
 

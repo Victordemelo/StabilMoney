@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TributosRendaFixa;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -147,14 +148,11 @@ class Investment extends Model
      */
     public function getGrossRateAttribute(): float
     {
-        $taxa = (float) $this->taxa;
-
-        return match ($this->indexador) {
-            'CDI', 'Selic' => round(self::INDEX_BASE[$this->indexador] * $taxa / 100, 2),
-            'IPCA+' => round(self::INDEX_BASE['IPCA+'] + $taxa, 2),
-            'Prefixado' => round($taxa, 2),
-            default => round($taxa, 2),
-        };
+        // Fonte ÚNICA da conta (espelhada no `investimentos.js`): IPCA+ é
+        // MULTIPLICATIVO — (1+ipca)(1+taxa)−1 — e não a soma. Com a soma, o card
+        // mostrava 10,5% enquanto a prévia do modal mostrava 10,77% para o mesmo
+        // investimento (02/09/2026).
+        return TributosRendaFixa::taxaBrutaAnual($this->indexador, (float) $this->taxa, self::INDEX_BASE);
     }
 
     /** Rótulo PT-BR da classe (Renda fixa / Renda variável / Fundos / Cripto). */

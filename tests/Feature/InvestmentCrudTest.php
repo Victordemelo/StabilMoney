@@ -291,7 +291,7 @@ class InvestmentCrudTest extends TestCase
 
         // IPCA+ → 4.5 + taxa.
         $ipca = Investment::factory()->for($this->user)->create(['indexador' => 'IPCA+', 'taxa' => 6]);
-        $this->assertSame(10.5, $ipca->grossRate);
+        $this->assertSame(10.77, $ipca->grossRate); // (1,045 × 1,06 − 1) — composto, não 4,5 + 6
 
         // Prefixado → taxa.
         $pre = Investment::factory()->for($this->user)->create(['indexador' => 'Prefixado', 'taxa' => 12]);

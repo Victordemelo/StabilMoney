@@ -219,4 +219,49 @@ class TributosRendaFixaTest extends TestCase
         $this->assertStringContainsString('29 dias', $html, 'Falta o prazo que mostra o último dia com IOF.');
         $this->assertStringContainsString('30 dias', $html, 'Falta o prazo em que o IOF zera.');
     }
+
+    /**
+     * A projeção é a JUROS COMPOSTOS: 10% a.a. em 24 meses é 21%, não 20%. A versão linear
+     * (taxa × dias/365) batia só até 1 ano e subestimava dali em diante.
+     */
+    #[DataProvider('rendimentosCompostos')]
+    public function test_rendimento_composto_capitaliza_a_taxa_anual(int $dias, float $esperado): void
+    {
+        $this->assertEqualsWithDelta($esperado, TributosRendaFixa::rendimentoComposto(10.0, $dias), 0.005);
+    }
+
+    public static function rendimentosCompostos(): array
+    {
+        return [
+            '12 meses = a própria taxa' => [365, 10.0],
+            '24 meses (composto, não 20%)' => [730, 21.0],
+            '36 meses (composto, não 30%)' => [1095, 33.10],
+            '6 meses (abaixo do linear 5%)' => [180, 4.81],
+            'prazo zero não rende' => [0, 0.0],
+        ];
+    }
+
+    /** IPCA+ compõe multiplicativamente: 4,5% de IPCA + 6% a.a. = 10,77%, não 10,5%. */
+    public function test_taxa_bruta_anual_por_indexador(): void
+    {
+        $base = ['CDI' => 10.65, 'Selic' => 10.75, 'IPCA+' => 4.5, 'Prefixado' => 0.0];
+
+        $this->assertSame(10.77, TributosRendaFixa::taxaBrutaAnual('IPCA+', 6.0, $base));
+        $this->assertSame(round(10.65 * 1.10, 2), TributosRendaFixa::taxaBrutaAnual('CDI', 110.0, $base));
+        $this->assertSame(12.0, TributosRendaFixa::taxaBrutaAnual('Prefixado', 12.0, $base));
+        $this->assertSame(30.0, TributosRendaFixa::taxaBrutaAnual(null, 30.0, $base), 'sem indexador = taxa informada');
+    }
+
+    /** A ordem IOF → IR sobre o rendimento composto não muda: composto só altera a base. */
+    public function test_projecao_composta_mantem_a_ordem_iof_depois_ir(): void
+    {
+        $rendimento = 1000 * TributosRendaFixa::rendimentoComposto(10.0, 730) / 100; // 210,00
+
+        $t = TributosRendaFixa::decompor($rendimento, 730);
+
+        $this->assertSame(0.0, $t['iof']);
+        $this->assertSame(15.0, $t['aliquotaIr'], '730 dias já passou da faixa de 720 → 15%');
+        $this->assertSame(31.5, $t['ir']);
+        $this->assertSame(178.5, $t['liquido']);
+    }
 }
