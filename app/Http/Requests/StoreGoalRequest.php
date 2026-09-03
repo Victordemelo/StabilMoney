@@ -45,12 +45,25 @@ class StoreGoalRequest extends FormRequest
             'target_date' => [
                 'nullable',
                 'date',
-                'after_or_equal:'.now()->toDateString(),
+                // "De hoje em diante" vale para prazo NOVO. Na edição, o prazo que já
+                // está gravado é aceito mesmo vencido — ver `prazoJaGravado()`.
+                ...($this->prazoJaGravado() ? [] : ['after_or_equal:'.now()->toDateString()]),
                 'before_or_equal:'.now()->addYears(10)->toDateString(),
             ],
             'emoji' => ['required', 'string', 'max:8'],
             'color' => ['required', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         ];
+    }
+
+    /**
+     * O prazo enviado é o MESMO que já está gravado na meta?
+     *
+     * Na criação nunca há meta, então é sempre falso e a regra "de hoje em
+     * diante" vale inteira. A edição sobrescreve (ver `UpdateGoalRequest`).
+     */
+    protected function prazoJaGravado(): bool
+    {
+        return false;
     }
 
     public function attributes(): array
