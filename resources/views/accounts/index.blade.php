@@ -73,11 +73,24 @@
                             {{-- Cartão de débito espelha o DISPONÍVEL das vinculadas (não o
                                  bruto): o que está guardado em metas/investimentos não pode
                                  aparecer como saldo gastável no cartão. --}}
+                            {{-- O débito SACA de UMA conta: a corrente, e a poupança só quando
+                                 não há corrente (mesma regra de Account::paymentOptions, que é o
+                                 que o modal de lançar submete). Por isso o saldo PRINCIPAL do
+                                 card é o dela — antes o card prometia o total (1.200) e o select
+                                 do lançamento avisava 700: dois números para o mesmo método. --}}
+                            @php
+                                $debitada = $conta->linkedChecking ?? $conta->linkedSavings;
+                            @endphp
                             <div class="acct-sub">
-                                <span>Corrente <b>@brl($conta->availableChecking)</b></span>
-                                <span>Poupança <b>@brl($conta->availableSavings)</b></span>
+                                <span class="{{ $conta->linkedChecking ? 'acct-debitada' : '' }}">Corrente <b>@brl($conta->availableChecking)</b>@if ($conta->linkedChecking) <em>conta debitada</em>@endif</span>
+                                <span class="{{ ! $conta->linkedChecking && $conta->linkedSavings ? 'acct-debitada' : '' }}">Poupança <b>@brl($conta->availableSavings)</b>@if (! $conta->linkedChecking && $conta->linkedSavings) <em>conta debitada</em>@endif</span>
                             </div>
-                            <div class="acct-balance {{ $conta->available < 0 ? 'neg' : '' }}">@brl($conta->available) <span class="acct-balance-lbl">total disponível</span></div>
+                            @if ($debitada)
+                                <div class="acct-balance {{ $debitada->available < 0 ? 'neg' : '' }}">@brl($debitada->available) <span class="acct-balance-lbl">sai de {{ $debitada->name }}</span></div>
+                                <div class="acct-sub"><span>Total disponível nas vinculadas <b>@brl($conta->available)</b></span></div>
+                            @else
+                                <div class="acct-balance">@brl(0) <span class="acct-balance-lbl">sem conta vinculada</span></div>
+                            @endif
                         @elseif ($conta->isPix())
                             {{-- Pix espelha UMA conta (a chave vive numa conta só), então
                                  mostra a origem em vez de somar corrente + poupança. --}}
