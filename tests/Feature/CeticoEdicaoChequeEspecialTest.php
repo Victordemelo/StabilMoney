@@ -108,11 +108,14 @@ class CeticoEdicaoChequeEspecialTest extends TestCase
         $r2->assertSessionHasErrors('amount');
         $this->assertSame(1400.0, (float) $t->fresh()->amount);
 
-        // E trocar só a descrição/data, mantendo o valor, também é recusado.
+        // Trocar só a descrição, mantendo o valor, é EDIÇÃO NEUTRA (02/09/2026):
+        // não move dinheiro, então nem passa pelo guard — grava direto. Antes
+        // desta regra o guard do HEAD recusava até isso.
         $r3 = $this->actingAs($u)->from(route('transactions.edit', $t))
             ->put(route('transactions.update', $t), $this->payload($conta, $cat, '1400,00'));
-        fwrite(STDERR, '[HEAD] editar mantendo o valor: erro='.session('errors')?->first('amount')."\n");
-        $r3->assertSessionHasErrors('amount');
+        $r3->assertSessionHasNoErrors();
+        $this->assertSame('corrigido', $t->fresh()->description);
+        $this->assertSame(1400.0, (float) $t->fresh()->amount);
     }
 
     /** Working tree atual: a correção passa (via escolha da fonte). */

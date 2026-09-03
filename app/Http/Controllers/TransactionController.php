@@ -259,11 +259,32 @@ class TransactionController extends Controller
         $data = $request->validated();
         $data['made_by_user_id'] = $data['made_by_user_id'] ?? $request->user()->id;
 
+        // Escolha da fonte é instrução, não coluna. `funding_max_amount` é o teto
+        // que o usuário aprovou no modal — vai para o guard, nunca para a tabela.
+        // (Antes o `unset` deixava o teto em `$data` e ele não chegava ao `spend`:
+        // a edição era um dos caminhos que resgatava além do aprovado — F-3.)
         $fonte = $data['funding_source'] ?? null;
         $investimentoId = $data['funding_investment_id'] ?? null;
-        unset($data['funding_source'], $data['funding_investment_id']);
+        $maxFonte = isset($data['funding_max_amount']) ? (float) $data['funding_max_amount'] : null;
+        unset($data['funding_source'], $data['funding_investment_id'], $data['funding_max_amount']);
 
-        // A fonte da linha ANTIGA é sempre desfeita e recalculada do zero (ver
+        // EDIÇÃO NEUTRA: só descrição, categoria, data ou autor mudaram. Nada
+        // disso move dinheiro, então nem o guard nem a reconciliação têm o que
+        // fazer — grava direto, preservando `funding_*` e o resgate ligado.
+        //
+        // Antes, TODA edição de despesa financiada recalculava a fonte do zero:
+        // corrigir um typo na descrição devolvia R$ 300 ao investimento ("R$ 300
+        // voltaram para o investimento"), num resgate que já tinha acontecido no
+        // banco de verdade. As guardas do topo continuam valendo — elas rodaram
+        // antes de chegar aqui.
+        if (! $this->mexeNoDinheiro($transaction, $data)) {
+            $transaction->update($data);
+
+            return redirect()->route('transactions.index')
+                ->with('status', 'Transação atualizada.');
+        }
+
+        // A fonte da linha ANTIGA é desfeita e recalculada do zero (ver
         // `reconciliarFonte`). Guardamos quanto vinha de RESGATE para poder
         // contar ao usuário, no flash, o que voltou (ou saiu a mais) do investimento.
         $tinhaFonte = (bool) $transaction->funding_source;
@@ -271,7 +292,7 @@ class TransactionController extends Controller
             ? round((float) $transaction->funding_amount, 2)
             : 0.0;
 
-        $gravar = function () use ($transaction, $funding, $data, $fonte, $investimentoId, $tinhaFonte) {
+        $gravar = function () use ($transaction, $funding, $data, $fonte, $investimentoId, $maxFonte, $tinhaFonte) {
             if ($tinhaFonte) {
                 $this->reconciliarFonte($transaction, $funding, (int) $data['account_id']);
             }
@@ -315,6 +336,7 @@ class TransactionController extends Controller
                 ignore: $ignore,
                 madeByUserId: $data['made_by_user_id'],
                 date: $data['date'],
+                maxFonte: $maxFonte,
             );
         };
 
@@ -398,6 +420,26 @@ class TransactionController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * A edição muda algo que MOVE dinheiro? Só três campos movem: o valor, a
+     * conta de onde ele sai e o tipo (receita ↔ despesa). Descrição, categoria,
+     * data e autor são rótulos — `Account::balance` não olha nenhum deles.
+     *
+     * É esta pergunta que decide entre gravar direto e reconciliar a fonte.
+     */
+    private function mexeNoDinheiro(Transaction $transaction, array $data): bool
+    {
+        if (($data['type'] ?? $transaction->type) !== $transaction->type) {
+            return true;
+        }
+
+        if ((int) ($data['account_id'] ?? $transaction->account_id) !== (int) $transaction->account_id) {
+            return true;
+        }
+
+        return abs(round((float) $data['amount'], 2) - round((float) $transaction->amount, 2)) > 0.001;
     }
 
     /**
