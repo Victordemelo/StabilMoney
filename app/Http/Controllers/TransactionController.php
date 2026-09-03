@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\RespondsToAjax;
 use App\Http\Requests\StoreTransactionRequest;
+use App\Http\Requests\StoreTransferRequest;
 use App\Http\Requests\UpdateTransactionRequest;
 use App\Models\Account;
 use App\Models\Category;
@@ -16,6 +17,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class TransactionController extends Controller
 {
@@ -42,9 +44,15 @@ class TransactionController extends Controller
             ->where('user_id', $userId);
 
         // Filtros opcionais via GET — sempre restritos aos dados do próprio usuário
+        // "Receitas"/"Despesas" mostram só receita e despesa DE VERDADE: as pontas
+        // de uma transferência continuam `income`/`expense` no banco (é o que faz o
+        // saldo fechar), mas listá-las em "Receitas" diria que entrou dinheiro que só
+        // trocou de conta. Elas têm filtro próprio, "Transferências".
         $type = $request->query('type');
         if (in_array($type, ['income', 'expense'], true)) {
-            $query->where('type', $type);
+            $query->where('type', $type)->whereNull('transfer_group_id');
+        } elseif ($type === 'transfer') {
+            $query->whereNotNull('transfer_group_id');
         }
 
         $accountId = (int) $request->query('account');
@@ -157,6 +165,14 @@ class TransactionController extends Controller
     public function store(StoreTransactionRequest $request, FundingService $funding)
     {
         $data = $request->validated();
+
+        // `type=transfer` na rota comum: é por aqui que a fila offline e o service
+        // worker reenviam (eles só conhecem `POST /transactions`). O modal usa a
+        // rota própria (`transfer`); os dois caminhos gravam pelo mesmo método.
+        if (($data['type'] ?? null) === 'transfer') {
+            return $this->transferir($request, $funding);
+        }
+
         $ownerId = $request->user()->ownerId();
         $data['user_id'] = $ownerId;
         // Autor do lançamento: o informado no form, ou o usuário atual por padrão.
@@ -206,23 +222,121 @@ class TransactionController extends Controller
         return $this->storeResponse($request, $transaction, created: true);
     }
 
+    /** Transferência entre contas de caixa pela rota própria (`transactions.transfer`). */
+    public function transfer(StoreTransferRequest $request, FundingService $funding)
+    {
+        return $this->transferir($request, $funding);
+    }
+
+    /**
+     * TRANSFERÊNCIA entre duas contas de caixa da família (corrente ↔ poupança).
+     *
+     * Nascem DUAS linhas ligadas por `transfer_group_id`: a saída (`expense`) na
+     * origem e a entrada (`income`) no destino — mesmo valor, mesma data, mesmo
+     * autor, sem categoria. `type` continua `income|expense` de propósito: assim
+     * `Account::balance`, o extrato e as séries de saldo fecham sem mudar nada;
+     * quem precisa distinguir (dashboard, filtro do Histórico, guardas de
+     * edição) pergunta por `isTransferencia()`.
+     *
+     * A SAÍDA é um gasto novo para a origem e passa pelo `FundingService` como
+     * qualquer despesa: sem disponível e sem fonte, 422; com cheque especial ou
+     * investimento que cubra, 409 pedindo a escolha — e o reenvio traz
+     * `funding_source`/`funding_investment_id`/`funding_max_amount`, com o MESMO
+     * `client_uuid`. As duas linhas são gravadas dentro do `write` do `spend`, ou
+     * seja, na mesma `DB::transaction` e com a origem já travada: não existe
+     * instante em que o dinheiro saiu de uma conta sem ter entrado na outra.
+     */
+    private function transferir(StoreTransactionRequest $request, FundingService $funding)
+    {
+        $data = $request->validated();
+        $ownerId = $request->user()->ownerId();
+        $madeBy = (int) ($data['made_by_user_id'] ?? $request->user()->id);
+
+        // Idempotência (mesma regra do store): o uuid vive na SAÍDA, que é a linha
+        // que passa pelo guard. Reenvio de uma transferência já gravada devolve a
+        // existente — sem isso, o replay da fila resgataria do investimento de novo.
+        $clientUuid = $data['client_uuid'] ?? null;
+        if ($clientUuid) {
+            $existente = Transaction::where('user_id', $ownerId)
+                ->where('client_uuid', $clientUuid)
+                ->first();
+
+            if ($existente) {
+                return $this->storeResponse($request, $existente, created: false);
+            }
+        }
+
+        $fonte = $data['funding_source'] ?? null;
+        $investimentoId = $data['funding_investment_id'] ?? null;
+        $maxFonte = isset($data['funding_max_amount']) ? (float) $data['funding_max_amount'] : null;
+
+        $origem = Account::whereKey($data['account_id'])->firstOrFail();
+        $destino = Account::whereKey($data['to_account_id'])->firstOrFail();
+        $valor = round((float) $data['amount'], 2);
+        $descricao = trim((string) ($data['description'] ?? ''));
+        $grupo = (string) Str::uuid();
+
+        $saida = $funding->spend(
+            account: $origem,
+            amount: $valor,
+            source: $fonte,
+            investmentId: $investimentoId ? (int) $investimentoId : null,
+            write: function (array $auditoria) use ($ownerId, $madeBy, $clientUuid, $origem, $destino, $valor, $descricao, $grupo, $data) {
+                $comum = [
+                    'user_id' => $ownerId,
+                    'made_by_user_id' => $madeBy,
+                    'category_id' => null,
+                    'amount' => $valor,
+                    'date' => $data['date'],
+                    'transfer_group_id' => $grupo,
+                ];
+
+                $saida = Transaction::create($comum + $auditoria + [
+                    'client_uuid' => $clientUuid,
+                    'account_id' => $origem->id,
+                    'type' => 'expense',
+                    'description' => $descricao !== '' ? $descricao : 'Transferência para '.$destino->name,
+                ]);
+
+                Transaction::create($comum + [
+                    'account_id' => $destino->id,
+                    'type' => 'income',
+                    'description' => $descricao !== '' ? $descricao : 'Transferência de '.$origem->name,
+                ]);
+
+                return $saida;
+            },
+            madeByUserId: $madeBy,
+            date: $data['date'],
+            maxFonte: $maxFonte,
+        );
+
+        return $this->storeResponse(
+            $request,
+            $saida,
+            created: true,
+            mensagem: 'Transferência de '.Brl::format($valor).' de '.$origem->name.' para '.$destino->name.' registrada.',
+        );
+    }
+
     /**
      * Resposta do store conforme o cliente: JSON para o replay da fila offline
      * (Accept: application/json) — 201 criado, 200 se já existia (dedupe) —, e
      * redirect com flash para o formulário web normal.
      */
-    private function storeResponse(Request $request, Transaction $transaction, bool $created)
+    private function storeResponse(Request $request, Transaction $transaction, bool $created, ?string $mensagem = null)
     {
         if ($this->wantsJsonResponse($request)) {
             return response()->json([
                 'id' => $transaction->id,
                 'client_uuid' => $transaction->client_uuid,
+                'transfer_group_id' => $transaction->transfer_group_id,
                 'created' => $created,
             ], $created ? 201 : 200);
         }
 
         return redirect()->route('transactions.index')
-            ->with('status', 'Transação registrada com sucesso.');
+            ->with('status', $mensagem ?? 'Transação registrada com sucesso.');
     }
 
     public function edit(Request $request, Transaction $transaction)
@@ -258,6 +372,41 @@ class TransactionController extends Controller
 
         $data = $request->validated();
         $data['made_by_user_id'] = $data['made_by_user_id'] ?? $request->user()->id;
+
+        // PONTA DE TRANSFERÊNCIA: só a edição NEUTRA passa (descrição, data, autor),
+        // e ela vale para as DUAS pontas — o par é uma coisa só. Mudar valor, conta
+        // ou tipo numa ponta descolaria a outra (R$ 300 saindo de uma conta e R$ 200
+        // entrando na outra é dinheiro sumindo), então é recusado no topo, antes de
+        // qualquer ramo de gravação: "exclua e lance de novo".
+        if ($transaction->isTransferencia()) {
+            if ($motivo = $this->travaDeTransferencia($transaction, $data)) {
+                return back()->withErrors(['transaction' => $motivo])->withInput();
+            }
+
+            DB::transaction(function () use ($transaction, $data) {
+                $pontas = Transaction::with('account')
+                    ->where('user_id', $transaction->user_id)
+                    ->where('transfer_group_id', $transaction->transfer_group_id)
+                    ->lockForUpdate()
+                    ->get();
+
+                $descricao = trim((string) ($data['description'] ?? ''));
+
+                foreach ($pontas as $ponta) {
+                    $outra = $pontas->firstWhere('id', '!=', $ponta->id);
+                    $ponta->update([
+                        'date' => $data['date'],
+                        'made_by_user_id' => $data['made_by_user_id'],
+                        // Descrição apagada volta ao padrão de cada ponta, em vez de
+                        // deixar as duas linhas mudas no extrato.
+                        'description' => $descricao !== '' ? $descricao : $this->descricaoPadraoDaPonta($ponta, $outra),
+                    ]);
+                }
+            });
+
+            return redirect()->route('transactions.index')
+                ->with('status', 'Transferência atualizada nas duas contas.');
+        }
 
         // Escolha da fonte é instrução, não coluna. `funding_max_amount` é o teto
         // que o usuário aprovou no modal — vai para o guard, nunca para a tabela.
@@ -423,6 +572,37 @@ class TransactionController extends Controller
     }
 
     /**
+     * Guarda das pontas de transferência: recusa o que MOVE dinheiro (valor, conta,
+     * tipo) e a categoria (transferência não é gasto de nada). Devolve a mensagem
+     * PT-BR, ou null quando só descrição/data/autor mudaram.
+     */
+    private function travaDeTransferencia(Transaction $ponta, array $data): ?string
+    {
+        $moveDinheiro = $this->mexeNoDinheiro($ponta, $data);
+        $ganhouCategoria = ! empty($data['category_id']);
+
+        if (! $moveDinheiro && ! $ganhouCategoria) {
+            return null;
+        }
+
+        return 'Esta linha é uma ponta de transferência entre suas contas — '
+            .($ganhouCategoria && ! $moveDinheiro
+                ? 'ela não recebe categoria, porque mover dinheiro entre as próprias contas não é gasto de nada. '
+                : 'valor, conta e tipo não podem ser alterados numa ponta só, senão a outra conta fica com um número diferente e o dinheiro some ou aparece do nada. ')
+            .'Você pode corrigir a descrição, a data e quem fez; para mudar o resto, exclua a transferência e lance de novo.';
+    }
+
+    /** "Transferência para X" na saída, "Transferência de X" na entrada. */
+    private function descricaoPadraoDaPonta(Transaction $ponta, ?Transaction $outra): string
+    {
+        $nomeDaOutra = $outra?->account?->name ?? 'outra conta';
+
+        return $ponta->type === 'expense'
+            ? 'Transferência para '.$nomeDaOutra
+            : 'Transferência de '.$nomeDaOutra;
+    }
+
+    /**
      * A edição muda algo que MOVE dinheiro? Só três campos movem: o valor, a
      * conta de onde ele sai e o tipo (receita ↔ despesa). Descrição, categoria,
      * data e autor são rótulos — `Account::balance` não olha nenhum deles.
@@ -499,6 +679,27 @@ class TransactionController extends Controller
     public function destroy(Transaction $transaction, FundingService $funding)
     {
         $this->authorize('delete', $transaction);
+
+        // TRANSFERÊNCIA: as duas pontas morrem juntas. Apagar só a entrada deixaria
+        // a saída de pé (dinheiro sumiu da origem e não chegou a lugar nenhum), e
+        // vice-versa. O estorno da fonte vale para a saída — ela é a linha que pode
+        // ter sido financiada por resgate — e é feito na MESMA transação de banco.
+        if ($transaction->isTransferencia()) {
+            DB::transaction(function () use ($transaction, $funding) {
+                $ids = Transaction::where('user_id', $transaction->user_id)
+                    ->where('transfer_group_id', $transaction->transfer_group_id)
+                    ->lockForUpdate()
+                    ->pluck('id');
+
+                $funding->estornarFonte($ids);
+                // Delete em massa não dispara evento Eloquent — e não precisa: nenhum
+                // hook de Transaction depende disso. O estorno acima é explícito.
+                Transaction::whereIn('id', $ids)->delete();
+            });
+
+            return redirect()->route('transactions.index')
+                ->with('status', 'Transferência removida das duas contas.');
+        }
 
         // Mesma trava do /faturas: a linha que QUITOU uma fatura não se apaga
         // sozinha — ela é a contrapartida das compras marcadas como pagas.

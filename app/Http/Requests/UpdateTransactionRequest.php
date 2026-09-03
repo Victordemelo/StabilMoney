@@ -16,4 +16,15 @@ namespace App\Http\Requests;
  * `TransactionController::travaDeEdicao()`, que roda ANTES dos dois ramos de
  * gravação — inclusive antes do ramo de receita, que grava sem o FundingService.
  */
-class UpdateTransactionRequest extends StoreTransactionRequest {}
+class UpdateTransactionRequest extends StoreTransactionRequest
+{
+    /**
+     * Edição NUNCA valida como transferência: `type` fica em `income|expense`.
+     * Uma ponta de transferência é editada com as regras comuns — e as guardas de
+     * `travaDeEdicao()` recusam qualquer mudança que mova dinheiro nela.
+     */
+    protected function aceitaTransferencia(): bool
+    {
+        return false;
+    }
+}

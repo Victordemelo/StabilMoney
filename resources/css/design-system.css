@@ -902,6 +902,34 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .lm-saldo { display: block; margin-top: 6px; font-size: 12px; color: var(--ink-3); }
 .lm-saldo.neg { color: var(--neg); font-weight: 600; }
 
+/* ----- Transferência entre contas (modal "Lançar" + Histórico) -----
+   Terceiro segmento do type-toggle: a pílula passa a ter 1/3 da largura e um
+   terceiro destino; a cor da marca (nem verde de receita, nem âmbar de despesa)
+   diz que o dinheiro só está trocando de conta. */
+.type-toggle.tt-3 { grid-template-columns: 1fr 1fr 1fr; }
+.type-toggle.tt-3 .tt-pill { width: calc((100% - 16px) / 3); }
+form[data-type="transfer"] .type-toggle.tt-3 .tt-pill {
+  transform: translateX(calc(200% + 8px));
+  background: color-mix(in srgb, var(--brand-500) 14%, var(--surface));
+}
+.type-toggle input:checked + label.tt-transfer { color: var(--brand-500); }
+.form-card form[data-type="transfer"] { --tt-accent: var(--brand-500); }
+@media (max-width: 420px) { .type-toggle.tt-3 label { font-size: 12px; gap: 5px; } }
+
+/* Selo "Transferência" na lista do Histórico (a linha não tem categoria). */
+.tx-tag {
+  display: inline-block; vertical-align: 1px; margin-left: 6px; padding: 1px 7px;
+  border-radius: 999px; font-size: 10.5px; font-weight: 600; letter-spacing: .01em;
+  color: var(--brand-500); background: color-mix(in srgb, var(--brand-500) 12%, transparent);
+}
+/* Resumo fixo da ponta de transferência no formulário de edição. */
+.tx-transfer-resumo {
+  display: grid; gap: 4px; margin-bottom: 16px; padding: 12px 14px; border-radius: 12px;
+  background: color-mix(in srgb, var(--brand-500) 8%, var(--surface)); border: 1px solid var(--line);
+  font-size: 13px; color: var(--ink-2);
+}
+.tx-transfer-resumo strong { color: var(--brand-500); font-size: 13.5px; }
+
 /* Rodapé do stat card: contexto curto sob o número (ex.: "3 em aberto · valor
    previsto"). Fica em uma linha; se não couber, corta com reticências. */
 .stat-nota {

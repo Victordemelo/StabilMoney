@@ -751,6 +751,8 @@ class DashboardService
             ->where(fn ($q) => $q->where('transactions.type', 'expense')->orWhereRaw($emCartao))
             // Quitação de fatura não é gasto novo — ver `settles_account_id`.
             ->whereNull('transactions.settles_account_id')
+            // Transferência entre contas também não: o dinheiro só trocou de conta.
+            ->whereNull('transactions.transfer_group_id')
             ->whereBetween('transactions.date', [$monthStart->toDateString(), $monthEnd->toDateString()])
             ->groupBy('transactions.category_id', 'categories.name', 'categories.color', 'categories.is_locked')
             ->selectRaw(
@@ -824,6 +826,10 @@ class DashboardService
             // É saída de caixa. Quem mede despesa a exclui; quem mede SALDO precisa dela,
             // senão a linha do patrimônio ignora o dinheiro que saiu para pagar a fatura.
             ->when(! $incluirQuitacoes, fn ($q) => $q->whereNull('settles_account_id'))
+            // Transferência entre contas de caixa: NÃO é receita nem despesa. Nas
+            // séries de SALDO (`$incluirQuitacoes`) ela fica — cada ponta move a sua
+            // conta, e no total as duas se anulam sozinhas.
+            ->when(! $incluirQuitacoes, fn ($q) => $q->whereNull('transfer_group_id'))
             ->when($excludeAccountIds, fn ($q) => $q->whereNotIn('account_id', $excludeAccountIds))
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->selectRaw('date, type, SUM(amount) AS total')
@@ -850,6 +856,7 @@ class DashboardService
      * entrando: entra negativo em `cartao` e nunca em `income` — contá-lo como receita
      * inflava as "receitas do mês" e a "economia" com dinheiro que nunca existiu.
      * Quitação de fatura fica fora: não é gasto novo (ver `settles_account_id`).
+     * Transferência entre contas também (ver `transfer_group_id`).
      *
      * @return array<string, array{income: float, caixa: float, cartao: float}>
      */
@@ -859,6 +866,11 @@ class DashboardService
 
         $rows = Transaction::where('user_id', $userId)
             ->whereNull('settles_account_id')
+            // Transferência entre contas fica fora das QUATRO fontes de fluxo (semana,
+            // mês, ano, sparks — e `totals()`, que é esta função com um bucket):
+            // mover R$ 300 da corrente para a poupança não é receita nem despesa, e
+            // antes inflava as duas somas do mês.
+            ->whereNull('transfer_group_id')
             ->whereBetween('date', [$from->toDateString(), $to->toDateString()])
             ->selectRaw(
                 'date, '.

@@ -61,8 +61,10 @@ class TransactionValidationTest extends TestCase
 
     public function test_invalid_type_is_rejected(): void
     {
+        // `transfer` deixou de ser exemplo de tipo inválido: desde a transferência
+        // entre contas (set/2026) ele é aceito nesta rota (ver StoreTransactionRequest).
         $response = $this->actingAs($this->user)
-            ->post('/transactions', $this->payload(['type' => 'transfer']));
+            ->post('/transactions', $this->payload(['type' => 'refund']));
 
         $response->assertSessionHasErrors('type');
         $this->assertDatabaseCount('transactions', 0);

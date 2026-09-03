@@ -115,11 +115,21 @@ export function initLaunch() {
     const radios = form.querySelectorAll('input[name="type"]');
     const select = form.querySelector('#lm-category');
     const contaSel = form.querySelector('#lm-account');
+    // Transferência: destino, blocos que só existem (ou só somem) nesse modo, e o
+    // rótulo/subtítulo que mudam de texto. Tudo opcional — sem duas contas de
+    // caixa o Blade não renderiza o segmento nem o select de destino.
+    const destinoSel = form.querySelector('#lm-to-account');
+    const soTransfer = form.querySelectorAll('[data-lm-transfer-only]');
+    const foraTransfer = form.querySelectorAll('[data-lm-not-transfer]');
+    const rotuloConta = form.querySelector('[data-lm-account-label]');
+    const subtitulo = modal.querySelector('[data-lm-subtitle]');
+
     /**
      * Mostra o saldo do método escolhido embaixo do select.
      *
      * Em RECEITA a linha some: o número ali é "quanto dá para gastar", que não diz
-     * nada sobre dinheiro entrando — deixá-lo visível só confundiria.
+     * nada sobre dinheiro entrando — deixá-lo visível só confundiria. Em
+     * TRANSFERÊNCIA fica: é o quanto a origem tem para mandar.
      */
     const mostrarSaldo = () => {
         const alvo = modal.querySelector('[data-lm-saldo]');
@@ -158,13 +168,17 @@ export function initLaunch() {
 
         // RECEITA não entra em cartão de crédito — some as opções de cartão e,
         // se uma delas estava escolhida, cai na primeira conta válida.
+        // TRANSFERÊNCIA só sai de conta de CAIXA (corrente/poupança): cartões e
+        // métodos espelho (débito/Pix) somem do "De".
         if (contaSel) {
             let trocar = false;
             contaSel.querySelectorAll('option').forEach((opt) => {
                 const soDespesa = opt.dataset.card === '1' && tipo === 'income';
-                opt.hidden = soDespesa;
-                opt.disabled = soDespesa;
-                if (soDespesa && opt.selected) trocar = true;
+                const naoEhCaixa = tipo === 'transfer' && opt.dataset.cash !== '1';
+                const fora = soDespesa || naoEhCaixa;
+                opt.hidden = fora;
+                opt.disabled = fora;
+                if (fora && opt.selected) trocar = true;
             });
             if (trocar) {
                 const valida = Array.from(contaSel.options).find((o) => !o.disabled);
@@ -172,13 +186,61 @@ export function initLaunch() {
             }
         }
 
+        aplicarModoTransferencia(tipo === 'transfer');
         mostrarSaldo();
     };
 
-    // Trocar o método atualiza o saldo mostrado.
-    if (contaSel) contaSel.addEventListener('change', mostrarSaldo);
+    /**
+     * Liga/desliga o modo Transferência: "De"/"Para" no lugar de "Onde"/Categoria,
+     * `action` na rota própria, e os selects escondidos DESABILITADOS — campo
+     * desabilitado não entra no FormData, então categoria não viaja numa
+     * transferência nem `to_account_id` numa despesa.
+     */
+    const aplicarModoTransferencia = (ligado) => {
+        soTransfer.forEach((el) => { el.hidden = !ligado; });
+        foraTransfer.forEach((el) => { el.hidden = ligado; });
+        if (destinoSel) destinoSel.disabled = !ligado;
+        if (select) select.disabled = ligado;
+        if (rotuloConta) rotuloConta.textContent = ligado ? 'De' : 'Onde';
+        if (subtitulo) {
+            subtitulo.textContent = ligado
+                ? 'Mova dinheiro entre suas contas — não conta como receita nem despesa'
+                : 'Registre uma receita ou despesa';
+        }
+        const destino = ligado ? form.dataset.transferAction : form.dataset.storeAction;
+        if (destino) form.action = destino;
+        if (ligado) excluirOrigemDoDestino();
+    };
+
+    /**
+     * A origem não pode ser o destino: tira a conta escolhida em "De" da lista do
+     * "Para" e, se ela estava marcada lá, pula para a primeira outra conta.
+     */
+    const excluirOrigemDoDestino = () => {
+        if (!destinoSel || !contaSel) return;
+        const origem = contaSel.value;
+        let trocar = false;
+        destinoSel.querySelectorAll('option').forEach((opt) => {
+            const mesma = opt.value === origem;
+            opt.hidden = mesma;
+            opt.disabled = mesma;
+            if (mesma && opt.selected) trocar = true;
+        });
+        if (trocar) {
+            const valida = Array.from(destinoSel.options).find((o) => !o.disabled);
+            if (valida) destinoSel.value = valida.value;
+        }
+    };
+
+    // Trocar o método atualiza o saldo mostrado (e, em transferência, o destino).
+    if (contaSel) {
+        contaSel.addEventListener('change', () => {
+            mostrarSaldo();
+            if (form.dataset.type === 'transfer') excluirOrigemDoDestino();
+        });
+    }
     radios.forEach((r) => r.addEventListener('change', () => {
-        // Trocar receita ↔ despesa ZERA o valor. Os dois lados são naturezas
+        // Trocar receita ↔ despesa ↔ transferência ZERA o valor. São naturezas
         // diferentes de dinheiro; herdar o número digitado para o outro convida a
         // salvar um valor que era de outra coisa — e num app de dinheiro isso vira
         // lançamento errado, não só incômodo.

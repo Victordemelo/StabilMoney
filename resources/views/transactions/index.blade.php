@@ -28,6 +28,9 @@
                         <option value="">Todos</option>
                         <option value="income" @selected(request('type') === 'income')>Receitas</option>
                         <option value="expense" @selected(request('type') === 'expense')>Despesas</option>
+                        {{-- Pontas de transferência têm filtro próprio: em "Receitas"/"Despesas"
+                             elas NÃO aparecem (o dinheiro só trocou de conta). --}}
+                        <option value="transfer" @selected(request('type') === 'transfer')>Transferências</option>
                     </select>
                 </div>
                 <div class="field">
@@ -106,16 +109,22 @@
                     @foreach ($transactions as $transacao)
                         @php
                             $receita = $transacao->type === 'income';
+                            $transferencia = $transacao->isTransferencia();
                             $nome = $transacao->description
-                                ?: ($transacao->category->name ?? ($receita ? 'Receita' : 'Despesa'));
+                                ?: ($transacao->category->name ?? ($transferencia ? 'Transferência' : ($receita ? 'Receita' : 'Despesa')));
                         @endphp
                         <a class="tx" href="{{ route('transactions.edit', $transacao) }}">
                             <div class="tx-ico" @if ($transacao->category?->color) style="background: color-mix(in srgb, {{ $transacao->category->color }} 16%, transparent)" @endif>
-                                {{ $transacao->category->icon ?? ($receita ? '💰' : '💸') }}
+                                @if ($transferencia)
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 8h13M7 8l3-3M7 8l3 3M17 16H4M17 16l-3-3M17 16l-3 3"/></svg>
+                                @else
+                                    {{ $transacao->category->icon ?? ($receita ? '💰' : '💸') }}
+                                @endif
                             </div>
                             <div>
-                                <div class="tx-name">{{ $nome }}</div>
-                                <div class="tx-meta">{{ $transacao->category->name ?? 'Sem categoria' }} · {{ $transacao->account->name }} · {{ $transacao->date->format('d/m/Y') }}@if (! empty($showAuthor)) · {{ $transacao->madeBy?->name ?? 'Removido' }}@endif</div>
+                                <div class="tx-name">{{ $nome }}@if ($transferencia) <span class="tx-tag">Transferência</span>@endif</div>
+                                {{-- Ponta de transferência não tem categoria — o selo acima já diz o que ela é. --}}
+                                <div class="tx-meta">@if (! $transferencia){{ $transacao->category->name ?? 'Sem categoria' }} · @endif{{ $transacao->account->name }} · {{ $transacao->date->format('d/m/Y') }}@if (! empty($showAuthor)) · {{ $transacao->madeBy?->name ?? 'Removido' }}@endif</div>
                             </div>
                             <div class="tx-amt {{ $receita ? 'pos' : '' }}">
                                 {{ $receita ? '+' : '−' }} R$ {{ number_format($transacao->amount, 2, ',', '.') }}

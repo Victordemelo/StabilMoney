@@ -61,6 +61,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/csrf-token', fn () => response()->json(['token' => csrf_token()]))->name('csrf.token');
 
     // Recursos principais
+    //
+    // Transferência entre contas de caixa (corrente ↔ poupança). ANTES do resource:
+    // `POST transactions/transferir` não colide com o resource (que só tem
+    // `POST transactions`), mas fica registrado junto por clareza. `POST /transactions`
+    // com `type=transfer` também transfere — é o caminho da fila offline.
+    Route::post('transactions/transferir', [TransactionController::class, 'transfer'])
+        ->name('transactions.transfer');
     Route::resource('transactions', TransactionController::class)->except('show');
     Route::resource('accounts', AccountController::class)->except('show');
 

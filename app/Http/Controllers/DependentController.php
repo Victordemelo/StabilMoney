@@ -25,18 +25,19 @@ class DependentController extends Controller
 
         // `gasto` = soma das DESPESAS do MÊS CORRENTE lançadas por cada pessoa
         // (made_by_user_id), pré-agregada para evitar N+1 ao montar os cards.
+        // Transferência entre contas não é gasto de ninguém — fica de fora.
         $mesInicio = now()->startOfMonth()->toDateString();
         $mesFim = now()->endOfMonth()->toDateString();
 
         $dependents = $titular->dependents()
             ->withSum(['madeTransactions as gasto' => fn ($q) => $q
-                ->where('type', 'expense')->whereBetween('date', [$mesInicio, $mesFim])], 'amount')
+                ->where('type', 'expense')->whereNull('transfer_group_id')->whereBetween('date', [$mesInicio, $mesFim])], 'amount')
             ->orderBy('name')
             ->get();
 
         // Quanto o próprio titular gastou no mês (mesma base dos cards).
         $gastoTitular = (float) $titular->madeTransactions()
-            ->where('type', 'expense')->whereBetween('date', [$mesInicio, $mesFim])->sum('amount');
+            ->where('type', 'expense')->whereNull('transfer_group_id')->whereBetween('date', [$mesInicio, $mesFim])->sum('amount');
 
         // Total da família no mês: é o denominador da fatia de cada pessoa. Sem
         // ele o card mostra um número solto — "R$ 1.590" é muito ou pouco só em

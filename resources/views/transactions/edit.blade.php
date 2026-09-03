@@ -8,7 +8,7 @@
         <span class="sub">Atualize ou exclua esta movimentação</span>
         <div class="head-actions">
             <form method="POST" action="{{ route('transactions.destroy', $transaction) }}"
-                  onsubmit="return confirm('Excluir esta transação? Essa ação não pode ser desfeita.')">
+                  onsubmit="return confirm('{{ $transaction->isTransferencia() ? 'Excluir esta transferência? As duas contas voltam ao que eram. Essa ação não pode ser desfeita.' : 'Excluir esta transação? Essa ação não pode ser desfeita.' }}')">
                 @csrf
                 @method('DELETE')
                 <button class="btn-danger" type="submit">

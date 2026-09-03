@@ -22,6 +22,10 @@ class Transaction extends Model
         'date',
         // Parcelamento/recorrência (feature "Faturas / Despesas").
         'group_id',
+        // Transferência entre contas de caixa: liga a saída (origem) à entrada
+        // (destino). Ver a migration add_transfer_group_id: as duas linhas contam
+        // no saldo, mas nenhuma é receita ou despesa no dashboard.
+        'transfer_group_id',
         // Pagamento de conta fixa mensal: qual conta e qual mês foi quitado.
         'fixed_bill_id',
         // Preenchido só na saída de caixa que quita a fatura de um cartão. Ver a
@@ -81,6 +85,44 @@ class Transaction extends Model
     public function madeBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'made_by_user_id');
+    }
+
+    /**
+     * É uma das duas pontas de uma transferência entre contas?
+     *
+     * Pergunte por isto, nunca por `type`: as pontas continuam `income`/`expense`
+     * (é o que faz o saldo de cada conta fechar sozinho), mas não são receita nem
+     * despesa de verdade — o dinheiro só trocou de conta.
+     */
+    public function isTransferencia(): bool
+    {
+        return $this->transfer_group_id !== null;
+    }
+
+    /**
+     * A outra ponta da transferência (a entrada, se esta é a saída, e vice-versa).
+     * Null fora de transferência — ou se a outra ponta sumiu, o que não deveria
+     * acontecer: as duas nascem e morrem na mesma transação de banco.
+     */
+    public function contrapartida(): ?self
+    {
+        if (! $this->isTransferencia()) {
+            return null;
+        }
+
+        return self::where('transfer_group_id', $this->transfer_group_id)
+            ->where('user_id', $this->user_id)
+            ->whereKeyNot($this->getKey())
+            ->first();
+    }
+
+    /**
+     * Escopo: só receitas e despesas de VERDADE — fora as pontas de transferência.
+     * É o filtro das somas de fluxo de caixa (dashboard, gasto por pessoa).
+     */
+    public function scopeSemTransferencias($query)
+    {
+        return $query->whereNull($query->qualifyColumn('transfer_group_id'));
     }
 
     /** Valor com sinal: positivo para receita, negativo para despesa. */

@@ -5,6 +5,11 @@
 @php
     $editando = $transaction !== null;
     $tipoAtual = old('type', $transaction->type ?? 'expense');
+    // Ponta de transferência: só descrição, data e autor são editáveis — e valem
+    // para as DUAS pontas. Valor, conta e tipo viajam em hidden (o servidor recusa
+    // qualquer mudança neles); categoria nem existe aqui.
+    $transferencia = $editando && $transaction->isTransferencia();
+    $outraPonta = $transferencia ? $transaction->contrapartida() : null;
 @endphp
 
 <div class="grid">
@@ -26,6 +31,20 @@
                 @method('PUT')
             @endif
 
+            @if ($transferencia)
+                <div class="tx-transfer-resumo">
+                    <strong>Transferência entre contas</strong>
+                    <span>
+                        {{ $transaction->type === 'expense' ? 'Saída de ' : 'Entrada de ' }}@brl($transaction->amount)
+                        {{ $transaction->type === 'expense' ? 'da conta ' : 'na conta ' }}{{ $transaction->account->name }}
+                        @if ($outraPonta) ({{ $transaction->type === 'expense' ? 'para' : 'vinda de' }} {{ $outraPonta->account->name }}) @endif.
+                        Valor, conta e tipo não mudam por aqui — para trocar, exclua a transferência e lance de novo. O que você editar abaixo vale para as duas contas.
+                    </span>
+                </div>
+                <input type="hidden" name="type" value="{{ $transaction->type }}">
+                <input type="hidden" name="amount" value="{{ number_format((float) $transaction->amount, 2, ',', '.') }}">
+                <input type="hidden" name="account_id" value="{{ $transaction->account_id }}">
+            @else
             {{-- Tipo (Receita/Despesa) --}}
             <div class="field">
                 <label>Tipo</label>
@@ -44,8 +63,10 @@
                 </div>
                 @error('type')<div class="field-error">{{ $message }}</div>@enderror
             </div>
+            @endif
 
             <div class="form-row">
+                @if (! $transferencia)
                 {{-- Valor --}}
                 <div class="field">
                     <label for="amount">Valor (R$)</label>
@@ -54,6 +75,7 @@
                            value="{{ old('amount', $editando ? number_format((float) $transaction->amount, 2, ',', '.') : '') }}">
                     @error('amount')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
+                @endif
 
                 {{-- Data --}}
                 <div class="field">
@@ -65,6 +87,7 @@
                 </div>
             </div>
 
+            @if (! $transferencia)
             <div class="form-row">
                 {{-- Conta --}}
                 <div class="field">
@@ -108,6 +131,7 @@
                     @error('category_id')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
             </div>
+            @endif
 
             {{-- Quem fez a compra (só quando a família tem mais de uma pessoa) --}}
             @isset($familyMembers)

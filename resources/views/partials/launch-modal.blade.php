@@ -1,14 +1,22 @@
 {{-- Modal global "Lançar" (nova transação). Presente no shell de todas as páginas
      autenticadas; dados via View Composer (lmAccounts/lmCategories/lmFamily).
      Envia por AJAX (fetch → JSON); abre/fecha com a animação do .modal-scrim. --}}
-@php($hoje = now()->format('Y-m-d'))
+@php
+    $hoje = now()->format('Y-m-d');
+    // Transferência só entre contas de CAIXA (corrente/poupança). `$lmAccounts` é
+    // `paymentOptions()` (Fluent): os métodos espelho carregam o tipo deles
+    // (`pix`/`debit_card`), então ficam de fora sozinhos. Com menos de duas contas
+    // de caixa não há para onde transferir — o segmento nem aparece.
+    $lmContasCaixa = $lmAccounts->whereIn('type', ['checking', 'savings'])->values();
+    $lmPodeTransferir = $lmContasCaixa->count() >= 2;
+@endphp
 <div class="modal-scrim" id="launchModal" data-close>
     <div class="modal modal-wide" data-type="income">
         <div class="modal-head">
             <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span>
             <div>
                 <h3>Nova transação</h3>
-                <p>Registre uma receita ou despesa</p>
+                <p data-lm-subtitle>Registre uma receita ou despesa</p>
             </div>
             <button class="modal-x" type="button" data-close-btn aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -35,13 +43,17 @@
                 <span data-lm-error-msg></span>
             </div>
 
-            <form method="POST" action="{{ route('transactions.store') }}" data-launch-form data-type="income">
+            {{-- `data-transfer-action`: no modo Transferência o JS troca o `action`
+                 para a rota própria. `POST /transactions` também aceita `type=transfer`
+                 (é para lá que a fila offline reenvia), então nada se perde sem rede. --}}
+            <form method="POST" action="{{ route('transactions.store') }}" data-launch-form data-type="income"
+                  data-store-action="{{ route('transactions.store') }}" data-transfer-action="{{ route('transactions.transfer') }}">
                 @csrf
                 <div class="modal-body">
                     {{-- Tipo --}}
                     <div class="field">
                         <label>Tipo</label>
-                        <div class="type-toggle">
+                        <div class="type-toggle {{ $lmPodeTransferir ? 'tt-3' : '' }}">
                             <span class="tt-pill" aria-hidden="true"></span>
                             <input type="radio" id="lm-tt-income" name="type" value="income" checked>
                             <label class="tt-income" for="lm-tt-income">
@@ -53,6 +65,15 @@
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7 17 17M17 17h-7M17 17v-7"/></svg>
                                 Despesa
                             </label>
+                            @if ($lmPodeTransferir)
+                                {{-- Terceiro segmento: mover dinheiro entre as próprias contas.
+                                     Não é receita nem despesa — o dashboard ignora as duas pontas. --}}
+                                <input type="radio" id="lm-tt-transfer" name="type" value="transfer">
+                                <label class="tt-transfer" for="lm-tt-transfer">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 8h13M7 8l3-3M7 8l3 3M17 16H4M17 16l-3-3M17 16l-3 3"/></svg>
+                                    Transferência
+                                </label>
+                            @endif
                         </div>
                     </div>
 
@@ -70,7 +91,7 @@
 
                     <div class="form-row">
                         <div class="field">
-                            <label for="lm-account">Onde</label>
+                            <label for="lm-account" data-lm-account-label>Onde</label>
                             {{-- data-card marca os cartões de crédito: em RECEITA eles somem
                                  do select (não se recebe dinheiro num cartão de crédito). --}}
                             <select class="input" id="lm-account" name="account_id" required>
@@ -79,7 +100,9 @@
                                          `isCard` é PROPRIEDADE, não método. Chamar isCard() aqui
                                          cairia no __call do Fluent, que devolve $this (truthy) e
                                          marcaria TODA conta como cartão. --}}
+                                    {{-- data-cash: só corrente/poupança podem ser origem de transferência. --}}
                                     <option value="{{ $conta->id }}" data-card="{{ $conta->isCard ? '1' : '0' }}"
+                                            data-cash="{{ in_array($conta->type, ['checking', 'savings'], true) ? '1' : '0' }}"
                                             data-saldo="{{ \App\Support\Brl::format($conta->saldo ?? 0) }}"
                                             data-saldo-rotulo="{{ $conta->saldoRotulo ?? 'disponível' }}"
                                             data-negativo="{{ ($conta->saldo ?? 0) < 0 ? '1' : '0' }}">{{ $conta->name }}</option>
@@ -91,7 +114,20 @@
                                  responde 409 perguntando de onde sai o dinheiro. --}}
                             <span class="lm-saldo" data-lm-saldo hidden></span>
                         </div>
-                        <div class="field">
+                        @if ($lmPodeTransferir)
+                            {{-- Destino da transferência. Escondido (e DESABILITADO, para não
+                                 viajar no FormData) fora do modo Transferência; o JS tira a
+                                 origem da lista, porque transferir para a mesma conta não existe. --}}
+                            <div class="field" data-lm-transfer-only hidden>
+                                <label for="lm-to-account">Para</label>
+                                <select class="input" id="lm-to-account" name="to_account_id" disabled>
+                                    @foreach ($lmContasCaixa as $conta)
+                                        <option value="{{ $conta->id }}">{{ $conta->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endif
+                        <div class="field" data-lm-not-transfer>
                             <label for="lm-category">Categoria</label>
                             <select class="input" id="lm-category" name="category_id">
                                 <option value="">Selecione a categoria</option>
