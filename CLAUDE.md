@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **995 testes / 4.026 asserções** verdes |
+| Suíte de testes | ✅ **1.083 testes / 4.490 asserções** verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -619,6 +619,26 @@ pelo drain e não tinham onde ser vistos: agora dão "Tentar de novo" e "Descart
   fechada mais antiga ainda não paga (`vencimentoMaisAntigoEmAberto()`) — derivar do fim da janela
   faria uma dívida de junho aparecer "em dia" em setembro.
 
+- **Parcela N cai no N-ésimo CICLO, não no N-ésimo mês** (02/09/2026, `ParcelasUmaPorCicloTest`).
+  `FaturaController::datasDasParcelas`: a 1ª fica na data da compra; as demais partem de
+  `addMonthsNoOverflow` e, se `billingCycle()` da candidata ainda for o ciclo da parcela
+  anterior, vão para fechamento + 1. Antes, cartão que fecha dia 28 com compra em 30/01 punha
+  a 2ª parcela (28/02) no mesmo ciclo da 1ª: fevereiro cobrava duas e março nenhuma.
+- **Crédito de estorno ROLA entre ciclos** (02/09/2026, `CreditoDeEstornoRolaEntreCiclosTest`).
+  Toda linha não paga carrega o próprio valor, inclusive o estorno — não existe "saldo de
+  crédito" guardado. `closedInvoiceNet` = líquido COM SINAL do que fechou e não foi pago;
+  `openInvoiceDue = max(0, líquido do aberto + min(0, closedInvoiceNet))`. `payInvoice` com
+  líquido **= 0** marca as linhas pagas sem saída de caixa (`quitarPeloCredito`, sem linha de
+  quitação); com líquido **< 0** deixa as linhas em aberto de propósito — são elas que levam o
+  crédito para a fatura seguinte. Antes o `max(0, …)` por janela perdia o crédito: caixa pagava
+  1.700 onde devia 1.100 e as linhas ficavam sem `paid_at` para sempre.
+  `vencimentoMaisAntigoEmAberto` percorre as linhas com acumulado (a dívida "começa" depois do
+  último ponto em que o acumulado era ≤ 0).
+- **"Total das faturas" em `/faturas` = `openInvoiceDue` + fechada em aberto**, não
+  `currentInvoice` (que inclui linhas já pagas). O `gasto` do card continua sendo o do ciclo.
+- **Parcelado exige `amount × 100 ≥ installments`** (cada parcela ≥ R$ 0,01) —
+  `ParcelaMinimaDeUmCentavoTest`.
+
 ### Contas fixas — as competências NÃO são materializadas
 
 `FixedBillService::occurrences()` **projeta** os meses de `starts_on` até hoje. Só existe linha
@@ -835,6 +855,42 @@ Testes: `GuardsDeEdicaoNoHistoricoTest`, `ExclusaoComDividaTest`, `FaturaAtrasad
 - **Reduzir `overdraft_limit` abaixo do que já está EM USO é recusado** — deixaria a conta abaixo
   do piso que o modelo promete (`−overdraft_limit`).
 
+### Auditoria financeira de 02/09/2026 — não regredir
+
+Relatório: `docs/auditoria-financeira-2026-09-02.md` (cinco frentes EXECUTADAS contra o código,
+com cenário, esperado × obtido e arquivo:linha de cada item). Testes:
+`TetoDoResgateEmTodosOsCaminhosTest`, `EdicaoNeutraPreservaResgateTest`,
+`EstornoEmDiaDiferenteNoDashboardTest`, `SaldoInicialRespeitaOPisoTest`,
+`MetaComPrazoVencidoEditavelTest`, `AporteResgateIdempotenteTest`, `ParcelasUmaPorCicloTest`,
+`CreditoDeEstornoRolaEntreCiclosTest`, `TotalDasFaturasSoEmAbertoTest`, `ParcelaMinimaDeUmCentavoTest`.
+
+- **🚨 `funding_max_amount` vai para o `spend(maxFonte:)` em TODOS os caminhos de resgate** —
+  `transactions.store`/`update`, `faturas.lancar`, `faturas.fatura.pagar`, `contas-fixas.pagar`.
+  Só o `store` repassava; os outros resgatavam o faltante inteiro (900 → 600 com teto de 100).
+  Caminho novo que aceite `funding_source` valida o campo e repassa o teto.
+- **Edição NEUTRA não reconcilia.** `TransactionController::mexeNoDinheiro()`: só valor, conta
+  ou tipo mudados passam por `estornarFonte` + `spend`. Corrigir descrição/categoria/data/autor
+  grava direto e preserva `funding_*` e o resgate ligado — antes um typo "desresgatava" R$ 300
+  de um resgate que já tinha acontecido no banco. As guardas do topo do `update` rodam antes.
+- **Conta fixa: a guarda "ainda está longe" (7 dias) vale SÓ para competência de mês FUTURO.**
+  A do mês corrente é sempre pagável (com a trava de gasto normal). Antes, pagar dia 1 o
+  condomínio do dia 10 dava 422 com o botão à vista.
+- **Estorno de cartão no dashboard — regra ÚNICA nas quatro fontes** (dailySums, ano, totals,
+  sparks): abate só despesas de CARTÃO do período do card, piso 0 no agregado, e Σ buckets =
+  stat. Antes o piso era por dia/mês/período e o mesmo mês mostrava 1.000 em "Mês" e 600 em
+  "Ano"; um estorno num dia sem compra engolia despesa de débito. O donut também abate
+  (`categoryBreakdown`), e a **spark do saldo desconta reservas** (último ponto = card).
+- **`initial_balance` tem piso** (`UpdateAccountRequest::regraDoPisoDoSaldoInicial`): o
+  disponível projetado com saldo inicial e limite NOVOS não pode ficar abaixo de `−limite`. As
+  duas regras de conta têm **guarda de posse** — rodam antes da policy, e a mensagem revelava
+  saldo de conta alheia antes do 403. Regra de validação que leia dinheiro do `route()` precisa
+  checar `user_id === ownerId()` primeiro.
+- **Meta com prazo vencido é editável**: `after_or_equal:hoje` só quando `target_date` muda.
+- **Aporte/resgate/investimento com valor inicial levam `client_uuid`** (índice único por pai
+  em `goal_contributions`/`investment_contributions`; fast-path fora do lock + exceção de
+  unicidade dentro). Uuid novo a cada abertura do modal, hidden no servidor sem JS, botão trava
+  em voo.
+
 ### Regras que a auditoria de 28/07 fixou (01/08/2026) — não regredir
 
 Relatório: `docs/auditoria-completa-2026-07-28.md`. Testes: `AuditoriaCorrecoesTest`,
@@ -867,8 +923,10 @@ Relatório: `docs/auditoria-completa-2026-07-28.md`. Testes: `AuditoriaCorrecoes
 - **Contas fixas:** `decimal:0,2` nos valores (é o que barra `1e12`), teto de 3× o previsto,
   `obrigacao: true` só quando a competência JÁ venceu, e competência descartada quando o
   vencimento é anterior ao `starts_on`.
-- **IR/IOF:** tabela regressiva por prazo (12 meses = 17,5%, não 15%); IOF não é modelado e o
-  rótulo não promete que seja. A projeção é rotulada como estimativa na tela.
+- **IR/IOF:** tabela regressiva por prazo (12 meses = 17,5%, não 15%) e **IOF dos 30 primeiros
+  dias modelado** em `App\Support\TributosRendaFixa` (ordem IOF → IR; conferido em 02/09/2026 —
+  o texto antigo dizia que IOF não era modelado). A projeção é rotulada como estimativa na tela
+  e é **linear**, não composta.
 - **`DB_TIMEZONE`** (default `+00:00`) fixa o fuso da conexão: sem isso, publicar na VPS
   deslocaria em 3h todo `paid_at`/`created_at` já gravado.
 
