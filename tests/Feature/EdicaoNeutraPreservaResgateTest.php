@@ -8,8 +8,10 @@ use App\Models\Investment;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\FundingSource;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -209,6 +211,123 @@ class EdicaoNeutraPreservaResgateTest extends TestCase
         $this->assertNull($this->despesa->fresh()->funding_source);
         $this->assertSame(1000.0, $this->conta->fresh()->balance);
         $this->assertSame(1500.0, $outra->fresh()->balance);
+    }
+
+    /**
+     * Registra as queries de "conta por id" que a reconciliação dispara ANTES do
+     * estorno (o `delete` em `investment_contributions` é o marcador). Em sqlite
+     * o `lockForUpdate` compila para nada (`SQLiteGrammar::compileLock` devolve
+     * ''), então não dá para procurar "for update" no SQL — o que se assegura é
+     * a ORDEM das queries de lock, pelos bindings de `where "accounts"."id" = ?`.
+     *
+     * @return list<int> ids das contas na ordem em que foram travadas
+     */
+    private function contasTravadasAntesDoEstorno(callable $agir): array
+    {
+        $queries = [];
+        DB::listen(function (QueryExecuted $q) use (&$queries) {
+            $queries[] = ['sql' => $q->sql, 'bindings' => $q->bindings];
+        });
+
+        $agir();
+
+        $estorno = null;
+        foreach ($queries as $i => $q) {
+            if (str_starts_with($q['sql'], 'delete from "investment_contributions"')) {
+                $estorno = $i;
+                break;
+            }
+        }
+        $this->assertNotNull($estorno, 'a reconciliação precisa ter estornado a fonte');
+
+        // Do estorno para trás, colhe a sequência contígua de "conta por id".
+        $ids = [];
+        for ($i = $estorno - 1; $i >= 0; $i--) {
+            if (! str_contains($queries[$i]['sql'], 'from "accounts" where "accounts"."id" = ?')) {
+                break;
+            }
+            array_unshift($ids, (int) $queries[$i]['bindings'][0]);
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Trocar de conta envolve DUAS contas: a antiga (onde vive o resgate que o
+     * estorno desfaz) e a nova (que o `spend` debita). Antes só a nova era
+     * travada. Agora as duas, em id CRESCENTE — sem ordem fixa, duas edições
+     * cruzadas (A→B e B→A) em paralelo seriam um deadlock ABBA.
+     */
+    public function test_trocar_de_conta_trava_as_duas_contas_em_ordem_crescente(): void
+    {
+        $outra = Account::factory()->for($this->user)->create([
+            'type' => 'checking', 'name' => 'Outra', 'initial_balance' => 2000, 'overdraft_limit' => 0,
+        ]);
+        $this->assertGreaterThan($this->conta->id, $outra->id);
+
+        $ids = $this->contasTravadasAntesDoEstorno(
+            fn () => $this->editar(['account_id' => $outra->id])->assertSessionHasNoErrors(),
+        );
+
+        $this->assertSame([$this->conta->id, $outra->id], $ids, 'antiga (menor) e nova (maior), nesta ordem');
+
+        // E a reconciliação em si continua certa.
+        $this->assertSame(800.0, $this->inv->fresh()->aplicado);
+        $this->assertSame(0, $this->resgateLigado());
+        $this->assertSame(1000.0, $this->conta->fresh()->balance);
+        $this->assertSame(1500.0, $outra->fresh()->balance);
+    }
+
+    /** Sentido inverso (da conta de id MAIOR para a de id MENOR): a ordem continua crescente. */
+    public function test_trocar_de_conta_no_sentido_inverso_mantem_a_ordem_crescente(): void
+    {
+        $outra = Account::factory()->for($this->user)->create([
+            'type' => 'checking', 'name' => 'Outra', 'initial_balance' => 1000, 'overdraft_limit' => 0,
+        ]);
+        // R$ 800 aplicados a partir de "Outra" → 200 disponíveis lá.
+        $this->inv->contributions()->create([
+            'account_id' => $outra->id, 'made_by_user_id' => $this->user->id,
+            'type' => 'aporte', 'amount' => 800, 'date' => '2026-08-01',
+        ]);
+
+        // Despesa de 500 em "Outra", que só coube resgatando 300.
+        $this->actingAs($this->user)->post(route('transactions.store'), [
+            'type' => 'expense', 'amount' => '500,00', 'account_id' => $outra->id,
+            'date' => '2026-08-05', 'description' => 'Despesa na Outra',
+            'funding_source' => FundingSource::RESGATE_INVESTIMENTO, 'funding_investment_id' => $this->inv->id,
+        ])->assertSessionHasNoErrors();
+        $despesa = Transaction::where('description', 'Despesa na Outra')->firstOrFail();
+        $this->assertSame('300.00', (string) $despesa->funding_amount);
+
+        // Move para a conta do setUp (id MENOR). Ela está com disponível 0
+        // (1000 − 500 de saldo, 800 − 300 = 500 reservados), então os 500 só cabem
+        // resgatando do investimento — a fonte já vai no payload. O que se afere
+        // aqui é a ORDEM dos locks: a nova (menor) tem de vir antes da antiga.
+        $ids = $this->contasTravadasAntesDoEstorno(
+            fn () => $this->actingAs($this->user)->from(route('transactions.index'))
+                ->patch(route('transactions.update', $despesa), [
+                    'type' => 'expense', 'amount' => '500,00', 'account_id' => $this->conta->id,
+                    'date' => '2026-08-05', 'description' => 'Despesa na Outra',
+                    'funding_source' => FundingSource::RESGATE_INVESTIMENTO, 'funding_investment_id' => $this->inv->id,
+                ])->assertSessionHasNoErrors(),
+        );
+
+        $this->assertSame([$this->conta->id, $outra->id], $ids, 'nova (menor) antes da antiga (maior)');
+        $this->assertSame($this->conta->id, $despesa->fresh()->account_id);
+        // A despesa saiu da Outra e o resgate de 300 dela foi desfeito: 1000 de
+        // saldo, 800 reservados de novo → 200 disponíveis.
+        $this->assertSame(1000.0, $outra->fresh()->balance);
+        $this->assertSame(200.0, $outra->fresh()->available);
+    }
+
+    /** Sem troca de conta, só UMA conta é travada (a própria) — nada de lock a mais. */
+    public function test_mudar_so_o_valor_trava_uma_conta_so(): void
+    {
+        $ids = $this->contasTravadasAntesDoEstorno(
+            fn () => $this->editar(['amount' => '100,00'])->assertSessionHasNoErrors(),
+        );
+
+        $this->assertSame([$this->conta->id], $ids);
     }
 
     public function test_virar_receita_continua_reconciliando(): void

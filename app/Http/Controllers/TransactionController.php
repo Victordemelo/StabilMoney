@@ -14,6 +14,7 @@ use App\Services\FundingService;
 use App\Support\Brl;
 use App\Support\FundingSource;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -201,25 +202,63 @@ class TransactionController extends Controller
         $maxFonte = $data['funding_max_amount'] ?? null;
         unset($data['funding_source'], $data['funding_investment_id'], $data['funding_max_amount']);
 
-        // Receita não gasta nada: grava direto. Despesa passa pelo guard.
-        if ($data['type'] !== 'expense') {
-            return $this->storeResponse($request, Transaction::create($data), created: true);
+        try {
+            // Receita não gasta nada: grava direto. Despesa passa pelo guard.
+            if ($data['type'] !== 'expense') {
+                return $this->storeResponse($request, Transaction::create($data), created: true);
+            }
+
+            $conta = Account::whereKey($data['account_id'])->firstOrFail();
+
+            $transaction = $funding->spend(
+                account: $conta,
+                amount: (float) $data['amount'],
+                source: $fonte,
+                investmentId: $investimentoId ? (int) $investimentoId : null,
+                write: fn (array $auditoria) => Transaction::create($data + $auditoria),
+                madeByUserId: $data['made_by_user_id'],
+                date: $data['date'],
+                maxFonte: $maxFonte !== null ? (float) $maxFonte : null,
+            );
+        } catch (UniqueConstraintViolationException) {
+            return $this->respostaDeDuplicata($request, $ownerId, $clientUuid);
         }
 
-        $conta = Account::whereKey($data['account_id'])->firstOrFail();
-
-        $transaction = $funding->spend(
-            account: $conta,
-            amount: (float) $data['amount'],
-            source: $fonte,
-            investmentId: $investimentoId ? (int) $investimentoId : null,
-            write: fn (array $auditoria) => Transaction::create($data + $auditoria),
-            madeByUserId: $data['made_by_user_id'],
-            date: $data['date'],
-            maxFonte: $maxFonte !== null ? (float) $maxFonte : null,
-        );
-
         return $this->storeResponse($request, $transaction, created: true);
+    }
+
+    /**
+     * CORRIDA no `client_uuid`: duas requisições idênticas passaram JUNTAS pelo
+     * fast-path de dedupe (nenhuma viu a outra, porque nenhuma tinha gravado
+     * ainda) e o índice único `(user_id, client_uuid)` barrou a segunda na hora
+     * do INSERT. A `DB::transaction` do `spend` já foi desfeita inteira — inclusive
+     * o resgate de investimento, se houve —, então aqui só resta responder como
+     * duplicata, igual ao `faturas.lancar`: a linha vencedora É o lançamento
+     * que o usuário pediu.
+     *
+     * O fast-path continua existindo: ele evita, no caso comum (replay da fila
+     * offline, minutos depois), abrir transação e rodar o guard à toa. Este
+     * catch cobre só a janela entre o SELECT e o INSERT.
+     */
+    private function respostaDeDuplicata(Request $request, int $ownerId, ?string $clientUuid)
+    {
+        $existente = $clientUuid
+            ? Transaction::where('user_id', $ownerId)->where('client_uuid', $clientUuid)->first()
+            : null;
+
+        if ($existente) {
+            return $this->storeResponse($request, $existente, created: false);
+        }
+
+        // Teoricamente inalcançável (a exceção só acontece quando a outra
+        // requisição COMMITOU a linha), mas sem esta saída um caso estranho de
+        // banco viraria 500 — e o lançamento já está gravado do outro lado.
+        if ($this->wantsJsonResponse($request)) {
+            return response()->json(['created' => false], 200);
+        }
+
+        return redirect()->route('transactions.index')
+            ->with('status', 'Esta transação já tinha sido registrada.');
     }
 
     /** Transferência entre contas de caixa pela rota própria (`transactions.transfer`). */
@@ -276,40 +315,47 @@ class TransactionController extends Controller
         $descricao = trim((string) ($data['description'] ?? ''));
         $grupo = (string) Str::uuid();
 
-        $saida = $funding->spend(
-            account: $origem,
-            amount: $valor,
-            source: $fonte,
-            investmentId: $investimentoId ? (int) $investimentoId : null,
-            write: function (array $auditoria) use ($ownerId, $madeBy, $clientUuid, $origem, $destino, $valor, $descricao, $grupo, $data) {
-                $comum = [
-                    'user_id' => $ownerId,
-                    'made_by_user_id' => $madeBy,
-                    'category_id' => null,
-                    'amount' => $valor,
-                    'date' => $data['date'],
-                    'transfer_group_id' => $grupo,
-                ];
+        try {
+            $saida = $funding->spend(
+                account: $origem,
+                amount: $valor,
+                source: $fonte,
+                investmentId: $investimentoId ? (int) $investimentoId : null,
+                write: function (array $auditoria) use ($ownerId, $madeBy, $clientUuid, $origem, $destino, $valor, $descricao, $grupo, $data) {
+                    $comum = [
+                        'user_id' => $ownerId,
+                        'made_by_user_id' => $madeBy,
+                        'category_id' => null,
+                        'amount' => $valor,
+                        'date' => $data['date'],
+                        'transfer_group_id' => $grupo,
+                    ];
 
-                $saida = Transaction::create($comum + $auditoria + [
-                    'client_uuid' => $clientUuid,
-                    'account_id' => $origem->id,
-                    'type' => 'expense',
-                    'description' => $descricao !== '' ? $descricao : 'Transferência para '.$destino->name,
-                ]);
+                    $saida = Transaction::create($comum + $auditoria + [
+                        'client_uuid' => $clientUuid,
+                        'account_id' => $origem->id,
+                        'type' => 'expense',
+                        'description' => $descricao !== '' ? $descricao : 'Transferência para '.$destino->name,
+                    ]);
 
-                Transaction::create($comum + [
-                    'account_id' => $destino->id,
-                    'type' => 'income',
-                    'description' => $descricao !== '' ? $descricao : 'Transferência de '.$origem->name,
-                ]);
+                    Transaction::create($comum + [
+                        'account_id' => $destino->id,
+                        'type' => 'income',
+                        'description' => $descricao !== '' ? $descricao : 'Transferência de '.$origem->name,
+                    ]);
 
-                return $saida;
-            },
-            madeByUserId: $madeBy,
-            date: $data['date'],
-            maxFonte: $maxFonte,
-        );
+                    return $saida;
+                },
+                madeByUserId: $madeBy,
+                date: $data['date'],
+                maxFonte: $maxFonte,
+            );
+        } catch (UniqueConstraintViolationException) {
+            // Mesma corrida do `store`: o uuid vive na SAÍDA, e o par inteiro (as
+            // duas pontas + resgate) foi desfeito pelo rollback. A transferência
+            // vencedora é a que o usuário pediu — responde como duplicata.
+            return $this->respostaDeDuplicata($request, $ownerId, $clientUuid);
+        }
 
         return $this->storeResponse(
             $request,
@@ -636,12 +682,25 @@ class TransactionController extends Controller
      * sobreviveriam, marcando uma despesa de R$ 100 como "cheque especial R$ 300".
      *
      * ORDEM DE LOCK: conta → pai, igual ao FundingService e ao HandlesContributions.
-     * A conta é travada aqui, ANTES do estorno, e continua travada quando o
-     * `spend` a relocka dentro da mesma transação — inverter causaria deadlock ABBA.
+     * As contas são travadas aqui, ANTES do estorno, e continuam travadas quando o
+     * `spend` relocka a de destino dentro da mesma transação (relock da própria
+     * linha já travada é no-op) — inverter causaria deadlock ABBA com o pai.
+     *
+     * Quando a edição TROCA DE CONTA, são DUAS contas em jogo: a antiga (onde vive
+     * o resgate que o `estornarFonte` desfaz e cujo `reserved` muda) e a nova (que
+     * o `spend` vai debitar). Antes só a nova era travada, e o estorno mexia no
+     * dinheiro da antiga sem lock nenhum. As duas são travadas em ORDEM
+     * DETERMINÍSTICA — id crescente, uma query por conta. Sem ordem fixa, duas
+     * edições cruzadas em paralelo (uma movendo A→B, outra B→A) travariam A e
+     * esperariam B enquanto a outra trava B e espera A: deadlock ABBA clássico.
      */
     private function reconciliarFonte(Transaction $transaction, FundingService $funding, int $contaDestinoId): void
     {
-        Account::whereKey($contaDestinoId)->lockForUpdate()->first();
+        $ids = collect([(int) $transaction->account_id, $contaDestinoId])->unique()->sort()->values();
+
+        foreach ($ids as $id) {
+            Account::whereKey($id)->lockForUpdate()->first();
+        }
 
         // Apaga o resgate ligado a esta despesa. Nada a fazer quando a fonte era
         // cheque especial: lá não nasce linha nenhuma, só auditoria.

@@ -5,7 +5,7 @@
 @section('content')
     <div class="section-head">
         <h2>Nova transação</h2>
-        <span class="sub">Registre uma receita ou despesa</span>
+        <span class="sub" data-tx-subtitle>Registre uma receita ou despesa</span>
     </div>
 
     @if ($accounts->isEmpty())

@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.120 testes / 4.734 asserções** verdes |
+| Suíte de testes | ✅ **1.133 testes / 4.825 asserções** verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -627,7 +627,13 @@ exigia despesa + receita, e o mês ganhava R$ 300 de gasto e R$ 300 de renda que
   **Excluir** uma ponta apaga as duas com `estornarFonte` na mesma transação.
 - **Modal Lançar:** terceiro segmento **Transferência** (só com ≥ 2 contas de caixa), selects
   "De"/"Para" com a origem removida do destino, saldo da origem exibido; `.type-toggle.tt-3`.
-  A página cheia `transactions/create` sem JS **não** oferece transferência (só o POST direto).
+  A página cheia `transactions/create` também oferece o segmento (com e sem JS; o "Para" nasce
+  visível e o servidor descarta o campo que não se aplica ao tipo).
+- **Corrida no `client_uuid`:** `store` (receita e despesa) e `transferir` capturam
+  `UniqueConstraintViolationException` e respondem como duplicata (`respostaDeDuplicata`),
+  como o `faturas.lancar` — `CorridaNoClientUuidTest`. **Reconciliação ao trocar de conta trava
+  as DUAS contas em id crescente** antes do `estornarFonte` (sem ordem fixa, A→B e B→A cruzadas
+  seriam deadlock ABBA), depois o pai.
 
 ### Cartão de crédito
 

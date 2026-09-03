@@ -331,6 +331,110 @@ class TransferenciaEntreContasTest extends TestCase
         $this->assertStringNotContainsString('lm-tt-transfer', $html);
     }
 
+    /**
+     * A página cheia (`transactions/create`, o fallback sem JS do modal) oferece o
+     * mesmo terceiro segmento e o select "Para" com as contas de CAIXA da família —
+     * cartão e métodos espelho ficam de fora. Antes só o modal tinha isso, e quem
+     * caía na página cheia (sem JS, ou pelo href do "Nova transação") não tinha
+     * como transferir.
+     */
+    public function test_pagina_cheia_oferece_o_segmento_e_o_select_para_com_duas_contas_de_caixa(): void
+    {
+        $cartao = Account::factory()->for($this->titular)->creditCard()->create(['name' => 'Cartão Roxo']);
+        $pix = Account::factory()->for($this->titular)->pix($this->corrente->id)->create(['name' => 'Chave Pix']);
+
+        $html = $this->actingAs($this->titular)->get(route('transactions.create'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('id="tt-transfer"', $html);
+        $this->assertStringContainsString('name="type" value="transfer"', $html);
+        $this->assertStringContainsString('name="to_account_id"', $html);
+        $this->assertStringContainsString('type-toggle tt-3', $html);
+
+        // O "Para" lista só corrente/poupança: nem o cartão nem o Pix aparecem lá.
+        preg_match('/<select[^>]*id="to_account_id"[^>]*>(.*?)<\/select>/s', $html, $m);
+        $this->assertNotEmpty($m, 'o select "Para" precisa existir');
+        $this->assertStringContainsString('value="'.$this->corrente->id.'"', $m[1]);
+        $this->assertStringContainsString('value="'.$this->poupanca->id.'"', $m[1]);
+        $this->assertStringNotContainsString('value="'.$cartao->id.'"', $m[1]);
+        $this->assertStringNotContainsString('value="'.$pix->id.'"', $m[1]);
+        $this->assertStringNotContainsString('Cartão Roxo', $m[1]);
+
+        // A origem marca quem é caixa, para o JS filtrar o "De" em transferência.
+        $this->assertMatchesRegularExpression(
+            '/value="'.$this->corrente->id.'"[^>]*data-cash="1"/',
+            $html,
+        );
+        $this->assertMatchesRegularExpression(
+            '/value="'.$cartao->id.'"[^>]*data-cash="0"/',
+            $html,
+        );
+    }
+
+    public function test_pagina_cheia_nao_oferece_transferencia_com_uma_conta_de_caixa_so(): void
+    {
+        $this->poupanca->delete();
+
+        $html = $this->actingAs($this->titular)->get(route('transactions.create'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('id="tt-transfer"', $html);
+        $this->assertStringNotContainsString('name="to_account_id"', $html);
+        $this->assertStringNotContainsString('tt-3', $html);
+    }
+
+    /**
+     * O POST da página cheia (form comum, sem JS, com a categoria que o select ainda
+     * carrega quando o script não roda) transfere pela rota `transactions.store`,
+     * redireciona com flash e grava as duas pontas — categoria ignorada.
+     */
+    public function test_post_do_formulario_da_pagina_cheia_transfere_e_redireciona_com_flash(): void
+    {
+        $categoria = Category::factory()->for($this->titular)->create(['type' => 'expense']);
+
+        $this->actingAs($this->titular)
+            ->from(route('transactions.create'))
+            ->post(route('transactions.store'), [
+                'type' => 'transfer',
+                'amount' => '300,00',
+                'account_id' => $this->corrente->id,
+                'to_account_id' => $this->poupanca->id,
+                'category_id' => $categoria->id,
+                'date' => CarbonImmutable::today()->toDateString(),
+                'description' => 'Guardando para a viagem',
+            ])
+            ->assertRedirect(route('transactions.index'))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', fn (string $msg) => str_contains($msg, 'Transferência de R$ 300,00'));
+
+        $pontas = Transaction::where('user_id', $this->titular->id)->orderBy('id')->get();
+        $this->assertCount(2, $pontas);
+        $this->assertSame([$pontas[0]->transfer_group_id], $pontas->pluck('transfer_group_id')->unique()->all());
+        $this->assertSame(['expense', 'income'], $pontas->pluck('type')->all());
+        $this->assertSame([null, null], $pontas->pluck('category_id')->all(), 'transferência não tem categoria');
+        $this->assertSame(['Guardando para a viagem', 'Guardando para a viagem'], $pontas->pluck('description')->all());
+        $this->assertSame(700.0, $this->corrente->fresh()->available);
+        $this->assertSame(1300.0, $this->poupanca->fresh()->available);
+    }
+
+    /** Erro de validação na página cheia volta com o segmento Transferência marcado. */
+    public function test_erro_de_validacao_da_pagina_cheia_reabre_no_segmento_transferencia(): void
+    {
+        $resposta = $this->actingAs($this->titular)
+            ->from(route('transactions.create'))
+            ->post(route('transactions.store'), [
+                'type' => 'transfer',
+                'amount' => '300,00',
+                'account_id' => $this->corrente->id,
+                'to_account_id' => $this->corrente->id, // mesma conta
+                'date' => CarbonImmutable::today()->toDateString(),
+            ])
+            ->assertRedirect(route('transactions.create'))
+            ->assertSessionHasErrors('to_account_id');
+
+        $html = $this->actingAs($this->titular)->get(route('transactions.create'))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/id="tt-transfer"[^>]*checked/', $html);
+        $this->assertStringContainsString('data-type="transfer"', $html);
+    }
+
     public function test_tela_de_edicao_da_ponta_esconde_valor_conta_e_categoria(): void
     {
         $this->transferir($this->titular)->assertCreated();
