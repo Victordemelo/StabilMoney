@@ -22,6 +22,11 @@ use App\Support\Brl;
  *
  * 2. O LIMITE DO CHEQUE ESPECIAL não pode ser reduzido abaixo do que já está em
  *    uso — ver `regraDoChequeEspecialEmUso()`.
+ *
+ * 3. O SALDO INICIAL não pode ser reduzido a ponto de furar esse mesmo piso —
+ *    ver `regraDoPisoDoSaldoInicial()`. É a regra irmã da anterior: as duas
+ *    protegem o mesmo invariante (`available >= −overdraft_limit`), cada uma
+ *    por um dos dois campos que o compõem.
  */
 class UpdateAccountRequest extends StoreAccountRequest
 {
@@ -38,8 +43,81 @@ class UpdateAccountRequest extends StoreAccountRequest
         };
 
         $rules['overdraft_limit'][] = $this->regraDoChequeEspecialEmUso();
+        $rules['initial_balance'][] = $this->regraDoPisoDoSaldoInicial();
 
         return $rules;
+    }
+
+    /**
+     * Reduzir o saldo inicial não pode deixar a conta abaixo do piso do cheque
+     * especial (F-4 da auditoria de 02/09/2026).
+     *
+     * O `available` é `initial_balance + receitas − despesas − reservado`. A regra
+     * do limite protegia só um dos dois lados da promessa: uma conta de R$ 1.000
+     * com R$ 800 aplicados e cheque especial zero aceitava `initial_balance = 100`
+     * e ficava em −R$ 700 SEM cheque especial — um estado que nenhum lançamento
+     * consegue produzir, porque o `SpendingGuard` recusaria a despesa. E uma conta
+     * em −300 com limite 500 aceitava `initial_balance = 0` e ia para −1.300 com
+     * piso prometido de −500 (uso de 260% na barra do card).
+     *
+     * A projeção usa os DOIS valores novos (saldo inicial e limite): quem reduz o
+     * saldo inicial e aumenta o limite na mesma edição está mantendo o invariante,
+     * e não deve ser barrado. A comparação é sempre com `−novo_limite`, que vira
+     * zero se o tipo estiver deixando de ser corrente (o `prepareForValidation`
+     * zera o limite fora de `checking`).
+     *
+     * Só barra quando a edição PIORA a conta: uma conta que já esteja abaixo do
+     * próprio piso continua editável (manter ou subir o saldo inicial), senão o
+     * cadastro dela ficaria travado para sempre — mesma escolha da regra do limite.
+     *
+     * Só conta corrente/poupança tem saldo inicial; nos cartões o campo chega nulo
+     * (zerado pelo `prepareForValidation`) e a regra não se aplica.
+     */
+    private function regraDoPisoDoSaldoInicial(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail): void {
+            $conta = $this->route('account');
+
+            // A policy só roda no controller, DEPOIS da validação. Sem esta guarda
+            // a mensagem de erro revelava o saldo de conta alheia ("ficaria em
+            // −R$ 123,45") antes do 403 — uma sonda. Conta de outra família:
+            // silêncio aqui, e o 403 vem em seguida.
+            if (! $conta instanceof Account
+                || (int) $conta->user_id !== (int) $this->user()->ownerId()
+                || ! in_array($conta->type, ['checking', 'savings'], true)
+                || ! is_numeric($value)) {
+                return;
+            }
+
+            $atual = round((float) $conta->initial_balance, 2);
+            $novo = round((float) $value, 2);
+
+            // Manter ou aumentar o saldo inicial nunca piora o disponível.
+            if ($novo + 0.001 >= $atual) {
+                return;
+            }
+
+            // `available` = initial + receitas − despesas − reservado. Trocar o
+            // saldo inicial desloca o disponível exatamente pela diferença.
+            $disponivelProjetado = round($conta->available - $atual + $novo, 2);
+
+            // O limite que VALERÁ depois da edição — não o de hoje.
+            $limiteNovo = $this->input('type') === 'checking' && is_numeric($this->input('overdraft_limit'))
+                ? round((float) $this->input('overdraft_limit'), 2)
+                : 0.0;
+
+            if ($disponivelProjetado + 0.001 < -$limiteNovo) {
+                $fail(
+                    'Com esse saldo inicial a conta ficaria em '.Brl::format($disponivelProjetado).', '
+                    .($limiteNovo > 0
+                        ? 'abaixo do limite do cheque especial ('.Brl::format($limiteNovo).'). '
+                        : 'e ela não tem cheque especial para cobrir saldo negativo. ')
+                    .'O saldo em conta não pode ficar abaixo de '.Brl::format(-$limiteNovo).'. '
+                    .'Deixe o saldo inicial em pelo menos '.Brl::format($novo + (-$limiteNovo - $disponivelProjetado))
+                    .' ou faça um resgate do que está guardado em metas/investimentos antes de reduzir.'
+                );
+            }
+        };
     }
 
     /**
@@ -71,7 +149,11 @@ class UpdateAccountRequest extends StoreAccountRequest
         return function (string $attribute, mixed $value, \Closure $fail): void {
             $conta = $this->route('account');
 
-            if (! $conta instanceof Account || $conta->type !== 'checking') {
+            // Mesma guarda de posse da regra do saldo inicial: nada de revelar o
+            // uso do cheque especial de conta alheia antes do 403 da policy.
+            if (! $conta instanceof Account
+                || (int) $conta->user_id !== (int) $this->user()->ownerId()
+                || $conta->type !== 'checking') {
                 return;
             }
 
