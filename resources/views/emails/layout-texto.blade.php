@@ -15,6 +15,13 @@
 
 {{ $paragrafo }}
 @endforeach
+@foreach ($secoes ?? [] as $secao)
+
+{{ mb_strtoupper($secao['titulo']) }}
+@foreach ($secao['itens'] as $item)
+- {{ $item['nome'] }} — {{ $item['quando'] }} — {{ $item['valor'] }}
+@endforeach
+@endforeach
 @if (!empty($detalhes))
 
 @foreach ($detalhes as $rotulo => $valor)
@@ -32,6 +39,6 @@
 @endif
 
 --
-Stabil Money — aviso automático de segurança.
+{{ $rodapeNotaTexto ?? 'Stabil Money — aviso automático de segurança.' }}
 Nunca pedimos sua senha por e-mail.
 Dúvidas: {{ config('legal.contact_email') }}

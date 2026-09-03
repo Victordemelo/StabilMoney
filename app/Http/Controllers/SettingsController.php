@@ -7,6 +7,7 @@ use App\Services\TwoFactorService;
 use App\Support\BrowserSessions;
 use App\Support\Mailer;
 use App\Support\Totp;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -77,5 +78,26 @@ class SettingsController extends Controller
         }
 
         return view('settings.index', $data);
+    }
+
+    /**
+     * Liga/desliga o lembrete de vencimento por e-mail (`lembretes:vencimentos`).
+     *
+     * Só o titular: é ele quem recebe (o dinheiro é da família e ele responde por ele),
+     * então um dependente não tem o que ligar — 403 em vez de um toggle sem efeito.
+     */
+    public function atualizarLembretes(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->isTitular(), 403);
+
+        $dados = $request->validate(['reminder_emails' => ['required', 'boolean']]);
+        $ligado = (bool) $dados['reminder_emails'];
+
+        $user->forceFill(['reminder_emails' => $ligado])->save();
+
+        return redirect()->route('settings', 'conta')->with('status', $ligado
+            ? 'Lembretes de vencimento por e-mail ligados.'
+            : 'Lembretes de vencimento por e-mail desligados.');
     }
 }

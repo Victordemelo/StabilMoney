@@ -123,6 +123,7 @@ class CspComNonceTest extends TestCase
             'dependentes' => ['/dependentes'],
             'meu perfil' => ['/meu-perfil'],
             'configurações' => ['/configuracoes'],
+            'configurações › conta' => ['/configuracoes/conta'],
             'metas' => ['/metas'],
             'investimentos' => ['/investimentos'],
         ];

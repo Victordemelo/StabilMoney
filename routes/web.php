@@ -101,6 +101,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Configurações (subabas: Segurança / Conta)
     Route::get('/configuracoes/{tab?}', [SettingsController::class, 'index'])->name('settings');
 
+    // Conta: liga/desliga o lembrete de vencimento por e-mail (só o titular recebe,
+    // então só ele muda). Preferência sem risco — não pede senha nem tem limite próprio.
+    Route::patch('/configuracoes/lembretes', [SettingsController::class, 'atualizarLembretes'])
+        ->name('settings.lembretes');
+
     // Segurança: encerrar as demais sessões/dispositivos conectados
     // Valida a senha atual → limitada (ver 'senha' no AppServiceProvider).
     Route::delete('/configuracoes/sessoes', [SecurityController::class, 'destroyOtherSessions'])

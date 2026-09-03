@@ -42,7 +42,7 @@ final class Notificador
 
             return true;
         } catch (\Throwable $e) {
-            Log::warning('Alerta de segurança não foi entregue.', [
+            Log::warning('Aviso por e-mail não foi entregue.', [
                 'mailable' => $email::class,
                 'user_id' => $usuario->getKey(),
                 'erro' => $e->getMessage(),

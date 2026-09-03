@@ -156,6 +156,18 @@
                     <td>Legítimo interesse — art. 7º, IX, e cumprimento de obrigação legal — art. 7º, II</td>
                 </tr>
                 <tr>
+                    <td>E-mail (avisos automáticos)</td>
+                    <td>Enviar <strong>alertas de segurança</strong> (senha alterada, verificação em duas
+                        etapas ligada ou desligada, sessões encerradas, conta excluída) e, ao titular,
+                        <strong>lembretes de vencimento</strong> de faturas de cartão e contas fixas —
+                        3 dias antes, na véspera, no dia e a cada 7 dias enquanto houver atraso. Os
+                        lembretes podem ser desligados em <em>Configurações › Conta</em>; os alertas de
+                        segurança não, porque existem justamente para avisar quando alguém mexe na sua
+                        conta. Guardamos só a data do último lembrete enviado, para não repetir no mesmo dia.</td>
+                    <td>Execução de contrato — art. 7º, V (lembretes) e legítimo interesse — art. 7º, IX
+                        (alertas de segurança)</td>
+                </tr>
+                <tr>
                     <td>Uso agregado do aplicativo e relatos de erro</td>
                     <td><strong>Testar, corrigir e melhorar</strong> o aplicativo durante a fase de testes</td>
                     <td>Consentimento — art. 7º, I (o aceite no cadastro)</td>

@@ -89,6 +89,39 @@
             </div>
         </li>
     </ul>
+
+    {{-- Lembrete de vencimento por e-mail (comando `lembretes:vencimentos`). A linha
+         inteira É o botão: um clique inverte a preferência (hidden leva o valor
+         oposto ao atual). Não pede senha — é preferência, não proteção. Só o titular
+         recebe, então só ele vê o interruptor. --}}
+    @if ($titular)
+        <form method="POST" action="{{ route('settings.lembretes') }}" class="lembrete-form">
+            @csrf
+            @method('PATCH')
+            <input type="hidden" name="reminder_emails" value="{{ $user->reminder_emails ? 0 : 1 }}">
+            <button type="submit" class="sec-2fa-row lembrete-toggle" role="switch"
+                    aria-checked="{{ $user->reminder_emails ? 'true' : 'false' }}">
+                <div class="sec-2fa-txt">
+                    <strong>Lembretes de vencimento por e-mail</strong>
+                    <span>
+                        @if ($user->reminder_emails)
+                            Aviso às 8h quando uma fatura ou conta fixa vence em 3 dias, amanhã, hoje — e a cada 7 dias de atraso.
+                        @else
+                            Desligados. Faturas e contas fixas só avisam no sino do aplicativo.
+                        @endif
+                    </span>
+                </div>
+                <span class="switch {{ $user->reminder_emails ? 'is-on' : 'is-off' }}" aria-hidden="true"><span class="switch-dot"></span></span>
+            </button>
+        </form>
+    @else
+        <div class="sec-2fa-row lembrete-form">
+            <div class="sec-2fa-txt">
+                <strong>Lembretes de vencimento por e-mail</strong>
+                <span>Vão para o titular ({{ $user->titular?->name }}), que responde pelas contas da família.</span>
+            </div>
+        </div>
+    @endif
 </div>
 
 <div class="card sec-card span6">

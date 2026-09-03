@@ -865,6 +865,18 @@ a.tx { text-decoration: none; color: inherit; }
 [data-theme="dark"] .meta-plan.is-late { background: rgba(229,96,77,.12); }
 
 
+/* ============ Conta: lembrete de vencimento por e-mail ============ */
+
+/* A linha inteira é um <button> com a cara da `.sec-2fa-row`: reset do que o
+   navegador põe em botão (fonte, alinhamento, largura) e o hover/foco do 2FA. */
+.lembrete-form { margin-top: 14px; }
+.lembrete-toggle {
+  width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  transition: background .15s var(--ease);
+}
+.lembrete-toggle:hover { background: var(--surface-3); }
+.lembrete-toggle:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
+
 /* ============ 2FA: switch como controle + autenticadores da família ============ */
 
 /* O <summary> É a linha inteira: clicar em qualquer ponto (inclusive no switch)

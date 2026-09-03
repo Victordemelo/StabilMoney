@@ -18,6 +18,9 @@
 
     Espera: $titulo, $preheader, $saudacao, $paragrafos (array), $detalhes (array
     rótulo => valor), $acaoUrl/$acaoRotulo (opcionais) e $rodapeAviso.
+    Opcionais: $secoes (lista de {titulo, tom: normal|alerta, itens: [{nome, quando,
+    valor}]} — usada pelo lembrete de vencimentos) e $rodapeNota (HTML confiável que
+    substitui a frase "aviso automático de segurança" do rodapé).
 --}}
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -60,6 +63,23 @@
 
                             @foreach ($paragrafos as $paragrafo)
                                 <p style="margin:0 0 16px; font-size:15px; line-height:1.6; color:#46584F;">{!! $paragrafo !!}</p>
+                            @endforeach
+
+                            {{-- Seções em lista (lembrete de vencimentos): título pequeno e uma
+                                 tabela nome/quando | valor por seção. Nome vem do usuário — {{ }}. --}}
+                            @foreach ($secoes ?? [] as $secao)
+                                <p style="margin:18px 0 8px; font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:{{ ($secao['tom'] ?? 'normal') === 'alerta' ? '#B4422F' : '#7C8C84' }};">{{ $secao['titulo'] }}</p>
+                                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 6px; background-color:{{ ($secao['tom'] ?? 'normal') === 'alerta' ? '#FCEDEA' : '#F6FAF8' }}; border:1px solid {{ ($secao['tom'] ?? 'normal') === 'alerta' ? '#F4C7BF' : '#E5ECE8' }}; border-radius:12px;">
+                                    @foreach ($secao['itens'] as $item)
+                                        <tr>
+                                            <td style="padding:11px 16px; font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                                                <div style="font-size:14px; font-weight:600; color:#112019;">{{ $item['nome'] }}</div>
+                                                <div style="font-size:12.5px; color:#7C8C84;">{{ $item['quando'] }}</div>
+                                            </td>
+                                            <td style="padding:11px 16px; font-size:14px; color:#112019; font-weight:700; font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif; text-align:right; white-space:nowrap;">{{ $item['valor'] }}</td>
+                                        </tr>
+                                    @endforeach
+                                </table>
                             @endforeach
 
                             {{-- Detalhes do evento (quando, de onde). É o que permite a alguém
@@ -107,7 +127,7 @@
                     <tr>
                         <td style="background-color:#FFFFFF; border-radius:0 0 16px 16px; border-top:1px solid #EFF3F1; padding:22px 32px 26px; font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
                             <p style="margin:0 0 6px; font-size:12.5px; line-height:1.6; color:#7C8C84;">
-                                Este é um aviso automático de segurança da sua conta no Stabil&nbsp;Money.
+                                {!! $rodapeNota ?? 'Este é um aviso automático de segurança da sua conta no Stabil&nbsp;Money.' !!}
                                 <strong style="color:#46584F;">Nunca pedimos sua senha por e-mail.</strong>
                             </p>
                             <p style="margin:0; font-size:12.5px; line-height:1.6; color:#7C8C84;">

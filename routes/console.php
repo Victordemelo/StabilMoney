@@ -70,3 +70,9 @@ Artisan::command('sessoes:limpar', function () {
 Schedule::command('sessoes:limpar')
     ->dailyAt('03:10')
     ->withoutOverlapping();
+
+// Lembrete de vencimento por e-mail — só notifica, nunca cria dado (ver o comando).
+// 08:00: cedo o bastante para pagar no mesmo dia, tarde o bastante para não acordar ninguém.
+Schedule::command('lembretes:vencimentos')
+    ->dailyAt('08:00')
+    ->withoutOverlapping();

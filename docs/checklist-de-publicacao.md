@@ -233,8 +233,9 @@ rclone copy storage/backups/ remoto:stabilmoney-backups --max-age 25h
 
 ### 12. Cron do agendador (`schedule:run`)
 
-O `routes/console.php` tem tarefas agendadas — hoje a limpeza diária das sessões expiradas
-(`sessoes:limpar`, item da tabela verde abaixo). **Nada disso roda sozinho.** O scheduler
+O `routes/console.php` tem tarefas agendadas — a limpeza diária das sessões expiradas
+(`sessoes:limpar`, item da tabela verde abaixo) e os **lembretes de vencimento por e-mail**
+(`lembretes:vencimentos`, 08:00 — sem o cron ninguém recebe aviso de fatura). **Nada disso roda sozinho.** O scheduler
 do Laravel depende de uma única entrada de cron que acorda o artisan a cada minuto:
 
 ```cron

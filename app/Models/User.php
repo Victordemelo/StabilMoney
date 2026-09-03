@@ -77,6 +77,10 @@ class User extends Authenticatable implements MustVerifyEmail
         'terms_accepted_at',
         'terms_version',
         'terms_accepted_ip',
+        // Preferência de lembrete de vencimento por e-mail (Configurações › Conta).
+        // `reminder_last_sent_on` fica FORA: é a trava de idempotência do comando
+        // `lembretes:vencimentos`, gravada só por ele.
+        'reminder_emails',
     ];
 
     /**
@@ -87,6 +91,17 @@ class User extends Authenticatable implements MustVerifyEmail
      * sem passar pelo Laravel — quem tivesse a URL via a foto para sempre.
      */
     public const AVATAR_DISK = 'local';
+
+    /**
+     * Lembrete de vencimento por e-mail nasce LIGADO. O default também está na coluna,
+     * mas um `User::create()` só vê o valor do banco depois de `fresh()` — aqui o
+     * objeto recém-criado já responde certo.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'reminder_emails' => true,
+    ];
 
     /** Graus de parentesco de um dependente (valor no banco => rótulo PT-BR). */
     /**
@@ -158,6 +173,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'two_factor_recovery_codes' => 'encrypted:array',
             'two_factor_confirmed_at' => 'datetime',
             'two_factor_last_step' => 'integer',
+            'reminder_emails' => 'boolean',
+            'reminder_last_sent_on' => 'date:Y-m-d',
         ];
     }
 

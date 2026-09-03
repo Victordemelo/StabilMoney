@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.133 testes / 4.825 asserções** verdes |
+| Suíte de testes | ✅ **1.152 testes / 4.957 asserções** verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -1124,6 +1124,29 @@ conta perdida no dia em que ele entrou. A migration
 ⚠️ Rota que precise funcionar ANTES da confirmação (reenviar link, sair da conta) vai em
 `routes/auth.php`, fora do grupo protegido — senão a tela que destrava a conta fica ela
 própria trancada.
+
+### Lembretes de vencimento por e-mail (02/09/2026) — `LembretesDeVencimentoTest`
+
+Comando **`lembretes:vencimentos`** (`app/Console/Commands/LembretesDeVencimentos.php`), agendado
+**diariamente às 08:00** em `routes/console.php`. É o primeiro comando agendado que a spec previa:
+**só NOTIFICA, nunca cria dado**. Mesma fonte do sino (`FaturaService::upcomingDue`).
+
+- **Gatilho × conteúdo:** um item dispara se vence em 3 dias, amanhã, hoje, ou está vencido em
+  múltiplo de 7 dias (0, 7, 14…) — vencido NÃO avisa todo dia, viraria spam. Disparado, o e-mail
+  leva o quadro inteiro (vencidas + próximas ≤ 3 dias), senão a lista mente por omissão.
+- **Só o TITULAR recebe** (e-mail verificado, não banido, `users.reminder_emails` true). Dinheiro
+  é da família e ele responde por ele; dependente nunca recebe.
+- **Idempotência do dia:** `users.reminder_last_sent_on` gravada SÓ com envio bem-sucedido —
+  falha de SMTP e "sem mailer" deixam a pessoa elegível na próxima passada. `--dry-run` lista sem
+  gravar; `--user=ID` restringe.
+- Envio por `Notificador::avisar()` (nunca `Mail::` direto); falha num titular não aborta os
+  outros (exit `FAILURE` no fim, para o cron acusar). Sem `Mailer::entrega()` → log e exit 0.
+- **Toggle em Configurações › Conta** (`PATCH /configuracoes/lembretes`, `settings.lembretes`).
+  Preferência de comunicação, não de segurança: sem senha, sem throttle próprio.
+- `LembreteDeVencimento` usa os layouts de e-mail com `$secoes` (tabelas Vencidas/Próximas) e
+  `$rodapeNota` — opcionais retrocompatíveis. A Política de Privacidade ganhou a linha dos avisos
+  automáticos (art. 7º V e IX) **sem subir `legal.version`**: descreve o código, não muda o acordo.
+- ⚠️ Só roda com a entrada de cron `schedule:run` na VPS (item 12 do checklist).
 
 ### Alertas de segurança (06/08/2026) — `AlertasDeSegurancaTest`
 
