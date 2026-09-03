@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Http\Requests\Concerns\NormalizesMoneyInput;
 use App\Models\Account;
 use App\Models\Category;
+use App\Support\Brl;
 use App\Support\FundingSource;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -135,6 +136,19 @@ class StoreFaturaLaunchRequest extends FormRequest
                 $validator->errors()->add(
                     'mode',
                     'Parcelamento e recorrência só estão disponíveis para cartão de crédito. Para esta conta, use à vista.',
+                );
+            }
+
+            // Cada parcela precisa valer pelo menos R$ 0,01: R$ 0,10 em 24x
+            // gerava 14 parcelas de R$ 0,00 — linhas de despesa de zero que
+            // não devem nada e ainda assim aparecem na fatura.
+            $parcelas = (int) $this->input('installments');
+            $valor = $this->input('amount');
+            if ($mode === 'parcelado' && $parcelas >= 2 && is_numeric($valor)
+                && (int) round((float) $valor * 100) < $parcelas) {
+                $validator->errors()->add(
+                    'amount',
+                    'Com '.$parcelas.' parcelas, o valor precisa ser de pelo menos '.Brl::format($parcelas / 100).'.',
                 );
             }
         });
