@@ -218,3 +218,72 @@ dashboard/somas · metas/investimentos.
 5. **T-1 + T-2** juntos (um único ponto de "despesa líquida do cartão" para dailySums, ano,
    totals e donut).
 6. T-3, T-4, T-5, T-6 e os itens de idempotência.
+
+---
+
+# Rodada 2 — 05/09/2026 (pós-correções e features novas)
+
+Três frentes executadas: transferência/edição · cartão pós-mudanças · saldo/fontes/metas/contas
+fixas/lembretes. **Nenhum caso de caixa errado** nas somas principais; o fluxo de um mês inteiro
+(salário, aportes, aluguel, débito, 12x, fatura, transferência, 409 → resgate) fecha em todas as
+telas. Achados abaixo, ainda **não corrigidos**.
+
+## 🔴 Mexe em dinheiro
+
+- **R2-1 · `faturas.compra.destroy` apaga UMA ponta da transferência.** `FaturaController::destroy`
+  (~130-187) não tem a guarda `isTransferencia()` que o `TransactionController::destroy` ganhou.
+  Apagar a entrada: some R$ 500 do patrimônio e o resgate fica de pé. Apagar a saída: surgem
+  R$ 500. A tela não lista as pontas, mas a rota está aberta por URL (o id aparece no Histórico).
+  Correção: recusar ou reaproveitar o bloco de transferência do `TransactionController`.
+
+## 🟠 Estado inconsistente (sem caixa errado)
+
+- **R2-2 · Série recorrente de cartão excluída ressuscita.** Após `faturas.compra.destroy` apagar
+  as ocorrências em aberto, a paga mais antiga volta a aparecer em "Lançar neste ciclo"
+  (`FaturaService::recorrenciasParaAvancar` ~325-345) e um POST recria a sucessora. Não existe
+  marcador de "série encerrada".
+- **R2-3 · Fatura com líquido exatamente 0 não tem botão e as linhas nunca ganham `paid_at`.**
+  `canPay = devido > 0.001` (`FaturaService.php:218`); `linhasDaFatura` só arrasta as fechadas
+  quando o líquido é `< 0` (`FaturaController.php:369`). `quitarPeloCredito` com 0 só por POST
+  direto. `payFloor` fica preso na data antiga.
+- **R2-4 · Compra quitada pelo crédito (líquido 0) não pode ser excluída.** `cartaoComTudoQuitado`
+  (~201-214) trata `paid_at` como "houve quitação em caixa" e manda "estornar primeiro" — mas
+  não há quitação nem botão. Só alcançável via R2-3.
+- **R2-5 · Card diz "Fatura paga" quando foi COBERTA por crédito.** `isPaid` (`FaturaService:217`)
+  = `openInvoiceDue == 0` com `currentInvoice > 0`; nenhuma linha paga, nenhuma quitação.
+- **R2-6 · `regraDoChequeEspecialEmUso` olha o uso ATUAL, não o projetado.**
+  (`UpdateAccountRequest.php:161-170`.) Baixar saldo inicial e limite juntos mantendo
+  `available ≥ −limite` é recusado — a regra irmã do piso projeta, esta não. Recusa indevida.
+- **R2-7 · Edição neutra da data/autor não move o resgate ligado.** O resgate nasce com a data
+  da despesa (`FundingService.php:235`); editar só a data deixa `investment_contributions.date`
+  na antiga (`TransactionController.php:~475`). Spark do saldo mostra `[500,0,…]` em vez de
+  `[200,200,0,…]`. `aplicado`/`funding_*` corretos.
+- **R2-8 · Sexta porta de data futura:** despesa datada em 2027 com `resgate_investimento` grava
+  o resgate com data futura (`FundingService.php:235`), que as cinco portas de aporte/resgate
+  recusam. `aplicado` cai hoje; spark ≠ stat.
+
+## 🔵 Observações (não são defeito)
+
+- `funding_max_amount` não passa por `normalizeMoneyField` (aceita só ponto). Os dois clientes
+  mandam ponto.
+- Flash "realizado com sucesso" quando aporte→resgate reusa o mesmo uuid no mesmo pai (só por
+  replay manual).
+- Aportar em meta com prazo vencido é aceito. Decisão de produto.
+- `availableLimit` clampado no teto enquanto há crédito líquido — documentado.
+- `gerarProximaOcorrencia` com ocorrência intermediária apagada pelo Histórico pode deslocar a
+  data para fechamento+1 (uma por ciclo continua). Não testado.
+- Fallback legado de `estornarFatura` por `(settles_account_id, paid_at)` poderia capturar linhas
+  de `quitarPeloCredito` do mesmo dia — só com dados anteriores a `settled_by_id`.
+
+## ✅ Verificado e correto nesta rodada
+
+Transferência invisível para receitas/despesas em todas as telas; guard olha `available`;
+poupança → corrente negativa reduz o vermelho; `funding_*` só na saída; excluir pela entrada
+apaga as duas e devolve o resgate; edição das pontas; exclusão de conta bloqueada; corrida de
+uuid; famílias; edição financiada trocando de conta nas duas ordens de id; JSON da fila.
+Parcelas em 14 combinações de fechamento; ciclo de vida com crédito rolando (caixa 700 = 500 −
+800 + 100 + 900); quitação parcial pelo crédito e estorno dela; vencimento mais antigo com
+crédito no meio; recorrência ao longo de 4 meses; dashboard unificado; conta fixa com cartão.
+Teto do resgate nos 5 caminhos com rollback íntegro; edição neutra de data/categoria/autor;
+piso do saldo inicial (mínimo sugerido aceito); idempotência por pai; contas fixas na janela;
+lembretes com 2 cartões + conta fixa vencida; meta vencida; exclusão de conta com aportes.
