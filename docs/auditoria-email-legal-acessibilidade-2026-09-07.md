@@ -140,7 +140,85 @@ layouts; foro do consumidor, 18 anos, menores só como dependentes; sem CPF/GPS/
 
 ---
 
-## 3. Acessibilidade
+## 3. Acessibilidade (Playwright + axe-core 4.13, 80 varreduras: 15 telas × 2 temas × 2 viewports + 5 modais)
 
-_(em andamento — Playwright + axe, teclado, árvore de acessibilidade, contraste, zoom; será
-anexado ao terminar)_
+**Veredito:** por leitor de tela o app é razoável (labels, nomes de botão, `lang`, `role=alert` em
+ordem). Por **teclado** tem quatro defeitos sérios. Por **baixa visão** o tema claro reprova
+sistematicamente no texto terciário e no indicador de foco.
+
+### 🔴 Sérios
+
+- **A-1 · O popover do perfil FECHADO está na ordem do Tab, em todas as telas.** `#profilePop`
+  fechado é só `opacity:0; pointer-events:none` (`design-system.css:602-609`) com
+  `aria-hidden="true"`: "Meu perfil", "Configurações" e **"Sair"** recebem foco invisíveis (Tabs
+  10-12 no desktop e no mobile). Um Enter cego no 12º Tab faz logout. Correção conhecida:
+  `visibility:hidden`, como já foi feito no `.modal-scrim`. WCAG 2.4.3/2.4.7/4.1.2.
+- **A-2 · Nenhum modal é um diálogo, nenhum prende nem devolve o foco.** `#launchModal`,
+  `#catModal`, `#metaCreateModal`, `#acctModal-novo`, `#payInvoiceModal`, `#depModal`,
+  `#fundingModal` sem `role=dialog`, `aria-modal` e `aria-labelledby` (só o de excluir conta
+  tem). Tab a partir do último campo escapa para a barra de cookies e a sidebar com o modal
+  aberto; `#app` não recebe `inert`. Ao fechar por Esc o foco vai para `body`. Em "Pagar fatura"
+  o foco nem entra no modal. WCAG 2.4.3/4.1.2/2.1.2.
+- **A-3 · Drawer mobile não é operável por teclado.** `#mMenu` sem `aria-expanded`/
+  `aria-controls`; **Esc não fecha** (`shell.js:37-48` só fecha por clique no scrim, que é `div`
+  sem `tabindex`); sem botão fechar dentro. Com o drawer FECHADO, os 9 links da sidebar e os 3
+  do popover são os 12 primeiros stops do Tab no celular, todos fora da tela. WCAG 2.1.1/2.4.3.
+- **A-4 · Reordenar categorias só existe por arraste.** `.cat-chip` é `draggable` com
+  `tabindex=-1`, sem botões mover e sem campo de posição no modal. Trocar o tipo tem alternativa;
+  reordenar, nenhuma. WCAG 2.1.1 e 2.5.7.
+- **A-5 · Contraste do texto terciário no tema claro — sistêmico.** `--ink-3 #7C8C84` dá
+  **3,17:1** sobre o fundo e 3,53:1 sobre branco, em texto de 11-13px: data da saudação, rótulos
+  dos stat cards, `.tx-meta`, `.hint`, `.notif-sub`, `.acct-type`, `.chip`, abas inativas, texto
+  da barra de cookies. Responde por ~80% das violações do axe (72 dos 80 runs). WCAG 1.4.3.
+- **A-6 · Indicador de foco dos inputs quase invisível no claro.** `.input:focus` troca o outline
+  por `box-shadow 0 0 0 4px var(--brand-50)` (`forms.css:25-31`): anel a **1,08:1** e borda a
+  1,91:1. Mesma receita no login (`auth.css:117-121`). No escuro a borda salva (8,8:1).
+  WCAG 2.4.11/1.4.11.
+- **A-7 · Cores de valor e links reprovam AA.** Receitas `.pos #1C9A70` 3,56:1; badge de fatura
+  vencida 2,98:1; no escuro, links e `.mini-btn` 3,13:1 e abas inativas 3,53:1; placeholder do
+  login 2,08:1. WCAG 1.4.3.
+
+### 🟠 Moderados
+
+Radios de cor do modal "Nova meta" sem nome acessível (axe critical, 10 nós); grupos de radio
+sem `fieldset`/`role=radiogroup` ("Tipo", "Ícone", "Cor"); erros de validação do servidor sem
+`aria-describedby`/`aria-invalid`; **pjax troca o conteúdo em silêncio** (foco fica no link, sem
+região `aria-live`); o `h1` de toda tela do app é a saudação da topbar, que some no mobile;
+8 gráficos SVG sem nome e sem `aria-hidden`; vídeo do login toca sozinho e ignora
+`prefers-reduced-motion`; popover com `role=menu` que não navega por setas; dois `nav` sem
+`aria-label`; barra de cookies cobrindo o modal Lançar a 200% de zoom.
+
+### 🔵 Menores
+
+`aria-label` em `div` sem role; `alt` redundante nos Termos; lista de transações rolável sem
+foco; fontes abaixo de 12px em texto informativo (iniciais em faturas com **8px**); sem skip
+link (16 stops até o conteúdo no desktop).
+
+### Resumo do axe
+
+| Regra | Impacto | Onde | Runs |
+|---|---|---|---|
+| `color-contrast` | serious | shell + conteúdo de cada tela | 72/80 |
+| `landmark-unique` | moderate | `nav.nav` duplicado no shell | 64/80 |
+| `region` | moderate | cabeçalho dos Termos, cabeçalho de modal | 8 |
+| `scrollable-region-focusable` | serious | `.tx-list` do dashboard | 8 |
+| `label` | **critical** | radios de cor de "Nova meta" | 4 |
+| `image-redundant-alt` | minor | logo dos Termos | 4 |
+
+### ✅ O que está bem
+
+`lang="pt-BR"` em todos os layouts; **zero** inputs sem label e **zero** botões-ícone sem nome
+(inclusive "Editar Salário" nos chips); `autocomplete` correto em todo o auth e perfil, com
+`one-time-code` no 2FA; datas nativas; máscara de dinheiro não atrapalha o leitor; flash com
+`role=status` e erros com `role=alert`; segmented por radios nativos com setas e foco visível;
+toggles de 2FA e lembrete operáveis por Enter/Espaço com estado correto; `.modal-scrim` fechado
+já usa `visibility:hidden`; sino com `aria-expanded` e Esc; `prefers-reduced-motion` global
+funcionando; alvos de toque no mobile acima do mínimo (bottom-nav 52px, ações pequenas com área
+ampliada por `::after`); zoom 200% sem rolagem horizontal em 6 telas, com modal cabendo e rodapé
+visível; pjax fecha o drawer ao navegar.
+
+### Só um leitor de tela real prova
+
+Se o `<summary role=button>` do 2FA ainda anuncia estado expandido; se o `role=menu` do popover
+prende a navegação no VoiceOver; se os toasts da fila offline são anunciados (não achei
+`role=status` no JS); se o drag & drop avisa "movido para Despesas" ao soltar.
