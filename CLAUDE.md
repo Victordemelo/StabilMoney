@@ -1062,6 +1062,16 @@ dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypt
   **só sobre HTTPS**. A CSP entrega `connect-src`/`img-src` na própria origem,
   `frame-ancestors`/`object-src`/`base-uri`/`form-action` travados e **`script-src` com nonce**
   (ver abaixo). **Libera `localhost:5173` só em ambiente local** — senão `npm run dev` quebra.
+  **Exceção no `/sw.js` (16/09/2026, P-1 — `FontesPeloServiceWorkerTest`):** um service worker
+  obedece à CSP da PRÓPRIA resposta do script, e cada `fetch()` dele é `connect-src`. O SW guarda
+  as fontes do Google (stale-while-revalidate), então a resposta do `/sw.js` libera
+  `fonts.googleapis.com` e `fonts.gstatic.com` em `connect-src` — SÓ ela (`routeIs('pwa.sw')`); as
+  páginas carregam fontes por `<link>` (style-src/font-src) e não ganham canal de saída a mais. Sem
+  isso o fetch era bloqueado e todo o app pós-login caía na fonte do sistema assim que o SW assumia
+  a página (reproduzido em Chromium real). O teste lê do script servido os hosts externos que o SW
+  busca e exige cada um no `connect-src` dele. ⚠️ **Mudar só o header não atualiza SW instalado**:
+  o navegador compara os BYTES do script — mudança de CSP para o SW vem com mudança no
+  `pwa/service-worker.blade.php`.
 - **Trocar e-mail exige a senha atual** (`ProfileUpdateRequest` → `current_password` requerido
   **só quando o e-mail muda**). O e-mail é o que recupera a conta: sem isso, sessão sequestrada
   → troca e-mail → "esqueci a senha" → conta tomada. Nome/telefone/foto seguem sem atrito.

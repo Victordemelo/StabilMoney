@@ -16,6 +16,13 @@
  * ⚠️ Tudo aqui dentro é JavaScript puro, sem Blade: tests/js/service-worker.test.js
  *    executa este mesmo código, e se recusa a rodar se algo ficar fora do @verbatim
  *    (estaria testando um SW diferente do que o navegador recebe).
+ *
+ * ⚠️ Este SW obedece à CSP da PRÓPRIA resposta do /sw.js, e cada fetch() dele é
+ *    connect-src. Se ele passar a buscar um host novo (hoje: fonts.googleapis.com e
+ *    fonts.gstatic.com), o host precisa entrar no connect-src do SecurityHeaders para o
+ *    /sw.js — senão o fetch é bloqueado em silêncio e a página recebe erro de rede.
+ *    E mudar só o header NÃO atualiza SW já instalado: o navegador compara os BYTES do
+ *    script. Qualquer mudança de CSP para o SW precisa vir com uma mudança aqui.
  */
 const CACHE = 'sm-cache-v2';
 

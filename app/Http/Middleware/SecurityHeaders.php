@@ -44,7 +44,10 @@ class SecurityHeaders
             return $response;
         }
 
-        $response->headers->set('Content-Security-Policy', $this->csp($nonce));
+        $response->headers->set('Content-Security-Policy', $this->csp(
+            $nonce,
+            paraServiceWorker: $request->routeIs('pwa.sw'),
+        ));
         $response->headers->set(self::HEADER_NONCE, $nonce);
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Frame-Options', 'DENY');
@@ -109,12 +112,28 @@ class SecurityHeaders
      * restritos à própria origem, `frame-ancestors 'none'` (clickjacking),
      * `object-src 'none'`, `base-uri` e `form-action` travados.
      */
-    protected function csp(string $nonce): string
+    protected function csp(string $nonce, bool $paraServiceWorker = false): string
     {
         $self = "'self'";
 
         // Em dev os assets vêm do servidor do Vite, mais o websocket de hot reload.
         [$vite, $viteWs] = $this->origensDoVite();
+
+        // O SERVICE WORKER obedece à CSP do próprio script — esta resposta, quando ela é o
+        // /sw.js — e todo `fetch()` que ele faz conta como connect-src. Ele repassa e guarda
+        // as fontes do Google (stale-while-revalidate, para o app manter a tipografia
+        // offline), então precisa dos dois hosts aqui: a folha de estilo vem do
+        // googleapis e os arquivos .woff2, do gstatic. Sem eles o fetch era bloqueado, o SW
+        // devolvia erro de rede e TODO o app pós-login caía na fonte do sistema assim que o
+        // SW assumia a página (P-1 da auditoria de 06/09/2026) — passava despercebido
+        // porque a pilha de fallback é boa.
+        //
+        // Só no /sw.js: as páginas carregam as fontes por <link>, que é style-src/font-src
+        // (já liberados abaixo). Dar connect-src a elas abriria um canal de saída para JS
+        // da página sem necessidade nenhuma.
+        $fontesDoServiceWorker = $paraServiceWorker
+            ? ' https://fonts.googleapis.com https://fonts.gstatic.com'
+            : '';
 
         return implode('; ', [
             "default-src {$self}",
@@ -126,7 +145,7 @@ class SecurityHeaders
             // data: e blob: para o preview de foto antes do upload (FileReader).
             "img-src {$self} data: blob:",
             "media-src {$self}",                       // vídeo de fundo do login
-            "connect-src {$self}{$vite}{$viteWs}",
+            "connect-src {$self}{$fontesDoServiceWorker}{$vite}{$viteWs}",
             "worker-src {$self}",                      // service worker do PWA
             "manifest-src {$self}",
             "form-action {$self}",
