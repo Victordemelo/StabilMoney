@@ -6,12 +6,9 @@ use App\Models\User;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Testing\TestResponse;
-use Symfony\Component\Mailer\Exception\UnexpectedResponseException;
-use Symfony\Component\Mailer\SentMessage;
-use Symfony\Component\Mailer\Transport\AbstractTransport;
+use Tests\Concerns\SimulaSmtpQueRecusa;
 use Tests\TestCase;
 
 /**
@@ -43,39 +40,9 @@ use Tests\TestCase;
 class CadastroNaoQuebraComSmtpForaTest extends TestCase
 {
     use RefreshDatabase;
+    use SimulaSmtpQueRecusa;
 
     private const EMAIL = 'novo@example.com';
-
-    /**
-     * Instala um transporte que recusa TODO destinatário, como o SMTP real faz com um
-     * endereço que ele não aceita entregar.
-     *
-     * `Mail::fake()` não serve aqui: ele troca o Mailer inteiro por um dublê que nunca
-     * falha, então o cenário que se quer exercitar — a exceção de transporte — deixa de
-     * existir. É preciso descer ao transporte do Symfony, que é onde o "550" nasce.
-     */
-    private function smtpQueRecusa(): void
-    {
-        Mail::extend('smtp-que-recusa', fn () => new class extends AbstractTransport
-        {
-            protected function doSend(SentMessage $message): void
-            {
-                throw new UnexpectedResponseException(
-                    'Expected response code "250/251/252" but got code "550", with message '
-                    .'"550 The mail server could not deliver mail to this address.".',
-                    550
-                );
-            }
-
-            public function __toString(): string
-            {
-                return 'smtp-que-recusa://';
-            }
-        });
-
-        config()->set('mail.mailers.smtp-que-recusa', ['transport' => 'smtp-que-recusa']);
-        config()->set('mail.default', 'smtp-que-recusa');
-    }
 
     /** O dia em que o SMTP está no ar e entrega (caminho feliz). */
     private function smtpNoAr(): void

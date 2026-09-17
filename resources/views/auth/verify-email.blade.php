@@ -37,6 +37,16 @@
         </div>
     @endif
 
+    {{-- O reenvio FALHOU (o servidor de e-mail recusou). Antes isto era um erro 500 — e,
+         antes dele, a tela dizia "enviado" mesmo quando nada saía. A mensagem não promete o
+         que o app não sabe: só que não saiu agora. --}}
+    @if (session('status') == 'verification-link-failed')
+        <div class="auth-error long" role="alert">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+            <span>Não conseguimos enviar o e-mail agora. Tente de novo em alguns minutos.</span>
+        </div>
+    @endif
+
     {{-- Reenviar e-mail de verificação --}}
     <form method="POST" action="{{ route('verification.send') }}">
         @csrf

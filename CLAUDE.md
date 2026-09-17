@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.159 testes PHP / 4.974 asserções** + **78 testes JS** (Vitest) verdes |
+| Suíte de testes | ✅ **1.167 testes PHP / 5.004 asserções** + **78 testes JS** (Vitest) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -205,7 +205,7 @@ tests/js/                   # Vitest + jsdom (`npm run test:js`, roda no HOST): 
                             # resources/js/sm/ — validado por mutação em 16/09: desligar a guarda da
                             # CSP derruba 6+ testes, trocar a vírgula decimal derruba 34.
                             # ⚠️ O CI AINDA NÃO RODA estes testes (o ci.yml só tem PHP e Pint).
-tests/Feature/              # 1.159 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 1.167 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1143,9 +1143,18 @@ seguro, com o usuário dentro do app.
 - `Notificador::tentarEnviar(User $u, string $oque, Closure $envio): bool` é o miolo do
   `avisar()`, para envio que não é `Mailable` (ex.: Notification). **Quem chama decide o que fazer
   com o `false`** — num alerta, nada; no cadastro, não exigir a confirmação.
-- ⚠️ **Ainda aberto:** `EmailVerificationNotificationController` (botão "reenviar link") chama
-  `sendEmailVerificationNotification()` sem `Notificador` — um 550 ali ainda vira HTTP 500, e ele
-  responde "link enviado" sem consultar `Mailer::entrega()`.
+- **Reenviar link (16/09/2026 — `ReenvioDoLinkDeVerificacaoTest`)** tem três saídas: **sem
+  mailer → libera a conta** (não há link a mandar; antes a tela mentia "enviado" e o botão era a
+  única saída); **envio falhou → aviso honesto** (`status = verification-link-failed`) e log, **sem
+  liberar**; enviou → o aviso de sempre. Antes, um 550 ali era HTTP 500.
+  🚨 **A falha de envio NÃO libera a conta no reenvio, ao contrário do cadastro — não "unifique".**
+  No cadastro a falha acontece uma vez, no primeiro contato; o botão é repetível. Liberar a cada
+  falha daria a quem se cadastrou com o e-mail de OUTRA pessoa um jeito de pular a confirmação:
+  insistir até esgotar a cota de envio do provedor. **Falha que o usuário consegue provocar não
+  pode abrir a porta.** Um teste de mutação confirma que "simplificar" isso fica vermelho.
+- Teste que precisa de SMTP que FALHA usa o trait **`Tests\Concerns\SimulaSmtpQueRecusa`**
+  (transporte do Symfony que lança o "550"). `Mail::fake()`/`Notification::fake()` não servem:
+  o dublê nunca falha, e o cenário deixa de existir.
 - ⚠️ **Os e2e cadastram usuários de verdade.** Com o `.env` apontando para o SMTP real, eles
   disparam e-mail pela conta real. Rode-os com o Mailpit (`MAIL_HOST=mailpit`, `MAIL_PORT=1025`,
   `MAIL_SCHEME=smtp`): o helper `cadastrarEEntrar` aceita os dois desfechos legítimos e, quando o
@@ -1521,7 +1530,7 @@ npm run test:js  # testes de JavaScript (Vitest + jsdom); `test:js:watch` para m
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (1.159 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (1.167 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
