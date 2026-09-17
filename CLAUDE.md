@@ -1019,6 +1019,14 @@ Corrigido nesta rodada — **não regredir**:
 - **Trocar senha derruba as outras sessões** (`PasswordController` → `logoutOtherDevices` +
   `BrowserSessions::purgeForUser`). `AuthenticateSession` NÃO está habilitado, então é a purga
   das linhas de `sessions` que efetivamente desconecta.
+- **Redefinir a senha pelo link derruba TODAS as sessões** (16/09/2026, A-2 —
+  `RedefinirSenhaDerrubaSessoesTest`): `NewPasswordController` chama
+  `BrowserSessions::purgeForUser` sem exceção, grava `password_changed_at` e troca o
+  `remember_token`. No reset ninguém está logado, então não há sessão "atual" a preservar — e
+  `Auth::logoutOtherDevices` não serve (exige usuário logado). A purga fica DENTRO do callback do
+  `Password::reset`: com token inválido nada cai, senão bastaria saber o e-mail de alguém para
+  desconectá-lo de todos os aparelhos. Antes, quem perdia a conta para um invasor redefinia a senha
+  e o invasor seguia logado.
 - **MySQL:** porta publicada em `127.0.0.1:3307` (antes `3307:3306` = bind em 0.0.0.0, banco
   exposto a toda a rede Wi-Fi) e credenciais via `.env` com defaults. Trocar a senha exige
   recriar o volume ou `ALTER USER` — o MySQL só cria o usuário no 1º boot.

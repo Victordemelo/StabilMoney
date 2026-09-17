@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Mail\AlertaDeSeguranca;
 use App\Models\User;
+use App\Support\BrowserSessions;
 use App\Support\ContextoDeSeguranca;
 use App\Support\Notificador;
 use Illuminate\Auth\Events\PasswordReset;
@@ -48,8 +49,30 @@ class NewPasswordController extends Controller
             function (User $user) use ($request) {
                 $user->forceFill([
                     'password' => Hash::make($request->password),
+                    // Token novo = todo cookie de "lembrar de mim" emitido antes deixa de
+                    // valer. É a metade que apagar as sessões (abaixo) não alcança: esse
+                    // cookie re-autentica sem sessão nenhuma.
                     'remember_token' => Str::random(60),
+                    // A aba Segurança mostra a idade da senha a partir daqui. Sem o
+                    // carimbo, quem acabou de redefinir continuava lendo "há um ano".
+                    'password_changed_at' => now(),
                 ])->save();
+
+                // Derruba TODAS as sessões da conta (A-2 da auditoria de 05/09/2026).
+                // Este é o caminho de quem PERDEU a conta — muitas vezes para um invasor
+                // que já está logado. Sem isto a senha mudava e ele seguia dentro, com o
+                // cookie de sessão que já tinha.
+                //
+                // Diferente da troca nas Configurações (`PasswordController`), aqui
+                // ninguém está autenticado: não existe sessão "atual" a preservar, então
+                // caem todas — inclusive as do próprio dono em outros aparelhos, que não
+                // há como distinguir das do invasor. Pelo mesmo motivo não serve o
+                // `Auth::logoutOtherDevices`: ele exige um usuário logado na requisição.
+                //
+                // Fica DENTRO do callback de propósito: ele só roda com token válido. Se
+                // rodasse em qualquer tentativa, bastaria saber o e-mail de alguém e
+                // mandar um token inventado para desconectá-lo de todos os aparelhos.
+                BrowserSessions::purgeForUser($user->getKey());
 
                 event(new PasswordReset($user));
 
