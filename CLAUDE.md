@@ -154,7 +154,8 @@ app/
 │                           # FixedBillService (projeta as competências das contas fixas),
 │                           # TwoFactorService (liga/confirma/desliga o 2FA, valida sob lock e gera o QR)
 ├── Support/                # DefaultCategories, BrowserSessions, Brl (formato R$ pt-BR), FundingSource (constantes),
-│                           # Totp (RFC 6238, sem biblioteca), RecoveryCodes (códigos de emergência), Mailer, ImageMetadata
+│                           # Totp (RFC 6238, sem biblioteca), RecoveryCodes (códigos de emergência), Mailer, ImageMetadata,
+│                           # VerificadorDeSenhaVazada (checagem de senha vazada que avisa quando falha), Texto (paraColuna)
 ├── Listeners/              # SeedDefaultCategoriesForNewUser (evento Registered, auto-descoberto)
 └── Providers/              # AppServiceProvider (Carbon::setLocale, directive @brl, View Composers, rate limits)
 
@@ -1067,11 +1068,15 @@ dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypt
   empurra para "Senha@123", que passa em tudo e está em qualquer lista de ataque.
   `uncompromised()` usa k-anonimato (envia 5 caracteres do SHA-1, nunca a senha) e é
   **desligado em teste** (`runningUnitTests`) p/ a suíte não depender de rede.
-  ⚠️ **`uncompromised()` FALHA ABERTO:** se a consulta ao Pwned Passwords der erro, o
-  `NotPwnedVerifier` do framework engole a exceção e ACEITA a senha. Nenhum teste pega isso (a
-  regra é desligada em teste). Ao atualizar `guzzlehttp/*`, conferir à mão que
-  `Validator::make(['p' => 'password'], ['p' => Password::min(8)->uncompromised()])->fails()`
-  continua `true` no tinker.
+  **Falha ABERTA de propósito, mas com aviso** (17/09/2026 — `SenhaVazadaFalhaAbertaComAvisoTest`).
+  Recusar deixaria cadastro, troca e redefinição de senha fora do ar sempre que o serviço de terceiro
+  caísse; o defeito era a falha passar em SILÊNCIO. Verificador próprio
+  `App\Support\VerificadorDeSenhaVazada` (contrato público `UncompromisedVerifier`), ligado com
+  **`extend()`, nunca `singleton()`** — o provider de validação do Laravel é diferido e sobrescreve um
+  `singleton` sem erro nenhum. Consulta que falha (conexão, 429/5xx, resposta que não é da API) aceita a
+  senha e grava `Log::warning('Senha aceita SEM a checagem de vazamento…')` com motivo/status/tempo_ms/
+  origem/user_id — nunca a senha, o hash ou o prefixo do SHA-1. Em produção, vale alertar por essa
+  frase. O padding é pedido como `"true"`: o booleano do framework vira `1`, que a API ignora.
 - **Headers de segurança:** `App\Http\Middleware\SecurityHeaders` (append no grupo `web`) —
   CSP, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, e HSTS
   **só sobre HTTPS**. A CSP entrega `connect-src`/`img-src` na própria origem,

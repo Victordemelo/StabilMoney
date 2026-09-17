@@ -8,7 +8,10 @@ use App\Models\Category;
 use App\Models\User;
 use App\Services\FaturaService;
 use App\Services\SidebarService;
+use App\Support\VerificadorDeSenhaVazada;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Validation\UncompromisedVerifier;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Blade;
@@ -24,7 +27,27 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->registrarVerificadorDeSenhaVazada();
+    }
+
+    /**
+     * Troca o verificador de senha vazada do framework pelo nosso, que registra no log
+     * quando a consulta falha em vez de aceitar a senha em silêncio. A política continua
+     * de falha ABERTA — ver App\Support\VerificadorDeSenhaVazada.
+     *
+     * 🚨 `extend()`, e NÃO `singleton()`. O binding original vem do ValidationServiceProvider,
+     * que é DIFERIDO: ele só se registra na primeira vez que alguém pede o validador — depois
+     * deste `register()` — e aí sobrescreve qualquer `singleton()` feito aqui, sem erro
+     * nenhum. Medido em 17/09/2026: com `singleton()` o container seguia entregando o
+     * `NotPwnedVerifier`; com `extend()`, o nosso. O extender sobrevive ao registro tardio.
+     * O `SenhaVazadaFalhaAbertaComAvisoTest` confere a peça que o container entrega de fato.
+     */
+    protected function registrarVerificadorDeSenhaVazada(): void
+    {
+        $this->app->extend(
+            UncompromisedVerifier::class,
+            fn ($doFramework, $app) => new VerificadorDeSenhaVazada($app->make(HttpFactory::class)),
+        );
     }
 
     /**
@@ -90,8 +113,10 @@ class AppServiceProvider extends ServiceProvider
      *
      * `uncompromised()` consulta a API do Pwned Passwords por k-anonimato: envia só os
      * 5 primeiros caracteres do SHA-1 da senha, nunca a senha nem o hash completo. Se a
-     * rede falhar, a regra passa (fail-open) — por isso ela reforça, não substitui, o
-     * mínimo de tamanho. Desligada em teste para a suíte não depender de rede.
+     * consulta falhar, a regra passa (fail-open) — por isso ela reforça, não substitui, o
+     * mínimo de tamanho — e a falha fica REGISTRADA no log como aviso (ver
+     * `registrarVerificadorDeSenhaVazada`). Desligada em teste para a suíte não depender de
+     * rede; os testes do verificador a religam com a rede simulada.
      */
     protected function configurarPoliticaDeSenha(): void
     {
