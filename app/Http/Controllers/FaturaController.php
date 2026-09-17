@@ -131,6 +131,27 @@ class FaturaController extends Controller
     {
         $this->authorize('delete', $transaction);
 
+        // TRANSFERÊNCIA entre contas não se apaga por aqui (R2-1 da auditoria
+        // financeira, rodada 2). Esta rota apaga UMA linha — ou as parcelas de um
+        // grupo —, e uma transferência são DUAS, ligadas por `transfer_group_id`:
+        // apagar só a entrada sumia com o dinheiro do destino (e deixava de pé o
+        // resgate que financiou a saída); apagar só a saída criava dinheiro na
+        // origem. A tela nem lista as pontas: chegar aqui com uma delas é URL
+        // montada à mão, com o id visto no Histórico.
+        //
+        // Recusar, e não apagar as duas pontas aqui também: o Histórico
+        // (`TransactionController::destroy`) é o ÚNICO caminho que desfaz uma
+        // transferência, com a trava e o estorno da fonte na mesma transação. Uma
+        // segunda cópia dessa lógica seria mais um lugar que apaga dinheiro para
+        // manter em sincronia — e foi justamente um `destroy` ficar para trás do
+        // outro que abriu este buraco. Mesmo padrão das duas guardas abaixo, que
+        // também apontam o caminho certo em vez de repetir a lógica dele.
+        if ($transaction->isTransferencia()) {
+            return back()->withErrors([
+                'transaction' => 'Esta linha é uma das pontas de uma transferência entre contas e não pode ser excluída por aqui: apagar só um lado faria o dinheiro sumir de uma conta ou aparecer do nada na outra. Para desfazer a transferência, exclua pelo Histórico — as duas pontas saem juntas.',
+            ]);
+        }
+
         // Quitação de fatura NÃO se apaga isolada. Pagar a fatura escreve N+1
         // linhas (marca as compras do ciclo com paid_at + cria esta saída de
         // caixa). Apagar só esta devolveria o dinheiro à conta E deixaria as

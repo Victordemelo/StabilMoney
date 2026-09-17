@@ -632,6 +632,10 @@ exigia despesa + receita, e o mês ganhava R$ 300 de gasto e R$ 300 de renda que
   selo `.tx-tag`. **Editar** uma ponta: só descrição/data/autor, aplicados às duas sob lock;
   valor/conta/tipo/categoria recusados no TOPO do `update` ("exclua e lance de novo").
   **Excluir** uma ponta apaga as duas com `estornarFonte` na mesma transação.
+  **`faturas.compra.destroy` RECUSA pontas de transferência** e aponta o Histórico (16/09/2026,
+  R2-1 — `TransferenciaNaoSeApagaPelasFaturasTest`): apagava uma ponta só pela URL, e R$ 500
+  sumiam ou apareciam do nada. O Histórico é o ÚNICO caminho que desfaz transferência — não
+  duplique essa lógica em outro `destroy`.
 - **Modal Lançar:** terceiro segmento **Transferência** (só com ≥ 2 contas de caixa), selects
   "De"/"Para" com a origem removida do destino, saldo da origem exibido; `.type-toggle.tt-3`.
   A página cheia `transactions/create` também oferece o segmento (com e sem JS; o "Para" nasce
