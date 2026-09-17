@@ -127,7 +127,7 @@ system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 |--------|---------|-------------|
 | Backend | **Laravel 12** (PHP 8.4) | Monolito, resource controllers + Form Requests + Policies + Services. |
 | Banco | **MySQL 8.0** (Docker) | Container `db`; porta **3307 no host → 3306 no container** (db `stabilmoney`, user/password no `.env`). A 3307 no host só serve p/ ferramenta externa (DBeaver/TablePlus); o app fala com `db:3306` pela rede interna, então `DB_PORT=3306` no `.env`. |
-| Runtime | **Docker** (php:8.4-apache) | Container `app`, site em **http://localhost:8001** (porta do host → 80 no container). Host não precisa de PHP. |
+| Runtime | **Docker** (php:8.4-apache) | Container `app`, site em **http://localhost:8001** (porta do host → 80 no container). Host não precisa de PHP. Ativa o **`php.ini-production`** + `conf.d/zz-stabilmoney.ini` (upload 8M / post 12M, `expose_php=Off`, `date.timezone=America/Sao_Paulo`, `variables_order=EGPCS`) — cada valor justificado em comentário no `Dockerfile`. ⚠️ Container buildado antes de 16/09/2026 **não tem nada disso** (`php --ini` responde `(none)`): rode `docker compose up -d --build`. |
 | Frontend | **Blade + design system próprio** | `resources/css/design-system.css` (portado de `design/project/styles.css` v2) + `forms.css` + `auth.css` (telas de auth, escopado sob `.auth`). Tailwind 4 carregado como base utilitária via Vite 7. |
 | JS | **Vanilla** em `resources/js/sm/` (padrão atual) | Módulos em `resources/js/sm/` (ver mapa de pastas). **Frameworks/bibliotecas JS são liberados** quando a feature se beneficiar (decisão do Victor, jun/2026) — escolher a ferramenta certa caso a caso; "vanilla" deixou de ser obrigatório. |
 | Auth | **Laravel Breeze 2.4** (blade) | **Todas** as telas de auth no layout split v2 com vídeo (`layouts/auth.blade.php` — o `layouts/guest.blade.php` foi removido em 06/08/2026). Tudo PT-BR. Hash de senha em **argon2id** (`config/hashing.php`). **2FA opcional** por app autenticador (TOTP) — seção própria abaixo. |
@@ -1463,7 +1463,10 @@ layouts `layouts/admin` e `layouts/admin-auth`.
 
 ## Fluxo de trabalho
 
-> Pré-requisito: **Docker Desktop** (WSL2 no Windows) e **Node no host**.
+> Pré-requisito: um runtime Docker e **Node no host**. Na máquina do Victor (macOS) o runtime é o
+> **OrbStack**, não o Docker Desktop: se `docker` responder *"failed to connect to the docker API at
+> unix:///…/.orbstack/run/docker.sock"*, o OrbStack está desligado — `orb start` resolve, e os
+> containers voltam sozinhos (restart policy).
 
 ```powershell
 # 1. Subir containers (app + MySQL)

@@ -120,6 +120,31 @@ chmod -R 775 storage bootstrap/cache
 `777` deixa qualquer usuário do sistema escrever nos diretórios de onde o PHP lê e
 escreve — inclusive views compiladas, que são executadas.
 
+> ⚠️ **O erro de permissão agora é MUDO.** A imagem passou a ativar o `php.ini-production`
+> (ver o `Dockerfile`), e com ele vem `display_errors=Off`. Antes **nenhum php.ini estava
+> carregado** — `php --ini` respondia `Loaded Configuration File: (none)` e valia o padrão
+> compilado, `display_errors=On`. Erro que acontece **antes** de o Laravel instalar o próprio
+> tratador (o caso clássico é justamente este: `bootstrap/cache` sem permissão de escrita)
+> era impresso direto na resposta. Agora a mesma falha devolve **500 em branco** e a
+> mensagem vai só para o log: `docker compose logs app`. É mais seguro — erro anterior ao boot do Laravel não vaza mais
+> caminho de arquivo para o visitante — e é o primeiro lugar para olhar quando a tela vier
+> vazia.
+
+**O que mais mudou junto com o php.ini** (cada valor está comentado no `Dockerfile`, com a
+regra do código que o justifica):
+
+| Valor | Por quê |
+|---|---|
+| `upload_max_filesize = 8M` · `post_max_size = 12M` | O avatar é limitado a 2 MB pelo Laravel (`max:2048`), e o padrão do PHP era **também** 2M — empatado, sem folga para o overhead do multipart. Um arquivo no limite era recusado pelo PHP antes do Laravel, com `$_FILES` vazio, e a pessoa lia *"O campo foto é obrigatório"*. Agora quem recusa é sempre o Laravel, com a mensagem certa. |
+| `expose_php = Off` | Tira o `X-Powered-By: PHP/8.4.x` de toda resposta. O `php.ini-production` deixa isso **ligado**. |
+| `date.timezone` | `America/Sao_Paulo`, igual ao padrão de `config/app.php`. Vale para o que roda antes do Laravel subir; o fuso da **conexão** com o banco continua sendo o `DB_TIMEZONE`. |
+| `variables_order = "EGPCS"` | O `php.ini-production` usa `GPCS`, que deixa `$_ENV` vazio. Hoje é inofensivo (o Dotenv escreve em `$_ENV` **e** `$_SERVER`), mas quebraria no dia em que a VPS injetar segredo pelo `environment:` do compose. |
+
+**Confira depois do deploy:** `docker compose exec app php --ini`. Se a linha
+`Loaded Configuration File` ainda disser `(none)`, a imagem em execução é a antiga — falta
+um `docker compose build` (o `Dockerfile` mudou, e o bind mount do código não reconstrói a
+imagem sozinho).
+
 ---
 
 ## 🟠 Importante — faça na mesma janela de publicação
@@ -140,17 +165,39 @@ SESSION_DOMAIN=null
 Definir `.stabilmoney.com.br` faria o cookie de sessão do app ser enviado **para o n8n
 também**. Deixe `null` para o cookie ficar preso ao host que o emitiu.
 
-### 10. Caches de produção — **a ordem importa**
+### 10. Migrations e caches de produção — **a ordem importa**
 
 ```bash
+php artisan migrate --force   # ⚠️ ANTES dos caches — e depois do backup (item 11)
 php artisan config:cache
 php artisan route:cache
-php artisan view:cache     # ⚠️ ANTES do build, sempre
+php artisan view:cache        # ⚠️ ANTES do build, sempre
 npm run build
 ```
 
+Rodando em Docker na VPS, cada linha de artisan vira
+`docker compose exec -T app php artisan ...`.
+
 `route:cache` falha se houver rota apontando para classe inexistente — é um bom teste de
 sanidade antes de subir.
+
+**Por que o `migrate` vem primeiro.** No instante em que o `config:cache` grava
+`bootstrap/cache/config.php`, o Laravel **deixa de ler o `.env`**: dali em diante vale o
+retrato que aquele comando tirou. E esse arquivo **fica no servidor entre deploys** — do
+segundo deploy em diante você começa a janela com um config cache velho no disco. Se você
+acabou de corrigir a senha do banco (item 6) e roda o `migrate` depois do `config:cache`,
+ele vai para a configuração antiga: na melhor das hipóteses falha na autenticação; na pior,
+funciona — no banco errado. Rodando antes de qualquer cache, o `migrate` lê o `.env` de
+verdade, que é o único arquivo que você editou à mão.
+
+O `--force` não é enfeite: fora do ambiente `local` o Artisan pede confirmação interativa, e
+num script de deploy não há ninguém para responder. Sem ele o comando aborta sem migrar
+nada — e o deploy continua, aparentemente bem-sucedido, com o código novo sobre o banco
+velho.
+
+> ⚠️ **Backup antes do migrate**, sempre (item 11). Migration não é reversível na prática: o
+> `down()` desfaz a estrutura, nunca o dado que a estrutura levou junto. Use
+> `php artisan migrate:status` para ver o que vai rodar **antes** de rodar.
 
 **Por que `view:cache` vem antes do `npm run build`** (medido em 02/08/2026): o
 `resources/css/app.css` declara
@@ -170,6 +217,39 @@ desconfiar que aconteceu, compare o tamanho do CSS gerado em `public/build/asset
 > O número saudável **cresce junto com o app** (06/08/2026: ~134 kB, depois do CSS do 2FA),
 > então não trate "129 kB" como meta — compare com o último deploy que você sabe que ficou
 > bom. O sinal de alarme é uma queda brusca, não o valor absoluto.
+
+### 10.1. Apagar o `public/hot` — senão o app sobe sem CSS e sem JS
+
+```bash
+rm -f public/hot
+```
+
+**Por quê:** `public/hot` é um arquivo que o **Vite cria ao iniciar o `npm run dev`** e
+apaga ao encerrar — com o endereço do servidor de desenvolvimento dentro. É por ele que a
+directive `@vite` decide de onde puxar os assets, e a decisão é literalmente esta:
+
+```php
+// Illuminate\Foundation\Vite
+public function isRunningHot()
+{
+    return is_file($this->hotFile());   // hotFile() = public_path('/hot')
+}
+```
+
+**Não há checagem de ambiente.** Com `APP_ENV=production`, `APP_DEBUG=false` e o
+`public/build` no lugar, basta o arquivo existir para todas as páginas apontarem `<script>`
+e `<link>` para `http://127.0.0.1:5173` — que não existe na VPS. O resultado é o app inteiro
+**sem estilo e sem JavaScript**, com erro só no console do navegador. E como o `public/hot`
+está no `.gitignore`, ele não chega pelo `git pull`: ele aparece quando alguém roda
+`npm run dev` **na própria VPS** para "testar rapidinho" e mata o processo com Ctrl+C num
+momento em que o Vite não conseguiu limpar (ou fecha o terminal).
+
+Por isso o `rm -f` entra no script de deploy, depois do `npm run build`: é barato, é
+idempotente e cobre o caso de alguém ter mexido no servidor entre um deploy e outro. O
+`.dockerignore` também lista o arquivo, para ele nunca entrar numa imagem.
+
+> Sintoma para reconhecer sem investigar: o HTML servido tem `src="http://127.0.0.1:5173/..."`
+> ou `/@vite/client`. Confira com `curl -s https://app.stabilmoney.com.br | grep 5173`.
 
 ### 11. Backup do banco — automático, testado e fora da VPS
 

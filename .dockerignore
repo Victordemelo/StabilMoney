@@ -1,0 +1,97 @@
+# ---------------------------------------------------------------------------
+# O que NÃO entra no contexto de build da imagem.
+#
+# ⚠️ Leia antes de confiar neste arquivo: HOJE o Dockerfile não tem nenhum
+# `COPY` da aplicação. O docker-compose monta o projeto por bind mount
+# (`.:/var/www/html`), então o código chega no container pelo volume, não pela
+# imagem — não existe imagem de produção de verdade neste repositório, só uma
+# imagem de runtime para desenvolvimento.
+#
+# Mesmo assim este arquivo já faz UMA coisa hoje: o `build.context: .` do
+# compose envia o diretório inteiro ao daemon do Docker a cada build, e sem
+# estas linhas isso inclui `.git`, `node_modules` e `vendor` — centenas de
+# megabytes copiados para ser descartados em seguida.
+#
+# Ele passa a valer de verdade no dia em que houver um `COPY . .`. Dois cuidados
+# para esse dia:
+#
+#   1. Ignorar `vendor` e `node_modules` obriga a imagem a rodar
+#      `composer install --no-dev --optimize-autoloader` e a receber os assets
+#      já construídos (ver a linha de `public/build` abaixo).
+#   2. `.dockerignore` não preserva diretório vazio. Ignorar o CONTEÚDO de
+#      `storage/framework/*` faz os diretórios sumirem da imagem, e o Laravel
+#      morre com "Please provide a valid cache path". O `COPY` tem de vir
+#      acompanhado de um
+#      `RUN mkdir -p storage/framework/{cache,sessions,views} storage/logs`.
+# ---------------------------------------------------------------------------
+
+# --- Controle de versão e metadados do repositório -------------------------
+.git
+.gitattributes
+.gitignore
+.github
+.claude
+
+# --- Dependências: reinstaladas dentro da imagem ---------------------------
+# Copiar do host arrisca trazer binário compilado para outro sistema
+# (a máquina do Victor é macOS; a imagem é Debian).
+node_modules
+vendor
+
+# --- Segredos ---------------------------------------------------------------
+# O .env NUNCA vai para dentro da imagem: quem tem a imagem teria a APP_KEY, a
+# senha do banco e a do SMTP. Em produção ele é montado/injetado no runtime.
+# O .env.example fica, porque é documentação e não tem segredo nenhum.
+.env
+.env.*
+!.env.example
+auth.json
+
+# --- Estado de execução (é do servidor, não do código) ---------------------
+# storage/backups tem DUMP DO BANCO: dados pessoais de todos os usuários em
+# texto legível depois de descompactar. Nunca dentro de uma imagem.
+storage/backups
+storage/logs
+storage/framework/cache
+storage/framework/sessions
+storage/framework/views
+storage/app/public
+storage/pail
+storage/*.key
+public/storage
+
+# --- Assets construídos -----------------------------------------------------
+# ⚠️ `public/hot` é o arquivo que o Vite cria em `npm run dev`. Se ele entrar na
+# imagem, o `Vite::isRunningHot()` (que é literalmente um is_file, sem olhar
+# ambiente) manda TODAS as páginas buscarem CSS e JS em localhost:5173 — e o app
+# sobe sem estilo nenhum em produção. Ver o item 10.1 do checklist de publicação.
+public/hot
+# `public/build` sai porque o build correto acontece no deploy, na ordem
+# view:cache → npm run build (item 10 do checklist), e um build velho do host
+# entregaria CSS defasado. ⚠️ Se um dia a imagem passar a receber os assets já
+# construídos de fora, esta linha tem de sair.
+public/build
+
+# --- Não fazem parte do que roda em produção -------------------------------
+# `scripts/` NÃO está aqui de propósito: backup-db.sh e restore-db.sh rodam na
+# VPS (itens 11 e 12 do checklist).
+tests
+docs
+design
+playwright-report
+test-results
+phpunit.xml
+.phpunit.cache
+.phpunit.result.cache
+pint.json
+playwright.config.js
+
+# --- Sujeira de editor e de sistema operacional ----------------------------
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+.zed
+.fleet
+.nova
+.phpactor.json
