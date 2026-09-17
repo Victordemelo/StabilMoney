@@ -1385,6 +1385,12 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   segurança**, sem olhar o caminho. Ao trocar `ADMIN_PANEL_PATH`, rode `config:cache` e
   `route:cache` juntos. ⚠️ Se o `SecurityHeaders` (ou outro middleware) for para a pilha global
   um dia, ele entra ANTES deste `append`.
+- **`admin.path` nunca fica vazio** (16/09/2026 — `CaminhoDoPainelNuncaVazioTest`). Com
+  `ADMIN_PANEL_PATH=` sem valor, o `env()` devolvia `''` (o padrão só vale quando a chave NÃO
+  existe) e as rotas do painel eram registradas na RAIZ do site: `GET /` caía no login do painel
+  e, com ele desligado, a página inicial do app virava 404. O `config/admin.php` normaliza antes:
+  vazio, só barras ou só espaços ⇒ `painel_admin`; barras nas pontas saem. Comparação com `''`,
+  não `?:` — com `?:` o caminho "0" também seria trocado.
 - **Guard PRÓPRIO (`admin`) e tabela própria (`admins`)** — nunca uma flag em `users`. Com
   flag, qualquer falha na área logada do app (XSS, IDOR, sessão sequestrada) viraria acesso
   ao painel. O cookie do app não autentica no painel e vice-versa. ⚠️ `users.is_admin`

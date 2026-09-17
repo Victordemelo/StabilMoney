@@ -1,5 +1,8 @@
 <?php
 
+// Caminho do painel, normalizado ANTES de virar config (ver a seção "Caminho base").
+$caminhoDoPainel = trim((string) env('ADMIN_PANEL_PATH', ''), " \t/");
+
 return [
 
     /*
@@ -28,9 +31,19 @@ return [
     | secreta não protege nada sozinha), mas tira o painel dos caminhos que os
     | scanners automáticos testam primeiro.
     |
+    | ⚠️ NUNCA pode ficar vazio. As rotas do painel usam este valor como prefixo
+    | (routes/admin.php), e prefixo vazio as registra na RAIZ do site: `GET /`
+    | passava a cair na tela de login do painel e, com o painel desligado, a página
+    | inicial do app inteiro virava 404. Bastava deixar `ADMIN_PANEL_PATH=` sem
+    | valor no `.env` — o `env()` só aplica o padrão quando a chave NÃO existe.
+    |
+    | Por isso: vazio, só barras ou só espaços caem no padrão, e barras nas pontas
+    | saem (`/segredo/` vira `segredo`). A comparação é com `''`, não um `?:`: com
+    | `?:`, o caminho "0" também seria trocado pelo padrão.
+    |
     */
 
-    'path' => env('ADMIN_PANEL_PATH', 'painel_admin'),
+    'path' => $caminhoDoPainel === '' ? 'painel_admin' : $caminhoDoPainel,
 
     /*
     |--------------------------------------------------------------------------
