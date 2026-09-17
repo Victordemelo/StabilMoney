@@ -204,7 +204,8 @@ tests/js/                   # Vitest + jsdom (`npm run test:js`, roda no HOST): 
                             # e launch (419, fila, client_uuid). Importam os módulos REAIS de
                             # resources/js/sm/ — validado por mutação em 16/09: desligar a guarda da
                             # CSP derruba 6+ testes, trocar a vírgula decimal derruba 34.
-                            # ⚠️ O CI AINDA NÃO RODA estes testes (o ci.yml só tem PHP e Pint).
+                            # Rodam no CI (job `javascript`: `npm ci` + `npm run test:js`, Node 24),
+                            # verificado em container Linux x64 a partir de clone limpo em 16/09.
 tests/Feature/              # 1.167 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```

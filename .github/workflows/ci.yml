@@ -96,3 +96,42 @@ jobs:
           coverage: none
       - run: composer install --prefer-dist --no-interaction --no-progress
       - run: ./vendor/bin/pint --test
+
+  # ------------------------------------------------------------------------
+  # Testes de JavaScript (Vitest) — LIGADO em 16/09/2026.
+  #
+  # Até aqui o JS não tinha rede de segurança nenhuma no CI — e é nele que
+  # vivem a máscara de TODO campo de dinheiro (money.js) e a guarda que impede
+  # a navegação por pjax de virar bypass da CSP (nav.js). Um teste que só roda
+  # quando alguém lembra de rodar não protege nada.
+  #
+  # `npm ci`, nunca `npm install`: instala EXATAMENTE o package-lock.json, as
+  # mesmas versões testadas localmente. Verificado antes de ligar, num container
+  # Linux x64 a partir de um clone limpo — lockfile gerado em Mac ARM às vezes
+  # omite os binários nativos de Linux (rollup, esbuild, sharp) e quebra aqui.
+  #
+  # Node 24 = a mesma major do host de desenvolvimento. O package.json não tem
+  # `engines`, então fixar aqui evita que o runner troque de versão por baixo.
+  #
+  # Os e2e do Playwright NÃO rodam aqui: precisam do app de pé, com banco e
+  # e-mail, e cadastram usuários de verdade.
+  javascript:
+    name: Testes de JavaScript (Vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Instalar dependências JS
+        run: npm ci
+
+      - name: Rodar os testes de JavaScript
+        run: npm run test:js
