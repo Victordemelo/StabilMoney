@@ -145,6 +145,14 @@ class FaturaCrudTest extends TestCase
 
     public function test_paying_recurrence_marks_paid_and_generates_next(): void
     {
+        // Data CONGELADA num dia <= 8, o fechamento do cartão abaixo. O cenário exige a
+        // compra exatamente UM ciclo atrás, para a próxima ocorrência cair no ciclo aberto.
+        // Com `now()` solto, "dia 1 do mês passado" só é um ciclo atrás entre os dias 1 e 8;
+        // do dia 9 em diante vira DOIS ciclos, a próxima nasce num ciclo já fechado (o
+        // catch-up de um ciclo por clique, correto) e a última asserção falhava — o teste
+        // passou no dia em que foi escrito (02/09) e quebrou sozinho no dia 9.
+        Carbon::setTestNow('2026-09-02');
+
         $this->card->update(['closing_day' => 8, 'due_day' => 15]);
 
         // A ocorrência é lançada num ciclo que JÁ FECHOU: só então a próxima
@@ -191,6 +199,8 @@ class FaturaCrudTest extends TestCase
         );
         [$inicio, $fim] = $this->card->fresh()->billingCycle();
         $this->assertTrue($proxima->date->greaterThan($inicio) && $proxima->date->lessThanOrEqualTo($fim));
+
+        Carbon::setTestNow();
     }
 
     public function test_paying_already_paid_recurrence_does_not_duplicate(): void
