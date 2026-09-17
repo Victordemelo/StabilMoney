@@ -19,7 +19,9 @@ use Illuminate\Support\Facades\Route;
 | do app, uma linha fora do lugar herdaria o middleware errado sem ninguém notar.
 |
 | CAMADAS, na ordem em que uma requisição as atravessa:
-|   1. `PainelAdminLigado`  — desligado no .env, tudo aqui é 404.
+|   1. `PainelAdminLigado`  — desligado no .env, tudo aqui é 404. Roda ANTES do
+|      roteador (pilha global, `bootstrap/app.php`) e de novo aqui, como rede de
+|      segurança: só na rota ele chegava tarde (405, 419). Ver o docblock dele.
 |   2. `throttle`           — limites por IP, mais apertados que os do app.
 |   3. `auth:admin`         — sessão do guard próprio (a do app não vale).
 |   4. `ExigeDoisFatoresDoAdmin` — TOTP obrigatório, sem exceção.

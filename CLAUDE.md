@@ -1370,9 +1370,21 @@ Rotas em **`routes/admin.php`** (arquivo próprio, carregado no `bootstrap/app.p
 `config/admin.php`, dados via `AdminPanelService`, views em `resources/views/admin/` com os
 layouts `layouts/admin` e `layouts/admin-auth`.
 
-- **Desligado por padrão.** `ADMIN_PANEL_ENABLED=false` ⇒ toda rota do painel é **404** (não
-  403, não tela de login): quem varre o site nem descobre que existe. Caminho base em
-  `ADMIN_PANEL_PATH` (padrão `painel_admin`). Chaves documentadas no `.env.example`.
+- **Desligado por padrão.** `ADMIN_PANEL_ENABLED=false` ⇒ qualquer verbo em qualquer caminho sob
+  o prefixo responde **o mesmo 404 de uma URL inexistente** — status, página e headers; nada de
+  405, 419, `Allow` ou cookie de sessão. Caminho base em `ADMIN_PANEL_PATH` (padrão
+  `painel_admin`). Chaves documentadas no `.env.example`. `PainelAdminDesligadoNaoSeRevelaTest`
+  compara a resposta inteira com a de `/nao_existe`.
+- **O interruptor roda na pilha GLOBAL, no fim** (`$middleware->append` em `bootstrap/app.php`,
+  16/09/2026, A-1 da auditoria de 06/09). Só na rota ele chegava depois do roteador (405; 200 com
+  `Allow` no OPTIONS) e do grupo `web` (419, `X-RateLimit-*`, cookie de sessão, CSP). Regras:
+  (1) **tem de ser o ÚLTIMO middleware global** — um global acrescentado depois dele roda para
+  `/nao_existe` e não para o prefixo, e `prepend` faria o prefixo dar 404 onde qualquer URL dá
+  413/503; (2) **o 404 é o do roteador** (`(new RouteCollection)->match()`), nunca `abort(404)`,
+  cuja mensagem vazia no JSON de erro denuncia o prefixo; (3) **continua na rota como rede de
+  segurança**, sem olhar o caminho. Ao trocar `ADMIN_PANEL_PATH`, rode `config:cache` e
+  `route:cache` juntos. ⚠️ Se o `SecurityHeaders` (ou outro middleware) for para a pilha global
+  um dia, ele entra ANTES deste `append`.
 - **Guard PRÓPRIO (`admin`) e tabela própria (`admins`)** — nunca uma flag em `users`. Com
   flag, qualquer falha na área logada do app (XSS, IDOR, sessão sequestrada) viraria acesso
   ao painel. O cookie do app não autentica no painel e vice-versa. ⚠️ `users.is_admin`
