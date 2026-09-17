@@ -1036,6 +1036,11 @@ dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypt
   empurra para "Senha@123", que passa em tudo e está em qualquer lista de ataque.
   `uncompromised()` usa k-anonimato (envia 5 caracteres do SHA-1, nunca a senha) e é
   **desligado em teste** (`runningUnitTests`) p/ a suíte não depender de rede.
+  ⚠️ **`uncompromised()` FALHA ABERTO:** se a consulta ao Pwned Passwords der erro, o
+  `NotPwnedVerifier` do framework engole a exceção e ACEITA a senha. Nenhum teste pega isso (a
+  regra é desligada em teste). Ao atualizar `guzzlehttp/*`, conferir à mão que
+  `Validator::make(['p' => 'password'], ['p' => Password::min(8)->uncompromised()])->fails()`
+  continua `true` no tinker.
 - **Headers de segurança:** `App\Http\Middleware\SecurityHeaders` (append no grupo `web`) —
   CSP, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, e HSTS
   **só sobre HTTPS**. A CSP entrega `connect-src`/`img-src` na própria origem,
@@ -1446,6 +1451,16 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   suíte verificada verde antes e depois. Quando o job reprovar, rode
   `docker compose exec app ./vendor/bin/pint` e commite o resultado; ele nunca aponta erro de
   lógica, só de estilo. ⚠️ Pint **não** toca em `.blade.php` — view continua sem formatador.
+- **Auditoria de dependências: o job `auditoria` do CI está LIGADO** (16/09/2026). Roda
+  `composer audit --locked --abandoned=report`, com as dependências de dev incluídas (não existe
+  imagem de produção; o vendor inteiro sobe junto). Nasceu de 18 advisories (9 altos) em
+  guzzle/psr7/commonmark, que chegam pelo `laravel/framework` sem ninguém ver.
+  ⚠️ **Pode ficar vermelho sem mudança de código** (advisory novo para versão já travada no lock).
+  Procedimento no comentário do `ci.yml`: `composer update <pacote>`, acrescentando só as
+  dependências que o Composer disser que ficaram presas (o `-W` sobe pacotes à toa); conferir que
+  nada pulou de major e que o framework segue na 12.x; suíte verde; commitar o lock. Sem correção
+  publicada: `config.audit.ignore` no `composer.json` com `{"ID": "motivo e data"}` — nunca
+  desligar o job.
 - **Fluxo git — modelo principal/secundário (jun/2026):** há um **agente principal** (o que
   conversa com o Victor) e **agentes secundários** (subagentes despachados para implementar
   partes em paralelo). **SOMENTE o agente principal commita e dá `push`.** Agentes secundários

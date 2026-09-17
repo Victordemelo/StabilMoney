@@ -135,3 +135,69 @@ jobs:
 
       - name: Rodar os testes de JavaScript
         run: npm run test:js
+
+  # ------------------------------------------------------------------------
+  # Auditoria de segurança das dependências PHP (composer audit) — LIGADO em
+  # 16/09/2026.
+  #
+  # Nasceu de uma rodada que achou 18 advisories (9 de severidade alta) em três
+  # pacotes que o composer.json nem cita: guzzlehttp/guzzle, guzzlehttp/psr7 e
+  # league/commonmark chegam pelo laravel/framework. Dependência transitiva
+  # envelhece sem ninguém ver — só uma checagem automática vê.
+  #
+  # `--locked` audita o composer.lock sem instalar o vendor: não precisa de .env,
+  # de extensão nem de `composer install`, e roda em segundos. E é o lock que
+  # decide o que vai para produção, então é ele que interessa.
+  #
+  # Dependências de DEV entram de propósito (sem `--no-dev`). Hoje não existe
+  # imagem de produção (ver o .dockerignore): o container monta o projeto com o
+  # vendor INTEIRO, e o plano para a VPS é subir o mesmo docker-compose — ou
+  # seja, phpunit, collision e companhia iriam junto. E mesmo quando o deploy
+  # usar `--no-dev`, esses pacotes continuam rodando neste CI e na máquina de
+  # quem desenvolve.
+  #
+  # `--abandoned=report`, e não o `fail` que é o padrão do Composer. Pacote
+  # abandonado não é falha explorável, e sair dele é uma migração de biblioteca,
+  # não um `composer update` — reprovar por isso deixaria o job vermelho por
+  # semanas, e um CI vermelho permanente treina todo mundo a ignorar o
+  # resultado. Assim, vermelho aqui significa uma coisa só: vulnerabilidade
+  # conhecida, aja agora. O abandono continua aparecendo no log. O valor vai
+  # explícito porque o padrão já mudou entre versões (`report` até o Composer
+  # 2.6, `fail` desde a 2.7).
+  #
+  # ⚠️ Este job pode ficar vermelho SEM mudança nenhuma de código: basta sair um
+  # advisory novo para uma versão que já está no lock. Não é culpa do commit que
+  # disparou o CI — e desligar o job não é a saída. Quando acontecer:
+  #   1. Ler no log o pacote, as versões afetadas e o link do advisory.
+  #   2. `docker compose exec app composer update <pacote>`. Se o Composer
+  #      recusar porque uma dependência ficou presa no lock, acrescente-a à
+  #      lista (ou use `--with-all-dependencies`, que também pode subir outros
+  #      pacotes sem necessidade). Conferir no diff do composer.lock que o
+  #      laravel/framework continua na 12.x e que nenhum pacote pulou de MAJOR.
+  #   3. `docker compose exec app php artisan test` verde, e commitar o lock.
+  #   4. Ainda não existe versão corrigida, ou o advisory comprovadamente não
+  #      alcança o app? Registrar a exceção no composer.json, em
+  #      `config.audit.ignore`, no formato {"ID-do-advisory": "motivo e data"} —
+  #      o Composer mostra o motivo no log —, e revisitar quando sair a correção.
+  #
+  # Limite conhecido: só roda em push e PR. Advisory publicado numa semana sem
+  # commits só aparece no push seguinte.
+  auditoria:
+    name: Auditoria de dependências PHP (composer audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      # Só para ter o Composer: o audit não executa código do app, então não
+      # precisa das extensões nem do memory_limit do job de testes.
+      - name: Instalar PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Auditar o composer.lock
+        run: composer audit --locked --abandoned=report --no-interaction
