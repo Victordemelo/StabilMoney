@@ -6,10 +6,11 @@ use App\Models\Account;
 use App\Support\Brl;
 
 /**
- * Mesmas regras da criação — a posse da conta em si
- * é verificada pela AccountPolicy no controller.
+ * Mesmas regras da criação — a posse da conta em si é verificada pela
+ * AccountPolicy, já no `authorize()` deste request (antes de qualquer regra) e
+ * de novo no controller.
  *
- * Com DUAS regras a mais, ambas nascidas do mesmo princípio: numa conta que já
+ * Com TRÊS regras a mais, todas nascidas do mesmo princípio: numa conta que já
  * tem dinheiro, editar o cadastro não pode destruir (nem "desmentir") o dinheiro
  * que já está lá.
  *
@@ -30,6 +31,28 @@ use App\Support\Brl;
  */
 class UpdateAccountRequest extends StoreAccountRequest
 {
+    /**
+     * Posse PRIMEIRO, antes de qualquer regra (A-3 da auditoria de 05/09/2026).
+     *
+     * O Form Request resolve a autorização antes de rodar o validador, enquanto a
+     * policy do controller só roda DEPOIS da validação. As três regras deste
+     * arquivo leem a conta da rota para montar a mensagem de erro (nome, tipo,
+     * saldo, uso do cheque especial), e cada uma dependia de lembrar da própria
+     * guarda de posse. A da trava de classe esqueceu: um PATCH com o id de uma
+     * conta alheia devolvia o nome e o tipo dela, e a confirmação de que ela tinha
+     * dinheiro, antes do 403.
+     *
+     * Com a policy aqui, conta de outra família recebe o mesmo 403 sem que regra
+     * nenhuma chegue a olhar para ela — inclusive as que ainda vão ser escritas.
+     * As guardas dentro de cada regra continuam como segunda linha.
+     */
+    public function authorize(): bool
+    {
+        $conta = $this->route('account');
+
+        return $conta instanceof Account && $this->user()->can('update', $conta);
+    }
+
     public function rules(): array
     {
         $rules = parent::rules();
@@ -37,7 +60,18 @@ class UpdateAccountRequest extends StoreAccountRequest
         $rules['type'][] = function (string $attribute, mixed $value, \Closure $fail): void {
             $account = $this->route('account');
 
-            if ($account instanceof Account && ($erro = $account->travaDeClasse(is_string($value) ? $value : null))) {
+            // Mesma guarda de posse das outras duas regras — e a que faltava. A
+            // mensagem da trava cita o NOME e o TIPO da conta e confirma que ela
+            // "já tem saldo, lançamentos ou dinheiro guardado". Conta de outra
+            // família: silêncio aqui, e o 403 vem da policy. Da família é
+            // `ownerId()`, não o id de quem está logado: o dependente edita as
+            // contas do titular e continua recebendo a trava.
+            if (! $account instanceof Account
+                || (int) $account->user_id !== (int) $this->user()->ownerId()) {
+                return;
+            }
+
+            if ($erro = $account->travaDeClasse(is_string($value) ? $value : null)) {
                 $fail($erro);
             }
         };

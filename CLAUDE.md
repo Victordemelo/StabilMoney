@@ -939,7 +939,10 @@ com cenário, esperado × obtido e arquivo:linha de cada item). Testes:
   disponível projetado com saldo inicial e limite NOVOS não pode ficar abaixo de `−limite`. As
   duas regras de conta têm **guarda de posse** — rodam antes da policy, e a mensagem revelava
   saldo de conta alheia antes do 403. Regra de validação que leia dinheiro do `route()` precisa
-  checar `user_id === ownerId()` primeiro.
+  checar `user_id === ownerId()` primeiro. **Desde 16/09/2026 o `UpdateAccountRequest` também chama
+  a policy no `authorize()`**, que roda ANTES do validador (A-3, `EditarContaAlheiaNaoVazaDadosTest`):
+  a trava de classe tinha esquecido a guarda e devolvia nome e tipo da conta alheia. Prefira isso
+  em Form Request novo que leia o model da rota — protege também as regras que ainda vão ser escritas.
 - **Meta com prazo vencido é editável**: `after_or_equal:hoje` só quando `target_date` muda.
 - **Aporte/resgate/investimento com valor inicial levam `client_uuid`** (índice único por pai
   em `goal_contributions`/`investment_contributions`; fast-path fora do lock + exceção de
