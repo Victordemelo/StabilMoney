@@ -105,7 +105,10 @@ class ModeracaoController extends Controller
 
         // A descrição é capturada ANTES do delete: depois, o id não identifica ninguém
         // e o histórico ficaria com uma linha muda.
-        $descricao = $user->name.' <'.$user->email.'>';
+        // Pelo `descreverAlvo`, e não montada à mão: com nome longo o corte levava justamente
+        // o E-MAIL embora — e este é o único registro que sobra de uma exclusão sem volta.
+        // Lá o nome encolhe e o e-mail fica inteiro.
+        $descricao = AdminAudit::descreverAlvo($user);
         $alvoId = $user->id;
 
         $user->delete();

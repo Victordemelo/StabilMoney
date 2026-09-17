@@ -9,6 +9,7 @@ use App\Models\Transaction;
 use App\Services\FaturaService;
 use App\Services\FundingService;
 use App\Support\Brl;
+use App\Support\Texto;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -324,7 +325,10 @@ class FaturaController extends Controller
                     'amount' => $totalAgora,
                     'date' => $pagoEm->toDateString(),
                     'paid_at' => $pagoEm,
-                    'description' => 'Pagamento da fatura — '.$account->name,
+                    // O nome do cartão aceita 255 caracteres e a coluna também: com o
+                    // prefixo, um nome longo estourava o `varchar(255)` e o MySQL
+                    // respondia 1406 — HTTP 500 no pagamento (M-1). Encurta só o nome.
+                    'description' => Texto::paraColuna($account->name, antes: 'Pagamento da fatura — '),
                     // Marca a linha como QUITAÇÃO, não gasto novo: o dinheiro sai (entra
                     // no saldo e no extrato), mas o gasto já foi contado quando a compra
                     // entrou no cartão. Sem isto o dashboard somava os dois e dobrava a

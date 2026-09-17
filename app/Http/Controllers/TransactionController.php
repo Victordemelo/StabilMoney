@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\FundingService;
 use App\Support\Brl;
 use App\Support\FundingSource;
+use App\Support\Texto;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -335,13 +336,13 @@ class TransactionController extends Controller
                         'client_uuid' => $clientUuid,
                         'account_id' => $origem->id,
                         'type' => 'expense',
-                        'description' => $descricao !== '' ? $descricao : 'Transferência para '.$destino->name,
+                        'description' => $descricao !== '' ? $descricao : $this->descricaoDeTransferencia('expense', $destino->name),
                     ]);
 
                     Transaction::create($comum + [
                         'account_id' => $destino->id,
                         'type' => 'income',
-                        'description' => $descricao !== '' ? $descricao : 'Transferência de '.$origem->name,
+                        'description' => $descricao !== '' ? $descricao : $this->descricaoDeTransferencia('income', $origem->name),
                     ]);
 
                     return $saida;
@@ -641,11 +642,23 @@ class TransactionController extends Controller
     /** "Transferência para X" na saída, "Transferência de X" na entrada. */
     private function descricaoPadraoDaPonta(Transaction $ponta, ?Transaction $outra): string
     {
-        $nomeDaOutra = $outra?->account?->name ?? 'outra conta';
+        return $this->descricaoDeTransferencia($ponta->type, $outra?->account?->name ?? 'outra conta');
+    }
 
-        return $ponta->type === 'expense'
-            ? 'Transferência para '.$nomeDaOutra
-            : 'Transferência de '.$nomeDaOutra;
+    /**
+     * Descrição padrão de uma ponta de transferência — a MESMA ao lançar e ao
+     * editar, para as duas telas não divergirem.
+     *
+     * O nome da conta aceita 255 caracteres e `transactions.description` também:
+     * somado ao prefixo, um nome longo estourava o `varchar(255)` e o MySQL
+     * recusava a transferência com erro 1406 (HTTP 500). Encurta só o nome.
+     */
+    private function descricaoDeTransferencia(string $tipo, string $nomeDaOutraConta): string
+    {
+        return Texto::paraColuna(
+            $nomeDaOutraConta,
+            antes: $tipo === 'expense' ? 'Transferência para ' : 'Transferência de ',
+        );
     }
 
     /**

@@ -39,7 +39,12 @@ final class AdminAudit
         ?string $motivo = null,
         ?string $alvoDescricao = null,
     ): AdminAuditLog {
-        $descricao = $alvoDescricao ?? ($alvo ? $alvo->name.' <'.$alvo->email.'>' : null);
+        $descricao = $alvoDescricao !== null
+            // Descrição pronta (o e-mail digitado num login que falhou, o "nome <e-mail>"
+            // que o `excluir` monta antes do delete): entra como veio, só que dentro da
+            // coluna. O log não pode falhar por causa de tamanho de texto.
+            ? Texto::paraColuna($alvoDescricao)
+            : ($alvo ? self::descreverAlvo($alvo) : null);
 
         $log = AdminAuditLog::create([
             'admin_id' => $admin?->id,
@@ -55,6 +60,23 @@ final class AdminAudit
         }
 
         return $log;
+    }
+
+    /**
+     * "Nome <e-mail>" de quem sofreu a ação, dentro dos 255 caracteres de `alvo_descricao`.
+     *
+     * Nome e e-mail aceitam 255 caracteres cada: juntos chegam a 513, e o MySQL recusava a
+     * linha com erro 1406 (M-2 da auditoria de 05/09/2026). A ação é gravada ANTES do log,
+     * então o banimento (ou a exclusão, que não tem volta) acontecia — e o que se perdia era
+     * justamente o registro dela e o alerta por e-mail, com o admin olhando para um HTTP 500.
+     *
+     * Quem encolhe é o NOME: depois de uma exclusão, o e-mail é o único identificador único
+     * que sobra da pessoa. Pública para quem precise montar a descrição antes de a pessoa
+     * deixar de existir (é o caso do `excluir` do painel).
+     */
+    public static function descreverAlvo(User $alvo): string
+    {
+        return Texto::paraColuna($alvo->name, depois: ' <'.$alvo->email.'>');
     }
 
     private static function avisar(

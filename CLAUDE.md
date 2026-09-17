@@ -1482,7 +1482,9 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   guard padrão é `admin`.
 - **Auditoria** em `admin_audit_logs` (`AdminAudit::registrar`): `admin_id` `nullOnDelete`,
   `target_user_id` **sem FK** (excluir a pessoa é uma das ações registradas — cascade apagaria
-  a prova), `alvo_descricao` guarda nome/e-mail no momento da ação. Login no painel, código TOTP
+  a prova), `alvo_descricao` guarda nome/e-mail no momento da ação — montada por
+  `AdminAudit::descreverAlvo()`: o nome encolhe e o e-mail fica inteiro (com o nome longo, antes, o
+  banimento inteiro falhava com erro 1406, e o corte levava justamente o e-mail do registro de exclusão). Login no painel, código TOTP
   errado, banir, desbanir e excluir disparam **`AlertaDoPainel`** por e-mail (`ADMIN_ALERT_EMAIL`, ou o
   e-mail do próprio admin).
 - **Sem protótipo do Claude Design**: as views seguem os tokens do design system, mas não
@@ -1525,6 +1527,12 @@ layouts `layouts/admin` e `layouts/admin-auth`.
 - **🚨 Coluna com cast `encrypted` é `text`, nunca `varchar`.** O cifrado do Laravel tem 200–400
   caracteres; `varchar(255)` estoura em MySQL (erro 1406) e **passa verde na suíte**, que roda em
   sqlite — sem limite de tamanho. Já mordeu duas vezes: `terms_accepted_ip` e `two_factor_secret`.
+- **🚨 Texto MONTADO pelo app (parte fixa + dado do usuário) passa por `Texto::paraColuna()` antes de
+  ir para `varchar`** (17/09/2026, M-1/M-2 — `NomeLongoNaoEstouraAColunaTest`). Cada campo respeita
+  `max:255`, mas a soma não: "Pagamento da fatura — " + nome de 255 é erro 1406 no MySQL (tela de erro
+  ao pagar a fatura) e passa verde em sqlite. Só a parte do usuário encolhe, a medida é em CARACTERES
+  (como a coluna utf8mb4) e o corte nunca parte grafema (👨‍👩‍👧, 🇧🇷, "ç" decomposto). **Não use
+  `Str::limit`**: devolve 258 caracteres para limite 255 e parte emoji composto ao meio.
 - **2FA ligado se pergunta por `$user->temDoisFatores()`**, nunca por `two_factor_secret !== null`:
   entre gerar o QR e confirmar o primeiro código o segredo já existe, mas cobrar o código ali
   trancaria a pessoa fora da conta. Rota nova que valide código de 2FA leva `throttle:dois-fatores`.

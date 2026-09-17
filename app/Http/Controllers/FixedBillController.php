@@ -11,6 +11,7 @@ use App\Models\Transaction;
 use App\Services\FixedBillService;
 use App\Services\FundingService;
 use App\Support\Brl;
+use App\Support\Texto;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -182,7 +183,13 @@ class FixedBillController extends Controller
                     // A competência continua contando como paga — FixedBillService
                     // olha a EXISTÊNCIA da transação (fixed_bill_id + competence).
                     'paid_at' => $caixa->isCash() ? $pagoEm : null,
-                    'description' => $conta->name.' — '.$competence->translatedFormat('F/Y'),
+                    // Nome da conta fixa (até 255) + competência não cabe no
+                    // `varchar(255)`: o MySQL recusaria o pagamento com 1406. Quem
+                    // encolhe é o NOME — o "— setembro/2026" diz qual mês foi pago.
+                    'description' => Texto::paraColuna(
+                        $conta->name,
+                        depois: ' — '.$competence->translatedFormat('F/Y'),
+                    ),
                     'fixed_bill_id' => $conta->id,
                     'competence' => $competence->toDateString(),
                 ]),
