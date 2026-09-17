@@ -608,13 +608,64 @@ let avisoOutroDono;
 let revisaoEl = null;
 let revisaoDispensada = false; // "×" esconde só nesta visita, não apaga nada
 
-/** "R$ 1.234,56" — mesmo formato do Brl::format do servidor. */
-function brl(valor) {
-    const n = Number(valor) || 0;
+/**
+ * Lê o `amount` guardado na fila com as MESMAS regras do servidor: a normalização do
+ * `NormalizesMoneyInput::normalizeMoneyField` + as regras `numeric` e `decimal:0,2`.
+ *
+ * O payload guarda o valor COMO A MÁSCARA DEIXOU ("31.000,00") — é assim que ele vai para
+ * o servidor. `Number("31.000,00")` é NaN, e o `|| 0` de antes transformava isso em
+ * R$ 0,00 em TODO item do aviso de lançamentos retidos (P-3 da auditoria de 06/09/2026).
+ * Ali o valor é o que a pessoa usa para reconhecer um dinheiro que ainda não chegou ao
+ * servidor: zero é o pior número possível para errar.
+ *
+ * Formatos que chegam aqui: o da máscara atual ("1.300,00") e, em item antigo da fila,
+ * digitação livre ("1300", "1.300", "1234.5", "R$ 1.234,56").
+ * ⚠️ Ponto seguido de EXATAMENTE 3 dígitos é separador de MILHAR: "800.123" é 800 mil,
+ * não 800 reais — no servidor também.
+ *
+ * Devolve `null` quando o servidor não gravaria valor nenhum (vazio, texto, três casas
+ * decimais, notação científica): aí não existe número verdadeiro para mostrar.
+ */
+function lerValor(bruto) {
+    if (typeof bruto === 'number') return Number.isFinite(bruto) ? bruto : null;
+    if (typeof bruto !== 'string') return null;
+
+    // Na ordem do servidor: o middleware TrimStrings (que apara espaço Unicode — pelo
+    // menos tudo o que o `trim()` do JS apara), depois `str_replace(['R$', ' '], '')` e o
+    // `trim()` do PHP, que só conhece " \n\r\t\v\0". Aparar ali com o `trim()` do JS
+    // aceitaria o espaço não separável (U+00A0) que o `Intl` põe depois do "R$" — e o
+    // servidor recusa esse valor.
+    let valor = bruto.trim().split('R$').join('').split(' ').join('')
+        .replace(/^[ \n\r\t\v\0]+|[ \n\r\t\v\0]+$/g, '');
+
+    if (valor.includes(',')) {
+        valor = valor.split('.').join('').split(',').join('.'); // "1.234,56" → "1234.56"
+    } else if (/^-?\d{1,3}(\.\d{3})+$/.test(valor)) {
+        valor = valor.split('.').join(''); // só milhar: "1.234" → "1234"
+    }
+
+    // `numeric` + `decimal:0,2`: sinal opcional, dígitos e no máximo duas casas. Conferir
+    // o formato, e não só o `Number()`: o JS aceitaria "1e3", "0x10" e "Infinity", que o
+    // servidor recusa — e o aviso mostraria um valor que nunca vai existir.
+    if (!/^[+-]?(\d+(\.\d{0,2})?|\.\d{1,2})$/.test(valor)) return null;
+
+    return Number(valor);
+}
+
+/** "R$ 1.234,56" · negativo: "−R$ 1.234,56" — o mesmo formato do Brl::format do servidor. */
+function brl(n) {
     return (n < 0 ? '−' : '') + 'R$ ' + Math.abs(n).toLocaleString('pt-BR', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     });
+}
+
+/** O valor de um item no aviso — ou a verdade, quando não há número para mostrar. */
+function rotuloDoValor(bruto) {
+    if (bruto === undefined || bruto === null || String(bruto).trim() === '') return 'sem valor';
+
+    const n = lerValor(bruto);
+    return n === null ? 'valor não reconhecido' : brl(n);
 }
 
 function botao(rotulo, cor, onClick) {
@@ -692,8 +743,8 @@ function renderRevisao(itens, { discreto = false } = {}) {
         texto.style.flex = '1 1 200px';
         const desc = (item.payload?.description || '').trim() || 'Lançamento';
         texto.textContent = item.needsFunding
-            ? `${desc} (${brl(item.payload?.amount)}) — o saldo não cobre: escolha de onde sai o dinheiro.`
-            : `${desc} (${brl(item.payload?.amount)}) — ${item.motivo || 'não foi possível sincronizar.'}`;
+            ? `${desc} (${rotuloDoValor(item.payload?.amount)}) — o saldo não cobre: escolha de onde sai o dinheiro.`
+            : `${desc} (${rotuloDoValor(item.payload?.amount)}) — ${item.motivo || 'não foi possível sincronizar.'}`;
         linha.appendChild(texto);
 
         if (item.needsFunding) {

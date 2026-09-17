@@ -617,6 +617,14 @@ O mesmo banner é a tela dos itens **`failed`** (422), que antes contavam no sel
 pelo drain e não tinham onde ser vistos: agora dão "Tentar de novo" e "Descartar" (com confirmação).
 **Nada é apagado sozinho.** Coberto por `FilaNaoEscolheFonteTest`.
 
+**O valor mostrado no aviso de itens retidos segue as regras do SERVIDOR** (17/09/2026, P-3 —
+`offline-queue.js::lerValor`). `Number("31.000,00")` dava NaN e o aviso mostrava R$ 0,00 — pior:
+"1.300" aparecia como R$ 1,30 e "800.123" como R$ 800,12, mil vezes menos. O que o servidor não
+gravaria aparece como "valor não reconhecido", nunca um número inventado. A tabela
+`tests/js/fixtures/valores-da-fila-offline.json` é compartilhada pelo `offline-queue-revisao.test.js`
+(o que o aviso mostra) e pelo `ValorDaFilaOfflineIgualAoServidorTest` (o que o servidor grava).
+**Mexeu no `NormalizesMoneyInput`? O teste PHP aponta o JS que precisa acompanhar.**
+
 ### Transferência entre contas (02/09/2026) — `TransferenciaEntreContasTest`
 
 Mover dinheiro entre corrente e poupança da família **sem inflar receitas e despesas**. Antes

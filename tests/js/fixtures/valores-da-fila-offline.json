@@ -1,0 +1,28 @@
+{
+    "_leia": "Tabela ÚNICA para os dois lados. tests/js/offline-queue-revisao.test.js confere o que o aviso da fila offline MOSTRA; tests/Feature/ValorDaFilaOfflineIgualAoServidorTest.php manda cada entrada ao servidor de verdade e confere o que ele GRAVA (ou recusa). Se as regras do NormalizesMoneyInput mudarem, o teste PHP fica vermelho e aponta o JS que precisa acompanhar. Rótulo 'R$ ...' = o servidor grava exatamente esse valor; 'valor não reconhecido'/'sem valor' = o servidor recusa o campo.",
+    "casos": [
+        { "entrada": "31.000,00", "rotulo": "R$ 31.000,00", "porque": "o formato da máscara atual — o caso do P-3" },
+        { "entrada": "0,01", "rotulo": "R$ 0,01", "porque": "o menor valor aceito" },
+        { "entrada": "999.999.999.999,99", "rotulo": "R$ 999.999.999.999,99", "porque": "o teto (TETO_MONETARIO)" },
+        { "entrada": "R$ 1.234,56", "rotulo": "R$ 1.234,56", "porque": "com o símbolo R$ e espaço" },
+        { "entrada": " 42,00 ", "rotulo": "R$ 42,00", "porque": "espaços nas pontas" },
+        { "entrada": "\u00a031.000,00", "rotulo": "R$ 31.000,00", "porque": "espaço não separável na ponta (o TrimStrings apara)" },
+        { "entrada": "1300", "rotulo": "R$ 1.300,00", "porque": "digitação livre de item antigo da fila" },
+        { "entrada": "1.300", "rotulo": "R$ 1.300,00", "porque": "só separador de milhar" },
+        { "entrada": "800.123", "rotulo": "R$ 800.123,00", "porque": "ponto + 3 dígitos é MILHAR, não decimal" },
+        { "entrada": "1234.5", "rotulo": "R$ 1.234,50", "porque": "ponto decimal sem vírgula" },
+        { "entrada": "12.34", "rotulo": "R$ 12,34", "porque": "ponto + 2 dígitos é decimal" },
+        { "entrada": ",5", "rotulo": "R$ 0,50", "porque": "vírgula sem inteiro" },
+        { "entrada": "5.", "rotulo": "R$ 5,00", "porque": "ponto final sem casas" },
+        { "entrada": "+5", "rotulo": "R$ 5,00", "porque": "sinal de mais" },
+        { "entrada": "1.234,567", "rotulo": "valor não reconhecido", "porque": "três casas decimais (decimal:0,2)" },
+        { "entrada": "1.2345", "rotulo": "valor não reconhecido", "porque": "quatro dígitos depois do ponto não é milhar" },
+        { "entrada": "1e3", "rotulo": "valor não reconhecido", "porque": "notação científica: o Number() do JS aceitaria" },
+        { "entrada": "0x1A", "rotulo": "valor não reconhecido", "porque": "hexadecimal: o Number() do JS aceitaria" },
+        { "entrada": "Infinity", "rotulo": "valor não reconhecido", "porque": "o Number() do JS aceitaria" },
+        { "entrada": "1.2.3", "rotulo": "valor não reconhecido", "porque": "dois pontos" },
+        { "entrada": "R$\u00a01.234,56", "rotulo": "valor não reconhecido", "porque": "espaço não separável depois do R$ (o formato do Intl com moeda)" },
+        { "entrada": "abc", "rotulo": "valor não reconhecido", "porque": "texto" },
+        { "entrada": "", "rotulo": "sem valor", "porque": "vazio" }
+    ]
+}
