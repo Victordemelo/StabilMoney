@@ -19,12 +19,19 @@ use Illuminate\View\View;
  * Só chega aqui quem digitou a senha certa de uma conta que LIGOU o 2FA — e, nesse
  * momento, a pessoa **ainda não está autenticada**: `LoginRequest::authenticate()` confere
  * a senha sem abrir sessão. O que existe é um "login pendente" guardado na sessão (id da
- * conta + a escolha de "lembrar de mim" + o instante em que começou). A sessão de verdade
- * só nasce em `store()`, depois do código certo.
+ * conta + a escolha de "lembrar de mim" + o instante em que começou + a impressão digital da
+ * senha conferida). A sessão de verdade só nasce em `store()`, depois do código certo.
  *
  * Por que o pendente tem prazo: sem validade, um computador compartilhado ficaria com a
  * porta encostada — quem sentasse depois só precisaria do código, e a senha (já digitada)
  * não seria mais cobrada. Cinco minutos é tempo de pegar o celular e ler o código.
+ *
+ * Por que o pendente morre quando a senha muda: ele é a prova de que a SENHA foi
+ * conferida. Se ela for trocada nesses cinco minutos — redefinição pelo link, troca nas
+ * Configurações, o titular trocando a do dependente —, a prova passa a ser de uma senha que
+ * não vale mais, e o código do autenticador completaria um login com ela. É exatamente o
+ * caso de quem descobre a invasão e redefine a senha: o invasor que já estava nesta tela,
+ * com a senha antiga, entraria assim mesmo. Ver `impressaoDaSenha()`.
  *
  * O limite de tentativas está na rota (`throttle:dois-fatores`, ver AppServiceProvider):
  * são 6 dígitos, e sem limite a força bruta acharia o número.
@@ -38,6 +45,9 @@ class TwoFactorChallengeController extends Controller
 
     private const CHAVE_INICIO = 'login.at';
 
+    /** Impressão digital da senha conferida na primeira etapa (HMAC, nunca o hash). */
+    private const CHAVE_SENHA = 'login.senha';
+
     /** Minutos que o login pendente sobrevive antes de exigir a senha de novo. */
     public const VALIDADE_EM_MINUTOS = 5;
 
@@ -45,6 +55,11 @@ class TwoFactorChallengeController extends Controller
 
     /**
      * Marca o login como "pendente de segunda etapa". Chamado pelo controller de login.
+     *
+     * `$user` tem de ser o MESMO model cuja senha acabou de ser conferida, e não um
+     * recarregado do banco: a impressão sai do hash que foi comparado com o que a pessoa
+     * digitou. Reler aqui abriria justamente a janela que ela fecha — uma troca de senha
+     * entre a conferência e esta linha seria carimbada como se fosse a senha digitada.
      */
     public static function aguardar(Session $sessao, User $user, bool $lembrar): void
     {
@@ -52,6 +67,7 @@ class TwoFactorChallengeController extends Controller
             self::CHAVE_ID => $user->getKey(),
             self::CHAVE_LEMBRAR => $lembrar,
             self::CHAVE_INICIO => now()->timestamp,
+            self::CHAVE_SENHA => self::impressaoDaSenha($user),
         ]);
 
         // Troca o id da sessão antes de qualquer coisa ligada à conta existir nela
@@ -65,8 +81,8 @@ class TwoFactorChallengeController extends Controller
     {
         $user = $this->pendente($request);
 
-        if ($user === null) {
-            return $this->expirou();
+        if (! $user instanceof User) {
+            return $user;
         }
 
         return view('auth.two-factor-challenge', [
@@ -81,10 +97,13 @@ class TwoFactorChallengeController extends Controller
     /** Confere o código (do autenticador ou de recuperação) e conclui o login. */
     public function store(Request $request): RedirectResponse|JsonResponse
     {
+        // Antes de olhar o código, e não depois: com a pendência vencida (inclusive pela
+        // troca de senha), nada pode ser gasto — nem o passo do TOTP, que barraria o mesmo
+        // código no login seguinte, nem um código de recuperação, que não volta.
         $user = $this->pendente($request);
 
-        if ($user === null) {
-            return $this->expirou();
+        if (! $user instanceof User) {
+            return $user;
         }
 
         $request->validate([
@@ -138,22 +157,31 @@ class TwoFactorChallengeController extends Controller
     }
 
     /**
-     * A conta que está no meio do login — ou null se não há pendência, se ela expirou,
-     * ou se o 2FA foi desligado (de outro aparelho) enquanto esta tela estava aberta.
+     * A conta que está no meio do login — ou o caminho de volta para a senha, se não há
+     * pendência, se ela expirou, se o 2FA foi desligado (de outro aparelho) ou se a senha
+     * da conta mudou enquanto esta tela estava aberta.
      */
-    private function pendente(Request $request): ?User
+    private function pendente(Request $request): User|RedirectResponse
     {
         $id = $request->session()->get(self::CHAVE_ID);
         $inicio = $request->session()->get(self::CHAVE_INICIO);
+        $impressao = $request->session()->get(self::CHAVE_SENHA);
 
-        if ($id === null || $inicio === null) {
-            return null;
+        // Sem a impressão da senha a pendência não vale, mesmo com id e horário: é o que
+        // sobra de um login começado antes desta checagem existir (no máximo 5 minutos
+        // depois do deploy, e custa só digitar a senha de novo). Aceitar a falta dela
+        // deixaria qualquer caminho futuro que esquecesse de gravá-la pular a checagem
+        // em silêncio.
+        if ($id === null || $inicio === null || ! is_string($impressao)) {
+            $this->limpar($request);
+
+            return $this->expirou();
         }
 
         if (now()->timestamp - (int) $inicio > self::VALIDADE_EM_MINUTOS * 60) {
             $this->limpar($request);
 
-            return null;
+            return $this->expirou();
         }
 
         $user = User::find($id);
@@ -164,21 +192,65 @@ class TwoFactorChallengeController extends Controller
         if ($user === null || ! $user->temDoisFatores()) {
             $this->limpar($request);
 
-            return null;
+            return $this->expirou();
+        }
+
+        // A senha conferida na primeira etapa ainda é a senha da conta? A comparação é
+        // pelo HASH gravado agora, e não por `password_changed_at`, de propósito: a data é
+        // um carimbo que cada caminho precisa lembrar de gravar — e já houve caminho que não
+        // gravava (a edição de dependente, achado A-6 da auditoria de 05/09/2026) —, enquanto
+        // o hash muda em TODOS, inclusive nos que ainda não existem.
+        if (! hash_equals($impressao, self::impressaoDaSenha($user))) {
+            $this->limpar($request);
+
+            return $this->senhaMudou();
         }
 
         return $user;
     }
 
+    /**
+     * Impressão digital do hash da senha, para perceber na segunda etapa que ela mudou.
+     *
+     * É a mesma HMAC (com a APP_KEY) que o próprio Laravel usa no `AuthenticateSession`
+     * para notar uma senha trocada debaixo de uma sessão aberta. NUNCA o hash cru: a sessão
+     * vai para a tabela `sessions` e para os backups dela, e um argon2id copiado ali seria
+     * mais um alvo de quebra offline. A HMAC só serve para comparar — nem com a APP_KEY
+     * dá para testar senha contra ela, porque o sal do argon2id não está na sessão.
+     *
+     * Muda sempre que o hash muda, e não só quando a senha muda: "Encerrar outras sessões"
+     * regrava o hash com a mesma senha (`logoutOtherDevices`) e também derruba o login
+     * pendente — que é o que essa ação promete, derrubar todo acesso que não seja o atual.
+     */
+    private static function impressaoDaSenha(User $user): string
+    {
+        return Auth::guard('web')->hashPasswordForCookie((string) $user->getAuthPassword());
+    }
+
     private function limpar(Request $request): void
     {
-        $request->session()->forget([self::CHAVE_ID, self::CHAVE_LEMBRAR, self::CHAVE_INICIO]);
+        $request->session()->forget([
+            self::CHAVE_ID, self::CHAVE_LEMBRAR, self::CHAVE_INICIO, self::CHAVE_SENHA,
+        ]);
     }
 
     private function expirou(): RedirectResponse
     {
         return redirect()->route('login')->withErrors([
             'email' => 'A verificação expirou. Entre com seu e-mail e senha novamente.',
+        ]);
+    }
+
+    /**
+     * Mensagem própria, e não o "expirou": quem só visse "expirou" digitaria a senha
+     * antiga de novo e levaria um "credenciais inválidas" sem entender por quê. Não conta
+     * nada a quem tinha a senha antiga que a próxima tentativa já não fosse contar.
+     */
+    private function senhaMudou(): RedirectResponse
+    {
+        return redirect()->route('login')->withErrors([
+            'email' => 'A verificação foi cancelada: a senha desta conta foi alterada ou os outros acessos '
+                .'foram encerrados. Entre de novo com o e-mail e a senha atual.',
         ]);
     }
 }

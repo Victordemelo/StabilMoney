@@ -1334,6 +1334,15 @@ O login pendente vive na sessão (`login.id` / `login.remember` / `login.at`) e 
 minutos**: sem prazo, um computador compartilhado ficaria com a porta encostada, já com a
 senha vencida. A sessão autenticada só nasce em `TwoFactorChallengeController::store`.
 
+**E morre se a senha mudar no meio** (17/09/2026 — `TrocaDeSenhaDerrubaLoginPendenteTest`). Antes,
+o código do autenticador completava o login com a senha ANTIGA por até 5 minutos depois de uma
+redefinição. O pendente guarda `login.senha` = HMAC do hash conferido (`hashPasswordForCookie`, a
+mesma do `AuthenticateSession`), nunca o hash cru, e `pendente()` compara com o hash atual (com
+`hash_equals`) no GET e no POST, ANTES de olhar o código — não gasta TOTP nem código de recuperação.
+Compara o HASH, não `password_changed_at`: vale para qualquer caminho de troca, inclusive os que
+ainda não existem e "Encerrar outras sessões". Pendência sem `login.senha` não vale. ⚠️ `aguardar()`
+recebe o MESMO model cuja senha foi conferida — recarregar do banco reabre a janela.
+
 **O login por AJAX (`sm/auth.js`) não precisou de uma linha nova**: ele já navega para o
 `redirect` que vier no JSON, e o desafio é só outro destino.
 
