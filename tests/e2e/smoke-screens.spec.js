@@ -8,6 +8,75 @@ import fs from 'node:fs';
  */
 const SHOTS = 'test-results/screens';
 
+const MAILPIT = process.env.E2E_MAILPIT_URL || 'http://localhost:8026';
+
+/**
+ * Cadastra um usuário e devolve a página JÁ DENTRO do app.
+ *
+ * Por que isto não é só "preencher e esperar `/`": o app inteiro roda sob o middleware
+ * `verified`. Quando o SMTP entrega, o usuário novo nasce POR CONFIRMAR e é desviado para
+ * `/verify-email` — e é assim que TEM de ser. Desligar a verificação para o e2e ficar
+ * verde seria trocar a prova pelo verde: o buraco que o middleware fecha (cadastrar-se
+ * com o e-mail de outra pessoa) deixaria de ser exercitado justamente na única suíte que
+ * roda o app de verdade.
+ *
+ * Então o helper aceita os DOIS desfechos legítimos do cadastro e leva os dois até dentro
+ * do app pelo caminho honesto:
+ *
+ *  - caiu em `/`          → o app não exigiu confirmação. É o que acontece quando o mailer
+ *                           não entrega, ou quando o SMTP recusa o destinatário: aí o
+ *                           usuário nasce verificado (ver RegisteredUserController), senão
+ *                           ficaria trancado sem link que o destrave.
+ *  - caiu em `/verify-email` → o link SAIU. O helper vai buscá-lo na caixa de e-mail de dev
+ *                           (Mailpit, http://localhost:8026) e clica — percorrendo o fluxo
+ *                           de verificação real, ponta a ponta.
+ */
+async function cadastrarEEntrar(page, { nome, email, senha = 'SenhaForte#2026' }) {
+    await page.goto('/register');
+    await page.fill('#name', nome);
+    await page.fill('#email', email);
+    await page.fill('#password', senha);
+    // Checkbox de termos é estilizado (input escondido fora da viewport): marca via JS.
+    await page.evaluate(() => {
+        const cb = document.querySelector('#terms');
+        cb.checked = true;
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.click('button[type=submit]');
+
+    await page.waitForURL((url) => ['/', '/verify-email'].includes(url.pathname));
+
+    if (new URL(page.url()).pathname === '/verify-email') {
+        await page.goto(await linkDeVerificacao(email));
+    }
+
+    expect(new URL(page.url()).pathname, 'o cadastro tinha de terminar dentro do app').toBe('/');
+}
+
+/** Pega na caixa do Mailpit o link de confirmação enviado para `email`. */
+async function linkDeVerificacao(email) {
+    const busca = await fetch(
+        `${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}&limit=1`
+    ).catch(() => null);
+
+    const id = busca && busca.ok ? (await busca.json()).messages?.[0]?.ID : null;
+
+    if (!id) {
+        throw new Error(
+            `O app exigiu confirmação de e-mail, mas não há mensagem para ${email} em ${MAILPIT}.\n` +
+            'Pré-requisito do e2e: o mailer do ambiente precisa ser o Mailpit do docker compose ' +
+            '(MAIL_HOST=mailpit, MAIL_PORT=1025, MAIL_SCHEME=smtp) — ou um que não entregue.'
+        );
+    }
+
+    const mensagem = await (await fetch(`${MAILPIT}/api/v1/message/${id}`)).json();
+    const link = (mensagem.Text || '').match(/https?:\/\/[^\s"<>]+\/verify-email\/[^\s"<>]+/);
+
+    if (!link) throw new Error('O e-mail de verificação chegou sem link clicável.');
+
+    return link[0];
+}
+
 test('smoke: todas as telas renderizam sem erro', async ({ page }) => {
     test.setTimeout(180_000); // visita ~14 telas com screenshot fullPage
     fs.mkdirSync(SHOTS, { recursive: true });
@@ -19,20 +88,16 @@ test('smoke: todas as telas renderizam sem erro', async ({ page }) => {
     const stamp = Date.now();
 
     // Cadastro (gera categorias padrão; loga).
-    await page.goto('/register');
-    await page.fill('#name', 'Smoke Test');
-    await page.fill('#email', `smoke+${stamp}@stabilmoney.test`);
-    await page.fill('#password', 'SenhaForte#2026');
-    await page.evaluate(() => {
-        const c = document.querySelector('#terms');
-        c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    await page.click('button[type=submit]');
-    await page.waitForURL(/localhost:8001\/$/);
+    await cadastrarEEntrar(page, { nome: 'Smoke Test', email: `smoke+${stamp}@stabilmoney.test` });
 
     // Uma conta + uma transação (pra telas com dados renderizarem).
+    // `#name-novo`: os `id` do formulário de conta levam sufixo, porque a lista repete o
+    // mesmo formulário uma vez por conta (um modal cada).
     await page.goto('/accounts/create');
-    await page.fill('#name', 'Conta Smoke');
+    await page.fill('#name-novo', 'Conta Smoke');
+    // Saldo inicial: sem ele a despesa abaixo estoura o disponível e o servidor devolve 409
+    // ("de onde sai esse dinheiro?") em vez de gravar — a tela ficaria no formulário.
+    await page.fill('#initial_balance-novo', '1000,00');
     await page.click('.form-card button[type=submit]');
     await expect(page).toHaveURL(/\/accounts$/);
 

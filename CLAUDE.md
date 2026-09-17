@@ -1111,7 +1111,7 @@ fica pendente de confirmação.** Quem cria usuário decide o `email_verified_at
 
 | Caminho | Sem mailer | Com mailer |
 |---|---|---|
-| `/register` | grava a data no ato | nasce nulo + recebe o link |
+| `/register` | grava a data no ato | nasce **verificado**; vira pendente só **depois** que o link comprovadamente saiu |
 | Dependente (`DependentController`) | grava sempre | grava sempre (ninguém lhe manda link) |
 | Trocar e-mail no perfil | grava a data no ato | fica em `pending_email`, `email` não muda |
 
@@ -1120,6 +1120,30 @@ o defeito corrigido em 06/08: o `ProfileController` zerava a coluna quando não 
 criando uma conta que **nenhum link destrava** — inerte enquanto `verified` não existia, e
 conta perdida no dia em que ele entrou. A migration
 `2026_08_06_000000_backfill_email_verified_at_antes_do_middleware` limpou o rastro.
+
+**No cadastro isso é ESTRUTURAL desde 16/09/2026** (achado A-1 da auditoria de 05/09 —
+`CadastroNaoQuebraComSmtpForaTest`). Com o SMTP real recusando o destinatário ("550"),
+`POST /register` respondia **HTTP 500 com o usuário já gravado e por confirmar**: conta trancada
+e endereço queimado, porque `users.email` é `unique`. O link saía do listener do framework
+(`SendEmailVerificationNotification`), que não tem try/catch. Agora a ordem é invertida: o usuário
+nasce verificado, o `Registered` dispara (o listener se cala diante de quem já é verificado — é o
+que evita link duplicado) e o controller envia por **`Notificador::tentarEnviar()`**; só com o
+envio confirmado grava `email_verified_at = null`. Se o processo morrer no meio, morre do lado
+seguro, com o usuário dentro do app.
+
+- ⚠️ **Preço aceito:** enquanto o SMTP estiver fora, quem se cadastra naquele intervalo entra sem
+  confirmar o e-mail. A falha é do nosso servidor, não escolhida por um atacante — e a alternativa
+  destruía a conta de um usuário legítimo. Com o SMTP no ar a exigência vale por inteiro.
+- `Notificador::tentarEnviar(User $u, string $oque, Closure $envio): bool` é o miolo do
+  `avisar()`, para envio que não é `Mailable` (ex.: Notification). **Quem chama decide o que fazer
+  com o `false`** — num alerta, nada; no cadastro, não exigir a confirmação.
+- ⚠️ **Ainda aberto:** `EmailVerificationNotificationController` (botão "reenviar link") chama
+  `sendEmailVerificationNotification()` sem `Notificador` — um 550 ali ainda vira HTTP 500, e ele
+  responde "link enviado" sem consultar `Mailer::entrega()`.
+- ⚠️ **Os e2e cadastram usuários de verdade.** Com o `.env` apontando para o SMTP real, eles
+  disparam e-mail pela conta real. Rode-os com o Mailpit (`MAIL_HOST=mailpit`, `MAIL_PORT=1025`,
+  `MAIL_SCHEME=smtp`): o helper `cadastrarEEntrar` aceita os dois desfechos legítimos e, quando o
+  link sai, busca-o em http://localhost:8026 e clica — sem desligar a verificação para ficar verde.
 
 ⚠️ Rota que precise funcionar ANTES da confirmação (reenviar link, sair da conta) vai em
 `routes/auth.php`, fora do grupo protegido — senão a tela que destrava a conta fica ela

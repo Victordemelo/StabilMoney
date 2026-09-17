@@ -37,13 +37,35 @@ final class Notificador
             return false;
         }
 
+        return self::tentarEnviar($usuario, $email::class, fn () => Mail::to($usuario->email)->send($email));
+    }
+
+    /**
+     * Executa um envio de e-mail **sem deixar a exceção derrubar a ação que o gerou**.
+     *
+     * É o miolo do `avisar()`, extraído para servir também ao que NÃO é `Mailable`.
+     * O caso concreto que obrigou a extração: o link de verificação do cadastro sai por
+     * `Notification` e vinha do listener do framework (`SendEmailVerificationNotification`),
+     * que não tem proteção nenhuma — um "550" do SMTP virava **HTTP 500 com o usuário já
+     * gravado no banco**, e o e-mail dele ficava ocupado sem nunca destravar a conta.
+     *
+     * ⚠️ Quem chama decide o que fazer com o `false`. Em alerta de segurança não há nada a
+     * fazer (o aviso é acessório). No cadastro há: se o link não saiu, exigir a confirmação
+     * trancaria a pessoa fora do app — ver `RegisteredUserController::store`.
+     *
+     * @param  string  $oque  o que se tentou enviar (só para o log dizer algo útil)
+     * @param  \Closure():void  $envio
+     * @return bool o e-mail saiu de fato?
+     */
+    public static function tentarEnviar(User $usuario, string $oque, \Closure $envio): bool
+    {
         try {
-            Mail::to($usuario->email)->send($email);
+            $envio();
 
             return true;
         } catch (\Throwable $e) {
-            Log::warning('Aviso por e-mail não foi entregue.', [
-                'mailable' => $email::class,
+            Log::warning('E-mail não foi entregue.', [
+                'oque' => $oque,
                 'user_id' => $usuario->getKey(),
                 'erro' => $e->getMessage(),
             ]);

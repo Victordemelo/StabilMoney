@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\Mailer;
+use App\Support\Notificador;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -60,24 +61,42 @@ class RegisteredUserController extends Controller
         // formulário é sempre titular, e isso é decisão do servidor.
         $user->is_admin = true;
 
-        // O app só pode EXIGIR confirmação de e-mail se conseguir enviá-la. Enquanto o
-        // mailer não entrega (fase de testes, MAIL_MAILER=log), o usuário nasce já
-        // verificado: exigir uma confirmação que nunca chega trancaria todo mundo fora.
+        // 🚨 INVARIANTE: `email_verified_at` só fica NULO depois que o link SAIU de fato.
         //
-        // Isso é o que deixa a verificação PRONTA para ligar sozinha — no dia em que o
-        // SMTP entrar no `.env`, este `if` para de valer, o campo fica nulo e o link sai
-        // no `Registered` abaixo (listener SendEmailVerificationNotification, registrado
-        // pelo próprio framework). Quem se cadastrou na fase de testes continua entrando,
-        // porque foi marcado como verificado no cadastro dele.
+        // O app inteiro roda sob o middleware `verified`, então conta por confirmar é
+        // conta TRANCADA — e o endereço já ficou ocupado (`users.email` é `unique`), o que
+        // impede até recadastrar. Só é legítimo exigir a confirmação quando existe um link
+        // capaz de destravá-la.
         //
-        // A ordem importa: marcar ANTES do evento, senão o listener manda um link inútil.
-        if (! Mailer::entrega()) {
-            $user->email_verified_at = now();
-        }
-
+        // Por isso a ordem é invertida em relação ao que era: o usuário nasce VERIFICADO e
+        // só volta ao limbo com a prova de entrega na mão. Antes o campo nascia nulo e o
+        // envio saía do listener do framework (`SendEmailVerificationNotification`), que
+        // não tem try/catch: um "550 could not deliver" do SMTP virava **HTTP 500 com o
+        // usuário já gravado**, e nem a tela de "reenviar link" o destravava, porque o
+        // servidor recusa aquele destinatário de novo. Conta perdida no primeiro clique.
+        //
+        // Nascer verificado também é o que já valia quando `Mailer::entrega()` é falso
+        // (fase de testes, MAIL_MAILER=log): aqui a regra é a mesma, apenas aplicada ao
+        // caso em que o mailer existe mas o envio falha — para o usuário, dá no mesmo.
+        $user->email_verified_at = now();
         $user->save();
 
+        // Categorias padrão (SeedDefaultCategoriesForNewUser). O listener de verificação do
+        // framework também escuta este evento, mas se cala diante de um usuário já
+        // verificado — quem manda o link é a linha abaixo, que sabe tratar a falha.
         event(new Registered($user));
+
+        if (Mailer::entrega() && Notificador::tentarEnviar(
+            $user,
+            'link de verificação de e-mail (cadastro)',
+            fn () => $user->sendEmailVerificationNotification(),
+        )) {
+            // O link está a caminho: agora exigir a confirmação tem saída, e o buraco que o
+            // middleware `verified` fecha (cadastrar-se com o e-mail de outra pessoa) volta
+            // a valer. Gravar isto DEPOIS do envio é o que torna o invariante estrutural:
+            // se o processo morrer no meio, ele morre do lado seguro (usuário dentro do app).
+            $user->forceFill(['email_verified_at' => null])->save();
+        }
 
         Auth::login($user);
 
