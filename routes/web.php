@@ -84,7 +84,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Meu perfil (dados pessoais: nome, e-mail, telefone, foto)
     Route::get('/meu-perfil', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/meu-perfil', [ProfileController::class, 'update'])->name('profile.update');
+    // Limitada também (17/09/2026): trocar o e-mail exige a SENHA ATUAL, e sem teto esta
+    // rota virava força bruta de senha para quem tivesse uma sessão sequestrada — 12 senhas
+    // erradas seguidas passavam sem nenhum 429, cada uma custando um argon2id. É a regra do
+    // projeto para toda rota que confere senha. Salvar só nome ou foto também conta na cota
+    // (6 por minuto por usuário), o que não atrapalha uso de verdade.
+    Route::patch('/meu-perfil', [ProfileController::class, 'update'])
+        ->middleware('throttle:senha')
+        ->name('profile.update');
     // Valida a senha atual → limitada (ver 'senha' no AppServiceProvider). Com 2FA
     // ligado também confere o código do autenticador, então leva os DOIS limites:
     // `senha` conta a tentativa de senha e `dois-fatores`, a de código — um teto só

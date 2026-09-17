@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.204 testes PHP / 5.275 asserções** + **100 testes JS** (Vitest) verdes |
+| Suíte de testes | ✅ **1.315 testes PHP / 6.368 asserções** + **126 testes JS** (Vitest) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -208,7 +208,7 @@ tests/js/                   # Vitest + jsdom (`npm run test:js`, roda no HOST): 
                             # CSP derruba 6+ testes, trocar a vírgula decimal derruba 34.
                             # Rodam no CI (job `javascript`: `npm ci` + `npm run test:js`, Node 24),
                             # verificado em container Linux x64 a partir de clone limpo em 16/09.
-tests/Feature/              # 1.204 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 1.315 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1043,7 +1043,7 @@ Corrigido nesta rodada — **não regredir**:
   `senha` (6/min por usuário) em **todo endpoint que valida senha** (confirmar senha, trocar
   senha, excluir conta, encerrar sessões); `credencial` (5/min por IP) em register/forgot/reset;
   `login-ip` (20/min por IP) somado ao throttle por e-mail+IP do `LoginRequest` (aquele protege
-  uma conta, este barra *password spraying*). **Ao criar rota que pede senha, aplique
+  uma conta, este barra *password spraying*). **`PATCH /meu-perfil` só ganhou o limite em 17/09/2026 (`PerfilComLimiteDeTentativasTest` — antes, 12 senhas erradas seguidas passavam sem 429). Ao criar rota que pede senha, aplique
   `throttle:senha`** — sem limite é oráculo de força bruta e amplificação de DoS (cada tentativa
   custa um argon2id de 64 MiB).
 - **Enumeração de usuário:** `PasswordResetLinkController` responde igual para e-mail
@@ -1658,7 +1658,7 @@ npm run test:js  # testes de JavaScript (Vitest + jsdom); `test:js:watch` para m
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (1.204 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (1.315 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
