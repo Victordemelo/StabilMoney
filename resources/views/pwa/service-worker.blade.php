@@ -4,13 +4,18 @@
  * NÃO é processado pelo Vite. Para invalidar caches antigos, suba a versão abaixo.
  *
  * Estratégia (conservadora de propósito, para NÃO quebrar o app):
- *  - Só intercepta GET. POST/PATCH/DELETE (forms + CSRF do Laravel) passam direto.
+ *  - Só intercepta GET. POST/PATCH/DELETE (forms + CSRF do Laravel) passam direto —
+ *    inclusive o do logout, que o SW apenas OBSERVA (ver HTML_AUTENTICADO).
  *  - Assets estáticos (build do Vite, ícones, fontes): stale-while-revalidate.
  *  - Navegações: network-first → cai na página /offline quando sem rede.
  *  - NUNCA guarda HTML autenticado, com UMA exceção deliberada: o formulário de
- *    novo lançamento (/transactions/create), cacheado p/ abrir offline. A página
- *    apaga esse cache no logout E quando o dono muda no aparelho (offline-queue.js),
- *    pra ninguém ver o form de outro usuário.
+ *    novo lançamento (/transactions/create), cacheado p/ abrir offline. O próprio SW
+ *    o apaga quando a sessão acaba, e a página repete a limpeza quando o dono muda
+ *    no aparelho (offline-queue.js), pra ninguém ver o form de outro usuário.
+ *
+ * ⚠️ Tudo aqui dentro é JavaScript puro, sem Blade: tests/js/service-worker.test.js
+ *    executa este mesmo código, e se recusa a rodar se algo ficar fora do @verbatim
+ *    (estaria testando um SW diferente do que o navegador recebe).
  */
 const CACHE = 'sm-cache-v2';
 
@@ -21,6 +26,63 @@ const PRECACHE = [
   '/assets/icons/icon-512.png',
   '/assets/icons/icon-maskable-512.png',
 ];
+
+// ---- HTML autenticado × fim da sessão -----------------------------------------
+//
+// Páginas COM dado do usuário que o SW guarda para abrir offline. Hoje é só o
+// formulário de lançamento, que traz as contas, as categorias e os nomes da
+// família. Esta lista é a fonte única dos dois lados: o ramo de navegação só
+// guarda o que está aqui, e a limpeza apaga tudo o que está aqui — uma página
+// nova que entrar na lista já nasce com as duas coisas.
+const HTML_AUTENTICADO = ['/transactions/create'];
+
+// Quando a sessão acaba, esse HTML tem de sair do aparelho: num celular
+// compartilhado, quem abrisse o app offline depois do "Sair" veria o formulário
+// com os dados do dono anterior.
+//
+// A limpeza mora AQUI porque os outros dois lugares não dão conta sozinhos:
+//  - o header do logout. `Clear-Site-Data: "cache"` limpa o cache HTTP, NÃO o
+//    Cache Storage (`caches.*`), que é onde este arquivo guarda o formulário. O
+//    valor que limparia o Cache Storage é "storage" — e ele leva junto o IndexedDB
+//    da fila offline (lançamentos que ainda não chegaram ao servidor) e desregistra
+//    este SW (fim do Background Sync). Fora de cogitação;
+//  - o JS da página (offline-queue.js). Só apaga se o carregamento seguinte executar
+//    o bundle. Continua lá, como segunda camada.
+//
+// O SW, ao contrário, vê as navegações de TODAS as abas, com ou sem JS na página.
+// Dois gatilhos, e nenhum deles encosta no IndexedDB:
+//
+//  1. ROTA_LOGOUT — o POST do "Sair" passando por aqui. É a intenção explícita de
+//     sair, então apaga na hora, sem esperar a resposta: vale até se a rede cair no
+//     meio do clique.
+//  2. ROTAS_SEM_SESSAO respondendo 200. As duas são do grupo `guest`, que
+//     REDIRECIONA quem tem sessão; 200 ali é o servidor dizendo "este navegador não
+//     tem sessão". Pega o que o 1 não vê — sessão expirada, conta banida, sessões
+//     derrubadas por troca de senha em outro aparelho: a primeira navegação online a
+//     qualquer tela do app cai no /login. É também onde termina a cadeia do próprio
+//     "Sair" (/logout → / → /login). Sem rede não há resposta, e aí nada é apagado:
+//     offline não dá para saber se a sessão acabou, e o dono precisa seguir lançando.
+//
+// ⚠️ Os caminhos são os das rotas do Laravel (`logout`, `login`, `register`).
+//    Renomear uma rota sem mexer aqui desliga a limpeza em SILÊNCIO — o
+//    ServiceWorkerApagaHtmlAutenticadoTest compara os dois lados. E não ponha nas
+//    ROTAS_SEM_SESSAO uma página que abra também para quem está logado: o SW
+//    apagaria o formulário offline do dono a cada visita.
+const ROTA_LOGOUT = '/logout';
+const ROTAS_SEM_SESSAO = ['/login', '/register'];
+
+function apagarHtmlAutenticado() {
+  // Varre TODOS os caches, não só o CACHE atual — mesmo critério do offline-queue.js:
+  // formulário guardado sob outro nome continua sendo dado de usuário. `ignoreSearch`
+  // pega a mesma página com query string (ex.: ?autor=ID).
+  return caches.keys()
+    .then((nomes) => Promise.all(nomes.map((nome) => caches.open(nome).then((cache) =>
+      Promise.all(HTML_AUTENTICADO.map((caminho) => cache.delete(caminho, { ignoreSearch: true })))
+    ))))
+    // Nunca derruba a navegação que a disparou: se o Cache Storage falhar, fica a
+    // limpeza da página (segunda camada) — que é como tudo funcionava antes.
+    .catch(() => {});
+}
 
 self.addEventListener('install', (event) => {
   // allSettled: se um item do precache falhar (ícone renomeado, 5xx passageiro),
@@ -167,12 +229,21 @@ self.addEventListener('sync', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
+  const url = new URL(req.url);
+  const mesmaOrigem = url.origin === self.location.origin;
+
+  // Gatilho 1 da limpeza (ver HTML_AUTENTICADO): o "Sair". Fica ANTES da salvaguarda
+  // abaixo e NÃO chama respondWith — o POST segue direto para a rede, como qualquer
+  // POST, com o CSRF do formulário. O SW só aproveita a passagem para apagar o HTML
+  // autenticado; o `waitUntil` o mantém vivo até a limpeza terminar.
+  if (req.method === 'POST' && mesmaOrigem && url.pathname === ROTA_LOGOUT) {
+    event.waitUntil(apagarHtmlAutenticado());
+    return;
+  }
 
   // SALVAGUARDA: o SW só mexe em GET. Tudo que altera estado (POST/PATCH/DELETE)
   // passa direto pela rede — é o que mantém os forms e o CSRF do Laravel intactos.
   if (req.method !== 'GET') return;
-
-  const url = new URL(req.url);
 
   // /build/* é versionado por hash (imutável) → cache-first puro (não revalida).
   // /assets/* (nomes fixos) e Google Fonts → stale-while-revalidate (serve o cache
@@ -209,9 +280,10 @@ self.addEventListener('fetch', (event) => {
   // Navegações (páginas): network-first.
   if (req.mode === 'navigate') {
     // Exceção controlada: o formulário de novo lançamento é cacheado para abrir
-    // offline (é o ÚNICO HTML autenticado que guardamos; a página o apaga do
-    // cache no logout). Online sempre busca o fresco; offline serve o cacheado.
-    if (url.pathname === '/transactions/create') {
+    // offline (é o ÚNICO HTML autenticado que guardamos — ver HTML_AUTENTICADO, que
+    // também diz quando ele é apagado). Online sempre busca o fresco; offline serve
+    // o cacheado. A chave é o caminho SEM query: o deep-link ?autor=ID abre o mesmo.
+    if (HTML_AUTENTICADO.includes(url.pathname)) {
       event.respondWith(
         fetch(req)
           .then((res) => {
@@ -220,11 +292,11 @@ self.addEventListener('fetch', (event) => {
             // cacheado sob a chave do formulário (senão serve login no lugar).
             if (res.status === 200 && !res.redirected) {
               const copy = res.clone();
-              caches.open(CACHE).then((cache) => cache.put('/transactions/create', copy)).catch(() => {});
+              caches.open(CACHE).then((cache) => cache.put(url.pathname, copy)).catch(() => {});
             }
             return res;
           })
-          .catch(() => caches.match('/transactions/create')
+          .catch(() => caches.match(url.pathname)
             .then((hit) => hit || caches.match('/offline'))
             .then((r) => r || Response.error()))
       );
@@ -233,8 +305,18 @@ self.addEventListener('fetch', (event) => {
 
     // Demais páginas: sem rede → página /offline da marca. Nunca cacheia HTML
     // autenticado (saldo sempre fresco; sem dado de um usuário para outro ver).
+    const rede = fetch(req);
+
+    // Gatilho 2 da limpeza (ver HTML_AUTENTICADO): página que só abre SEM sessão
+    // respondeu 200. A página NÃO espera a limpeza — se o Cache Storage engasgar, o
+    // login tem de abrir mesmo assim; o `waitUntil` (registrado já, durante o evento)
+    // é que segura o SW vivo até ela terminar. Sem rede, nada a apagar (`() => null`).
+    if (mesmaOrigem && ROTAS_SEM_SESSAO.includes(url.pathname)) {
+      event.waitUntil(rede.then((res) => (res.status === 200 ? apagarHtmlAutenticado() : null), () => null));
+    }
+
     event.respondWith(
-      fetch(req).catch(() => caches.match('/offline').then((r) => r || Response.error()))
+      rede.catch(() => caches.match('/offline').then((r) => r || Response.error()))
     );
     return;
   }

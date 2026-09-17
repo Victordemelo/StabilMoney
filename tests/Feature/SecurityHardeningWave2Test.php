@@ -206,9 +206,14 @@ class SecurityHardeningWave2Test extends TestCase
     }
 
     /**
-     * O logout manda o navegador apagar o cache do site: o service worker guarda
-     * `/transactions/create` (HTML autenticado com contas, categorias e família) e esse
-     * cache sobrevivia ao logout num aparelho compartilhado.
+     * O logout manda o navegador apagar o cache HTTP do site.
+     *
+     * ⚠️ Isso NÃO limpa o Cache Storage do service worker, onde fica `/transactions/create`
+     * (HTML autenticado com contas, categorias e família) — a premissa antiga deste
+     * docblock estava errada (P-2 da auditoria de 06/09/2026). Quem apaga aquela página é o
+     * próprio service worker: ver ServiceWorkerApagaHtmlAutenticadoTest. Este teste só
+     * garante o header e, principalmente, a AUSÊNCIA de "storage", que apagaria a fila
+     * offline.
      */
     public function test_logout_tells_the_browser_to_clear_cached_pages(): void
     {

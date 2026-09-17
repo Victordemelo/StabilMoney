@@ -556,6 +556,13 @@ async function submitOnline(form, payload) {
 //      (logout OU troca de usuário no mesmo aparelho). Sem isso, o form em cache
 //      de um usuário (com as contas/categorias da família dele e o CSRF) poderia
 //      ser servido offline para outra pessoa no mesmo dispositivo.
+//
+//      É a SEGUNDA camada. A primeira é o próprio service worker, que apaga o form
+//      ao ver o POST do logout e quando o /login responde sem sessão — sem depender
+//      deste bundle rodar (ver HTML_AUTENTICADO em pwa/service-worker.blade.php).
+//      Esta continua valendo para o que o SW não cobre: SW de versão antiga ainda no
+//      controle logo depois de um deploy, e cache que ficou no aparelho depois de o
+//      service worker ser desregistrado.
 
 function purgeCachedFormIfUserChanged() {
     if (!('caches' in window)) return;

@@ -73,15 +73,24 @@ class AuthenticatedSessionController extends Controller
 
         $resposta = redirect('/');
 
-        // Manda o navegador apagar o cache do site ao sair. O service worker do PWA
-        // guarda `/transactions/create` — HTML autenticado, com nomes de contas, de
-        // categorias e da família — e esse cache sobrevive ao logout. Até aqui a limpeza
-        // dependia de o JS rodar na tela de login; num aparelho compartilhado, quem
-        // navegasse offline para aquela URL veria os dados do usuário anterior.
+        // Manda o navegador apagar o cache HTTP do site ao sair, para uma página
+        // autenticada guardada ali não reaparecer depois do logout (no "Voltar", por
+        // exemplo).
         //
-        // Só "cache", DE PROPÓSITO: incluir "storage" apagaria o IndexedDB da fila
-        // offline e destruiria silenciosamente lançamentos ainda não sincronizados.
-        // Perder o cache custa um download; perder a fila custa o dado do usuário.
+        // ⚠️ "cache" NÃO alcança o Cache Storage do service worker (`caches.*`). A
+        // premissa antiga era essa, e estava errada — achado P-2 da auditoria de PWA
+        // (docs/auditoria-pwa-e-painel-admin-2026-09-06.md). É no Cache Storage que o SW
+        // guarda `/transactions/create`, HTML com as contas, as categorias e a família.
+        // Quem apaga aquilo é o próprio service worker: ele vê este POST passar e limpa,
+        // e limpa de novo quando o /login responde sem sessão — que é onde este redirect
+        // termina. Ver `HTML_AUTENTICADO` em resources/views/pwa/service-worker.blade.php
+        // e o ServiceWorkerApagaHtmlAutenticadoTest.
+        //
+        // Só "cache", DE PROPÓSITO: o valor que limparia o Cache Storage é "storage", que
+        // apagaria junto o IndexedDB da fila offline — destruindo em silêncio lançamentos
+        // ainda não sincronizados — e desregistraria o service worker, levando o
+        // Background Sync. Perder o cache custa um download; perder a fila custa o dado
+        // do usuário.
         $resposta->headers->set('Clear-Site-Data', '"cache"');
 
         return $resposta;

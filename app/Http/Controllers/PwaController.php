@@ -81,6 +81,10 @@ class PwaController extends Controller
      * Service worker — servido na raiz (escopo "/") para controlar o app
      * inteiro. Estratégia conservadora: só intercepta GET, cache-first nos
      * assets estáticos, network-first nas navegações com fallback /offline.
+     *
+     * É também ele quem apaga o HTML autenticado guardado offline quando a
+     * sessão acaba — o `Clear-Site-Data: "cache"` do logout não alcança o
+     * Cache Storage. Ver `HTML_AUTENTICADO` na view.
      */
     public function serviceWorker(): Response
     {

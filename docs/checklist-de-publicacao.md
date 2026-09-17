@@ -400,9 +400,16 @@ Coberto por `FilaOfflineNaTrocaDeUsuarioTest`.
 > ⚠️ Não use bump de versão do IndexedDB nem registro-marcador para isso: os dois quebram
 > `tests/e2e/offline-lancamento.spec.js`.
 
-> O logout manda `Clear-Site-Data: "cache"`, que resolve o **cache de páginas**. Não
-> incluímos `"storage"` de propósito: apagaria a fila offline e destruiria lançamentos não
-> sincronizados.
+> O logout manda `Clear-Site-Data: "cache"`, mas isso limpa só o **cache HTTP** — ⚠️ **não** o
+> Cache Storage do service worker, onde fica o `/transactions/create` com contas, categorias e
+> família. Quem apaga essa página é o **próprio service worker** (`HTML_AUTENTICADO` em
+> `resources/views/pwa/service-worker.blade.php`), ao ver o `POST /logout` passar ou o `/login`
+> responder 200 (P-2, 16/09/2026). Não incluímos `"storage"` de propósito: apagaria a fila
+> offline, destruiria lançamentos não sincronizados e desregistraria o service worker.
+>
+> **Confira depois do deploy, no Chrome (DevTools › Application):** entre, abra "Nova
+> transação", clique em Sair e atualize a lista do Cache Storage `sm-cache-v2` — a entrada
+> `/transactions/create` tem de ter sumido, e o IndexedDB `sm-offline` tem de continuar lá.
 
 ### 17. Revisão jurídica dos Termos e da Política
 
