@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.152 testes / 4.957 asserções** verdes |
+| Suíte de testes | ✅ **1.159 testes PHP / 4.974 asserções** + **78 testes JS** (Vitest) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -199,7 +199,13 @@ database/
                             #   tela. Seeder escreve por baixo dos Services: sem teste, nada
                             #   valida o que ele grava.
 tests/Unit/                 # TotpTest — o algoritmo do 2FA contra os vetores oficiais da RFC 6238
-tests/Feature/              # 755 testes: auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/js/                   # Vitest + jsdom (`npm run test:js`, roda no HOST): money (máscara BRL,
+                            # teto de 14 dígitos), nav (guarda da CSP no pjax — descartarScriptsSemNonce)
+                            # e launch (419, fila, client_uuid). Importam os módulos REAIS de
+                            # resources/js/sm/ — validado por mutação em 16/09: desligar a guarda da
+                            # CSP derruba 6+ testes, trocar a vírgula decimal derruba 34.
+                            # ⚠️ O CI AINDA NÃO RODA estes testes (o ci.yml só tem PHP e Pint).
+tests/Feature/              # 1.159 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1485,6 +1491,7 @@ docker compose exec app php artisan storage:link
 npm install
 npm run dev      # hot reload (Vite em http://localhost:5173)
 npm run build    # produção (gera public/build — necessário p/ páginas sem `npm run dev`)
+npm run test:js  # testes de JavaScript (Vitest + jsdom); `test:js:watch` para modo contínuo
 ```
 
 > ⚠️ **`view:cache` ANTES de `npm run build`, sempre.** O `app.css` tem
@@ -1511,7 +1518,7 @@ npm run build    # produção (gera public/build — necessário p/ páginas sem
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte completa (956 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (1.159 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
