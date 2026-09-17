@@ -37,6 +37,11 @@ class ProfileController extends Controller
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
         $user = $request->user();
+
+        // A conta como ela era ANTES desta edição. Serve só para endereçar os avisos de troca
+        // de e-mail (A-7) ao endereço antigo — nunca é salva.
+        $antes = clone $user;
+
         // 'avatar' é arquivo e 'current_password' é só confirmação — nenhum dos dois
         // é coluna do model, então ficam fora do fill().
         $user->fill($request->safe()->except(['avatar', 'current_password']));
@@ -79,11 +84,47 @@ class ProfileController extends Controller
 
         $user->save();
 
-        if ($trocouEmail && Mailer::entrega()) {
+        if (! $trocouEmail) {
+            // Nome, telefone, foto: nada disso decide quem recupera a conta, então ninguém
+            // é avisado. Alerta que dispara à toa é alerta que ninguém lê no dia certo.
+            return Redirect::route('profile.edit')->with('status', 'profile-updated');
+        }
+
+        // A-7 da auditoria de 05/09/2026: a troca de e-mail não avisava o endereço ANTIGO.
+        // Quem tem a sessão e a senha trocava em silêncio o canal que recupera a conta — e
+        // o endereço antigo é o único que essa pessoa não controla.
+        //
+        // Os avisos saem para `$antes` (o e-mail de antes da edição), nunca para `$user`:
+        // no ramo sem confirmação o `email` já mudou quando chegamos aqui.
+        if (Mailer::entrega()) {
             $user->sendPendingEmailVerification();
 
-            return Redirect::route('profile.edit')->with('status', 'pending-email-sent');
+            // No PEDIDO, e não só na confirmação: é o único momento em que o dono ainda
+            // consegue impedir a troca (ver AlertaDeSeguranca::emailTrocaPedida). O texto
+            // fala em "pedido" — a troca pode nem acontecer.
+            Notificador::avisar($antes, AlertaDeSeguranca::emailTrocaPedida(
+                $user,
+                $emailNovo,
+                ContextoDeSeguranca::doRequest($request),
+            ));
+
+            return Redirect::route('profile.edit')->with(
+                'status',
+                'Enviamos um link de confirmação para '.$emailNovo.'. A troca só vale depois que você abrir esse link '
+                    .'(ele expira em 2 horas); até lá, você continua entrando com '.$antes->email.'.',
+            );
         }
+
+        // Troca que já valeu na hora (app sem transporte de e-mail). O aviso de "trocado" é o
+        // mesmo da confirmação. Hoje ele não sai — sem transporte o Notificador não envia
+        // nada, como todo alerta —, mas a regra "toda troca de e-mail avisa o endereço antigo"
+        // fica escrita no código, e não na coincidência de este ramo só rodar sem SMTP.
+        Notificador::avisar($antes, AlertaDeSeguranca::emailAlterado(
+            $user,
+            $antes->email,
+            $emailNovo,
+            ContextoDeSeguranca::doRequest($request),
+        ));
 
         return Redirect::route('profile.edit')->with('status', 'profile-updated');
     }
@@ -95,13 +136,38 @@ class ProfileController extends Controller
      * pendente quando ele foi gerado: se a pessoa pedir outra troca no meio do caminho,
      * o link antigo deixa de valer — senão o primeiro link ainda gravaria um e-mail que
      * já não é o desejado.
+     *
+     * **O link só vale na sessão da PRÓPRIA conta** (A-12 da auditoria de 05/09/2026). A rota
+     * fica no grupo `auth`, mas qualquer conta logada passava: o link da conta A, aberto num
+     * navegador em que B estava conectado, gravava o e-mail novo em A e mostrava "e-mail
+     * atualizado" para B. Além da confusão, era um atalho para quem perdeu o acesso a A:
+     * depois que o dono troca a senha e derruba as sessões, bastava entrar na PRÓPRIA conta
+     * e abrir o link para concluir a troca pendente de A.
+     *
+     * Quem abre deslogado cai no login (`auth`) e, ao entrar, volta para o link pelo
+     * `url.intended`: entrando com a conta certa, confirma; com outra, recebe o recado.
      */
     public function confirmEmail(Request $request, User $user): RedirectResponse
     {
         abort_unless($request->hasValidSignature(), 403, 'Este link expirou ou foi alterado.');
 
+        // ANTES de olhar a pendência: a resposta a quem não é o dono não pode variar com o
+        // estado da conta dele (tem troca pendente? o link é o mais novo?).
+        if (! $request->user()->is($user)) {
+            // Nada é gravado em A, nem a pendência é descartada: o dono ainda pode abrir o
+            // mesmo link na sessão certa enquanto ele não expira.
+            return Redirect::route('profile.edit')->withErrors([
+                'confirmacao_email' => 'Este link confirma a troca de e-mail de outra conta, e a conta aberta neste '
+                    .'navegador é '.$request->user()->email.'. Nada foi alterado. Para confirmar, saia desta conta '
+                    .'e abra o link de novo, entrando com a conta que pediu a troca.',
+            ]);
+        }
+
         if (! $user->temEmailPendente() || ! hash_equals(sha1($user->pending_email), (string) $request->query('hash'))) {
-            return Redirect::route('profile.edit')->with('status', 'pending-email-invalid');
+            return Redirect::route('profile.edit')->with(
+                'status',
+                'Este link de confirmação não vale mais: a troca já foi confirmada ou um pedido mais novo tomou o lugar dele.',
+            );
         }
 
         // Alguém pode ter cadastrado esse endereço no intervalo entre o pedido e o clique.
@@ -110,8 +176,14 @@ class ProfileController extends Controller
         if ($emUso) {
             $user->forceFill(['pending_email' => null, 'pending_email_sent_at' => null])->save();
 
-            return Redirect::route('profile.edit')->with('status', 'pending-email-taken');
+            return Redirect::route('profile.edit')->with(
+                'status',
+                'A troca não foi concluída: o endereço novo passou a ser usado por outra conta. Seu e-mail continua o mesmo.',
+            );
         }
+
+        // Retrato de antes da troca, só para endereçar o aviso ao e-mail antigo.
+        $antes = clone $user;
 
         $user->forceFill([
             'email' => $user->pending_email,
@@ -121,7 +193,20 @@ class ProfileController extends Controller
             'email_verified_at' => now(),
         ])->save();
 
-        return Redirect::route('profile.edit')->with('status', 'email-updated');
+        // A-7: a troca valeu, e o endereço ANTIGO é avisado — depois de gravar, para nunca
+        // anunciar uma troca que não aconteceu. Só aqui, e não nos retornos acima: link
+        // velho, endereço tomado ou conta errada não trocam nada, então não avisam nada.
+        Notificador::avisar($antes, AlertaDeSeguranca::emailAlterado(
+            $user,
+            $antes->email,
+            $user->email,
+            ContextoDeSeguranca::doRequest($request),
+        ));
+
+        return Redirect::route('profile.edit')->with(
+            'status',
+            'E-mail confirmado: a partir de agora você entra com '.$user->email.'.',
+        );
     }
 
     /**

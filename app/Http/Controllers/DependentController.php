@@ -4,11 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreDependentRequest;
 use App\Http\Requests\UpdateDependentRequest;
+use App\Mail\AlertaDeSeguranca;
 use App\Mail\BemVindoDependente;
 use App\Models\User;
+use App\Support\BrowserSessions;
+use App\Support\ContextoDeSeguranca;
 use App\Support\Notificador;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 /**
  * Gerenciamento de dependentes — apenas o titular (account_owner_id null) acessa.
@@ -90,7 +94,19 @@ class DependentController extends Controller
 
     public function update(UpdateDependentRequest $request, User $dependent)
     {
+        // Segunda linha de defesa, com a MESMA regra do `destroy`: só o titular da família do
+        // dependente. O `authorize()` do UpdateDependentRequest já barra isso, mas era a única
+        // barreira — numa mutação que o removeu, o dependente de outra família foi editado de
+        // fato (nome, e-mail de acesso e senha). Uma regra de posse que vive num lugar só some
+        // no primeiro refactor desse lugar.
+        $titular = $request->user();
+        abort_unless($titular->isTitular() && $dependent->account_owner_id === $titular->id, 403);
+
         $data = $request->validated();
+
+        // O dependente como ele era ANTES desta edição. Serve só para endereçar o aviso de
+        // senha trocada (abaixo) — nunca é salvo.
+        $antes = clone $dependent;
 
         $dependent->fill([
             'name' => $data['name'],
@@ -98,9 +114,22 @@ class DependentController extends Controller
             'relationship' => $data['relationship'] ?? null,
         ]);
 
-        // Senha só muda se preenchida.
-        if (! empty($data['password'])) {
+        $trocouEmail = $dependent->isDirty('email');
+
+        // Senha só muda se preenchida. Em branco, a edição é de cadastro (nome, foto,
+        // parentesco) e não mexe em sessão nem avisa ninguém.
+        $trocouSenha = ! empty($data['password']);
+
+        if ($trocouSenha) {
             $dependent->password = Hash::make($data['password']);
+
+            // A-6 da auditoria de 05/09/2026: era o único caminho de troca de senha do app
+            // que não fazia nada do que os outros fazem (PasswordController e
+            // NewPasswordController). A tela de Segurança mostra a idade da senha a partir
+            // deste carimbo; e o token novo invalida o cookie de "lembrar de mim", que
+            // re-autentica SEM sessão nenhuma — apagar as sessões, abaixo, não o alcança.
+            $dependent->password_changed_at = now();
+            $dependent->setRememberToken(Str::random(60));
         }
 
         if ($request->hasFile('avatar')) {
@@ -110,7 +139,35 @@ class DependentController extends Controller
 
         $dependent->save();
 
-        return redirect()->route('dependentes')->with('status', 'Dependente atualizado.');
+        if (! $trocouSenha) {
+            return redirect()->route('dependentes')->with('status', 'Dependente atualizado.');
+        }
+
+        // Derruba TODAS as sessões do dependente, sem exceção. Quem troca é o titular, na
+        // sessão DELE: não há sessão "atual" do dependente a preservar, e uma senha trocada
+        // que deixa os aparelhos conectados não tira ninguém de dentro — nem o celular
+        // perdido, nem quem já tinha entrado com a senha antiga, que costumam ser o motivo
+        // da troca.
+        BrowserSessions::purgeForUser($dependent->getKey());
+
+        // Avisa o DEPENDENTE, no e-mail que ele tinha ANTES desta edição. Se o titular trocou
+        // senha e e-mail de uma vez, o endereço novo foi o titular que digitou: mandar o aviso
+        // para lá deixaria o dependente sem saber de nada justamente no caso mais grave — e
+        // tornaria o aviso inútil contra quem tomou a conta do titular, que só precisaria
+        // trocar os dois campos no mesmo envio.
+        Notificador::avisar($antes, AlertaDeSeguranca::senhaAlteradaPeloTitular(
+            $dependent,
+            $titular,
+            ContextoDeSeguranca::doRequest($request),
+            emailNovo: $trocouEmail ? $dependent->email : null,
+        ));
+
+        // O titular precisa saber do efeito colateral: sem isto, a reclamação de "fui
+        // desconectado do nada" chega sem explicação.
+        return redirect()->route('dependentes')->with(
+            'status',
+            'Dependente atualizado. Com a senha nova, '.$dependent->name.' vai precisar entrar de novo em todos os aparelhos.',
+        );
     }
 
     public function destroy(Request $request, User $dependent)

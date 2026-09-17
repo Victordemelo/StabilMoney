@@ -20,9 +20,9 @@ use Illuminate\Queue\SerializesModels;
  * entrar. O e-mail é o único canal que o invasor não controla; é ele que dá ao dono a
  * chance de reagir no mesmo minuto.
  *
- * **Um Mailable com construtores nomeados**, e não seis classes: o formato é idêntico
- * (título, o que houve, quando/onde, o que fazer se não foi você) e o que muda é só o
- * texto. Seis arquivos quase iguais convidariam a divergirem com o tempo — e a parte que
+ * **Um Mailable com construtores nomeados**, e não uma classe por aviso: o formato é
+ * idêntico (título, o que houve, quando/onde, o que fazer se não foi você) e o que muda é
+ * só o texto. Arquivos quase iguais convidariam a divergirem com o tempo — e a parte que
  * não pode divergir é justamente a instrução do "não foi você".
  *
  * ⚠️ Interpolação de dado do usuário nos parágrafos passa por `e()`: eles são impressos
@@ -80,6 +80,135 @@ class AlertaDeSeguranca extends Mailable
             ],
             detalhes: $contexto->paraDetalhes(),
             rodapeAviso: self::naoFoiVoce('alguém com acesso ao seu e-mail redefiniu a senha da sua conta'),
+        );
+    }
+
+    /**
+     * O TITULAR definiu uma senha nova para o dependente (achado A-6 da auditoria de 05/09).
+     *
+     * É o único alerta em que quem recebe não foi quem agiu, por isso não usa o
+     * `naoFoiVoce()`: o dependente sabe que não foi ele. O que ele precisa saber é QUEM foi
+     * e o que fazer se não esperava por isso.
+     *
+     * Sem IP nem aparelho nos detalhes, ao contrário dos outros alertas. Lá o IP é do próprio
+     * destinatário indo para ele mesmo (ver ContextoDeSeguranca); aqui seria o do titular,
+     * que é dado de OUTRA pessoa — e não ajudaria o dependente a decidir nada.
+     *
+     * 🚨 A senha nova nunca entra aqui, pelo mesmo motivo do BemVindoDependente.
+     *
+     * @param  string|null  $emailNovo  preenchido quando a MESMA edição trocou também o e-mail
+     *                                  de acesso. Nesse caso quem chama envia para o endereço
+     *                                  antigo (ver DependentController::update), e o
+     *                                  "Esqueci a senha" deixa de ser saída: o link iria para
+     *                                  um endereço que o dependente talvez não controle.
+     */
+    public static function senhaAlteradaPeloTitular(
+        User $dependente,
+        User $titular,
+        ContextoDeSeguranca $contexto,
+        ?string $emailNovo = null,
+    ): self {
+        $nomeTitular = e($titular->name);
+
+        $paragrafos = [
+            '<strong>'.$nomeTitular.'</strong>, titular da sua conta-família, definiu uma <strong>senha nova</strong> para a sua conta no Stabil Money.',
+            'Por segurança, a sua conta foi desconectada de todos os aparelhos, e eles vão pedir a senha nova no próximo acesso.',
+        ];
+
+        if ($emailNovo === null) {
+            $paragrafos[] = 'Peça a senha nova a '.$nomeTitular.' — ou, melhor, use <strong>"Esqueci a senha"</strong> '
+                .'na tela de entrada para criar uma senha que só você conhece.';
+        } else {
+            $paragrafos[] = 'Na mesma alteração, o e-mail com que você entra passou a ser <strong>'
+                .e(self::mascararEmail($emailNovo)).'</strong>, e os próximos avisos da conta vão para lá. '
+                .'Peça a senha nova a '.$nomeTitular.'.';
+        }
+
+        return new self(
+            user: $dependente,
+            assunto: $titular->name.' alterou a senha da sua conta no Stabil Money',
+            titulo: 'Sua senha foi alterada',
+            preheader: $titular->name.' definiu uma senha nova para a sua conta.',
+            paragrafos: $paragrafos,
+            detalhes: [
+                'Quando' => $contexto->quando,
+                'Alterada por' => $titular->name,
+            ],
+            rodapeAviso: '<strong>Não esperava por isso?</strong> Fale com '.$nomeTitular.'. '
+                .'Se ele(a) também não reconhecer a mudança, a conta dele(a) pode estar com outra pessoa: '
+                .'escreva para '.e(config('legal.contact_email')).'.',
+        );
+    }
+
+    // ───────────────────────────────────────────────────────────── e-mail da conta
+
+    /**
+     * Pediram para trocar o e-mail da conta — aviso ao endereço ATUAL (achado A-7).
+     *
+     * **Sai no pedido** porque é o único momento em que o dono ainda consegue impedir a
+     * troca. O link de confirmação vai para o endereço novo, e quem escolheu esse endereço o
+     * controla; mas, enquanto ninguém confirma, a conta continua ligada ao antigo — o
+     * "Esqueci a senha" ainda chega aqui, e a senha nova derruba todas as sessões. Sem
+     * sessão da própria conta ninguém confirma (ProfileController::confirmEmail).
+     *
+     * O texto diz "pedido", nunca "trocado": a troca pode nem acontecer (endereço digitado
+     * errado, link expirado). Anunciar como feita o que só foi pedido é o alarme falso que
+     * ensina a pessoa a ignorar o próximo aviso.
+     */
+    public static function emailTrocaPedida(User $user, string $enderecoNovo, ContextoDeSeguranca $contexto): self
+    {
+        return new self(
+            user: $user,
+            assunto: 'Pedido para trocar o e-mail da sua conta no Stabil Money',
+            titulo: 'Pedido de troca de e-mail',
+            preheader: 'Pediram para trocar o e-mail da sua conta. A troca ainda não vale.',
+            paragrafos: [
+                'Recebemos um pedido para trocar o e-mail da sua conta no Stabil Money para <strong>'
+                    .e(self::mascararEmail($enderecoNovo)).'</strong>.',
+                '<strong>Nada mudou ainda.</strong> A troca só vale depois que o link que enviamos para esse endereço '
+                    .'for aberto, e ele expira em 2 horas. Até lá, a sua conta continua ligada a este e-mail.',
+                'Se foi você, é só abrir o link na caixa de entrada do endereço novo.',
+            ],
+            detalhes: $contexto->paraDetalhes(),
+            rodapeAviso: '<strong>Não foi você?</strong> Então alguém que sabe a sua senha pediu a troca. '
+                .'Use "Esqueci a senha" na tela de entrada <strong>agora</strong>: enquanto a troca não for confirmada, '
+                .'o link chega neste endereço, e a senha nova desconecta todos os aparelhos — sem estar conectado à sua conta, '
+                .'ninguém confirma a troca. Se o link não chegar, escreva para '.e(config('legal.contact_email')).'.',
+        );
+    }
+
+    /**
+     * O e-mail da conta MUDOU — aviso ao endereço ANTIGO (achado A-7).
+     *
+     * Quem chama endereça ao antigo explicitamente: a esta altura `$user->email` já é o
+     * endereço novo. E é justamente o antigo que importa — é o único canal que quem fez a
+     * troca não controla.
+     *
+     * O "não foi você" é próprio: o "Esqueci a senha" não serve mais, porque com este
+     * endereço ele não encontra a conta. A saída é o contato humano, escrito A PARTIR deste
+     * endereço — é o que mostra de quem a conta era.
+     */
+    public static function emailAlterado(
+        User $user,
+        string $enderecoAntigo,
+        string $enderecoNovo,
+        ContextoDeSeguranca $contexto,
+    ): self {
+        return new self(
+            user: $user,
+            assunto: 'O e-mail da sua conta no Stabil Money foi trocado',
+            titulo: 'E-mail da conta trocado',
+            preheader: 'Este endereço deixou de ser o e-mail da sua conta.',
+            paragrafos: [
+                'O e-mail da sua conta no Stabil Money foi trocado de <strong>'.e($enderecoAntigo)
+                    .'</strong> para <strong>'.e(self::mascararEmail($enderecoNovo)).'</strong>.',
+                'A partir de agora, entrar no app e recuperar a senha passam pelo endereço novo, '
+                    .'e os próximos avisos da conta vão para lá.',
+            ],
+            detalhes: $contexto->paraDetalhes(),
+            rodapeAviso: '<strong>Não foi você?</strong> Então alguém que sabia a sua senha trocou o e-mail da sua conta, '
+                .'e o "Esqueci a senha" não funciona mais com este endereço. Escreva o quanto antes para '
+                .e(config('legal.contact_email')).', a partir deste endereço, para recuperarmos o acesso.',
         );
     }
 
@@ -183,6 +312,30 @@ class AlertaDeSeguranca extends Mailable
     private static function semMarcacao(string $html): string
     {
         return trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5));
+    }
+
+    /**
+     * "ma***@gmail.com" — o bastante para o dono reconhecer o próprio endereço.
+     *
+     * Os avisos de troca de e-mail vão para o endereço ANTIGO, e ele pode já não ser da
+     * pessoa (e-mail do emprego anterior, caixa abandonada). Mandar para lá o endereço novo
+     * por inteiro entregaria o contato atual dela a quem lê aquela caixa — alguém que talvez
+     * não tenha mais nada a ver com a conta. O domínio fica inteiro: é o que mais ajuda a
+     * reconhecer ("gmail? não uso"). Quem digitou o endereço o vê completo na própria tela,
+     * logo depois de salvar.
+     */
+    private static function mascararEmail(string $email): string
+    {
+        $arroba = mb_strrpos($email, '@');
+
+        if ($arroba === false) {
+            return '***';
+        }
+
+        $local = mb_substr($email, 0, $arroba);
+
+        // Local curto mostraria quase tudo com duas letras: aí só a primeira aparece.
+        return mb_substr($local, 0, mb_strlen($local) >= 4 ? 2 : 1).'***@'.mb_substr($email, $arroba + 1);
     }
 
     /** O bloco vermelho de "e se não foi você?" — mesma instrução em todos os alertas. */

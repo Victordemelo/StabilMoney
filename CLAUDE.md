@@ -1265,6 +1265,9 @@ o único canal que o invasor não controla.**
 | Encerrar outras sessões | `sessoesEncerradas` (com quantos aparelhos caíram) |
 | Excluir conta | `contaExcluida` — enviado **antes** do delete |
 | Criar dependente | `BemVindoDependente` (para o dependente) |
+| Titular troca a senha do dependente | `senhaAlteradaPeloTitular` — para o e-mail que o dependente tinha ANTES da edição; também derruba as sessões dele e troca `remember_token` e `password_changed_at` (A-6) |
+| Pedir troca de e-mail | `emailTrocaPedida` — para o endereço ATUAL, com o novo mascarado (A-7) |
+| Troca de e-mail que vale | `emailAlterado` — para o endereço ANTIGO, depois de gravar (A-7) |
 
 - **🚨 Todo alerta sai por `App\Support\Notificador::avisar()`, nunca por `Mail::` direto.**
   Ele engole a exceção e registra no log. O motivo é a razão de a classe existir: trocar a
@@ -1275,6 +1278,16 @@ o único canal que o invasor não controla.**
   formato é o mesmo e o que não pode divergir é justamente a instrução do "não foi você".
 - **A senha do dependente NUNCA vai no e-mail** — o caminho oferecido é o "Esqueci a senha",
   que além de seguro é o único que lhe dá uma senha que o titular não conhece.
+- **Troca de e-mail avisa o endereço antigo DUAS vezes** (17/09/2026 — `TrocaDeEmailAvisaEnderecoAntigoTest`):
+  no pedido, que é o único momento em que o dono ainda pode impedir ("se não foi você, use Esqueci a
+  senha agora" — a senha nova derruba as sessões, e sem sessão ninguém confirma), e quando a troca
+  vale. O endereço novo sai MASCARADO (`es***@novo.test`): a caixa antiga pode já não ser da pessoa.
+- **O link de confirmação da troca de e-mail só vale na própria conta** (A-12,
+  `LinkDeTrocaDeEmailSoValeNaPropriaContaTest`): `confirmEmail` confere `user()->is($user)` antes de
+  olhar a pendência. Antes, o link de A aberto por B logado gravava o e-mail novo em A.
+- **`DependentController::update` tem checagem de posse PRÓPRIA** (`abort_unless`, como o `destroy`),
+  além do `authorize()` do Form Request — sem ela, uma regressão no request deixava editar o
+  dependente de outra família (`EditarDependenteAlheioBarradoNoControllerTest`).
 - **Alarme falso é proibido:** cancelar um setup de 2FA pendente não dispara nada (não
   desligou proteção nenhuma). Alerta que grita à toa é alerta que ninguém lê no dia certo.
 - Envio **síncrono** (~1 s). `QUEUE_CONNECTION=database` mas não há worker rodando; se um
