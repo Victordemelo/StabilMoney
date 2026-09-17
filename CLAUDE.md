@@ -954,6 +954,15 @@ com cenário, esperado × obtido e arquivo:linha de cada item). Testes:
   a policy no `authorize()`**, que roda ANTES do validador (A-3, `EditarContaAlheiaNaoVazaDadosTest`):
   a trava de classe tinha esquecido a guarda e devolvia nome e tipo da conta alheia. Prefira isso
   em Form Request novo que leia o model da rota — protege também as regras que ainda vão ser escritas.
+- **Auditoria de TODOS os Form Requests atrás do A-3 (17/09/2026).** O `UpdateGoalRequest` vazava
+  de forma INDIRETA: o perdão do prazo vencido lia a meta da rota sem posse, e "chute certo do prazo
+  → 403 × chute errado → 422" revelava o prazo de metas alheias — ~300 chutes, sem limite de taxa
+  (`EditarMetaAlheiaNaoVazaPrazoTest`). Corrigido com `authorize()` + guarda. **A diferença entre
+  duas respostas já é vazamento, mesmo sem dado na mensagem.** Os outros 23 estão seguros. Sentinelas:
+  `RecursoAlheioNaRotaNaoViraSondaTest` (dois chutes em lados opostos do segredo recebem o mesmo 403)
+  e `IdAlheioNoCorpoIgualAIdInexistenteTest` (id de outra família no corpo ≡ id inexistente, em todo
+  FK). ⚠️ Ainda aberto, decisão do app inteiro: recurso alheio responde **403** e inexistente **404**
+  — a diferença revela que o recurso existe.
 - **Meta com prazo vencido é editável**: `after_or_equal:hoje` só quando `target_date` muda.
 - **Aporte/resgate/investimento com valor inicial levam `client_uuid`** (índice único por pai
   em `goal_contributions`/`investment_contributions`; fast-path fora do lock + exceção de
