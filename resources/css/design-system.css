@@ -941,8 +941,13 @@ form[data-type="transfer"] .type-toggle.tt-3 .tt-pill {
 .pay-summary b { color: var(--ink); }
 
 /* ============ Consentimento de cookies (LGPD) ============ */
+/* z-index 85: ACIMA dos popovers (80) e ABAIXO dos modais (.modal-scrim, 90).
+   Com os mesmos 90 dos modais, o desempate era a ordem no HTML — e o cookie-consent
+   entra no layout DEPOIS dos modais, então a barra ficava por cima do modal "Lançar"
+   na primeira visita e o clique no "Salvar" caía nela (A-9 da auditoria de 05/09,
+   P-5 de 06/09). Com o modal aberto a barra fica atrás do véu; ao fechar, reaparece. */
 .cookie-bar {
-  position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 90;
+  position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 85;
   max-width: 560px; margin: 0 auto;
   display: flex; align-items: center; gap: 16px;
   background: var(--surface); color: var(--ink);

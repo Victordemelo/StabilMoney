@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.198 testes PHP / 5.242 asserções** + **97 testes JS** (Vitest) verdes |
+| Suíte de testes | ✅ **1.204 testes PHP / 5.275 asserções** + **100 testes JS** (Vitest) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -202,12 +202,12 @@ tests/Unit/                 # TotpTest — o algoritmo do 2FA contra os vetores 
 tests/js/                   # Vitest + jsdom (`npm run test:js`, roda no HOST): money (máscara BRL,
                             # teto de 14 dígitos), nav (guarda da CSP no pjax — descartarScriptsSemNonce)
                             # launch (419, fila, client_uuid), service-worker (limpeza do HTML
-                            # autenticado no logout) e offline-queue. Importam os módulos REAIS de
+                            # autenticado no logout), offline-queue e camadas (z-index). Importam os módulos REAIS de
                             # resources/js/sm/ — validado por mutação em 16/09: desligar a guarda da
                             # CSP derruba 6+ testes, trocar a vírgula decimal derruba 34.
                             # Rodam no CI (job `javascript`: `npm ci` + `npm run test:js`, Node 24),
                             # verificado em container Linux x64 a partir de clone limpo em 16/09.
-tests/Feature/              # 1.198 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 1.204 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -342,6 +342,12 @@ campos do vizinho. Todo `id` leva sufixo (`name-c194`, `acct-form-novo`) e o scr
 continua na ORDEM DE TABULAÇÃO e na árvore de acessibilidade — quem navega por teclado atravessa
 formulários invisíveis antes de chegar à página. A transição usa `visibility 0s .25s` no fechado
 (atrasa até o fade terminar) e `0s` no aberto.
+
+**⚠️ Camadas: popovers (80) < barra de cookies (85) < modais (`.modal-scrim`, 90).** Nunca empate
+entre barra e modal: no empate decide a ordem do HTML, e o `cookie-consent` entra no layout DEPOIS
+dos modais — a barra cobria o "Salvar" do modal Lançar na primeira visita (A-9/P-5, corrigido em
+16/09/2026, verificado com `elementFromPoint` num Chromium real). Contrato travado por
+`tests/js/camadas.test.js`, que lê os números do CSS.
 
 **⚠️ `animation-fill-mode` é `backwards`, NUNCA `both`, em `.card` e `.view`.** Com `both` a
 propriedade continua "animada" depois de terminar, e um `transform: none` animado computa como
@@ -1600,7 +1606,7 @@ npm run test:js  # testes de JavaScript (Vitest + jsdom); `test:js:watch` para m
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (1.198 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (1.204 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
