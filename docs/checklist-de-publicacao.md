@@ -6,6 +6,13 @@ simplesmente **copiar o `.env` de desenvolvimento para o servidor**.
 
 Marque conforme for fazendo. A ordem importa: os itens de 🔴 travam o lançamento.
 
+> **Publicação decidida em 23/09/2026:** `https://stabilmoney.victordemelo.com.br`, numa VPS da
+> Oracle (Ubuntu 24.04 ARM64) com nginx + Let's Encrypt no host e a Cloudflare na frente. O passo
+> a passo concreto está em **[`docs/deploy-oracle-cloudflare.md`](deploy-oracle-cloudflare.md)**, e
+> o **`scripts/deploy.sh`** confere os bloqueadores do `.env` (itens 1–4, 6, 9 e os proxies) antes
+> de publicar e executa o item 10 na ordem certa. Este checklist continua sendo o PORQUÊ de cada
+> item; o guia é o COMO.
+
 ---
 
 ## 🔴 Bloqueadores — sem isto, não publique
@@ -152,9 +159,27 @@ imagem sozinho).
 
 ### 8. HTTPS obrigatório + HSTS no proxy
 
-No Caddy (que já faz o certificado automático), garanta o redirecionamento de `http` para
-`https`. O app já envia `Strict-Transport-Security` quando a requisição é segura
-(`SecurityHeaders`), mas o redirect é do proxy.
+~~No Caddy~~ Na infraestrutura decidida (23/09/2026), o HTTPS é do **nginx do host com
+Let's Encrypt** (`certbot certonly --nginx`), com a Cloudflare em **SSL "Full (strict)"** — e o
+redirecionamento `http` → `https` está no `deploy/nginx/stabilmoney.victordemelo.com.br.conf`. O
+app envia `Strict-Transport-Security` quando a requisição é segura (`SecurityHeaders`) — e, atrás
+do proxy, ele só SABE que é segura se o item 8.1 estiver certo.
+
+### 8.1. Proxies confiáveis e o Host aceito (`TRUSTED_PROXIES`, `APP_URL`)
+
+Atrás de Cloudflare + nginx, o PHP vê TODA requisição vindo do gateway da rede Docker, em
+`http`. Sem `TRUSTED_PROXIES=172.16.80.1` (o gateway fixo do `docker-compose.prod.yml`), o
+Laravel não acredita nos cabeçalhos `X-Forwarded-*` e: os limites por IP (login, cadastro,
+"esqueci a senha") viram UM limite para o site inteiro — o sexto cadastro do minuto, de qualquer
+pessoa, leva 429; a tela de sessões, a prova do aceite dos termos e o histórico do painel gravam o
+IP do gateway para todo mundo; e o HSTS não sai. O curinga `*` é recusado de propósito
+(`config/trustedproxy.php`): ele deixaria qualquer um escolher o próprio IP.
+
+E o **`APP_URL` é o único Host aceito em produção** (`TrustHosts` → 400 para os outros) e a raiz de
+TODO link gerado (`App\Support\EnderecoPublico`): sem isso, um "esqueci a senha" com
+`Host: atacante.com` mandaria para a vítima um link para o site do atacante, com o token dentro.
+O nginx fecha a mesma porta antes (`00-host-desconhecido.conf`). Testes:
+`AtrasDoProxyOAppEnxergaOVisitanteTest` e `HostForjadoNaoEntraNosLinksTest`.
 
 ### 9. `SESSION_DOMAIN` continua `null`
 
@@ -167,6 +192,10 @@ Definir `.stabilmoney.com.br` faria o cookie de sessão do app ser enviado **par
 também**. Deixe `null` para o cookie ficar preso ao host que o emitiu.
 
 ### 10. Migrations e caches de produção — **a ordem importa**
+
+> Na VPS, **o `scripts/deploy.sh` faz exatamente isto, nesta ordem** (com backup antes e o app em
+> manutenção durante) — é o que o `git pull && docker compose up -d --build` dos outros apps não
+> faz aqui. O bloco abaixo é o porquê de cada passo.
 
 ```bash
 php artisan migrate --force   # ⚠️ ANTES dos caches — e depois do backup (item 11)
@@ -429,6 +458,11 @@ do Laravel depende de uma única entrada de cron que acorda o artisan a cada min
 
 Rodando em Docker na VPS, o `cd` é no host e o comando vira
 `docker compose exec -T app php artisan schedule:run`.
+
+**Na VPS decidida (23/09/2026) não há cron para isto:** o `docker-compose.prod.yml` tem o
+serviço **`agendador`** (`php artisan schedule:work`, como `www-data`), que sobe e desce com o app.
+Cron esquecido é lembrete de fatura que nunca sai, em silêncio — serviço do compose não se
+esquece. (O cron do BACKUP, item 11, continua no host.)
 
 Confira o que está agendado com `php artisan schedule:list` — se a saída vier vazia depois
 de um deploy, provavelmente sobrou um `config:cache` velho.

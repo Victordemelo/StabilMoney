@@ -1,0 +1,179 @@
+# =============================================================================
+# Stabil Money — docker-compose de PRODUÇÃO (VPS Oracle, Ubuntu 24.04 ARM64).
+#
+# O de desenvolvimento é o docker-compose.yml e continua como está. Os dois são
+# arquivos INTEIROS, e não um "override" que se soma ao outro: numa soma, as
+# listas de `ports` se juntam — a 8001 aberta do dev e a 3307 do banco viriam
+# de carona para a produção.
+#
+# Ninguém precisa digitar "-f": o .env do servidor tem
+#
+#   COMPOSE_FILE=docker-compose.prod.yml
+#
+# e o Compose lê essa variável do .env da pasta do projeto. Assim o comando de
+# sempre (`docker compose up -d --build`) e os scripts de backup/restauração
+# usam ESTE arquivo — e ninguém sobe por engano o de dev na VPS, que publica a
+# 8001 em todas as interfaces (de propósito, para testar pelo celular no Wi-Fi)
+# e ainda sobe o Mailpit.
+#
+# Passo a passo completo: docs/deploy-oracle-cloudflare.md.
+# O deploy de cada versão: scripts/deploy.sh (ver "Como o código chega" abaixo).
+#
+# ---------------------------------------------------------------------------
+# O caminho de uma requisição
+#
+#   visitante → Cloudflare → nginx do HOST (:443, Let's Encrypt)
+#             → 127.0.0.1:${HTTP_PORT} → container `app` (Apache + PHP) → `db`
+#
+# Nenhuma porta daqui fica aberta para a internet: a do app só em 127.0.0.1
+# (quem chega é o nginx do host) e o banco em porta nenhuma. ⚠️ Publicar em
+# 0.0.0.0 abriria a porta para o mundo mesmo com o firewall do host fechado —
+# o Docker escreve as próprias regras de iptables, que passam na frente das do
+# host. O scripts/deploy.sh recusa subir se alguma porta publicada não estiver
+# em 127.0.0.1.
+#
+# ---------------------------------------------------------------------------
+# Como o código chega ao container: pela pasta, igual ao dev
+#
+# O projeto (/opt/apps/stabilmoney) é montado em /var/www/html — não é copiado
+# para dentro da imagem. A imagem só tem o runtime (PHP, extensões, php.ini de
+# produção). Foi escolhido assim porque:
+#   - é o MESMO modelo do dev: o que funciona no computador do Victor funciona
+#     igual na VPS, sem um segundo Dockerfile para manter;
+#   - atualizar é `git pull` + os passos do scripts/deploy.sh, sem registro de
+#     imagens e sem rebuild a cada versão (em ARM, cada build leva minutos);
+#   - o checklist (item 7) já fala de permissões na pasta do host.
+# O preço é esse das permissões: o Apache do container (www-data, uid 33)
+# precisa escrever em storage/ e bootstrap/cache, que moram no host. O
+# scripts/deploy.sh ajusta isso a cada deploy — dono www-data, grupo do usuário
+# de deploy, sem 777 (ver o passo "permissões" dele).
+#
+# E o preço de o `git pull` sozinho não bastar: com a pasta montada, o código
+# novo vale NA HORA, mas vendor/, migrations, caches e o build dos assets não
+# se atualizam sozinhos. É isso que o scripts/deploy.sh faz, na ordem certa.
+# =============================================================================
+
+name: stabilmoney
+
+# Log do Docker com rotação. O driver padrão (json-file) NÃO gira: o log de
+# acesso do Apache vai para a saída do container e enche o disco da VPS aos
+# poucos (checklist 10.3). 5 arquivos de 10 MB por serviço, no máximo.
+x-logs: &logs
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+# O que o app e o agendador têm em comum: a mesma imagem, a mesma pasta.
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: stabilmoney-app:producao
+  restart: unless-stopped
+  volumes:
+    - .:/var/www/html
+  depends_on:
+    db:
+      # Espera o MySQL aceitar conexão (healthcheck abaixo), e não só o container
+      # existir: no primeiro boot o MySQL leva ~30 s criando o banco e o usuário.
+      condition: service_healthy
+  logging: *logs
+
+services:
+  # Apache + PHP 8.4 (o mesmo Dockerfile do dev), com o Laravel.
+  app:
+    <<: *app
+    ports:
+      # SÓ em 127.0.0.1: quem fala com o app é o nginx do host (proxy_pass).
+      # A 8080 já é do portfólio; o padrão aqui é 8081, e o .env do servidor
+      # repete HTTP_PORT=8081. Mudou a porta? Mude o proxy_pass do nginx junto
+      # (deploy/nginx/stabilmoney.victordemelo.com.br.conf).
+      - "127.0.0.1:${HTTP_PORT:-8081}:80"
+
+  # O agendador do Laravel (routes/console.php): limpeza das sessões às 03:10 e
+  # os lembretes de vencimento às 08:00. Sem ele, nada disso roda.
+  #
+  # Serviço do compose, e não uma linha de cron no host, porque:
+  #   - sobe e desce junto com o app (`docker compose up -d`), sem ninguém
+  #     precisar lembrar de instalar a crontab — e cron esquecido é lembrete de
+  #     fatura que nunca sai, em silêncio;
+  #   - roda como www-data, o mesmo usuário do Apache: o log do dia criado por
+  #     ele continua gravável pelo site (um cron como root criaria o arquivo como
+  #     root, e o site passaria a dar erro 500 ao tentar escrever no log).
+  # `schedule:work` acorda a cada minuto e roda `schedule:run` num processo
+  # NOVO — que já enxerga o código e o config:cache do último deploy.
+  agendador:
+    <<: *app
+    user: www-data
+    command: ["php", "artisan", "schedule:work"]
+
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      # Sem valores padrão, ao contrário do dev: faltando no .env, o Compose
+      # PARA com a mensagem abaixo em vez de subir o banco com senha de exemplo.
+      # O MySQL só cria o usuário no PRIMEIRO boot do volume — trocar depois
+      # exige ALTER USER (checklist, item 6).
+      MYSQL_DATABASE: ${DB_DATABASE:?defina DB_DATABASE no .env}
+      MYSQL_USER: ${DB_USERNAME:?defina DB_USERNAME no .env}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?defina DB_ROOT_PASSWORD no .env}
+    # Nenhuma porta publicada: o app fala com db:3306 pela rede interna. Para
+    # abrir no DBeaver, use um túnel SSH até a VPS e `docker compose exec db mysql`.
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      # Sem usuário nem senha, DE PROPÓSITO: o `mysqladmin ping` sai com 0 quando
+      # o servidor responde, mesmo recusando o login — e senha na linha de comando
+      # aparece no `ps` do host (é por isso que os scripts de backup nunca fazem
+      # isso). Pelo TCP (127.0.0.1), e não pelo socket: no primeiro boot o MySQL
+      # sobe um servidor TEMPORÁRIO só no socket para criar o banco e o usuário, e
+      # o app não pode tentar conectar nesse meio-tempo. Medido em 23/09/2026 com
+      # esta imagem: o TCP só responde quando o usuário do app já existe.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 90s
+      start_interval: 3s
+    # O MySQL precisa de tempo para gravar tudo no disco ao desligar (reboot da
+    # VPS, `docker compose down`). Com os 10 s padrão, o Docker o mata no meio.
+    stop_grace_period: 1m
+    logging: *logs
+
+  # Build dos assets (Vite/Tailwind) num container Node — o host não precisa de
+  # Node. Não sobe com `up`: só roda quando chamado, pelo scripts/deploy.sh
+  # (`docker compose run --rm assets`), SEMPRE depois do `php artisan view:cache`
+  # (o Tailwind varre as views compiladas; sem elas o CSS sai menor, sem aviso —
+  # checklist, item 10). Node 24, a mesma versão do CI; imagem arm64 disponível.
+  assets:
+    image: node:24-alpine
+    profiles: ["ferramentas"]
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: ["sh", "-c", "npm ci --no-audit --no-fund && npm run build"]
+    logging: *logs
+
+networks:
+  default:
+    ipam:
+      config:
+        # Sub-rede FIXA para o gateway ser previsível: é pelo gateway que o nginx
+        # do host chega ao container (a conexão para 127.0.0.1:${HTTP_PORT} aparece
+        # dentro do container vinda dele), e o Laravel só confia nos cabeçalhos
+        # X-Forwarded-* que vêm dele:
+        #
+        #   TRUSTED_PROXIES=172.16.80.1        (no .env do servidor)
+        #
+        # 172.16.0.0/16 fica fora das faixas que o Docker sorteia sozinho para
+        # redes novas (172.17–172.31 e 192.168), então não colide com a rede do
+        # portfólio nem com a de um app futuro. Mudou aqui? Mude o TRUSTED_PROXIES
+        # junto — o scripts/deploy.sh confere os dois.
+        - subnet: 172.16.80.0/24
+          gateway: 172.16.80.1
+
+volumes:
+  db_data:

@@ -319,10 +319,18 @@ jobs:
   # Roda no Ubuntu de propósito: aqui o `awk` é o mawk e as ferramentas são as
   # GNU — as mesmas da VPS —, enquanto no Mac de quem desenvolve são o bash 3.2 e
   # as ferramentas BSD. O teste passa nos dois.
+  #
+  # Desde 23/09/2026, também o pacote de publicação (docs/deploy-oracle-cloudflare.md):
+  # o scripts/deploy.sh (contra um docker e um curl falsos — e o `docker compose
+  # config` DE VERDADE, que confere que o compose de produção só publica em
+  # 127.0.0.1), o nginx do host (num nginx 1.24 de verdade, em container: Cloudflare
+  # × acesso direto, Host desconhecido, SNI, redirect, limite de upload) e o
+  # atualizador das faixas de IP da Cloudflare. Sem Docker no ambiente, as partes que
+  # dependem dele são puladas com aviso — aqui no runner elas rodam.
   scripts:
-    name: Scripts de backup e restauração (bash)
+    name: Scripts de backup, restauração e publicação (bash)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Baixar o código
@@ -330,3 +338,12 @@ jobs:
 
       - name: Testar backup-db.sh e restore-db.sh (sem Docker, com docker falso)
         run: bash tests/scripts/backup-restore.test.sh
+
+      - name: Testar scripts/deploy.sh (docker e curl falsos + compose de verdade)
+        run: bash tests/scripts/deploy.test.sh
+
+      - name: Testar o nginx do host (nginx 1.24 de verdade, em container)
+        run: bash tests/scripts/nginx.test.sh
+
+      - name: Testar o atualizador das faixas de IP da Cloudflare
+        run: bash tests/scripts/atualizar-ips-cloudflare.test.sh
