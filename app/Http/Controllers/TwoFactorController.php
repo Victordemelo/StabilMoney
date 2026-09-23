@@ -10,7 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
- * Verificação em duas etapas — o lado de Configurações › Segurança (ligar, confirmar,
+ * Verificação em duas etapas — o lado de Configurações › 2FA (ligar, confirmar,
  * trocar os códigos de recuperação e desligar). O lado do LOGIN mora em
  * Auth\TwoFactorChallengeController.
  *
@@ -176,12 +176,19 @@ class TwoFactorController extends Controller
     }
 
     /**
-     * Sempre de volta para a aba Segurança — e não `back()`: o card tem quatro formulários
+     * Sempre de volta para a aba do 2FA — e não `back()`: o card tem quatro formulários
      * e um `back()` sem referer (PWA, app instalado) cairia no dashboard, escondendo o
      * erro que acabou de acontecer.
+     *
+     * A do 2FA, e não a Segurança: desde que o 2FA ganhou aba própria
+     * (SettingsController::TABS) é só nela que o card existe. Voltar para a Segurança
+     * escondia o QR de quem acabou de pedir para ligar e os erros do código — e, pior,
+     * **gastava os códigos de recuperação**: eles vêm em flash, e a página que consumia o
+     * flash não os mostrava. Quem ligava o 2FA nunca via a única porta de volta do dia em
+     * que perdesse o celular.
      */
     private function voltar(): RedirectResponse
     {
-        return redirect()->route('settings', 'seguranca');
+        return redirect()->route('settings', '2fa');
     }
 }

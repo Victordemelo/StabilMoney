@@ -89,7 +89,7 @@ class DoisFatoresTest extends TestCase
         $user = User::factory()->create();
 
         $this->actingAs($user)->post(route('settings.2fa.ativar'), ['password' => self::SENHA])
-            ->assertRedirect(route('settings', 'seguranca'));
+            ->assertRedirect(route('settings', '2fa'));
 
         $user->refresh();
 
@@ -119,6 +119,40 @@ class DoisFatoresTest extends TestCase
         $resposta->assertSee(Totp::formatarSegredo($user->fresh()->two_factor_secret));
     }
 
+    /**
+     * Quem pede para ligar cai DIRETO na tela com o QR — seguindo o redirect, como o
+     * navegador faz. Antes o `voltar()` mandava para a aba Segurança, onde o card do 2FA
+     * não existe mais desde que ganhou aba própria: a pessoa digitava a senha e via a tela
+     * de senha e sessões, sem QR nenhum, e só o achava clicando de novo em "2FA".
+     */
+    public function test_depois_de_ativar_o_redirect_leva_a_tela_com_o_qr_e_a_chave(): void
+    {
+        $user = User::factory()->create();
+
+        $resposta = $this->actingAs($user)
+            ->followingRedirects()
+            ->post(route('settings.2fa.ativar'), ['password' => self::SENHA])
+            ->assertOk();
+
+        $resposta->assertSee(Totp::formatarSegredo($user->fresh()->two_factor_secret));
+        $resposta->assertSee('Confirmar e ativar');
+    }
+
+    /** Erro do código (vem por `voltar()`, não pelo `back()` da validação) na aba certa. */
+    public function test_codigo_errado_na_confirmacao_aparece_na_aba_do_2fa(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user)->post(route('settings.2fa.ativar'), ['password' => self::SENHA]);
+
+        $this->actingAs($user->fresh())
+            ->followingRedirects()
+            ->post(route('settings.2fa.confirmar'), ['codigo' => '000000'])
+            ->assertOk()
+            ->assertSee('Código incorreto ou expirado')
+            // E a pessoa continua com o QR à frente para tentar de novo.
+            ->assertSee(Totp::formatarSegredo($user->fresh()->two_factor_secret));
+    }
+
     public function test_confirmar_com_o_codigo_certo_liga_o_2fa_e_entrega_os_codigos_de_recuperacao(): void
     {
         $user = User::factory()->create();
@@ -127,7 +161,7 @@ class DoisFatoresTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('settings.2fa.confirmar'), ['codigo' => $this->codigoAtual($user)])
-            ->assertRedirect(route('settings', 'seguranca'))
+            ->assertRedirect(route('settings', '2fa'))
             ->assertSessionHas('status', 'two-factor-enabled')
             ->assertSessionHas('codigosDeRecuperacao');
 
@@ -141,6 +175,10 @@ class DoisFatoresTest extends TestCase
      * A lista de códigos aparece na tela UMA vez, logo depois de confirmar. Se este
      * caminho quebrar, o usuário liga o 2FA e nunca vê a única saída que tem para o dia
      * em que perder o celular.
+     *
+     * Segue o redirect de verdade, como o navegador. A versão antiga deste teste fazia um
+     * GET direto em `/configuracoes/2fa` e passava — enquanto o redirect real ia para a aba
+     * Segurança, que CONSUMIA o flash sem mostrar os códigos. Na tela, eles nunca apareciam.
      */
     public function test_a_lista_de_codigos_aparece_na_tela_depois_de_confirmar(): void
     {
@@ -148,10 +186,10 @@ class DoisFatoresTest extends TestCase
         $this->actingAs($user)->post(route('settings.2fa.ativar'), ['password' => self::SENHA]);
         $user->refresh();
 
-        $this->actingAs($user)
-            ->post(route('settings.2fa.confirmar'), ['codigo' => $this->codigoAtual($user)]);
-
-        $resposta = $this->actingAs($user->fresh())->get('/configuracoes/2fa')->assertOk();
+        $resposta = $this->actingAs($user)
+            ->followingRedirects()
+            ->post(route('settings.2fa.confirmar'), ['codigo' => $this->codigoAtual($user)])
+            ->assertOk();
 
         foreach ($user->fresh()->two_factor_recovery_codes as $codigo) {
             $resposta->assertSee($codigo);
@@ -423,6 +461,25 @@ class DoisFatoresTest extends TestCase
 
         $this->assertCount(RecoveryCodes::QUANTIDADE, $novos);
         $this->assertEmpty(array_intersect($antigos, $novos), 'Um código antigo sobreviveu à troca.');
+    }
+
+    /**
+     * Os códigos novos também vêm em flash, uma vez só: o redirect precisa cair na aba que
+     * os mostra. Na aba Segurança, gerar códigos novos invalidava os antigos e escondia os
+     * novos — a pessoa terminava sem lista nenhuma.
+     */
+    public function test_os_codigos_novos_aparecem_seguindo_o_redirect(): void
+    {
+        $user = $this->comDoisFatores();
+
+        $resposta = $this->actingAs($user)
+            ->followingRedirects()
+            ->post(route('settings.2fa.codigos'), ['password' => self::SENHA])
+            ->assertOk();
+
+        foreach ($user->fresh()->two_factor_recovery_codes as $codigo) {
+            $resposta->assertSee($codigo);
+        }
     }
 
     // =========================================================== desligar
