@@ -1,7 +1,20 @@
+const VERSAO = @json($versao);
 @verbatim
 /*
  * Service worker do Stabil Money (PWA) — servido por PwaController@serviceWorker.
- * NÃO é processado pelo Vite. Para invalidar caches antigos, suba a versão abaixo.
+ * NÃO é processado pelo Vite.
+ *
+ * VERSÃO (P-6 da auditoria de 06/09/2026): a linha de cima, `const VERSAO`, é o ÚNICO
+ * trecho que o Blade interpreta — é a versão do build (hash do manifest do Vite, ver
+ * PwaController::versaoDoBuild). Ela existe para o navegador perceber o deploy: ele só
+ * instala um SW novo quando os BYTES deste script mudam. Com o nome de cache fixo
+ * (`sm-cache-v2`), um build novo não mudava byte nenhum — a aba aberta seguia com o CSS
+ * e o JS velhos, e o cache do /build guardava todas as versões para sempre. Agora cada
+ * build tem o seu cache, e o `activate` apaga os das versões anteriores.
+ *   - O `v3` do nome do cache é manual: suba-o só quando mudar a ESTRATÉGIA de cache
+ *     deste arquivo e o que já está guardado precisar ir embora mesmo sem build novo.
+ *   - tests/js/service-worker.test.js executa este código trocando SÓ a linha da versão
+ *     por uma de teste — qualquer outro Blade fora do @verbatim o faz se recusar a rodar.
  *
  * Estratégia (conservadora de propósito, para NÃO quebrar o app):
  *  - Só intercepta GET. POST/PATCH/DELETE (forms + CSRF do Laravel) passam direto —
@@ -24,7 +37,7 @@
  *    E mudar só o header NÃO atualiza SW já instalado: o navegador compara os BYTES do
  *    script. Qualquer mudança de CSP para o SW precisa vir com uma mudança aqui.
  */
-const CACHE = 'sm-cache-v2';
+const CACHE = 'sm-cache-v3-' + VERSAO;
 
 // Precache mínimo: tudo público, sem dado do usuário.
 const PRECACHE = [
@@ -101,12 +114,31 @@ self.addEventListener('install', (event) => {
   );
 });
 
+// Versão nova no ar: os caches das anteriores vão embora inteiros — é o que impede o
+// /build de acumular o CSS/JS de todo deploy. Vai junto o formulário offline guardado
+// pela versão velha, DE PROPÓSITO: ele aponta para o CSS/JS que acabaram de ser
+// apagados, e servido offline abriria sem estilo e sem a fila offline (o envio iria
+// direto para a rede e se perderia). Ele volta ao cache na próxima vez que a página for
+// aberta online. A fila (IndexedDB) não é cache: nada aqui encosta nela.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+// ---- A página pergunta a versão ---------------------------------------------
+// Quando este SW assume uma página que já estava aberta (`controllerchange`), o
+// sm/pwa.js pergunta a versão dele e compara com a meta `sm-versao` da própria página:
+// se diferem, a página está com CSS/JS de um build anterior e avisa a pessoa. A
+// comparação é o que evita o alarme falso — SW novo com o MESMO build (mudou só este
+// arquivo) não pede atualização nenhuma.
+self.addEventListener('message', (event) => {
+  const dados = event.data || {};
+  if (dados.tipo === 'sm-versao?' && event.source) {
+    event.source.postMessage({ tipo: 'sm-versao', versao: VERSAO });
+  }
 });
 
 // ---- Background Sync: reenvio dos lançamentos offline -----------------------

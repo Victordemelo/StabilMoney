@@ -19,6 +19,12 @@
          getComputedStyle). O marcador `data-sm-theme` é o que autoriza o JS a
          mexer nesta meta — as telas de auth têm cor fixa e não o levam. --}}
     <meta name="theme-color" content="#EFF4F1" data-sm-theme data-light="#EFF4F1" data-dark="#07140E" />
+    {{-- Versão do build com que ESTA página foi montada (P-6 da auditoria de 06/09/2026).
+         Mesma fonte do `const VERSAO` do service worker (PwaController::versaoDoBuild).
+         O pjax compara com a da página que acabou de buscar — deploy no meio = navegação
+         completa, senão o conteúdo novo rodaria com o CSS/JS velhos — e o `sm/pwa.js`
+         compara com a do SW que assumiu a aba, para avisar que há versão nova. --}}
+    <meta name="sm-versao" content="{{ \App\Http\Controllers\PwaController::versaoDoBuild() }}" />
 
     {{-- Título da aba: cada view define @section('title'); o pjax copia daqui ao navegar. --}}
     @php($tituloPagina = trim($__env->yieldContent('title')))
@@ -27,18 +33,26 @@
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
     @include('partials.pwa-head')
 
-    {{-- Anti-flash: aplica o tema salvo ANTES do CSS pintar a página — e, junto,
+    {{-- Anti-flash: aplica o tema ANTES do CSS pintar a página — e, junto,
          as cores das "bordas do sistema" (barra do navegador/status do celular),
          que o CSS não alcança porque vivem em metas do <head>.
          Tem de ser AQUI, inline e cedo: o iOS lê a meta da barra de status durante
          o carregamento, e o bundle do Vite só roda depois do parse do documento.
          A mesma conta é refeita pelo `sm/theme.js` quando o usuário troca o tema
-         (as duas pontas leem os hex dos data-light/data-dark da meta acima). --}}
+         (as duas pontas leem os hex dos data-light/data-dark da meta acima).
+
+         Qual tema: a escolha SALVA (botão de tema); sem escolha, o do SISTEMA
+         (`prefers-color-scheme`) — antes era sempre o claro, e o app abria branco num
+         celular no modo escuro. É a regra do `resolverTema` do sm/theme.js, escrita de
+         novo aqui porque este trecho não pode esperar o bundle; o
+         tests/js/theme.test.js executa este script e confere que as duas concordam. --}}
     <script nonce="{{ Vite::cspNonce() }}">
         (function () {
             var t;
             try { t = localStorage.getItem('sm-theme'); } catch (e) { /* storage indisponível */ }
-            if (t !== 'dark' && t !== 'light') t = document.documentElement.getAttribute('data-theme') || 'light';
+            if (t !== 'dark' && t !== 'light') {
+                try { t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch (e) { t = 'light'; }
+            }
             document.documentElement.setAttribute('data-theme', t);
 
             var cor = document.querySelector('meta[name="theme-color"][data-sm-theme]');
@@ -83,6 +97,13 @@
 
     <div class="scrim" id="scrim"></div>
 </div>
+
+{{-- Anúncio da navegação por pjax para leitor de tela: o `sm/nav.js` escreve aqui o
+     título da página nova. Sem isto a troca era silenciosa — o conteúdo mudava e o foco
+     ficava no link clicado. Existe desde o carregamento (região viva criada junto com o
+     texto não costuma ser lida) e mora FORA do #app, que pode ficar `inert` com um modal
+     aberto — e região viva dentro de subárvore inerte não anuncia nada. --}}
+<div id="sm-anuncio" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
 @auth
     @include('partials.launch-modal')

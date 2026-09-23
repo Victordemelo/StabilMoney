@@ -7,7 +7,7 @@ import { flush } from './helpers/flush.js';
 
 /**
  * Service worker (`resources/views/pwa/service-worker.blade.php`, servido em /sw.js):
- * o que sobra no aparelho quando a sessão acaba.
+ * o que sobra no aparelho quando a sessão acaba — e o que acontece com ele a cada deploy.
  *
  * O achado (P-2 da auditoria de PWA de 06/09/2026): o SW guarda `/transactions/create`
  * para o lançamento abrir offline, e esse HTML traz as contas, as categorias e os nomes
@@ -18,9 +18,12 @@ import { flush } from './helpers/flush.js';
  * pegasse o app offline depois do "Sair" abria o formulário do dono anterior.
  *
  * Aqui roda o código REAL do service worker. O arquivo é uma view Blade só para ser
- * servido por rota, mas o JavaScript mora inteiro dentro de `@verbatim` — o Blade não
- * interpreta nada ali —, então o que este teste executa é o que o navegador recebe. O
- * que é do navegador (Cache Storage, rede, IndexedDB, `self`) entra como dublê em memória.
+ * servido por rota e por UMA linha: a primeira, `const VERSAO = @json($versao);`, pela qual
+ * o PwaController põe no script a versão do build (P-6 da mesma auditoria). Todo o resto
+ * mora dentro de `@verbatim` — o Blade não interpreta nada ali —, então o que este teste
+ * executa é o que o navegador recebe, com a versão trocada pela do teste (é assim que ele
+ * simula um deploy). O que é do navegador (Cache Storage, rede, IndexedDB, `self`) entra
+ * como dublê em memória.
  */
 
 const ORIGEM = 'https://app.stabilmoney.test';
@@ -32,18 +35,34 @@ const ARQUIVO = resolve(dirname(fileURLToPath(import.meta.url)), '../../resource
 const FORMULARIO = '<form data-offline-queue>Nubank · Mercado · Victor (titular)</form>';
 const PAGINA_OFFLINE = '<h1>Você está offline</h1>';
 
-/** O JavaScript de dentro do `@verbatim` — exatamente o que o Laravel serve em /sw.js. */
-function codigoServido() {
-    const blade = readFileSync(ARQUIVO, 'utf8');
-    const trecho = blade.match(/^\s*@verbatim\s*\n([\s\S]*)@endverbatim\s*$/);
+/** A versão do build com que o aparelho de teste nasce. */
+const VERSAO_INICIAL = 'build-1';
 
-    // Sem esta trava, um trecho Blade fora do @verbatim faria o teste executar um código
-    // diferente do servido — e passar por um SW que ninguém recebe.
-    if (!trecho) {
-        throw new Error('O service worker saiu do @verbatim: o teste deixaria de executar o que o Laravel serve.');
+/**
+ * O JavaScript servido em /sw.js a partir do conteúdo da view, com a versão `versao`.
+ *
+ * O ponto controlado é a linha da versão, exatamente como está na view. Qualquer OUTRO
+ * trecho fora do @verbatim — uma interpolação a mais, uma diretiva — faz o teste se
+ * recusar a rodar: ele passaria a executar um código diferente do servido, e a aprovar um
+ * SW que ninguém recebe.
+ */
+function extrairCodigo(blade, versao) {
+    const trecho = blade.match(/^const VERSAO = @json\(\$versao\);\n@verbatim\n([\s\S]*)@endverbatim\s*$/);
+
+    // O Blade fecha o bloco no PRIMEIRO `@endverbatim`: um segundo no meio quer dizer que
+    // há Blade de verdade entre dois blocos — o que a captura acima, sozinha, aceitaria.
+    if (!trecho || trecho[1].includes('@endverbatim')) {
+        throw new Error(
+            'O service worker saiu do formato "linha da versão + @verbatim": o teste deixaria de executar o que o Laravel serve.',
+        );
     }
 
-    return trecho[1];
+    // Mesmo formato que o `@json` do Blade produz para uma string.
+    return `const VERSAO = ${JSON.stringify(versao)};\n${trecho[1]}`;
+}
+
+function codigoServido(versao = VERSAO_INICIAL) {
+    return extrairCodigo(readFileSync(ARQUIVO, 'utf8'), versao);
 }
 
 // ---- Dublês do navegador ----------------------------------------------------
@@ -161,35 +180,45 @@ function servidor(estado, req) {
     return resposta(200, `conteúdo de ${pathname}`);
 }
 
-/**
- * Carrega o service worker num escopo falso e o deixa no estado de um aparelho em uso:
- * instalado, ativo, e com o dono tendo aberto o formulário online (o SW o guardou) e
- * carregado o CSS do app.
- */
-async function aparelhoEmUso() {
-    const estado = { sessao: true, offline: false };
-    const ouvintes = {};
-    const fetch = vi.fn(async (req) => servidor(estado, req));
-    const caches = new CacheStorageFalso(fetch);
-    // A fila offline mora no IndexedDB. Nenhum caminho da limpeza pode encostar nele.
-    const indexedDB = { open: vi.fn(), deleteDatabase: vi.fn() };
+const ResponseFalso = { error: () => ({ status: 0, type: 'error', corpo: '' }) };
 
+/**
+ * Executa o service worker da versão `versao` num escopo falso, sobre o aparelho
+ * `aparelho` (rede, Cache Storage e IndexedDB). Dois SWs sobre o mesmo aparelho = o
+ * navegador instalando a versão nova por cima da antiga, que é o que um deploy faz.
+ */
+function executarServiceWorker(aparelho, versao) {
+    const ouvintes = {};
     const escopo = {
         location: new URL('/sw.js', ORIGEM),
         addEventListener: (tipo, ouvinte) => { ouvintes[tipo] = ouvinte; },
         skipWaiting: vi.fn(async () => {}),
         clients: { claim: vi.fn(async () => {}) },
     };
-    const ResponseFalso = { error: () => ({ status: 0, type: 'error', corpo: '' }) };
 
     // `new Function` recebe o arquivo do PRÓPRIO repositório (nada vindo de fora): é o jeito
     // de executar o SW como script clássico, com os globais do navegador trocados pelos
     // dublês acima — um `import` não serviria, o SW não é módulo.
-    new Function('self', 'caches', 'fetch', 'indexedDB', 'Response', codigoServido())(
-        escopo, caches, fetch, indexedDB, ResponseFalso,
+    new Function('self', 'caches', 'fetch', 'indexedDB', 'Response', codigoServido(versao))(
+        escopo, aparelho.caches, aparelho.fetch, aparelho.indexedDB, ResponseFalso,
     );
 
-    const sw = { estado, ouvintes, fetch, caches, indexedDB };
+    return { ...aparelho, ouvintes, escopo };
+}
+
+/**
+ * Carrega o service worker num escopo falso e o deixa no estado de um aparelho em uso:
+ * instalado, ativo, e com o dono tendo aberto o formulário online (o SW o guardou) e
+ * carregado o CSS do app.
+ */
+async function aparelhoEmUso(versao = VERSAO_INICIAL) {
+    const estado = { sessao: true, offline: false };
+    const fetch = vi.fn(async (req) => servidor(estado, req));
+    const caches = new CacheStorageFalso(fetch);
+    // A fila offline mora no IndexedDB. Nenhum caminho da limpeza pode encostar nele.
+    const indexedDB = { open: vi.fn(), deleteDatabase: vi.fn() };
+
+    const sw = executarServiceWorker({ estado, fetch, caches, indexedDB }, versao);
 
     await ciclo(sw, 'install');
     await ciclo(sw, 'activate');
@@ -201,6 +230,20 @@ async function aparelhoEmUso() {
     fetch.mockClear();
 
     return sw;
+}
+
+/**
+ * O deploy visto do aparelho: o navegador baixa o /sw.js, os bytes mudaram (a versão do
+ * build está neles), e o SW novo instala e ativa por cima do antigo — `skipWaiting` +
+ * `clients.claim`, sem esperar as abas fecharem.
+ */
+async function deploy(sw, versao) {
+    const novo = executarServiceWorker(sw, versao);
+
+    await ciclo(novo, 'install');
+    await ciclo(novo, 'activate');
+
+    return novo;
 }
 
 /** Dispara `install`/`activate` e espera o `waitUntil`. */
@@ -394,5 +437,130 @@ describe('service worker: o HTML autenticado não sobrevive ao fim da sessão', 
             expect(lancamento.pendencias).toHaveLength(0);
             expect(sw.caches.guardados()).toContain('/transactions/create');
         });
+    });
+});
+
+describe('service worker: cada build tem a sua versão, e o deploy chega ao aparelho (P-6)', () => {
+    // O defeito: o nome do cache era fixo (`sm-cache-v2`). O navegador só instala SW novo
+    // quando os BYTES do /sw.js mudam, e um deploy não mudava byte nenhum — a aba aberta
+    // (num app instalado, por dias) seguia com o CSS/JS velhos, e o cache do /build guardava
+    // o CSS de todos os deploys para sempre. Agora a versão do build está no script.
+    let sw;
+
+    beforeEach(async () => {
+        sw = await aparelhoEmUso(VERSAO_INICIAL);
+    });
+
+    const nomesDosCaches = () => [...sw.caches.porNome.keys()];
+
+    it('o nome do cache leva a versão do build', () => {
+        expect(nomesDosCaches()).toHaveLength(1);
+        expect(nomesDosCaches()[0]).toContain(VERSAO_INICIAL);
+    });
+
+    it('build novo: o activate apaga o cache inteiro da versão anterior', async () => {
+        sw = await deploy(sw, 'build-2');
+
+        expect(nomesDosCaches()).toHaveLength(1);
+        expect(nomesDosCaches()[0]).toContain('build-2');
+        // O CSS do build anterior não existe mais no servidor e sai do aparelho.
+        expect(sw.caches.guardados()).not.toContain('/build/assets/app-3f9a1c.css');
+    });
+
+    it('o /build não acumula: depois de três deploys só sobra o cache do último', async () => {
+        for (const versao of ['build-2', 'build-3', 'build-4']) {
+            await concluida(requisicao(sw, `/build/assets/app-${versao}.css`, { mode: 'no-cors' }));
+            sw = await deploy(sw, versao);
+        }
+
+        expect(nomesDosCaches()).toHaveLength(1);
+        expect(sw.caches.guardados().filter((caminho) => caminho.startsWith('/build/'))).toEqual([]);
+    });
+
+    it('a versão nova chega com a página offline e os ícones de volta no precache', async () => {
+        sw = await deploy(sw, 'build-2');
+
+        expect(sw.caches.guardados()).toEqual(expect.arrayContaining([
+            '/offline',
+            '/assets/icons/icon-192.png',
+        ]));
+    });
+
+    it('o deploy não encosta na fila offline (IndexedDB)', async () => {
+        await deploy(sw, 'build-2');
+
+        // A fila é a única cópia de um dinheiro que ainda não chegou ao servidor.
+        expect(sw.indexedDB.open).not.toHaveBeenCalled();
+        expect(sw.indexedDB.deleteDatabase).not.toHaveBeenCalled();
+    });
+
+    it('o formulário da versão velha vai junto, e offline a navegação cai na página offline — nunca num form sem CSS', async () => {
+        // O form guardado aponta para o CSS/JS do build anterior, que acabou de sair do
+        // cache: aberto offline, viria sem estilo e sem a fila (o envio iria direto para a
+        // rede e se perderia). Melhor a página offline, que diz a verdade.
+        sw = await deploy(sw, 'build-2');
+        sw.estado.offline = true;
+
+        const aberto = await concluida(requisicao(sw, '/transactions/create'));
+
+        expect(sw.caches.guardados()).not.toContain('/transactions/create');
+        expect(aberto.corpo).toBe(PAGINA_OFFLINE);
+    });
+
+    it('o formulário volta a ser guardado, no cache da versão nova, no próximo acesso online', async () => {
+        sw = await deploy(sw, 'build-2');
+
+        await concluida(requisicao(sw, '/transactions/create'));
+
+        const cacheNovo = sw.caches.porNome.get(nomesDosCaches()[0]);
+        expect([...cacheNovo.entradas.keys()].map((chave) => new URL(chave).pathname)).toContain('/transactions/create');
+    });
+
+    it('SW novo com o MESMO build (mudou só o código dele) não apaga nada à toa', async () => {
+        sw = await deploy(sw, VERSAO_INICIAL);
+
+        expect(sw.caches.guardados()).toEqual(expect.arrayContaining([
+            '/transactions/create',
+            '/build/assets/app-3f9a1c.css',
+        ]));
+    });
+
+    describe('a página pergunta a versão (ver sm/pwa.js)', () => {
+        function mensagem(dados) {
+            const origem = { postMessage: vi.fn() };
+            sw.ouvintes.message({ data: dados, source: origem });
+            return origem.postMessage;
+        }
+
+        it('responde com a versão do build que ele carrega', async () => {
+            sw = await deploy(sw, 'build-2');
+
+            expect(mensagem({ tipo: 'sm-versao?' })).toHaveBeenCalledWith({ tipo: 'sm-versao', versao: 'build-2' });
+        });
+
+        it('mensagem que não é a pergunta fica sem resposta', () => {
+            expect(mensagem({ tipo: 'outra-coisa' })).not.toHaveBeenCalled();
+            expect(mensagem(null)).not.toHaveBeenCalled();
+        });
+    });
+});
+
+describe('a trava do teste: só a linha da versão pode ficar fora do @verbatim', () => {
+    const blade = readFileSync(ARQUIVO, 'utf8');
+
+    it('executa o arquivo de verdade', () => {
+        expect(() => extrairCodigo(blade, 'x')).not.toThrow();
+    });
+
+    it('recusa Blade a mais fora do @verbatim — senão aprovaria um SW que ninguém recebe', () => {
+        const comInterpolacao = blade.replace('@verbatim\n', '@verbatim\n@endverbatim\nconst DONO = {{ auth()->id() }};\n@verbatim\n');
+
+        expect(() => extrairCodigo(comInterpolacao, 'x')).toThrow(/@verbatim/);
+    });
+
+    it('recusa a linha da versão trocada por outra coisa', () => {
+        const outraLinha = blade.replace('const VERSAO = @json($versao);', 'const VERSAO = {{ $versao }};');
+
+        expect(() => extrairCodigo(outraLinha, 'x')).toThrow(/@verbatim/);
     });
 });

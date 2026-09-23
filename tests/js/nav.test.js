@@ -360,3 +360,390 @@ describe('o resto da troca de conteúdo', () => {
         expect(global.fetch).not.toHaveBeenCalled();
     });
 });
+
+// ============================================================================
+// Shell completo: o sino, a região de anúncio e a versão do build.
+// ============================================================================
+
+/**
+ * O sino como o `partials/topbar` o monta: o do celular, o da topbar e a lista, todos com
+ * `data-pjax-atualizar`. `itens` chegam como o Blade os imprime (texto do usuário escapado).
+ */
+function sino({ quantos = 0, vencidas = 0, itens = [] } = {}) {
+    const selo = quantos ? `<span class="notif-badge${vencidas ? ' late' : ''}">${quantos}</span>` : '';
+    const classe = quantos ? 'icon-btn has-notif' : 'icon-btn';
+    const resumo = quantos ? `: ${quantos} contas a pagar${vencidas ? `, ${vencidas} vencida` : ''}` : '';
+    const lista = itens.length
+        ? itens.map((nome) => `<div class="notif-item"><div class="ni-txt"><strong>${nome}</strong></div></div>`).join('')
+        : '<div class="notif-empty"><p>Nada perto de vencer</p></div>';
+
+    return `
+        <a class="${classe}" href="/faturas" id="mNotif" data-pjax-atualizar="class aria-label" aria-label="Vencimentos${resumo}">${selo}</a>
+        <button class="${classe}" id="notifBtn" type="button" data-pjax-atualizar="class aria-label"
+                aria-label="Notificações${resumo}" aria-expanded="false">${selo}</button>
+        <div class="notif-pop" id="notifPop" data-pjax-atualizar aria-hidden="true">${lista}</div>
+    `;
+}
+
+const metaDaVersao = (versao) => (versao === null ? '' : `<meta name="sm-versao" content="${versao}">`);
+
+/** Página inteira como o servidor responde ao pjax: head com a versão, shell e #content. */
+function paginaCompleta(dentroDoContent, { titulo = 'Metas · StabilMoney', versao = 'build-1', sinoDaPagina = sino() } = {}) {
+    return `<!doctype html><html><head><title>${titulo}</title>${metaDaVersao(versao)}</head>`
+        + `<body><header>${sinoDaPagina}</header><div id="content">${dentroDoContent}</div></body></html>`;
+}
+
+/**
+ * Monta o shell vivo COMPLETO (sino, região de anúncio `#sm-anuncio`, meta da versão) e
+ * devolve o disparador da navegação. `respostas` = o que o servidor devolve a cada fetch,
+ * em ordem (a última se repete).
+ */
+async function montarShellCompleto({ versao = 'build-1', sinoVivo = sino(), respostas = [paginaCompleta('<h2>Metas</h2>')] } = {}) {
+    document.head.innerHTML = `<script nonce="${NONCE_VIVO}"></script>${metaDaVersao(versao)}`;
+    document.title = 'Visão geral · StabilMoney';
+    document.body.innerHTML = `
+        <a id="ir" class="nav-item" data-pjax href="/metas">Metas</a>
+        <a id="ficar" class="nav-item active" data-pjax href="/">Visão geral</a>
+        <header>${sinoVivo}</header>
+        <div id="marcas"></div>
+        <main id="content"><h2 id="tituloAntigo">Visão geral</h2><button id="dentro" type="button">ação</button></main>
+        <div id="sm-anuncio" role="status" aria-live="polite" aria-atomic="true"></div>
+    `;
+
+    let chamada = 0;
+    global.fetch = vi.fn(async () => resposta(respostas[Math.min(chamada++, respostas.length - 1)]));
+    reinitContent = vi.fn();
+
+    vi.resetModules();
+    const { initNav } = await import('../../resources/js/sm/nav.js');
+    initNav(reinitContent);
+
+    return async () => {
+        document.getElementById('ir').click();
+        await flush();
+    };
+}
+
+/**
+ * Pedidos de navegação COMPLETA. O jsdom não navega de verdade: ele recusa e avisa no
+ * console virtual ("Not implemented: navigation…") — é esse aviso que prova que o módulo
+ * mandou o navegador carregar a página, em vez de trocar o #content.
+ */
+function ouvirNavegacaoCompleta() {
+    const pedidos = [];
+    const ouvinte = (erro) => {
+        if (erro.type === 'not-implemented' && /navigation/i.test(erro.message)) pedidos.push(erro.message);
+    };
+    globalThis.jsdom.virtualConsole.on('jsdomError', ouvinte);
+    return { pedidos, parar: () => globalThis.jsdom.virtualConsole.off('jsdomError', ouvinte) };
+}
+
+const seloDe = (id) => document.querySelector(`#${id} .notif-badge`);
+
+describe('o sino do shell acompanha a navegação (P-4)', () => {
+    it('selo, classe, nome acessível e lista vêm da página nova', async () => {
+        const navegar = await montarShellCompleto({
+            respostas: [paginaCompleta('<h2>Metas</h2>', {
+                sinoDaPagina: sino({ quantos: 3, vencidas: 1, itens: ['Condomínio', 'Luz', 'Nubank'] }),
+            })],
+        });
+        expect(seloDe('notifBtn')).toBeNull();
+
+        await navegar();
+
+        for (const id of ['notifBtn', 'mNotif']) {
+            expect(seloDe(id).textContent).toBe('3');
+            expect(seloDe(id).classList.contains('late')).toBe(true);
+            expect(document.getElementById(id).classList.contains('has-notif')).toBe(true);
+        }
+        expect(document.getElementById('notifBtn').getAttribute('aria-label')).toBe('Notificações: 3 contas a pagar, 1 vencida');
+        expect(document.querySelectorAll('#notifPop .notif-item')).toHaveLength(3);
+        expect(document.querySelector('#notifPop').textContent).toContain('Condomínio');
+    });
+
+    it('o sino esvazia quando a última conta sai da lista', async () => {
+        const navegar = await montarShellCompleto({
+            sinoVivo: sino({ quantos: 1, itens: ['Aluguel'] }),
+            respostas: [paginaCompleta('<h2>Metas</h2>', { sinoDaPagina: sino() })],
+        });
+
+        await navegar();
+
+        expect(seloDe('notifBtn')).toBeNull();
+        expect(seloDe('mNotif')).toBeNull();
+        expect(document.getElementById('notifBtn').classList.contains('has-notif')).toBe(false);
+        expect(document.querySelector('#notifPop .notif-empty')).not.toBeNull();
+    });
+
+    it('os elementos do shell são os MESMOS: listeners e estado do JS continuam', async () => {
+        // O popover do sino é ligado UMA vez pelo shell.js (no botão e na lista). Trocar o
+        // elemento em vez dos filhos deixaria o sino mudo depois da primeira navegação.
+        const navegar = await montarShellCompleto({
+            respostas: [paginaCompleta('<h2>Metas</h2>', { sinoDaPagina: sino({ quantos: 2 }) })],
+        });
+        const botao = document.getElementById('notifBtn');
+        const lista = document.getElementById('notifPop');
+        const clique = vi.fn();
+        botao.addEventListener('click', clique);
+        botao.setAttribute('aria-expanded', 'true');
+        lista.classList.add('open');
+
+        await navegar();
+
+        expect(document.getElementById('notifBtn')).toBe(botao);
+        expect(document.getElementById('notifPop')).toBe(lista);
+        // Não listados em `data-pjax-atualizar`: são do JS, a página nova não os pisa.
+        expect(botao.getAttribute('aria-expanded')).toBe('true');
+        expect(lista.classList.contains('open')).toBe(true);
+        botao.click();
+        expect(clique).toHaveBeenCalledTimes(1);
+    });
+
+    it('o nome da conta (dado do usuário) chega como TEXTO', async () => {
+        const navegar = await montarShellCompleto({
+            respostas: [paginaCompleta('<h2>Metas</h2>', {
+                // Como o Blade imprime um nome de conta fixa malicioso: escapado.
+                sinoDaPagina: sino({ quantos: 1, itens: ['&lt;img src=x onerror=alert(1)&gt;'] }),
+            })],
+        });
+
+        await navegar();
+
+        expect(document.querySelector('#notifPop strong').textContent).toBe('<img src=x onerror=alert(1)>');
+        expect(document.querySelector('#notifPop img')).toBeNull();
+    });
+
+    it('os nós são CLONADOS do documento inerte, nunca reinterpretados como HTML', async () => {
+        // HTML que muda de sentido ao ser serializado e lido de novo (mutation XSS): no
+        // documento inerte o <noscript> é marcação e o "</noscript>" é só texto de um
+        // atributo; lido de novo num documento com script ligado, ele fecha o <noscript> e
+        // o <img> vira elemento. Cópia por `innerHTML` cairia nessa; clone de nó, não.
+        const armadilha = '<noscript><p title="</noscript><img id=pego src=x>"></p></noscript>';
+        const navegar = await montarShellCompleto({
+            respostas: [paginaCompleta('<h2>Metas</h2>', { sinoDaPagina: sino({ quantos: 1, itens: [armadilha] }) })],
+        });
+
+        await navegar();
+
+        expect(document.getElementById('pego')).toBeNull();
+    });
+
+    it('script que viesse no sino não entra — nem com o nonce certo', async () => {
+        const navegar = await montarShellCompleto({
+            respostas: [paginaCompleta('<h2>Metas</h2>', {
+                sinoDaPagina: sino({ quantos: 1, itens: [script('no-sino', { nonce: NONCE_DA_RESPOSTA })] }),
+            })],
+        });
+
+        await navegar();
+
+        expect(document.querySelectorAll('#notifPop script')).toHaveLength(0);
+        expect(marcas()).toBe('');
+    });
+
+    it('atributo fora da lista não é copiado, e manipulador inline nunca, nem listado', async () => {
+        document.head.innerHTML = `<script nonce="${NONCE_VIVO}"></script>`;
+        document.body.innerHTML = `
+            <a id="ir" data-pjax href="/metas">Metas</a>
+            <p id="dado" data-pjax-atualizar="title onclick">antigo</p>
+            <main id="content"></main>
+        `;
+        global.fetch = vi.fn(async () => resposta(
+            '<html><head></head><body>'
+            + '<p id="dado" data-pjax-atualizar title="novo" onclick="alert(1)" lang="en">novo</p>'
+            + '<main id="content"><h2>Metas</h2></main></body></html>',
+        ));
+        vi.resetModules();
+        const { initNav } = await import('../../resources/js/sm/nav.js');
+        initNav(vi.fn());
+
+        document.getElementById('ir').click();
+        await flush();
+
+        const dado = document.getElementById('dado');
+        expect(dado.textContent).toBe('novo');
+        expect(dado.getAttribute('title')).toBe('novo');
+        expect(dado.hasAttribute('onclick')).toBe(false);
+        expect(dado.hasAttribute('lang')).toBe(false);
+    });
+
+    it('elemento sem par na página nova fica como está', async () => {
+        const navegar = await montarShellCompleto({
+            sinoVivo: sino({ quantos: 2 }),
+            respostas: ['<html><head><meta name="sm-versao" content="build-1"></head>'
+                + '<body><div id="content"><h2>Metas</h2></div></body></html>'],
+        });
+
+        await navegar();
+
+        expect(seloDe('notifBtn').textContent).toBe('2');
+    });
+
+    it('o smPjaxReload (depois de salvar no modal) também traz o sino novo', async () => {
+        await montarShellCompleto({
+            respostas: [paginaCompleta('<h2>Visão geral</h2>', { sinoDaPagina: sino({ quantos: 1, itens: ['Luz'] }) })],
+        });
+
+        window.smPjaxReload();
+        await flush();
+
+        expect(seloDe('notifBtn').textContent).toBe('1');
+    });
+});
+
+describe('build novo no ar: a navegação vira COMPLETA (P-6)', () => {
+    let navegacao;
+
+    beforeEach(() => {
+        navegacao = ouvirNavegacaoCompleta();
+    });
+
+    afterEach(() => {
+        navegacao.parar();
+    });
+
+    it('a página buscada é de outro build: não troca por pjax, pede o carregamento completo', async () => {
+        // O HTML novo foi feito para o CSS/JS novos, e esta aba roda os velhos.
+        const navegar = await montarShellCompleto({
+            versao: 'build-1',
+            respostas: [paginaCompleta('<h2 id="novo">Metas</h2>', { versao: 'build-2', sinoDaPagina: sino({ quantos: 5 }) })],
+        });
+
+        await navegar();
+
+        expect(navegacao.pedidos).toHaveLength(1);
+        expect(document.getElementById('tituloAntigo')).not.toBeNull();
+        expect(document.getElementById('novo')).toBeNull();
+        expect(seloDe('notifBtn')).toBeNull();
+        expect(reinitContent).not.toHaveBeenCalled();
+        expect(location.pathname).toBe('/');
+    });
+
+    it('mesmo build: pjax normal, sem carregamento completo', async () => {
+        const navegar = await montarShellCompleto({
+            respostas: [paginaCompleta('<h2 id="novo">Metas</h2>', { versao: 'build-1' })],
+        });
+
+        await navegar();
+
+        expect(navegacao.pedidos).toHaveLength(0);
+        expect(document.getElementById('novo')).not.toBeNull();
+    });
+
+    it('depois do aviso de versão nova (sm:versao-nova), a navegação é completa sem nem buscar por pjax', async () => {
+        const navegar = await montarShellCompleto();
+
+        window.dispatchEvent(new CustomEvent('sm:versao-nova'));
+        await navegar();
+
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(navegacao.pedidos).toHaveLength(1);
+        expect(document.getElementById('tituloAntigo')).not.toBeNull();
+    });
+
+    it('o smPjaxReload também vira carregamento completo depois do aviso', async () => {
+        await montarShellCompleto();
+
+        window.dispatchEvent(new CustomEvent('sm:versao-nova'));
+        window.smPjaxReload();
+        await flush();
+
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(navegacao.pedidos).toHaveLength(1);
+    });
+});
+
+describe('leitor de tela: a troca se anuncia e o foco vai para a página nova', () => {
+    const anuncio = () => document.getElementById('sm-anuncio').textContent;
+
+    it('anuncia o título da página nova na região viva', async () => {
+        const navegar = await montarShellCompleto({
+            respostas: [paginaCompleta('<h2>Metas</h2>', { titulo: 'Metas · StabilMoney' })],
+        });
+
+        await navegar();
+
+        expect(anuncio()).toBe('Metas · StabilMoney');
+    });
+
+    it('navegar de novo para a mesma tela anuncia de novo (nó novo, não só texto igual)', async () => {
+        const navegar = await montarShellCompleto();
+        await navegar();
+        const primeiro = document.querySelector('#sm-anuncio p');
+
+        await navegar();
+
+        expect(document.querySelector('#sm-anuncio p')).not.toBe(primeiro);
+        expect(anuncio()).toBe('Metas · StabilMoney');
+    });
+
+    it('o foco sai do link do menu e vai para o título da página nova', async () => {
+        const navegar = await montarShellCompleto({
+            respostas: [paginaCompleta('<h2 id="titulo">Metas</h2><button>Nova meta</button>')],
+        });
+        document.getElementById('ir').focus();
+
+        await navegar();
+
+        const titulo = document.getElementById('titulo');
+        expect(document.activeElement).toBe(titulo);
+        // Focável por script, fora da ordem do Tab.
+        expect(titulo.getAttribute('tabindex')).toBe('-1');
+    });
+
+    it('título que o navegador não foca (escondido no desktop): vai para o seguinte', async () => {
+        // O h1 do dashboard é `display: none` no desktop, e o navegador não foca elemento
+        // escondido. O jsdom não calcula estilo, então a recusa é simulada.
+        const foco = HTMLElement.prototype.focus;
+        vi.spyOn(HTMLHeadingElement.prototype, 'focus').mockImplementation(function (opcoes) {
+            if (this.id !== 'oculto') foco.call(this, opcoes);
+        });
+        const navegar = await montarShellCompleto({
+            respostas: [paginaCompleta('<h1 id="oculto">Bem-vindo</h1><h2 id="visivel">Visão geral</h2>')],
+        });
+
+        await navegar();
+
+        expect(document.activeElement).toBe(document.getElementById('visivel'));
+    });
+
+    it('título dentro de aria-hidden (o card-fantasma) não recebe o foco', async () => {
+        const navegar = await montarShellCompleto({
+            respostas: [paginaCompleta('<div aria-hidden="true"><h2 id="fantasma">Exemplo</h2></div><h2 id="real">Dependentes</h2>')],
+        });
+
+        await navegar();
+
+        expect(document.activeElement).toBe(document.getElementById('real'));
+    });
+
+    it('sem título nenhum, o foco vai para o próprio #content', async () => {
+        const navegar = await montarShellCompleto({ respostas: [paginaCompleta('<p>só texto</p>')] });
+
+        await navegar();
+
+        expect(document.activeElement).toBe(document.getElementById('content'));
+    });
+
+    it('smPjaxReload não se anuncia nem tira o foco de quem está no shell', async () => {
+        // É a MESMA tela montada de novo depois de salvar no modal: a pessoa não saiu dela.
+        await montarShellCompleto({ respostas: [paginaCompleta('<h2>Visão geral</h2>', { titulo: 'Visão geral · StabilMoney' })] });
+        document.getElementById('notifBtn').focus();
+
+        window.smPjaxReload();
+        await flush();
+
+        expect(anuncio()).toBe('');
+        expect(document.activeElement).toBe(document.getElementById('notifBtn'));
+    });
+
+    it('smPjaxReload com o foco DENTRO do conteúdo trocado: o foco vai ao título, não cai no <body>', async () => {
+        await montarShellCompleto({ respostas: [paginaCompleta('<h2 id="titulo">Visão geral</h2>')] });
+        document.getElementById('dentro').focus();
+
+        window.smPjaxReload();
+        await flush();
+
+        expect(document.activeElement).toBe(document.getElementById('titulo'));
+    });
+});

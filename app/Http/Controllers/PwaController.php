@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Vite;
 
 /**
  * PWA: serve o manifest, o service worker e a página offline.
@@ -13,9 +14,37 @@ use Illuminate\Http\Response;
  * vezes sem sessão ativa. Nenhum destes arquivos expõe dado do usuário:
  * manifest = nome+cores+ícones; SW = código genérico de cache; /offline =
  * aviso "sem conexão". O app em si continua 100% atrás de login.
+ *
+ * E SEM SESSÃO (22/09/2026): ver o comentário das rotas em routes/web.php.
  */
 class PwaController extends Controller
 {
+    /** Versão quando não há build para medir: `npm run dev` (arquivo `hot`) ou nenhum build ainda. */
+    public const VERSAO_SEM_BUILD = 'dev';
+
+    /**
+     * A versão do front que está no ar — muda a cada build que gere assets diferentes.
+     *
+     * É o hash do `public/build/manifest.json` (o mesmo que o Laravel usa para versionar
+     * assets): o manifest lista os arquivos com hash no nome, então CSS ou JS novo ⇒
+     * manifest novo ⇒ versão nova. FONTE ÚNICA das duas pontas que precisam concordar:
+     *
+     *  - o service worker, que a leva no próprio código (`const VERSAO`). O navegador só
+     *    instala SW novo quando os BYTES do /sw.js mudam, e com a versão fixa
+     *    (`sm-cache-v2`) um deploy não mudava byte nenhum: a aba aberta seguia com o CSS
+     *    velho e o cache do /build crescia para sempre (P-6 da auditoria de 06/09/2026);
+     *  - a meta `sm-versao` do layouts/app, que o pjax e o `sm/pwa.js` comparam para
+     *    saber se a página aberta ficou para trás.
+     *
+     * Cortado em 16 caracteres só para caber legível no nome do cache e no HTML.
+     */
+    public static function versaoDoBuild(): string
+    {
+        $hash = Vite::manifestHash();
+
+        return $hash ? substr($hash, 0, 16) : self::VERSAO_SEM_BUILD;
+    }
+
     /**
      * Web App Manifest — descreve o app para a instalação (nome, ícones,
      * cores, modo standalone). Servido como application/manifest+json.
@@ -85,10 +114,14 @@ class PwaController extends Controller
      * É também ele quem apaga o HTML autenticado guardado offline quando a
      * sessão acaba — o `Clear-Site-Data: "cache"` do logout não alcança o
      * Cache Storage. Ver `HTML_AUTENTICADO` na view.
+     *
+     * A versão do build entra pela PRIMEIRA linha do script (a única fora do
+     * `@verbatim` da view): é ela que faz o navegador enxergar um SW novo a cada
+     * deploy. Ver `versaoDoBuild()`.
      */
     public function serviceWorker(): Response
     {
-        return response(view('pwa.service-worker')->render(), 200, [
+        return response(view('pwa.service-worker', ['versao' => self::versaoDoBuild()])->render(), 200, [
             'Content-Type' => 'application/javascript',
             'Service-Worker-Allowed' => '/',
         ]);

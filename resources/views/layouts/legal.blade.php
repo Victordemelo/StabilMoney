@@ -14,15 +14,18 @@
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
     @include('partials.pwa-head')
 
-    {{-- Anti-flash: aplica o tema salvo antes de pintar + acerta as cores das
-         bordas do sistema (barra do navegador/status). Cópia deliberada do inline
-         do layouts/app — o iOS lê a meta da barra no carregamento, então isto não
-         pode esperar o bundle; ao mexer aqui, mexa lá também. --}}
+    {{-- Anti-flash: aplica o tema (o salvo; sem escolha, o do sistema) antes de pintar +
+         acerta as cores das bordas do sistema (barra do navegador/status). Cópia
+         deliberada do inline do layouts/app — o iOS lê a meta da barra no carregamento,
+         então isto não pode esperar o bundle; ao mexer aqui, mexa lá também (o
+         tests/js/theme.test.js executa os dois e compara com o `resolverTema`). --}}
     <script nonce="{{ Vite::cspNonce() }}">
         (function () {
             var t;
             try { t = localStorage.getItem('sm-theme'); } catch (e) { /* storage indisponível */ }
-            if (t !== 'dark' && t !== 'light') t = document.documentElement.getAttribute('data-theme') || 'light';
+            if (t !== 'dark' && t !== 'light') {
+                try { t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch (e) { t = 'light'; }
+            }
             document.documentElement.setAttribute('data-theme', t);
 
             var cor = document.querySelector('meta[name="theme-color"][data-sm-theme]');
