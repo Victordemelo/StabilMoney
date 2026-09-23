@@ -17,6 +17,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
@@ -183,8 +184,9 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /**
      * Ao excluir a conta, remover o que o `cascadeOnDelete` do banco NÃO alcança:
-     * o arquivo da foto no disco e as linhas da tabela `sessions` (que guardam IP e
-     * user-agent). A Política de Privacidade promete que os dados associados são
+     * o arquivo da foto no disco, as linhas da tabela `sessions` (que guardam IP e
+     * user-agent) e os tokens de "esqueci a senha" (`password_reset_tokens`, chaveados
+     * pelo e-mail). A Política de Privacidade promete que os dados associados são
      * removidos — sem isto, o retrato da pessoa continuaria servido publicamente
      * pelo symlink de `storage/` depois da conta deixar de existir.
      *
@@ -211,6 +213,15 @@ class User extends Authenticatable implements MustVerifyEmail
             }
 
             BrowserSessions::purgeForUser($user->getKey());
+
+            // Os pedidos de "esqueci a senha" em aberto (achado L-2 da auditoria de
+            // 07/09/2026). A tabela é chaveada pelo E-MAIL, sem FK, então nenhum cascade a
+            // alcança: a linha (e-mail + token com hash + quando) sobrevivia à conta que a
+            // Política promete apagar. Aqui, dentro da transação de quem chama — e por este
+            // hook passam o titular, cada dependente que vai junto, o dependente removido
+            // pelo titular e a exclusão pelo painel. Pelo broker, e não por nome de tabela:
+            // é ele que sabe onde os tokens moram (`auth.passwords`).
+            Password::broker()->deleteToken($user);
         });
 
         static::deleted(function (User $user) {
