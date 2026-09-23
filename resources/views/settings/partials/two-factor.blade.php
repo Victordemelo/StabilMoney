@@ -37,7 +37,16 @@
     </div>
 
     {{-- Avisos de resultado --}}
-    @if (session('status') === 'two-factor-disabled')
+    @if (session('status') === 'two-factor-enabled')
+        {{-- Ligar desconecta os outros aparelhos (TwoFactorController::confirmar). Dito aqui
+             porque o próximo a estranhar é o dono: o celular dele vai pedir a senha de novo.
+             "Se estava aberta" porque nem sempre havia outro aparelho. --}}
+        <div class="sec-ok" role="status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg>
+            Verificação em duas etapas ativada. Se a sua conta estava aberta em outros aparelhos,
+            eles foram desconectados e vão pedir a senha e o código no próximo acesso.
+        </div>
+    @elseif (session('status') === 'two-factor-disabled')
         <div class="sec-ok" role="status">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg>
             A verificação em duas etapas foi desativada. Agora só a senha é pedida no login.

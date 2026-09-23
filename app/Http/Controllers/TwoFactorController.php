@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Mail\AlertaDeSeguranca;
 use App\Services\TwoFactorService;
+use App\Support\BrowserSessions;
 use App\Support\ContextoDeSeguranca;
 use App\Support\Notificador;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 /**
  * Verificação em duas etapas — o lado de Configurações › 2FA (ligar, confirmar,
@@ -73,7 +76,8 @@ class TwoFactorController extends Controller
      *
      * É este acerto que PROVA que o aparelho está configurado; só depois dele o login
      * passa a cobrar a segunda etapa. Confirmar também entrega os códigos de recuperação,
-     * mostrados uma única vez.
+     * mostrados uma única vez — e desconecta os OUTROS aparelhos da conta (ver
+     * `desconectarOsOutrosAparelhos`). Código errado não muda nada disso.
      */
     public function confirmar(Request $request): RedirectResponse
     {
@@ -95,11 +99,16 @@ class TwoFactorController extends Controller
         $codigos = $this->twoFactor->confirmar($user, $request->string('codigo')->toString());
 
         if ($codigos === null) {
+            // Nada ligou — e nada cai: os outros aparelhos só saem quando a proteção nova
+            // existe de fato. Um código digitado errado (ou chutado) não pode custar ao dono
+            // as sessões dos outros aparelhos dele.
             return $this->voltar()->withErrors(
                 ['codigo' => 'Código incorreto ou expirado. Confira o relógio do celular e tente com o código atual.'],
                 self::BAG,
             );
         }
+
+        $this->desconectarOsOutrosAparelhos($request);
 
         Notificador::avisar($user, AlertaDeSeguranca::doisFatoresAtivado(
             $user,
@@ -162,6 +171,51 @@ class TwoFactorController extends Controller
         }
 
         return $this->voltar()->with('status', $estavaAtivo ? 'two-factor-disabled' : 'two-factor-cancelled');
+    }
+
+    /**
+     * Ligar o 2FA desconecta os OUTROS aparelhos da conta e mantém este — com o "lembrar de
+     * mim" dele, se ele tinha (decisão de 23/09/2026).
+     *
+     * Quem liga o 2FA muitas vezes está reagindo a uma suspeita. Sem isto, a sessão que um
+     * invasor já tinha aberta sobrevivia à proteção nova: o código só é cobrado no LOGIN, e
+     * quem já está dentro não passa por ele — nem quem volta pelo cookie de "lembrar de mim",
+     * que re-autentica sem login nenhum.
+     *
+     * É o que "Encerrar outras sessões" faz (SecurityController), menos uma peça: lá a senha
+     * está na mão, e o `Auth::logoutOtherDevices($senha)` reemite o cookie deste aparelho.
+     * Aqui só existe o código do autenticador, e aquele método recusa sem a senha em texto.
+     * O que faz o mesmo serviço é entrar de novo com `login()` — a API pública que monta o
+     * cookie com o token atual (e no formato do framework, com a impressão da senha), sem
+     * que o app precise saber como ele é.
+     */
+    private function desconectarOsOutrosAparelhos(Request $request): void
+    {
+        $user = $request->user();
+        $guard = Auth::guard('web');
+
+        // Este aparelho guarda um cookie de "lembrar de mim"? Lido antes de mexer em
+        // qualquer coisa — é a mesma pergunta que o `logoutOtherDevices` faz para decidir
+        // se reemite o cookie.
+        $lembrado = (bool) $request->cookies->get($guard->getRecallerName());
+
+        // 1. Token novo: todo cookie de "lembrar de mim" emitido antes deixa de valer. É a
+        //    metade que apagar as sessões não alcança — o guard confere só id + token.
+        $user->setRememberToken(Str::random(60));
+        $user->save();
+
+        // 2. As linhas das outras sessões: é isso que de fato as desconecta no driver
+        //    `database` (o `AuthenticateSession` não está ligado).
+        BrowserSessions::purgeForUser(
+            $user->getAuthIdentifier(),
+            exceptSessionId: $request->session()->getId(),
+        );
+
+        // 3. Este aparelho entra de novo: sessão com id novo (o antigo é destruído — uma
+        //    cópia do cookie de sessão DESTE aparelho também deixa de valer) e, se ele era
+        //    lembrado, o cookie com o token novo. Sem este passo, quem ligou o 2FA seria o
+        //    único a perder o "lembrar de mim".
+        $guard->login($user, remember: $lembrado);
     }
 
     /** Confere a senha atual; lança ValidationException na bag do formulário que a pediu. */

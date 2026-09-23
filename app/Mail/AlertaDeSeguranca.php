@@ -263,6 +263,15 @@ class AlertaDeSeguranca extends Mailable
 
     // ───────────────────────────────────────────────────────────── 2FA
 
+    /**
+     * Ligar o 2FA também desconecta os outros aparelhos (TwoFactorController::confirmar), e o
+     * e-mail diz isso: a pessoa vai ver o celular pedindo a senha de novo e precisa saber por
+     * quê — e, se não foi ela, é aqui que descobre que ficou de fora.
+     *
+     * O "não foi você?" é próprio: quem liga o 2FA de outra pessoa amarra a conta a um celular
+     * que não é o dela, e o "Esqueci a senha" troca a senha mas não desfaz isso — o código
+     * continua sendo pedido. A saída é o contato humano.
+     */
     public static function doisFatoresAtivado(User $user, ContextoDeSeguranca $contexto): self
     {
         return new self(
@@ -272,9 +281,13 @@ class AlertaDeSeguranca extends Mailable
             preheader: 'Sua conta agora pede o código do aplicativo autenticador.',
             paragrafos: [
                 'A verificação em duas etapas foi <strong>ativada</strong> na sua conta. A partir de agora, entrar em um aparelho novo vai pedir o código de 6 dígitos do seu aplicativo autenticador.',
+                'Por segurança, os outros aparelhos em que a sua conta estava aberta foram <strong>desconectados</strong>: para entrar de novo neles, vão ser pedidos a senha e o código.',
                 'Guarde os <strong>códigos de recuperação</strong> que apareceram na tela: são eles que devolvem o acesso se você perder o celular.',
             ],
             detalhes: $contexto->paraDetalhes(),
+            rodapeAviso: '<strong>Não foi você?</strong> Então alguém que sabe a sua senha ligou a verificação com um celular '
+                .'que não é o seu. O "Esqueci a senha" troca a senha, mas não tira esse celular da conta: escreva o quanto '
+                .'antes para '.e(config('legal.contact_email')).', a partir deste endereço, para recuperarmos o acesso.',
         );
     }
 
