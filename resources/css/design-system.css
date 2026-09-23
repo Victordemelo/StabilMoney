@@ -604,9 +604,23 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border: 1px solid var(--line); border-radius: var(--r-md);
   box-shadow: var(--shadow-lg); padding: 8px;
   opacity: 0; transform: translateY(8px) scale(.97);
-  pointer-events: none; transition: opacity .2s var(--ease), transform .22s var(--ease-out);
+  pointer-events: none;
+  /* `visibility: hidden` além do opacity, a mesma regra do `.modal-scrim`. Só com
+     opacity 0 o popover FECHADO continuava na ordem do Tab em todas as telas:
+     "Meu perfil", "Configurações" e "Sair" recebiam foco invisíveis (Tabs 10-12),
+     e um Enter cego no 12º Tab fazia logout (A-1 da auditoria de 07/09). Também
+     tira o conteúdo da árvore de acessibilidade sem depender do JS do aria-hidden.
+     O `0s .22s` atrasa a troca até a saída INTEIRA terminar (a transform, .22s, é
+     a mais longa); sem esse atraso o popover sumiria de uma vez, sem o fade. */
+  visibility: hidden;
+  transition: opacity .2s var(--ease), transform .22s var(--ease-out), visibility 0s .22s;
 }
-.profile-pop.open, .notif-pop.open { opacity: 1; transform: none; pointer-events: auto; }
+/* Ao abrir, a visibilidade volta NA HORA (0s sem atraso), senão a entrada
+   aconteceria com o popover ainda invisível. */
+.profile-pop.open, .notif-pop.open {
+  opacity: 1; transform: none; pointer-events: auto; visibility: visible;
+  transition: opacity .2s var(--ease), transform .22s var(--ease-out), visibility 0s;
+}
 .profile-pop { position: fixed; width: 256px; transform-origin: bottom left; }
 .pp-head { display: flex; align-items: center; gap: 11px; padding: 10px; }
 .pp-head img { width: 42px; height: 42px; border-radius: 50%; flex: none; }

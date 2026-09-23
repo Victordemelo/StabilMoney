@@ -59,6 +59,15 @@ export function initShell() {
             fechar() {
                 if (!aberto) return;
                 aberto = false;
+                // Foco DENTRO do popover (Tab até "Configurações" + Esc) volta para o
+                // botão que o abriu, ANTES de esconder. Fechado, o popover fica
+                // `visibility: hidden` e sai da ordem do Tab — medido no Chromium: sem
+                // isto o foco ficava ~220ms num link invisível, depois caía no <body>,
+                // e o Tab seguinte ia parar na topbar, longe de onde a pessoa estava.
+                // É o padrão de "menu button" do WAI-ARIA: Esc fecha e devolve o foco.
+                // Só quando o foco está lá dentro: num clique fora ele já foi para onde
+                // a pessoa clicou, e puxá-lo de volta roubaria a interação dela.
+                if (pop.contains(document.activeElement)) btn.focus();
                 btn.setAttribute('aria-expanded', 'false');
                 pop.setAttribute('aria-hidden', 'true');
                 pop.classList.remove('open');
