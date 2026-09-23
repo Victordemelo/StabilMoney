@@ -117,6 +117,19 @@ class Transaction extends Model
     }
 
     /**
+     * É uma ocorrência de série RECORRENTE — a assinatura no cartão, ou a recorrência
+     * legada em conta? A série é o `group_id` com `recurring`. Parcela também tem
+     * `group_id`, mas é de compra parcelada, não de recorrência.
+     *
+     * É esta pergunta que decide se excluir pelo Histórico oferece "Encerrar também a
+     * recorrência" (`EndedRecurrence`).
+     */
+    public function isOcorrenciaRecorrente(): bool
+    {
+        return $this->group_id !== null && (bool) $this->recurring && ! $this->installments;
+    }
+
+    /**
      * Escopo: só receitas e despesas de VERDADE — fora as pontas de transferência.
      * É o filtro das somas de fluxo de caixa (dashboard, gasto por pessoa).
      */

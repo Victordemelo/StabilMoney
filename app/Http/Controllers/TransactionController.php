@@ -8,6 +8,7 @@ use App\Http\Requests\StoreTransferRequest;
 use App\Http\Requests\UpdateTransactionRequest;
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\EndedRecurrence;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\FundingService;
@@ -400,7 +401,23 @@ class TransactionController extends Controller
                 ->orderBy('name')
                 ->get(),
             'familyMembers' => $this->familyMembers($userId),
+            'ofereceEncerrarRecorrencia' => $this->ofereceEncerrarRecorrencia($transaction),
         ]);
+    }
+
+    /**
+     * O formulário de exclusão oferece "Encerrar também a recorrência"? Só quando a
+     * caixa tem efeito: ocorrência de série recorrente que o `destroy` aceita apagar
+     * e cuja série ainda não foi encerrada.
+     *
+     * Compra de cartão já quitada fica de fora porque a guarda do `destroy` recusa a
+     * exclusão dela — a caixa prometeria encerrar numa ação que não acontece.
+     */
+    private function ofereceEncerrarRecorrencia(Transaction $transaction): bool
+    {
+        return $transaction->isOcorrenciaRecorrente()
+            && ! ($transaction->paid_at && $transaction->account?->isCard())
+            && ! EndedRecurrence::daSerie($transaction);
     }
 
     public function update(UpdateTransactionRequest $request, Transaction $transaction, FundingService $funding)
@@ -786,7 +803,7 @@ class TransactionController extends Controller
         return 'Transação atualizada.';
     }
 
-    public function destroy(Transaction $transaction, FundingService $funding)
+    public function destroy(Request $request, Transaction $transaction, FundingService $funding)
     {
         $this->authorize('delete', $transaction);
 
@@ -845,15 +862,84 @@ class TransactionController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($transaction, $funding) {
+        // OCORRÊNCIA DE SÉRIE RECORRENTE: quem exclui escolhe se a recorrência
+        // continua (caixa "Encerrar também a recorrência", desmarcada por padrão).
+        // Sem o marcador, a série segue viva: a ocorrência anterior volta a ser
+        // oferecida em "Lançar neste ciclo" e um clique recria a cobrança apagada.
+        // Nas demais linhas o campo é ignorado — nem validado, porque um 422 por uma
+        // opção sem efeito nenhum barraria a exclusão à toa.
+        $encerrar = $transaction->isOcorrenciaRecorrente() && $this->querEncerrarARecorrencia($request);
+        $quemExclui = $request->user()->id;
+
+        $status = DB::transaction(function () use ($transaction, $funding, $encerrar, $quemExclui) {
+            // Recorrência de CARTÃO: a conta é travada ANTES de apagar, como no
+            // `FaturaController::destroy`. É a trava que o "Lançar neste ciclo" pega
+            // (via FundingService) antes de criar a sucessora, então os dois se
+            // enfileiram: ou o clique termina antes (e a sucessora conta como
+            // ocorrência que sobrou, logo a série é encerrada), ou espera e encontra
+            // o marcador. Ordem conta → linhas, a mesma dos dois caminhos.
+            if ($encerrar && $transaction->account?->type === 'credit_card') {
+                Account::whereKey($transaction->account_id)->lockForUpdate()->first();
+            }
+
             // Se esta despesa foi financiada por resgate de investimento, o
             // resgate morre junto — senão o aplicado encolhe sem contrapartida.
             $funding->estornarFonte([$transaction->id]);
             $transaction->delete();
+
+            return $encerrar
+                ? $this->encerrarRecorrencia($transaction, $quemExclui)
+                : 'Transação removida.';
         });
 
-        return redirect()->route('transactions.index')
-            ->with('status', 'Transação removida.');
+        return redirect()->route('transactions.index')->with('status', $status);
+    }
+
+    /**
+     * A caixa "Encerrar também a recorrência" do formulário de exclusão veio
+     * marcada? Checkbox manda "1" marcado e nada desmarcado; qualquer outro valor
+     * é recusado — só aqui, depois das guardas e só para ocorrência recorrente.
+     */
+    private function querEncerrarARecorrencia(Request $request): bool
+    {
+        $request->validate(
+            ['encerrar_recorrencia' => ['nullable', 'boolean']],
+            ['encerrar_recorrencia.boolean' => 'A opção "Encerrar também a recorrência" veio num formato inválido. Recarregue a página e tente de novo.'],
+        );
+
+        return $request->boolean('encerrar_recorrencia');
+    }
+
+    /**
+     * Encerra a série da ocorrência que acabou de ser apagada, na MESMA transação
+     * de banco do delete — a mesma regra do `FaturaController::encerrarSerie`.
+     *
+     * O marcador (`EndedRecurrence`) não toca em linha nenhuma: as outras
+     * ocorrências, pagas ou em aberto, ficam como estão (a em aberto do cartão
+     * continua na fatura). Encerrar é só "não gere a próxima".
+     *
+     * Sem ocorrência que tenha sobrado, não há de onde a série renascer — nem
+     * marcador a guardar.
+     */
+    private function encerrarRecorrencia(Transaction $ocorrencia, int $quemEncerrou): string
+    {
+        $restaram = Transaction::where('user_id', $ocorrencia->user_id)
+            ->where('group_id', $ocorrencia->group_id)
+            ->exists();
+
+        if (! $restaram) {
+            return 'Transação removida. Era a única cobrança que restava da recorrência — nenhuma nova será lançada.';
+        }
+
+        // `createOrFirst`: duas exclusões com a caixa marcada (duas ocorrências da
+        // mesma série, ou a série já encerrada em Pagar despesas) encerram uma vez
+        // só — índice único em user_id + group_id.
+        EndedRecurrence::createOrFirst(
+            ['user_id' => $ocorrencia->user_id, 'group_id' => $ocorrencia->group_id],
+            ['ended_by_user_id' => $quemEncerrou],
+        );
+
+        return 'Transação removida e recorrência encerrada: nenhuma cobrança nova será lançada. As outras cobranças dela continuam no histórico.';
     }
 
     /** Membros da família (titular + dependentes) para o seletor "quem fez a compra". */

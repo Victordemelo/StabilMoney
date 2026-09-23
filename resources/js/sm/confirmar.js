@@ -22,6 +22,22 @@
 let ligado = false;
 
 /**
+ * A pergunta do formulário. Uma caixa MARCADA dele pode trazer a sua própria
+ * (`data-confirmar-marcado`), para o "tem certeza?" dizer o que vai acontecer de fato —
+ * ex.: excluir uma cobrança recorrente com ou sem "Encerrar também a recorrência".
+ *
+ * `form.elements`, e não `querySelector`: vale também para uma caixa ligada ao formulário
+ * pelo atributo `form="..."`, fora dele no HTML.
+ */
+function perguntaDo(form) {
+    const marcada = Array.from(form.elements).find(
+        (campo) => campo instanceof HTMLInputElement && campo.checked && campo.hasAttribute('data-confirmar-marcado'),
+    );
+
+    return marcada ? marcada.getAttribute('data-confirmar-marcado') : form.getAttribute('data-confirmar');
+}
+
+/**
  * Liga UM ouvinte de `submit` no documento, em fase de CAPTURA: roda antes dos ouvintes
  * do próprio formulário (o "trava o botão durante o envio" das metas, por exemplo), e,
  * quando a pessoa desiste, para o evento ali — o envio não acontece e o botão não fica
@@ -38,7 +54,7 @@ export function initConfirmar() {
         const form = e.target;
         if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-confirmar')) return;
 
-        if (window.confirm(form.getAttribute('data-confirmar'))) return;
+        if (window.confirm(perguntaDo(form))) return;
 
         e.preventDefault();
         e.stopPropagation();

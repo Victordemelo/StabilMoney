@@ -100,6 +100,74 @@ describe('form[data-confirmar]', () => {
         expect(evento.defaultPrevented).toBe(true);
     });
 
+    describe('caixa com pergunta própria (`data-confirmar-marcado`)', () => {
+        // Excluir uma cobrança recorrente pelo Histórico: com "Encerrar também a
+        // recorrência" marcada, o "tem certeza?" precisa dizer que a recorrência acaba
+        // junto — é a última chance de a pessoa perceber o que escolheu.
+        const PADRAO = 'Excluir esta cobrança? A recorrência continua ativa — só esta cobrança sai.';
+        const MARCADA = 'Excluir esta cobrança e encerrar a recorrência? Nenhuma cobrança nova será lançada.';
+
+        function formularioComCaixa({ marcada, foraDoForm = false }) {
+            const caixa = `<input type="checkbox" name="encerrar_recorrencia" value="1"
+                ${foraDoForm ? 'form="cobranca"' : ''} ${marcada ? 'checked' : ''}
+                data-confirmar-marcado="${MARCADA}">`;
+
+            document.getElementById('content').innerHTML = `
+                ${foraDoForm ? caixa : ''}
+                <form method="POST" action="/transactions/7" id="cobranca" data-confirmar="${PADRAO}">
+                    <input type="hidden" name="_method" value="DELETE">
+                    ${foraDoForm ? '' : caixa}
+                    <button type="submit">Excluir</button>
+                </form>`;
+
+            return document.getElementById('cobranca');
+        }
+
+        it('desmarcada, vale a pergunta do formulário', () => {
+            pergunta.mockReturnValue(false);
+
+            enviar(formularioComCaixa({ marcada: false }));
+
+            expect(pergunta).toHaveBeenCalledWith(PADRAO);
+        });
+
+        it('marcada, a pergunta é a da caixa', () => {
+            pergunta.mockReturnValue(false);
+
+            const evento = enviar(formularioComCaixa({ marcada: true }));
+
+            expect(pergunta).toHaveBeenCalledWith(MARCADA);
+            expect(evento.defaultPrevented).toBe(true);
+        });
+
+        it('confirmar com a caixa marcada deixa o envio seguir', () => {
+            pergunta.mockReturnValue(true);
+
+            const evento = enviar(formularioComCaixa({ marcada: true }));
+
+            expect(pergunta).toHaveBeenCalledTimes(1);
+            expect(evento.defaultPrevented).toBe(false);
+        });
+
+        it('vale também para a caixa ligada pelo atributo form=, fora do formulário', () => {
+            pergunta.mockReturnValue(false);
+
+            enviar(formularioComCaixa({ marcada: true, foraDoForm: true }));
+
+            expect(pergunta).toHaveBeenCalledWith(MARCADA);
+        });
+
+        it('caixa marcada SEM o atributo não muda a pergunta', () => {
+            pergunta.mockReturnValue(false);
+            const form = formularioComCaixa({ marcada: false });
+            form.insertAdjacentHTML('afterbegin', '<input type="checkbox" name="outra" value="1" checked>');
+
+            enviar(form);
+
+            expect(pergunta).toHaveBeenCalledWith(PADRAO);
+        });
+    });
+
     it('ligar de novo (outro init) não faz perguntar duas vezes', () => {
         pergunta.mockReturnValue(true);
         initConfirmar();

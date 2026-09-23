@@ -158,12 +158,23 @@ class FaturaService
         // /`overdueInvoice`. Sem este filtro, a mesma dívida aparecia duas vezes
         // no sino — uma como "Fatura Nubank", outra como "Streaming" — e o total
         // avisado ao usuário vinha inflado.
+        //
+        // Série ENCERRADA (`EndedRecurrence`) também fica de fora. Excluir pelo
+        // Histórico uma ocorrência já paga com "Encerrar também a recorrência" deixa
+        // de pé a que estava em aberto — e nela o "pagar" é recusado, porque a série
+        // não gera mais nada. No sino ela viraria um aviso que nada resolve, e
+        // "vencida" para sempre depois da data. A cobrança continua no saldo e no
+        // Histórico, como qualquer despesa.
         $rec = Transaction::with('account')
             ->where('user_id', $userId)
             ->where('recurring', true)
             ->whereNull('paid_at')
             ->where('date', '<=', $limit->toDateString())
             ->whereDoesntHave('account', fn ($q) => $q->where('type', 'credit_card'))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')
+                ->from('ended_recurrences')
+                ->whereColumn('ended_recurrences.user_id', 'transactions.user_id')
+                ->whereColumn('ended_recurrences.group_id', 'transactions.group_id'))
             ->get();
         foreach ($rec as $t) {
             $due = CarbonImmutable::parse($t->date);
