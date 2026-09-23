@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\FixedBill;
+use App\Models\Transaction;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Dom\Element;
@@ -120,6 +121,31 @@ class ShellAcompanhaOPjaxTest extends TestCase
 
         $this->assertNull($lista->querySelector('img'));
         $this->assertStringContainsString('<img src=x onerror=alert(1)>', $lista->textContent);
+    }
+
+    /**
+     * O card de Patrimônio (achado da rodada de 23/09/2026) é do shell e ficava com o saldo de
+     * quando a aba abriu — inclusive logo depois de um lançamento pelo modal "Lançar", que
+     * salva por AJAX e recarrega só o #content. Marcado como a lista do sino: só os FILHOS,
+     * que é onde moram os valores. E a página servida traz sempre o saldo de agora.
+     */
+    public function test_o_card_de_patrimonio_acompanha_o_pjax(): void
+    {
+        $conta = Account::factory()->for($this->user)->create(['type' => 'checking', 'initial_balance' => 1000]);
+
+        $card = $this->elemento($this->pagina(), 'sidePatrimonio');
+        $this->assertTrue($card->hasAttribute('data-pjax-atualizar'));
+        $this->assertSame('', $card->getAttribute('data-pjax-atualizar'));
+        $this->assertStringContainsString('R$ 1.000,00', $card->textContent);
+
+        Transaction::factory()->for($this->user)->create([
+            'account_id' => $conta->id,
+            'type' => 'expense',
+            'amount' => 250,
+            'date' => '2026-07-13',
+        ]);
+
+        $this->assertStringContainsString('R$ 750,00', $this->elemento($this->pagina(), 'sidePatrimonio')->textContent);
     }
 
     public function test_a_data_da_topbar_tambem_acompanha(): void

@@ -66,7 +66,11 @@
     </nav>
 
     @if ($patrimonio)
-        <div class="side-balance">
+        {{-- `data-pjax-atualizar` + id: o card é do SHELL, que o pjax não troca. Sem isto o
+             saldo ficava o de quando a aba abriu — inclusive logo depois de um lançamento
+             pelo modal "Lançar", que salva por AJAX e recarrega só o #content. O `sm/nav.js`
+             traz da página nova os filhos do card (valores, spark, variação). --}}
+        <div class="side-balance" id="sidePatrimonio" data-pjax-atualizar>
             <div class="sb-glow"></div>
             <div class="sb-top">
                 <span class="sb-label">Patrimônio total</span>
