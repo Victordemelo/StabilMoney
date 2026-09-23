@@ -2,9 +2,10 @@ name: CI
 
 # Roda a suíte de testes a cada push na main e em todo pull request.
 #
-# Por que NÃO tem MySQL aqui: o phpunit.xml força DB_CONNECTION=sqlite e
-# DB_DATABASE=:memory:. Subir um serviço MySQL só deixaria o CI mais lento sem
-# mudar o que é testado.
+# A suíte roda DUAS vezes: no job `testes`, em sqlite em memória (o que o
+# phpunit.xml define — rápido, e é o que roda na máquina de quem desenvolve), e
+# no job `mysql`, no MySQL 8.0 de produção. O porquê do segundo está no comentário
+# dele, mais abaixo.
 #
 # Por que NÃO tem `npm run build`: o tests/TestCase.php chama withoutVite(),
 # então nenhuma view depende de public/build/manifest.json durante os testes.
@@ -71,6 +72,103 @@ jobs:
       # renderiza. Roda depois dos testes para não interferir neles.
       - name: Validar a sintaxe das views
         run: php artisan view:cache
+
+  # ------------------------------------------------------------------------
+  # A MESMA suíte no MySQL 8.0 — LIGADO em 22/09/2026.
+  #
+  # Produção é MySQL, e o sqlite do job `testes` deixa passar justamente o que
+  # só o MySQL faz:
+  #   - tamanho de coluna: `varchar(255)` estourado é erro 1406 no MySQL e passa
+  #     calado no sqlite. Já escondeu defeito duas vezes (`terms_accepted_ip` e
+  #     `two_factor_secret`, colunas cifradas que não cabiam);
+  #   - `lockForUpdate`: o sqlite compila o lock para NADA, então a trava de gasto
+  #     (FundingService) nunca é exercitada com o lock de verdade;
+  #   - modo estrito, `ONLY_FULL_GROUP_BY`, colação que não diferencia maiúsculas
+  #     e DDL que faz commit implícito no meio da transação do teste.
+  #
+  # As variáveis vão no `env` do passo, e não no .env, de propósito: o
+  # phpunit.xml não usa force="true", então o que vem do ambiente do processo
+  # VENCE o `<env name="DB_CONNECTION" value="sqlite"/>` — é isso que troca o
+  # banco. (O `artisan test` só apaga do ambiente o que ele mesmo leu do .env.)
+  #
+  # O banco se chama `stabilmoney_testes`, e não `stabilmoney`, porque o
+  # tests/TestCase.php RECUSA subir a suíte no nome do banco de desenvolvimento:
+  # o RefreshDatabase roda `migrate:fresh`, e o banco de dev já foi zerado uma vez
+  # por um comando que caiu no lugar errado.
+  #
+  # Antes de ligar: a suíte inteira verde em 3 rodadas seguidas contra o MySQL
+  # 8.0 do docker-compose. Os 7 testes que só passavam no sqlite (M-3 da
+  # auditoria de 05/09/2026) procuravam SQL com as aspas do sqlite e, no MySQL,
+  # nunca disparavam; hoje comparam pela gramática do banco em uso.
+  #
+  # Quando SÓ este job reprovar: é defeito que o sqlite esconde — o mais comum é
+  # texto maior que a coluna, ou uma consulta que depende da ordem sem ORDER BY.
+  # Reproduza localmente num banco de testes com nome próprio (nunca no de dev):
+  #   docker compose exec -T -e DB_CONNECTION=mysql -e DB_DATABASE=stabilmoney_testes app php artisan test
+  # (o banco precisa existir e o usuário do app precisa de grant nele).
+  mysql:
+    name: Suíte de testes (PHP 8.4 · MySQL 8.0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      mysql:
+        # A mesma imagem do docker-compose.yml.
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: stabilmoney_testes
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          # As mesmas do Dockerfile (que é MySQL).
+          extensions: mbstring, bcmath, exif, gd, pdo_mysql, zip, curl, dom, fileinfo
+          coverage: none
+          ini-values: memory_limit=512M
+
+      - name: Preparar o .env
+        run: cp .env.example .env
+
+      - name: Descobrir o diretório de cache do Composer
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Restaurar o cache do Composer
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php8.4-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-php8.4-
+
+      - name: Instalar dependências PHP
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Gerar a APP_KEY
+        run: php artisan key:generate
+
+      - name: Rodar a suíte no MySQL
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: stabilmoney_testes
+          DB_USERNAME: root
+          DB_PASSWORD: root
+        run: php artisan test
 
   # ------------------------------------------------------------------------
   # Formatação (Pint) — LIGADO em 06/08/2026.
