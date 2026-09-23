@@ -1231,6 +1231,12 @@ seguro, com o usuário dentro do app.
   falha daria a quem se cadastrou com o e-mail de OUTRA pessoa um jeito de pular a confirmação:
   insistir até esgotar a cota de envio do provedor. **Falha que o usuário consegue provocar não
   pode abrir a porta.** Um teste de mutação confirma que "simplificar" isso fica vermelho.
+- **Pedir troca de e-mail (22/09/2026 — `TrocaDeEmailNaoQuebraComSmtpForaTest`):** a pendência só
+  é gravada DEPOIS que o link sai (`Notificador::tentarEnviar`). Na falha, `pending_email` fica
+  nulo — inclusive o de um pedido anterior, que pode ser justamente o endereço errado que a pessoa
+  estava corrigindo —, o `emailTrocaPedida` não sai (não há pedido de pé), a tela diz a verdade no
+  campo e o que veio junto (nome, telefone, foto) continua salvo. Antes, um 550 era HTTP 500 com
+  uma pendência gravada que nenhum link confirmava.
 - Teste que precisa de SMTP que FALHA usa o trait **`Tests\Concerns\SimulaSmtpQueRecusa`**
   (transporte do Symfony que lança o "550"). `Mail::fake()`/`Notification::fake()` não servem:
   o dublê nunca falha, e o cenário deixa de existir.

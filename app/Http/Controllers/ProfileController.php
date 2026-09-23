@@ -55,9 +55,9 @@ class ProfileController extends Controller
             // exigida (isso barra sessão sequestrada), mas ela não prova que o endereço
             // digitado é seu — e o e-mail é o que recupera a conta. Uma letra errada
             // apontaria a conta para um endereço que não se controla.
+            //
+            // A pendência NÃO é gravada aqui: só depois que o link sair (ver abaixo).
             $user->email = $user->getOriginal('email');
-            $user->pending_email = $emailNovo;
-            $user->pending_email_sent_at = now();
         } elseif ($trocouEmail) {
             // Sem transporte de e-mail (fase de testes) não há como confirmar nada: a
             // troca vale na hora, como sempre valeu. A senha atual segue obrigatória.
@@ -84,6 +84,10 @@ class ProfileController extends Controller
 
         $user->save();
 
+        // Daqui para baixo nome, telefone e foto já estão gravados — saia o link da troca de
+        // e-mail ou não. Se ele falhar, a tela precisa dizer que o resto ficou salvo.
+        $salvouOResto = $user->wasChanged();
+
         if (! $trocouEmail) {
             // Nome, telefone, foto: nada disso decide quem recupera a conta, então ninguém
             // é avisado. Alerta que dispara à toa é alerta que ninguém lê no dia certo.
@@ -97,7 +101,41 @@ class ProfileController extends Controller
         // Os avisos saem para `$antes` (o e-mail de antes da edição), nunca para `$user`:
         // no ramo sem confirmação o `email` já mudou quando chegamos aqui.
         if (Mailer::entrega()) {
-            $user->sendPendingEmailVerification();
+            // 🚨 A pendência só existe no banco se o link SAIU. Antes o envio era direto
+            // (`Mail::to`, sem proteção): com o SMTP recusando o endereço novo ("550") a
+            // tela respondia HTTP 500 e o `pending_email` ficava gravado — uma troca
+            // pendente que NENHUM link confirma. Agora o endereço vai só para a memória, o
+            // envio passa pelo Notificador, e a pendência é gravada DEPOIS da prova de
+            // entrega: se o processo morrer no meio, morre do lado seguro (o mesmo
+            // raciocínio do cadastro, em RegisteredUserController::store).
+            $user->pending_email = $emailNovo;
+
+            $enviado = Notificador::tentarEnviar(
+                $user,
+                'link de confirmação da troca de e-mail',
+                fn () => $user->sendPendingEmailVerification(),
+            );
+
+            if (! $enviado) {
+                // Sem link não há pedido: nem este, nem o anterior, se havia. Pedir outra
+                // troca sempre invalidou o link do pedido anterior (o `hash` muda), e
+                // ressuscitá-lo aqui reabriria justamente o endereço que a pessoa talvez
+                // estivesse corrigindo. O estado final é o mais simples de explicar: e-mail
+                // de sempre, nenhuma troca em andamento.
+                $user->forceFill(['pending_email' => null, 'pending_email_sent_at' => null])->save();
+
+                // Sem o aviso ao endereço atual: ele fala de um pedido, e o pedido não
+                // ficou de pé. O endereço digitado volta no campo, para ser conferido.
+                return Redirect::route('profile.edit')
+                    ->withErrors(['email' => 'Não conseguimos enviar o link de confirmação para '.$emailNovo
+                        .', então a troca não foi feita: você continua entrando com '.$antes->email.'. '
+                        .'Confira se o endereço está certo e tente de novo; se o erro continuar, fale com '
+                        .config('legal.contact_email').'.'
+                        .($salvouOResto ? ' As outras alterações do perfil foram salvas.' : '')])
+                    ->onlyInput('email');
+            }
+
+            $user->forceFill(['pending_email_sent_at' => now()])->save();
 
             // No PEDIDO, e não só na confirmação: é o único momento em que o dono ainda
             // consegue impedir a troca (ver AlertaDeSeguranca::emailTrocaPedida). O texto

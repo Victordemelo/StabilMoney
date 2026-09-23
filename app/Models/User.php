@@ -372,6 +372,10 @@ class User extends Authenticatable implements MustVerifyEmail
      *
      * A URL é assinada e expira: quem não tiver acesso à caixa nova não confirma, que é
      * exatamente o ponto. O link vai para `pending_email`, não para o e-mail atual.
+     *
+     * ⚠️ Lança exceção quando o SMTP recusa o endereço ("550"). Quem chama passa por
+     * `Notificador::tentarEnviar()` e decide o que fazer com a falha — ver
+     * ProfileController::update, que só grava a pendência depois que o link saiu.
      */
     public function sendPendingEmailVerification(): void
     {
