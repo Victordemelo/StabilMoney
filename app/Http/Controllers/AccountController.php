@@ -197,6 +197,30 @@ class AccountController extends Controller
             ->with('status', 'Conta atualizada.');
     }
 
+    /**
+     * Mensagem PT-BR quando algum cartão de débito ou Pix da família tira dinheiro desta
+     * conta — ou null quando ela pode sair. Nomeia os métodos: "excluir não deixa" sem dizer
+     * QUEM depende dela manda a pessoa caçar o vínculo na lista.
+     */
+    private function metodosQueImpedemExclusao(Account $conta): ?string
+    {
+        $metodos = $conta->metodosQueEspelham();
+
+        if ($metodos->isEmpty()) {
+            return null;
+        }
+
+        $nomes = $metodos
+            ->map(fn (Account $m) => $m->typeLabel().' "'.$m->name.'"')
+            ->join(', ', ' e ');
+        $um = $metodos->count() === 1;
+
+        return 'Esta conta não pode ser excluída: '.$nomes.($um ? ' tira' : ' tiram').' dinheiro dela. '
+            .'Sem ela, '.($um ? 'esse método ficaria' : 'esses métodos ficariam').' sem conta — e '
+            .($um ? 'sumiria' : 'sumiriam').' da lista de pagamento. Edite '.($um ? 'o método' : 'cada método')
+            .' para usar outra conta (ou exclua-'.($um ? 'o' : 'os').') e depois exclua esta.';
+    }
+
     public function destroy(Account $account)
     {
         $this->authorize('delete', $account);
@@ -211,6 +235,15 @@ class AccountController extends Controller
 
             if (! $conta) {
                 return null; // outra aba já excluiu: nada a fazer
+            }
+
+            // Conta de onde um cartão de débito ou um Pix tira o dinheiro não sai: a FK
+            // deles é nullOnDelete, e o método ficaria órfão — sumindo em silêncio do select
+            // de pagamento (`paymentOptions` pula quem não espelha conta nenhuma) — ou, com a
+            // outra conta vinculada, passaria a sacar dela sem ninguém ter pedido. A mesma
+            // regra da troca de tipo (`travaDeEspelho`): a saída é mexer no método primeiro.
+            if ($motivo = $this->metodosQueImpedemExclusao($conta)) {
+                return $motivo;
             }
 
             // A FK de transactions é cascadeOnDelete: excluir a conta apagaria
