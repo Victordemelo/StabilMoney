@@ -15,6 +15,8 @@ use App\Support\Texto;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -39,13 +41,42 @@ class FixedBillController extends Controller
             ->with('status', 'Conta fixa cadastrada. Ela aparece todo mês até você desativar.');
     }
 
+    /**
+     * Edita a conta fixa. O VALOR segue a regra do reajuste
+     * (`FixedBill::definirValorPrevisto`): vale da competência do mês corrente em
+     * diante, e as anteriores ainda em aberto mantêm o valor que tinham — antes, um
+     * `update()` cru reescrevia o previsto de todas elas, e com ele o sino, os
+     * lembretes e o teto de 3× do pagamento de meses que já tinham passado.
+     */
     public function update(UpdateFixedBillRequest $request, FixedBill $conta)
     {
         $this->authorize('update', $conta);
 
-        $conta->update($request->validated());
+        $dados = $request->validated();
 
-        return redirect()->route('faturas.index')->with('status', 'Conta fixa atualizada.');
+        $reajuste = DB::transaction(function () use ($conta, $dados) {
+            // Relida e TRAVADA: o reajuste lê o valor ATUAL para guardá-lo no
+            // histórico. Duas edições simultâneas (duas abas) leriam o mesmo valor,
+            // e a segunda gravaria por cima do histórico escrito pela primeira.
+            $bill = FixedBill::whereKey($conta->getKey())->lockForUpdate()->firstOrFail();
+
+            $bill->fill(Arr::except($dados, ['amount']));
+            $reajuste = $bill->definirValorPrevisto($dados['amount']);
+            $bill->save();
+
+            return $reajuste;
+        });
+
+        // Quando o valor antigo foi preservado para os meses anteriores (reajuste), o
+        // aviso diz de que mês o novo passa a valer. Na correção (mesmo mês em que o
+        // valor foi salvo) não há o que avisar: vale para todas as competências.
+        $status = $reajuste
+            ? 'Conta fixa atualizada. O novo valor vale a partir de '
+                .CarbonImmutable::today()->translatedFormat('F/Y')
+                .'; as competências anteriores ainda em aberto mantêm o valor que tinham.'
+            : 'Conta fixa atualizada.';
+
+        return redirect()->route('faturas.index')->with('status', $status);
     }
 
     public function destroy(FixedBill $conta, FixedBillService $service)

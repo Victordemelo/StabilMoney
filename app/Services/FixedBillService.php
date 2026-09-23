@@ -99,7 +99,10 @@ class FixedBillService
                     'bill' => $bill,
                     'competence' => $competencia,
                     'vencimento' => $vencimento,
-                    'valor' => $pagamento ? (float) $pagamento->amount : (float) $bill->amount,
+                    // Paga: o valor REAL, da transação. Em aberto: o previsto DAQUELE
+                    // mês — com o histórico de reajustes, não o valor atual da conta
+                    // (reajustar em julho não reescreve maio e junho em aberto).
+                    'valor' => $pagamento ? (float) $pagamento->amount : $bill->valorPrevistoEm($competencia),
                     'paga' => (bool) $pagamento,
                     'pagamento' => $pagamento,
                     'vencida' => ! $pagamento && $vencimento->lessThan($hoje),

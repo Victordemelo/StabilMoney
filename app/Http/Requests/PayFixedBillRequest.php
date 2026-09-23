@@ -48,7 +48,12 @@ class PayFixedBillRequest extends FormRequest
      * queremos travar o usuário no mês em que ele mais precisa registrar. Já
      * 4×, 10× ou 1e12 não são "o mês veio caro": são erro de digitação (18.000
      * no lugar de 1.800) ou abuso. Quem mudou de patamar de vez edita a conta
-     * fixa — agora há botão para isso na tela.
+     * fixa — agora há botão para isso na tela —, e o novo valor vale da
+     * competência do mês da edição em diante (`FixedBill::definirValorPrevisto`).
+     *
+     * O "previsto" é o DA COMPETÊNCIA paga (`FixedBill::valorPrevistoEm`), não o
+     * atual da conta: com o valor atual, baixar o aluguel de 1.500 para 400 em
+     * julho travava o pagamento de junho com os 1.500 de verdade (teto 1.200).
      */
     public const TETO_PREVISTO = 3;
 
@@ -139,22 +144,34 @@ class PayFixedBillRequest extends FormRequest
         ];
     }
 
-    /** Teto relativo ao previsto — só depois de as regras básicas passarem. */
+    /**
+     * Teto relativo ao previsto DA COMPETÊNCIA — só depois de as regras básicas
+     * passarem. (Competência ilegível na URL não chega aqui como pagamento válido,
+     * mas o teto cai no valor atual em vez de sumir.)
+     */
     private function validarTetoDoValor(Validator $validator, FixedBill $bill): void
     {
         if ($validator->errors()->has('amount')) {
             return;
         }
 
-        $previsto = round((float) $bill->amount, 2);
+        $competencia = $this->competencia();
+        $previsto = $competencia ? $bill->valorPrevistoEm($competencia) : round((float) $bill->amount, 2);
         $teto = round($previsto * self::TETO_PREVISTO, 2);
         $valor = round((float) $this->input('amount'), 2);
 
         if ($previsto > 0 && $valor > $teto) {
+            // Editar a conta fixa só ajuda do mês corrente em diante: para uma
+            // competência anterior, a mensagem não pode mandar editar.
+            $saida = $competencia && $competencia->lessThan(CarbonImmutable::today()->startOfMonth())
+                ? 'o previsto de '.$competencia->translatedFormat('F/Y').' é o valor que a conta tinha naquele mês '
+                    .'(um reajuste feito agora vale só daqui em diante).'
+                : 'se a conta mudou de valor de vez, edite a conta fixa antes de pagar.';
+
             $validator->errors()->add('amount',
                 'O valor pago ('.Brl::format($valor).') é muito maior que o previsto para '
-                .$bill->name.' ('.Brl::format($previsto).'). Confira os centavos — se a conta '
-                .'mudou de valor de vez, edite a conta fixa antes de pagar.');
+                .$bill->name.($competencia ? ' em '.$competencia->translatedFormat('F/Y') : '')
+                .' ('.Brl::format($previsto).'). Confira os centavos — '.$saida);
         }
     }
 
