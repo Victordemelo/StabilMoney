@@ -201,3 +201,34 @@ jobs:
 
       - name: Auditar o composer.lock
         run: composer audit --locked --abandoned=report --no-interaction
+
+  # ------------------------------------------------------------------------
+  # Scripts de backup e restauração (bash) — LIGADO em 22/09/2026.
+  #
+  # scripts/backup-db.sh e scripts/restore-db.sh são a rede de segurança de um
+  # app com dinheiro de verdade, e a auditoria de 06/09/2026 provou que eles
+  # podiam PIORAR um incidente: restaurar um arquivo cortado apagava o banco e
+  # ainda imprimia "OK" (B-1 a B-5 em docs/auditoria-volume-e-backup-2026-09-06.md).
+  # Script que só roda no dia do desastre precisa de teste que rode todo dia.
+  #
+  # O teste roda os scripts DE VERDADE contra um `docker` falso
+  # (tests/scripts/docker-falso.sh), que guarda o "banco" em arquivos e registra
+  # cada operação — é assim que ele prova que arquivo ruim não encosta no banco.
+  # Por isso não precisa de Docker nem de MySQL aqui. (O runner TEM docker de
+  # verdade; o teste confere que o falso está na frente do PATH e aborta se não
+  # estiver.)
+  #
+  # Roda no Ubuntu de propósito: aqui o `awk` é o mawk e as ferramentas são as
+  # GNU — as mesmas da VPS —, enquanto no Mac de quem desenvolve são o bash 3.2 e
+  # as ferramentas BSD. O teste passa nos dois.
+  scripts:
+    name: Scripts de backup e restauração (bash)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Testar backup-db.sh e restore-db.sh (sem Docker, com docker falso)
+        run: bash tests/scripts/backup-restore.test.sh

@@ -1639,6 +1639,10 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   nada pulou de major e que o framework segue na 12.x; suíte verde; commitar o lock. Sem correção
   publicada: `config.audit.ignore` no `composer.json` com `{"ID": "motivo e data"}` — nunca
   desligar o job.
+- **Scripts de backup: o job `scripts` do CI está LIGADO** (22/09/2026). Roda
+  `tests/scripts/backup-restore.test.sh`, que executa os scripts DE VERDADE contra um `docker`
+  falso (`tests/scripts/docker-falso.sh`) — sem Docker nem MySQL. No Ubuntu de propósito (mawk e
+  ferramentas GNU, como na VPS); também passa no bash 3.2 do Mac. Ver "💾 Backup e restauração".
 - **Fluxo git — modelo principal/secundário (jun/2026):** há um **agente principal** (o que
   conversa com o Victor) e **agentes secundários** (subagentes despachados para implementar
   partes em paralelo). **SOMENTE o agente principal commita e dá `push`.** Agentes secundários
@@ -1721,6 +1725,31 @@ npm run test:js  # testes de JavaScript (Vitest + jsdom); `test:js:watch` para m
   `db`): glitch do Docker Desktop/WSL2 em que o container do banco "solta" da rede (aparece sem
   rede em `docker inspect`). **Fix:** `docker compose down; docker compose up -d` (recria os
   containers na mesma rede; o volume `db_data` é preservado, nada se perde).
+
+### 💾 Backup e restauração (`scripts/backup-db.sh` / `scripts/restore-db.sh`)
+Uso e rotina de produção no item 11 do `docs/checklist-de-publicacao.md`. Reescritos em 22/09/2026
+(B-1 a B-5 da auditoria de 06/09 — `tests/scripts/backup-restore.test.sh`, 83 checagens):
+- **O restore não encosta no destino antes de provar o arquivo:** `gzip -t`, rodapé
+  `-- Dump completed` como última linha, nada de `INSERT` cortado, e recusa `USE`,
+  `CREATE/DROP DATABASE` e comandos do cliente (`\!`). Depois aplica num banco temporário
+  `sm_verif_*` e compara tabela por tabela e linha por linha com o que o dump promete — só então
+  pede confirmação, tira o backup de segurança e mexe no destino. Antes, um arquivo cortado
+  apagava o banco e ainda imprimia "OK". `--ensaio` prova que um backup restaura sem tocar em nada.
+- **Roda como root**, com a senha lida DE DENTRO do container (`MYSQL_ROOT_PASSWORD`, num `.cnf`
+  com `umask 077` apagado no fim — `scripts/lib/cnf-root.sh`): o usuário do app só tem grant no
+  próprio banco e o ensaio dava 1044. Recusa restaurar sobre `mysql`/`sys`/`information_schema`/
+  `performance_schema`; dump de outro banco por cima do do app exige `--origem-diferente`.
+- **"Mais recente" = o backup COMUM mais novo do banco alvo, pela data do nome** (era ordem
+  alfabética, e podia restaurar o dump de outro banco por cima da produção). O de segurança se
+  chama `<banco>-<data>.antes-de-restaurar.sql.gz`, nunca é escolhido sozinho e não rotaciona os
+  do cron.
+- ⚠️ **Toda saída padrão dos scripts passa por `sm_escrever`** (printf externo): no bash 3.2 do
+  Mac, um `printf` que falha deixa o texto no buffer e o próximo `$(...)` o captura. E os scripts
+  ignoram SIGHUP/SIGPIPE: cair o SSH no meio de um restore não pode parar entre o DROP e a
+  aplicação.
+- Limite conhecido: rodando como root, um dump **adulterado de propósito** ainda executaria SQL
+  qualificado com outro banco fora de `CREATE TABLE`/`INSERT` (regras em
+  `scripts/lib/manifesto-do-dump.awk`). Restaure só backups que você mesmo gerou.
 
 ### Logs — diário, 180 dias
 O padrão de produção é `LOG_STACK=daily` com `LOG_DAILY_DAYS=180` (`config/logging.php` e

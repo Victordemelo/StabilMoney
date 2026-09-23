@@ -298,33 +298,88 @@ o `/up` responde 503 (item 10.2).
 ### 11. Backup do banco — automático, testado e fora da VPS
 
 Existem dois scripts prontos no repositório (feitos em 02/08/2026, depois do incidente de
-perda de dados de 28/07 — ver `storage/app/backup-incidente-2026-07-28/`):
+perda de dados de 28/07 — ver `storage/app/backup-incidente-2026-07-28/` —, e refeitos em
+22/09/2026, depois que a auditoria de 06/09 provou que a restauração de um arquivo cortado
+**apagava o banco e ainda dizia "OK"**: achados B-1 a B-5 em
+`docs/auditoria-volume-e-backup-2026-09-06.md`):
 
 | Script | O que faz |
 |---|---|
-| `scripts/backup-db.sh` | `mysqldump` do container `db` → `.sql.gz` datado, com rotação. **Confere o dump depois de gravar** e descarta o arquivo se não achar nenhum `CREATE TABLE`. |
-| `scripts/restore-db.sh` | Restaura um backup. Valida o arquivo **antes** de apagar qualquer coisa, exige que você digite o nome do banco, e tira um backup de segurança do estado atual antes de sobrescrever. |
+| `scripts/backup-db.sh` | `mysqldump` do container `db` → `.sql.gz` datado, com rotação. **Antes de publicar o arquivo** confere que ele é um dump inteiro: gzip íntegro, o rodapé `-- Dump completed` (o mysqldump só o escreve quando termina) e pelo menos uma tabela. Dump cortado é descartado — o código de saída 0 do mysqldump não basta. |
+| `scripts/restore-db.sh` | Restaura um backup. **Nada do banco de destino é tocado** antes de: (1) validar o arquivo — gzip, rodapé, nenhum `USE`/`CREATE DATABASE` nem comando do cliente mysql; (2) **ensaiar** — aplicar o arquivo num banco temporário e conferir, tabela por tabela, que chegaram as linhas que o arquivo promete; (3) você digitar o nome do banco; (4) um backup de segurança do estado atual. Depois de aplicar, confere de novo, agora no destino. |
 
 ```bash
 ./scripts/backup-db.sh                    # backup em storage/backups/, guarda os 14 últimos
 ./scripts/backup-db.sh --manter 30        # muda a retenção
 ./scripts/backup-db.sh --saida /mnt/hd    # grava noutro lugar (disco externo, volume montado)
 
+./scripts/restore-db.sh --ensaio                   # PROVA que o backup mais recente restaura — não toca em nada
+./scripts/restore-db.sh --ensaio arq.sql.gz        # ...ou um arquivo específico
 ./scripts/restore-db.sh                            # restaura o backup mais recente
 ./scripts/restore-db.sh caminho/do/arquivo.sql.gz  # restaura um específico
-./scripts/restore-db.sh arq.sql.gz --banco stabil_ensaio   # ENSAIO: restaura noutro banco
+./scripts/restore-db.sh arq.sql.gz --banco stabil_ensaio   # restaura noutro banco e o MANTÉM (para abrir no DBeaver)
 ```
 
-**A senha do banco nunca vai para a linha de comando** (`ps` do host expõe a linha de
-comando de qualquer processo, e é por isso que `mysqldump -p$SENHA` está errado). Os
-scripts leem o `.env` e escrevem um `my.cnf` temporário, via STDIN, com `umask 077` dentro
-do container — apagado no final até se o script morrer no meio.
+**"O mais recente" é o backup comum mais novo do banco alvo, pela data do nome.** Não é a
+ordem alfabética (que colocava o backup de outro banco na frente — `teste-2099…` vence
+`stabilmoney-2026…`) nem a data de modificação (que `cp`/`rsync` sem `-t` reescrevem).
+Backups de outros bancos e os de segurança nunca são escolhidos sozinhos.
 
-**Cron na VPS** (backup diário às 3h, log próprio):
+**Os nomes dos arquivos:**
+
+| Nome | O que é |
+|---|---|
+| `stabilmoney-20260922-030000.sql.gz` | backup comum (cron ou à mão) |
+| `stabilmoney-20260922-030000-2.sql.gz` | um segundo backup no **mesmo segundo** — antes ele sobrescrevia o primeiro |
+| `stabilmoney-20260922-031500.antes-de-restaurar.sql.gz` | o backup de segurança que o restore tira antes de sobrescrever |
+
+Os de segurança **não entram na rotação** e nunca são apagados sozinhos (antes, o restore
+rodava a rotação padrão de 14 sobre os backups do cron: quem guardava 30 ficava com 14 no
+primeiro restore). Apague à mão os que não precisar mais.
+
+**Credenciais — e por que o restore usa root.** A senha nunca vai para a linha de comando
+(`ps` do host mostra a linha de comando de qualquer processo, inclusive os de dentro dos
+containers — é por isso que `mysqldump -p$SENHA` está errado). O **backup** usa o usuário
+do app: a senha sai do `.env` e entra no container por STDIN, num `my.cnf` temporário com
+`umask 077`, apagado no fim. O **restore** usa o **root do MySQL**, porque o ensaio precisa
+criar e apagar um banco e o usuário do app só tem permissão no banco do app (era por isso
+que o ensaio antigo em `--banco stabil_ensaio` dava `1044 Access denied` — e na VPS seria
+igual). A senha de root é lida **dentro** do container, na variável `MYSQL_ROOT_PASSWORD`
+que o `docker-compose.yml` entrega ao serviço do banco (o `DB_ROOT_PASSWORD` do `.env`):
+não passa pelo host, não vai para nenhuma linha de comando, e ninguém precisa dar grant à
+mão. O `backup-db.sh --banco <outro>` usa o root pelo mesmo motivo.
+
+> ⚠️ Rodando como root, o arquivo restaurado é SQL com poder sobre o servidor inteiro. Por
+> isso o restore recusa `--banco mysql`/`sys`/`information_schema`/`performance_schema`,
+> recusa arquivo com `USE`, `CREATE/DROP DATABASE` ou comando do cliente (`\!`, `system`), e
+> aplica com `--commands=OFF`. Mesmo assim: **restaure só arquivos gerados pelo
+> `backup-db.sh` e guardados em lugar confiável** — um dump adulterado de propósito é código
+> rodando como root no MySQL.
+
+**Restaurar em produção:** ponha o app em manutenção antes
+(`docker compose exec -T app php artisan down`) e tire depois (`... php artisan up`) — senão
+o app grava no banco enquanto as tabelas são recriadas. Rode numa sessão que sobreviva à
+queda do SSH (`tmux`/`screen`); o script, de qualquer forma, ignora SIGHUP e vai até o fim
+em vez de parar entre o `DROP` das tabelas e a aplicação do dump. Se algo falhar **depois**
+de começar a apagar, ele imprime o comando exato para voltar ao backup de segurança.
+
+**Cron na VPS** (backup diário às 3h e um ensaio semanal, log próprio):
 
 ```cron
+PATH=/usr/local/bin:/usr/bin:/bin
 0 3 * * * cd /caminho/do/projeto && ./scripts/backup-db.sh >> /var/log/stabilmoney-backup.log 2>&1
+30 3 * * 0 cd /caminho/do/projeto && ./scripts/restore-db.sh --ensaio >> /var/log/stabilmoney-backup.log 2>&1
 ```
+
+- A linha `PATH=` existe porque o cron roda com um PATH mínimo. Os scripts procuram o
+  `docker` também em `/usr/local/bin`, `/opt/homebrew/bin`, `~/.orbstack/bin` e
+  `/snap/bin`, e quando não acham dizem **"não achei o comando 'docker' no PATH"** — antes a
+  mensagem era "não achei o Docker Compose", que mandava procurar o problema no lugar errado.
+- O ensaio de domingo aplica o backup mais recente num banco temporário, confere e apaga:
+  **prova toda semana que o backup restaura**, sem tocar na produção. Se falhar, o motivo
+  fica no log e o comando termina com código diferente de zero — é o gancho para um
+  alerta, quando houver monitoramento.
+- Sem terminal, a saída sai **sem códigos de cor** (antes o log ficava cheio de `[32m`).
 
 **Periodicidade sugerida:** diária enquanto for só o Victor; de hora em hora quando houver
 usuários reais (um lançamento perdido é um lançamento que ninguém lembra de refazer).
@@ -343,17 +398,23 @@ rsync -az usuario@vps:/caminho/do/projeto/storage/backups/ ~/Backups/stabilmoney
 rclone copy storage/backups/ remoto:stabilmoney-backups --max-age 25h
 ```
 
-> ⚠️ **Teste a restauração antes de precisar dela.** Rode
-> `./scripts/restore-db.sh <arquivo> --banco stabil_ensaio` uma vez: restaura num banco de
-> lado, sem tocar no de produção, e prova que o arquivo presta. Backup nunca testado é
-> só um arquivo grande.
+> ⚠️ **Teste a restauração antes de precisar dela.** Rode `./scripts/restore-db.sh --ensaio`
+> uma vez à mão logo depois do primeiro backup na VPS (e deixe o cron semanal acima fazendo
+> isso sozinho): aplica o arquivo num banco temporário, confere tabela por tabela e apaga,
+> sem tocar no de produção. Backup nunca testado é só um arquivo grande. Faça o mesmo com
+> a cópia que ficou **fora** da VPS: `./scripts/restore-db.sh --ensaio ~/Backups/stabilmoney/<arquivo>`
+> no seu computador, com o docker-compose do projeto de pé.
 
 > ⚠️ O diretório `storage/backups/` contém **dados pessoais de todos os usuários**, em
-> texto legível depois de descompactar. Os arquivos nascem com permissão `600` e o
-> diretório com `700`, e o script grava um `.gitignore` com `*` lá dentro na primeira
-> execução — um `git add .` distraído não alcança os dumps. Ainda assim, acrescente
-> **`/storage/backups`** ao `.gitignore` da raiz: é a linha que documenta a intenção para
-> quem chegar depois.
+> texto legível depois de descompactar. Os arquivos nascem com permissão `600` (inclusive
+> enquanto estão sendo escritos) e o diretório com `700`, e o script grava um `.gitignore`
+> com `*` lá dentro na primeira execução — um `git add .` distraído não alcança os dumps. O
+> `.gitignore` da raiz também lista `/storage/backups`, para documentar a intenção.
+
+> Os scripts são testados sem Docker em `tests/scripts/backup-restore.test.sh` (job
+> `scripts` do CI): um `docker` falso guarda o "banco" em arquivos e registra cada operação,
+> e o teste prova que arquivo cortado ou corrompido **não encosta no banco**. Rodando o
+> mesmo teste contra a versão anterior, todos os cenários de B-1 a B-5 reprovam.
 
 ### 12. Cron do agendador (`schedule:run`)
 
