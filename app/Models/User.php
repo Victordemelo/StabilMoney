@@ -197,7 +197,8 @@ class User extends Authenticatable implements MustVerifyEmail
      * 🚨 Excluir alguém são VÁRIAS escritas (cada dependente, as sessões, a própria
      * linha), e quem chama embrulha o `delete()` numa `DB::transaction` — é o que faz
      * uma falha no meio (erro de banco no 2º dependente) desfazer tudo, em vez de deixar
-     * a família pela metade. Ver ProfileController::destroy e ModeracaoController::excluir.
+     * a família pela metade. Ver ProfileController::destroy, DependentController::destroy e
+     * ModeracaoController::excluir.
      *
      * O ARQUIVO da foto não tem rollback, então ele fica de fora da transação: sai no
      * `afterCommit`, só depois que o banco confirmou a exclusão. Antes ele era apagado já

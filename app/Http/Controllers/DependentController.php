@@ -11,6 +11,7 @@ use App\Support\BrowserSessions;
 use App\Support\ContextoDeSeguranca;
 use App\Support\Notificador;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -133,7 +134,7 @@ class DependentController extends Controller
         }
 
         if ($request->hasFile('avatar')) {
-            // Apaga a foto antiga e grava a nova sem metadados (EXIF/GPS).
+            // Grava a nova sem metadados (EXIF/GPS); a antiga só sai depois do save (hook `updated` do User).
             $dependent->storeAvatar($request->file('avatar'));
         }
 
@@ -187,13 +188,35 @@ class DependentController extends Controller
         );
     }
 
+    /**
+     * Remove o dependente: tudo ou nada, a mesma regra da exclusão de conta
+     * (ProfileController::destroy).
+     *
+     * O `delete()` são várias escritas — as sessões dele, os tokens de "esqueci a senha" e a
+     * própria linha, pelo hook `deleting` do User — e rodava fora de transação: uma falha no
+     * meio deixava o dependente de pé com as sessões já apagadas (ou o contrário). Numa
+     * transação, ou tudo sai, ou nada sai. A foto, que não tem rollback, sai no `deleted` +
+     * `afterCommit` do model, só depois do commit.
+     *
+     * Sem `attempts`: repetir o closure reusaria um model que a tentativa desfeita já marcou
+     * como apagado (`exists = false`), e o `delete()` dele viraria no-op.
+     */
     public function destroy(Request $request, User $dependent)
     {
         $titular = $request->user();
         abort_unless($titular->isTitular() && $dependent->account_owner_id === $titular->id, 403);
 
-        // A foto e as sessões saem no hook `deleting` do User.
-        $dependent->delete();
+        try {
+            DB::transaction(fn () => $dependent->delete());
+        } catch (\Throwable $e) {
+            report($e);
+
+            // O banco desfez tudo, então a tela pode dizer que nada foi apagado: é verdade.
+            return redirect()->route('dependentes')->with(
+                'status',
+                'Não conseguimos remover '.$dependent->name.' agora, e nada foi apagado. Tente de novo em instantes.',
+            );
+        }
 
         return redirect()->route('dependentes')->with('status', 'Dependente removido.');
     }
