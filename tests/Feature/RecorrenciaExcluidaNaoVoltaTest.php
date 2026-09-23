@@ -167,7 +167,7 @@ class RecorrenciaExcluidaNaoVoltaTest extends TestCase
 
         $this->avancar($agosto)
             ->assertRedirect(route('faturas.index'))
-            ->assertSessionHas('status', 'Esta recorrência foi excluída: nenhuma cobrança nova é lançada. As já pagas continuam no histórico.');
+            ->assertSessionHas('erro', 'Esta recorrência foi encerrada: nenhuma cobrança nova é lançada. As já pagas continuam no histórico.');
 
         $this->assertSame(['2026-08-01'], $this->datas(), 'Um clique recriou a ocorrência de uma série excluída.');
         $this->assertSame($antes, $this->fotografia());
@@ -242,7 +242,7 @@ class RecorrenciaExcluidaNaoVoltaTest extends TestCase
         // A tela já não oferece o botão (ver o teste seguinte), mas quem decide é o
         // servidor: um POST de uma aba aberta antes da exclusão chega do mesmo jeito.
         $this->avancar($agosto->fresh())
-            ->assertSessionHas('status', fn ($msg) => str_contains($msg, 'recorrência foi excluída'));
+            ->assertSessionHas('erro', fn ($msg) => str_contains($msg, 'recorrência foi encerrada'));
         $this->assertSame(['2026-08-01'], $this->datas());
     }
 
@@ -332,7 +332,7 @@ class RecorrenciaExcluidaNaoVoltaTest extends TestCase
         });
 
         $this->avancar($agosto)
-            ->assertSessionHas('status', 'Esta recorrência foi excluída: nenhuma cobrança nova é lançada. As já pagas continuam no histórico.');
+            ->assertSessionHas('erro', 'Esta recorrência foi encerrada: nenhuma cobrança nova é lançada. As já pagas continuam no histórico.');
 
         $this->assertFalse($armado, 'A exclusão simulada não chegou a acontecer — o teste não provaria nada.');
         $this->assertSame(['2026-08-01'], $this->datas(), 'A sucessora nasceu numa série encerrada durante o clique.');
@@ -403,7 +403,7 @@ class RecorrenciaExcluidaNaoVoltaTest extends TestCase
         $this->excluir(Transaction::where('date', '2026-09-05')->firstOrFail())->assertSessionHasNoErrors();
 
         $this->avancar($rec->fresh())
-            ->assertSessionHas('status', 'Esta recorrência foi excluída: nenhuma cobrança nova é lançada. As já pagas continuam no histórico.');
+            ->assertSessionHas('erro', 'Esta recorrência foi encerrada: nenhuma cobrança nova é lançada. As já pagas continuam no histórico.');
         $this->assertSame(['2026-08-05'], $this->datas('Academia'));
     }
 

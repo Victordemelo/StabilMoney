@@ -30,7 +30,12 @@ class FaturaController extends Controller
     use AuthorizesRequests;
 
     /** Resposta a qualquer tentativa de avançar uma série recorrente já excluída. */
-    private const AVISO_SERIE_ENCERRADA = 'Esta recorrência foi excluída: nenhuma cobrança nova é lançada. As já pagas continuam no histórico.';
+    /**
+     * Recusa de gerar a próxima ocorrência de uma série ENCERRADA. "Encerrada", e não
+     * "excluída": a série também se encerra pelo Histórico, sem ninguém excluir a série.
+     * Sai no aviso de ERRO (`erro`), não no verde de sucesso: o clique não fez nada.
+     */
+    private const AVISO_SERIE_ENCERRADA = 'Esta recorrência foi encerrada: nenhuma cobrança nova é lançada. As já pagas continuam no histórico.';
 
     public function index(Request $request, FaturaService $faturas)
     {
@@ -788,7 +793,7 @@ class FaturaController extends Controller
         // `lancarProxima`), mas quem decide é esta linha: um POST montado à mão, ou
         // vindo de uma aba aberta antes da exclusão, chega aqui do mesmo jeito.
         if (EndedRecurrence::daSerie($transaction)) {
-            return redirect()->route('faturas.index')->with('status', self::AVISO_SERIE_ENCERRADA);
+            return redirect()->route('faturas.index')->with('erro', self::AVISO_SERIE_ENCERRADA);
         }
 
         // Recorrência NO CARTÃO não é quitada aqui: quem quita é a fatura.
@@ -824,14 +829,16 @@ class FaturaController extends Controller
             // lançada; a atual permanece EM ABERTO, dentro da fatura.
             $proxima = $this->gerarProximaOcorrencia($transaction, $funding);
 
+            // Encerrada enquanto este clique esperava a trava (ver `destroy`): é recusa.
+            if (! $proxima && EndedRecurrence::daSerie($transaction)) {
+                return redirect()->route('faturas.index')->with('erro', self::AVISO_SERIE_ENCERRADA);
+            }
+
             return redirect()->route('faturas.index')->with(
                 'status',
-                match (true) {
-                    $proxima => 'Próxima ocorrência lançada na fatura aberta. Esta despesa é quitada junto com a fatura do cartão.',
-                    // Encerrada enquanto este clique esperava a trava (ver `destroy`).
-                    EndedRecurrence::daSerie($transaction) => self::AVISO_SERIE_ENCERRADA,
-                    default => 'A próxima ocorrência já estava lançada. No cartão, a cobrança é quitada com a fatura.',
-                },
+                $proxima
+                    ? 'Próxima ocorrência lançada na fatura aberta. Esta despesa é quitada junto com a fatura do cartão.'
+                    : 'A próxima ocorrência já estava lançada. No cartão, a cobrança é quitada com a fatura.',
             );
         }
 

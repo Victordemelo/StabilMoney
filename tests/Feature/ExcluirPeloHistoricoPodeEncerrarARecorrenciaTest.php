@@ -42,7 +42,7 @@ class ExcluirPeloHistoricoPodeEncerrarARecorrenciaTest extends TestCase
 
     private const REMOVIDA_E_ENCERRADA = 'Transação removida e recorrência encerrada: nenhuma cobrança nova será lançada. As outras cobranças dela continuam no histórico.';
 
-    private const SERIE_ENCERRADA = 'Esta recorrência foi excluída: nenhuma cobrança nova é lançada. As já pagas continuam no histórico.';
+    private const SERIE_ENCERRADA = 'Esta recorrência foi encerrada: nenhuma cobrança nova é lançada. As já pagas continuam no histórico.';
 
     private User $user;
 
@@ -243,11 +243,11 @@ class ExcluirPeloHistoricoPodeEncerrarARecorrenciaTest extends TestCase
 
         $this->avancar($agosto)
             ->assertRedirect(route('faturas.index'))
-            ->assertSessionHas('status', self::SERIE_ENCERRADA);
+            ->assertSessionHas('erro', self::SERIE_ENCERRADA);
         $this->assertSame(['2026-08-01'], $this->datas(), 'Um POST direto recriou a cobrança de uma série encerrada.');
 
         Carbon::setTestNow('2026-10-02');
-        $this->avancar($agosto)->assertSessionHas('status', self::SERIE_ENCERRADA);
+        $this->avancar($agosto)->assertSessionHas('erro', self::SERIE_ENCERRADA);
         $this->assertSame(['2026-08-01'], $this->datas());
     }
 
@@ -281,7 +281,7 @@ class ExcluirPeloHistoricoPodeEncerrarARecorrenciaTest extends TestCase
 
         $this->assertSame(4900.0, $this->conta->fresh()->available, 'A cobrança apagada volta para o saldo.');
 
-        $this->avancar($agosto)->assertSessionHas('status', self::SERIE_ENCERRADA);
+        $this->avancar($agosto)->assertSessionHas('erro', self::SERIE_ENCERRADA);
         $this->assertSame(['2026-08-05'], $this->datas('Academia'));
     }
 
@@ -304,7 +304,7 @@ class ExcluirPeloHistoricoPodeEncerrarARecorrenciaTest extends TestCase
         Carbon::setTestNow('2026-09-20'); // já vencida: continua fora
         $this->assertNotContains('recorrente Academia', $this->sino());
 
-        $this->avancar($setembro)->assertSessionHas('status', self::SERIE_ENCERRADA);
+        $this->avancar($setembro)->assertSessionHas('erro', self::SERIE_ENCERRADA);
         $this->assertNull($setembro->fresh()->paid_at);
         $this->assertSame(['2026-09-05'], $this->datas('Academia'));
         $this->assertSame(4900.0, $this->conta->fresh()->available, 'O marcador não mexe em dinheiro.');
