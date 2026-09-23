@@ -3,8 +3,10 @@
 namespace App\Support;
 
 use Carbon\Carbon;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -70,6 +72,103 @@ class BrowserSessions
         }
 
         return $query->delete();
+    }
+
+    /**
+     * Apaga as sessões em que o guard `$guard` está autenticado como `$id` — procurando o
+     * login DENTRO do payload, e não na coluna `user_id`.
+     *
+     * Existe por causa do painel administrativo (`admin:zerar-2fa`). A coluna `user_id` é
+     * preenchida pelo guard PADRÃO (`DatabaseSessionHandler::userId()` pede o
+     * `Contracts\Auth\Guard`, que é o `web`), e nada no painel troca o padrão: numa sessão do
+     * painel ela guarda o cliente do APP logado no mesmo navegador — ou null —, nunca o
+     * admin. Um `purgeForUser($admin->id)` erraria duas vezes: não alcançaria sessão nenhuma
+     * do admin, e derrubaria o cliente do app que tivesse o mesmo número de id (as duas
+     * tabelas contam a partir de 1).
+     *
+     * O login de cada guard mora no payload, na chave do próprio guard
+     * (`SessionGuard::getName()`, "login_admin_<sha1>"), cifrado quando `session.encrypt`
+     * está ligado (o padrão). Por isso a leitura linha a linha, desfazendo o que a `Store`
+     * do framework faz ao gravar.
+     *
+     * A linha sai INTEIRA, mesmo quando o navegador também estava logado no app: a sessão é
+     * uma só (um cookie). Tirar só as chaves do admin e regravar o resto seria desfeito pela
+     * primeira requisição que estivesse em andamento naquela sessão — ela grava de volta, no
+     * fim, tudo o que leu no começo. Apagar resiste a isso (a gravação dela vira um UPDATE de
+     * zero linhas). Quem estava no app entra de novo (ou volta sozinho pelo "lembrar de mim").
+     *
+     * Payload que não abre (chave do app trocada, lixo) é pulado: a própria aplicação também
+     * não conseguiria lê-lo, então ele não autentica ninguém.
+     *
+     * @return int linhas removidas (0 quando o driver não é `database`)
+     */
+    public static function purgeForGuard(string $guard, int|string $id): int
+    {
+        if (config('session.driver') !== 'database') {
+            return 0;
+        }
+
+        $chave = Auth::guard($guard)->getName();
+        $tabela = fn () => DB::connection(config('session.connection'))->table(config('session.table', 'sessions'));
+
+        $ids = [];
+
+        // Lendo em lotes, pela chave: a tabela é de todo mundo, e carregá-la inteira num
+        // array só para achar as linhas de uma pessoa pesaria à toa.
+        foreach ($tabela()->select(['id', 'payload'])->lazyById(200, 'id') as $linha) {
+            $atributos = self::lerPayload((string) $linha->payload);
+
+            if (isset($atributos[$chave]) && (string) $atributos[$chave] === (string) $id) {
+                $ids[] = $linha->id;
+            }
+        }
+
+        $apagadas = 0;
+
+        foreach (array_chunk($ids, 200) as $lote) {
+            $apagadas += $tabela()->whereIn('id', $lote)->delete();
+        }
+
+        return $apagadas;
+    }
+
+    /**
+     * Os atributos de uma sessão como a `Store` do framework os leria: base64 → decifra (se
+     * `session.encrypt`) → desserializa (php ou json, conforme `session.serialization`).
+     *
+     * `allowed_classes => false`: aqui só interessam chaves e números; objeto guardado na
+     * sessão (a bag de erros de validação, por exemplo) volta como classe incompleta, sem
+     * que nada seja instanciado por um varredor que lê a sessão de todo mundo.
+     *
+     * @return array<string, mixed>
+     */
+    private static function lerPayload(string $payload): array
+    {
+        $dados = base64_decode($payload, true);
+
+        if (! is_string($dados) || $dados === '') {
+            return [];
+        }
+
+        if (config('session.encrypt')) {
+            try {
+                // Mesma chamada da `EncryptedStore::prepareForUnserialize`: a camada externa
+                // desserializada aqui é só a string que a `Store` serializou.
+                $dados = app('encrypter')->decrypt($dados);
+            } catch (DecryptException) {
+                return [];
+            }
+
+            if (! is_string($dados)) {
+                return [];
+            }
+        }
+
+        $atributos = config('session.serialization', 'php') === 'json'
+            ? json_decode($dados, true)
+            : @unserialize($dados, ['allowed_classes' => false]);
+
+        return is_array($atributos) ? $atributos : [];
     }
 
     /**

@@ -112,6 +112,7 @@ class TextoDosEmailsSemEntidadesTest extends TestCase
             'alerta: conta excluída pela administração' => [fn (self $t) => AlertaDeSeguranca::contaExcluidaPelaAdministracao($t->pessoa(), '22 de setembro de 2026, às 10:00', [self::HOSTIL, 'Bruno & <Cia>'])],
             'painel: exclusão' => [fn (self $t) => new AlertaDoPainel(AdminAuditLog::EXCLUIU, self::HOSTIL, $t->contexto(), self::HOSTIL.' <ana&cia@exemplo.test>', 'Motivo & "coisa" <x>')],
             'painel: banimento' => [fn (self $t) => new AlertaDoPainel(AdminAuditLog::BANIU, self::HOSTIL, $t->contexto(), self::HOSTIL, self::HOSTIL)],
+            'painel: 2FA zerado pelo terminal' => [fn (self $t) => new AlertaDoPainel(AdminAuditLog::ZEROU_2FA, self::HOSTIL, ContextoDeSeguranca::doTerminal(), self::HOSTIL.' <ana&cia@exemplo.test>', 'Motivo & "coisa" <x>')],
             'boas-vindas ao dependente' => [fn (self $t) => new BemVindoDependente($t->pessoa(), $t->titular())],
             'conta-família excluída' => [fn (self $t) => new ContaDaFamiliaExcluida(self::HOSTIL, 'Titular '.self::HOSTIL, '22 de setembro de 2026, às 10:00')],
             'conta-família excluída pela administração' => [fn (self $t) => ContaDaFamiliaExcluida::pelaAdministracao(self::HOSTIL, 'Titular '.self::HOSTIL, '22 de setembro de 2026, às 10:00')],

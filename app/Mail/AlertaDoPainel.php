@@ -97,6 +97,16 @@ class AlertaDoPainel extends Mailable
                     .'com todos os dados dela.',
                 'Esta ação não tem volta.',
             ],
+            // Vai para o próprio admin (sem ADMIN_ALERT_EMAIL): se foi ele quem pediu, é a
+            // confirmação; se não foi, é o aviso de que alguém tem o terminal do servidor.
+            AdminAuditLog::ZEROU_2FA => [
+                'O segundo fator do painel (o app autenticador e os códigos de recuperação) da conta de administrador '
+                    .'<strong>'.$alvo.'</strong> foi <strong>zerado</strong> por um comando no terminal do servidor, '
+                    .'e as sessões abertas dela no painel foram encerradas.',
+                'Até o app autenticador ser configurado de novo, <strong>a senha sozinha</strong> leva à tela de '
+                    .'configuração. Configure no próximo acesso.',
+                'Se ninguém da equipe rodou esse comando, alguém tem acesso ao servidor: trate como invasão.',
+            ],
             default => ['Uma ação foi registrada no painel administrativo.'],
         };
     }

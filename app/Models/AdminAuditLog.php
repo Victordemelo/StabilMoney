@@ -34,6 +34,17 @@ class AdminAuditLog extends Model
 
     public const EXCLUIU = 'excluiu';
 
+    /**
+     * O 2FA de um admin foi zerado pelo terminal do servidor (`admin:zerar-2fa`).
+     *
+     * A única ação registrada aqui que não nasce no painel: não há admin logado nem IP.
+     * `admin_id` é o admin cujo 2FA foi zerado — a conta de painel envolvida, como no LOGIN
+     * e no TOTP_FALHOU (onde também não se sabe quem estava do outro lado da tela) — e
+     * `target_user_id` fica nulo: ele aponta para `users`, e o id de um admin ali puxaria a
+     * linha para a ficha do cliente que tivesse o mesmo número.
+     */
+    public const ZEROU_2FA = 'zerou_2fa';
+
     /** Rótulos PT-BR para a tela. */
     public const ROTULOS = [
         self::LOGIN => 'Entrou no painel',
@@ -42,6 +53,7 @@ class AdminAuditLog extends Model
         self::BANIU => 'Baniu',
         self::DESBANIU => 'Desbaniu',
         self::EXCLUIU => 'Excluiu a conta',
+        self::ZEROU_2FA => '2FA zerado pelo servidor',
     ];
 
     protected $fillable = [
@@ -67,9 +79,14 @@ class AdminAuditLog extends Model
         return self::ROTULOS[$this->acao] ?? $this->acao;
     }
 
-    /** A ação representa alguma coisa dando errado? (pinta de vermelho na tela) */
+    /**
+     * A ação pede atenção de quem lê? (pinta de vermelho na tela)
+     *
+     * O 2FA zerado entra junto: até o admin configurar de novo, a senha sozinha abre o
+     * painel — é o tipo de linha que precisa saltar aos olhos no histórico.
+     */
     public function ehAlerta(): bool
     {
-        return in_array($this->acao, [self::LOGIN_FALHOU, self::TOTP_FALHOU, self::EXCLUIU], true);
+        return in_array($this->acao, [self::LOGIN_FALHOU, self::TOTP_FALHOU, self::EXCLUIU, self::ZEROU_2FA], true);
     }
 }

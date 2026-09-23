@@ -30,12 +30,19 @@ final class AdminAudit
         AdminAuditLog::DESBANIU,
         AdminAuditLog::EXCLUIU,
         AdminAuditLog::TOTP_FALHOU,
+        AdminAuditLog::ZEROU_2FA,
     ];
 
+    /**
+     * @param  Request|null  $request  null = ação feita no terminal do servidor (ex.:
+     *                                 `admin:zerar-2fa`): a linha fica sem IP e o alerta diz
+     *                                 "terminal do servidor" em vez de inventar um navegador
+     *                                 a partir do `request()` de mentira de um comando.
+     */
     public static function registrar(
         string $acao,
         ?Admin $admin,
-        Request $request,
+        ?Request $request,
         ?User $alvo = null,
         ?string $motivo = null,
         ?string $alvoDescricao = null,
@@ -53,16 +60,20 @@ final class AdminAudit
             'acao' => $acao,
             'alvo_descricao' => $descricao,
             'motivo' => $motivo,
-            'ip' => $request->ip(),
+            'ip' => $request?->ip(),
         ]);
 
         if (in_array($acao, self::AVISAM, true)) {
+            $contexto = $request !== null
+                ? ContextoDeSeguranca::doRequest($request)
+                : ContextoDeSeguranca::doTerminal();
+
             // O e-mail só sai DEPOIS do commit. A exclusão registra dentro da mesma
             // transação do delete (ModeracaoController::excluir): se ela for desfeita, o
             // log some junto — e um "conta excluída" já enviado anunciaria uma exclusão que
             // não aconteceu. Fora de transação (banir, desbanir, login, código errado) o
             // `afterCommit` roda na hora: para eles nada muda.
-            DB::afterCommit(fn () => self::avisar($acao, $admin, $request, $descricao, $motivo));
+            DB::afterCommit(fn () => self::avisar($acao, $admin, $contexto, $descricao, $motivo));
         }
 
         return $log;
@@ -88,7 +99,7 @@ final class AdminAudit
     private static function avisar(
         string $acao,
         ?Admin $admin,
-        Request $request,
+        ContextoDeSeguranca $contexto,
         ?string $alvo,
         ?string $motivo,
     ): void {
@@ -102,7 +113,7 @@ final class AdminAudit
             Mail::to($para)->send(new AlertaDoPainel(
                 acao: $acao,
                 adminNome: $admin?->name ?? 'desconhecido',
-                contexto: ContextoDeSeguranca::doRequest($request),
+                contexto: $contexto,
                 alvo: $alvo,
                 motivo: $motivo,
             ));

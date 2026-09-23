@@ -72,6 +72,29 @@ class Admin extends Authenticatable
     }
 
     /**
+     * Apaga o segundo fator INTEIRO — segredo, confirmação, códigos de recuperação e o
+     * último passo gasto —, deixando o admin como o `admin:criar` o deixa.
+     *
+     * Só o comando `admin:zerar-2fa` chama isto: é a volta de quem perdeu o celular E os
+     * códigos de recuperação. Não existe (nem deve existir) caminho pela web — no painel o
+     * 2FA não se desliga. Depois disto, o `ExigeDoisFatoresDoAdmin` manda o próximo login
+     * para a tela de configuração, que gera um segredo novo.
+     *
+     * ⚠️ Zerar sem derrubar as sessões dele entregaria o painel a quem tivesse uma: a sessão
+     * cairia na configuração, que não pede a senha de novo. O comando faz as duas coisas
+     * juntas.
+     */
+    public function zerarDoisFatores(): void
+    {
+        $this->forceFill([
+            'two_factor_secret' => null,
+            'two_factor_recovery_codes' => null,
+            'two_factor_confirmed_at' => null,
+            'two_factor_last_step' => null,
+        ])->save();
+    }
+
+    /**
      * Confirma o setup. Devolve os códigos de recuperação (única vez que eles aparecem
      * em texto) ou null se o código estiver errado.
      *

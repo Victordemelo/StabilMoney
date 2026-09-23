@@ -34,6 +34,23 @@ final class ContextoDeSeguranca
     }
 
     /**
+     * Ação feita por um comando no terminal do servidor (ex.: `admin:zerar-2fa`), e não por
+     * uma requisição.
+     *
+     * Sem IP e com o "aparelho" dito como ele é. O `request()` de um comando existe, mas é de
+     * mentira (127.0.0.1, user-agent "Symfony"): um alerta com "Navegador desconhecido no
+     * Sistema desconhecido" mandaria quem o lê procurar um navegador que nunca existiu.
+     */
+    public static function doTerminal(): self
+    {
+        return new self(
+            quando: self::agoraPorExtenso(),
+            ip: null,
+            dispositivo: 'Terminal do servidor (comando artisan)',
+        );
+    }
+
+    /**
      * "6 de agosto de 2026, às 00:42" — data por extenso porque o e-mail pode ser lido dias
      * depois, quando "ontem às 3h" já não localiza ninguém.
      *
