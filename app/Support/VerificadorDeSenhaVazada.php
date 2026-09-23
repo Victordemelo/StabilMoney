@@ -40,8 +40,16 @@ final class VerificadorDeSenhaVazada implements UncompromisedVerifier
 {
     public const ENDERECO = 'https://api.pwnedpasswords.com/range/';
 
-    /** Segundos até desistir da consulta — o mesmo valor do verificador do framework. */
-    public const TEMPO_LIMITE_EM_SEGUNDOS = 30;
+    /**
+     * Segundos até desistir da consulta (conexão incluída).
+     *
+     * Era 30, o valor do verificador do framework — e 30 s é o que o cadastro, a troca e
+     * a redefinição de senha ficavam parados quando o Have I Been Pwned estava lento. Só
+     * que a falha já é ABERTA (a senha passa, com aviso no log): esperar mais não compra
+     * segurança nenhuma, só prende a pessoa na tela. A API responde em milissegundos
+     * quando está bem; 5 s ainda cobrem uma rede ruim, e são um sexto da espera antiga.
+     */
+    public const TEMPO_LIMITE_EM_SEGUNDOS = 5;
 
     public function __construct(private readonly HttpFactory $http) {}
 

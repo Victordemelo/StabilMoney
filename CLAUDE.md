@@ -1110,6 +1110,8 @@ dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypt
   senha e grava `Log::warning('Senha aceita SEM a checagem de vazamento…')` com motivo/status/tempo_ms/
   origem/user_id — nunca a senha, o hash ou o prefixo do SHA-1. Em produção, vale alertar por essa
   frase. O padding é pedido como `"true"`: o booleano do framework vira `1`, que a API ignora.
+  **Espera no máximo 5 s** (`TEMPO_LIMITE_EM_SEGUNDOS`, era 30 — 22/09/2026): como a falha é aberta,
+  esperar mais não compra segurança nenhuma, só segura cadastro, troca e redefinição de senha.
 - **Headers de segurança:** `App\Http\Middleware\SecurityHeaders` (append no grupo `web`) —
   CSP, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, e HSTS
   **só sobre HTTPS**. A CSP entrega `connect-src`/`img-src` na própria origem,
@@ -1212,6 +1214,11 @@ errar:
 > ⚠️ `MAIL_FROM_ADDRESS` tem de ser endereço de um domínio que você controla, e em
 > hospedagem compartilhada normalmente **o mesmo** do `MAIL_USERNAME`: o servidor recusa
 > remetente diferente do autenticado.
+
+`MAIL_TIMEOUT` (padrão **10 s**; vazio, 0 ou negativo caem em 10 — 22/09/2026,
+`SmtpDesisteEmDezSegundosTest`): quanto o envio espera o servidor antes de desistir. Antes valia
+o `default_socket_timeout` do PHP (60 s): um servidor que descarta pacotes segurava o cadastro e a
+troca de senha por um minuto. Como todo envio passa pelo `Notificador`, desistir é inofensivo.
 
 ### O middleware `verified` está APLICADO — e não tranca ninguém
 

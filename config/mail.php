@@ -1,5 +1,8 @@
 <?php
 
+// Teto de espera do SMTP, normalizado ANTES de virar config (ver `mailers.smtp.timeout`).
+$tempoLimiteDoSmtp = (float) env('MAIL_TIMEOUT', 10);
+
 return [
 
     /*
@@ -45,7 +48,17 @@ return [
             'port' => env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
-            'timeout' => null,
+            // Quanto o envio espera o servidor de e-mail — para conectar e por resposta
+            // — antes de desistir. Era `null`, e `null` vale o `default_socket_timeout`
+            // do PHP: 60 s. Um servidor que DESCARTA pacotes em vez de recusar segurava
+            // o cadastro, a troca e a redefinição de senha por um minuto inteiro, com a
+            // pessoa olhando um botão girando. Em 10 s a falha chega a tempo de servir:
+            // o `Notificador` engole o erro dos alertas e o cadastro segue sem exigir a
+            // confirmação — esperar mais não entrega e-mail nenhum.
+            //
+            // `MAIL_TIMEOUT` vazio, zero ou negativo cai no padrão: zero não é "sem
+            // limite" para o socket, é desistir na hora — nenhum e-mail sairia.
+            'timeout' => $tempoLimiteDoSmtp > 0 ? $tempoLimiteDoSmtp : 10.0,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
 

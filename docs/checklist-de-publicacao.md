@@ -62,6 +62,7 @@ MAIL_PORT=465
 MAIL_USERNAME=victor_teste@victor.jwsolucoesdigitais.com.br
 MAIL_PASSWORD=<a senha da conta de e-mail>           # ← única linha pendente
 MAIL_FROM_ADDRESS="victor_teste@victor.jwsolucoesdigitais.com.br"
+MAIL_TIMEOUT=10                                      # desiste em 10 s, não 60
 ```
 
 **Por quê:** com `log`, **nenhum e-mail sai**. Consequência prática: quem esquecer a senha

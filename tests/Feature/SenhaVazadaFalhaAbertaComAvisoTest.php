@@ -70,7 +70,7 @@ class SenhaVazadaFalhaAbertaComAvisoTest extends TestCase
      *
      * @param  array<string, int>  $vazados  sufixo => ocorrências
      */
-    private function respostaDaApi(array $vazados = []): void
+    private function corpoDaApi(array $vazados = []): string
     {
         $linhas = [];
 
@@ -82,7 +82,13 @@ class SenhaVazadaFalhaAbertaComAvisoTest extends TestCase
             $linhas[] = strtoupper(substr(sha1('padding-'.$i), 0, 35)).':0';
         }
 
-        Http::fake(['api.pwnedpasswords.com/*' => Http::response(implode("\r\n", $linhas))]);
+        return implode("\r\n", $linhas);
+    }
+
+    /** @param  array<string, int>  $vazados  sufixo => ocorrências */
+    private function respostaDaApi(array $vazados = []): void
+    {
+        Http::fake(['api.pwnedpasswords.com/*' => Http::response($this->corpoDaApi($vazados))]);
     }
 
     private function politicaAceita(string $senha): bool
@@ -147,6 +153,28 @@ class SenhaVazadaFalhaAbertaComAvisoTest extends TestCase
         Http::assertSent(fn (RequisicaoHttp $requisicao) => $requisicao->url() === 'https://api.pwnedpasswords.com/range/'.substr($hash, 0, 5)
             && ! str_contains(strtoupper($requisicao->url()), substr($hash, 5))
             && $requisicao->header('Add-Padding') === ['true']);
+    }
+
+    /**
+     * A consulta desiste em 5 s (conexão incluída), não nos 30 do verificador do framework
+     * (item 27b da rodada de pré-publicação). A falha é ABERTA — a senha passa, com aviso
+     * —, então esperar mais não compra segurança nenhuma: só prende o cadastro, a troca e
+     * a redefinição de senha na tela enquanto o serviço de terceiro está lento.
+     */
+    public function test_a_consulta_desiste_em_5_segundos(): void
+    {
+        $opcoes = null;
+        Http::fake(function (RequisicaoHttp $requisicao, array $opcoesDaRequisicao) use (&$opcoes) {
+            $opcoes = $opcoesDaRequisicao;
+
+            return Http::response($this->corpoDaApi());
+        });
+
+        $this->assertTrue($this->politicaAceita(self::SENHA));
+
+        // `timeout` é o teto da requisição INTEIRA no cURL (CURLOPT_TIMEOUT), conexão
+        // incluída — o `connect_timeout` padrão (10 s) não chega a valer.
+        $this->assertSame(5, $opcoes['timeout'] ?? null, 'A consulta ao Pwned Passwords espera demais.');
     }
 
     // =========================================================== a falha, agora visível
