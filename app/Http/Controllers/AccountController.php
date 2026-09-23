@@ -201,33 +201,118 @@ class AccountController extends Controller
     {
         $this->authorize('delete', $account);
 
-        // A FK de transactions é cascadeOnDelete: excluir a conta apagaria
-        // todo o histórico junto. Bloqueamos aqui para o usuário não perder
-        // transações sem querer.
-        if ($account->transactions()->exists()) {
-            return back()->withErrors([
-                'account' => 'Esta conta possui transações e não pode ser excluída. Exclua (ou mova) as transações dela primeiro.',
-            ]);
-        }
+        // Checagem e exclusão sob o MESMO lock da conta — o primeiro elo da ordem
+        // conta → pai que aportes, resgates e o FundingService usam. Um aporte feito
+        // a partir desta conta no meio do caminho espera o commit e, quando entra,
+        // não acha mais a conta (`lockAccount` responde com erro de validação), em
+        // vez de reservar dinheiro numa linha que está sendo apagada.
+        $recusa = DB::transaction(function () use ($account): ?string {
+            $conta = Account::whereKey($account->id)->lockForUpdate()->first();
 
-        // A FK de goal_contributions é restrictOnDelete: há dinheiro reservado/movimentado
-        // em metas a partir desta conta. Bloqueamos para não quebrar o saldo das metas.
-        if ($account->goalContributions()->exists()) {
-            return back()->withErrors([
-                'account' => 'Esta conta possui aportes ou resgates de metas e não pode ser excluída. Resgate o que está guardado por ela primeiro.',
-            ]);
-        }
+            if (! $conta) {
+                return null; // outra aba já excluiu: nada a fazer
+            }
 
-        // Mesma trava para investimentos (FK também restrictOnDelete).
-        if ($account->investmentContributions()->exists()) {
-            return back()->withErrors([
-                'account' => 'Esta conta possui aportes ou resgates de investimentos e não pode ser excluída. Resgate o que está aplicado por ela primeiro.',
-            ]);
-        }
+            // A FK de transactions é cascadeOnDelete: excluir a conta apagaria
+            // todo o histórico junto. Bloqueamos aqui para o usuário não perder
+            // transações sem querer.
+            if ($conta->transactions()->exists()) {
+                return 'Esta conta possui transações e não pode ser excluída. Exclua (ou mova) as transações dela primeiro.';
+            }
 
-        $account->delete();
+            if ($motivo = $this->dinheiroGuardadoQueImpedeExclusao($conta)) {
+                return $motivo;
+            }
+
+            // Tudo zerado, meta a meta e investimento a investimento: os aportes e
+            // resgates desta conta se anulam DENTRO de cada um, então apagá-los não
+            // muda o guardado de meta nenhuma nem o aplicado de investimento nenhum.
+            // Precisam sair antes da conta: a FK deles é restrictOnDelete.
+            GoalContribution::where('account_id', $conta->id)->delete();
+            InvestmentContribution::where('account_id', $conta->id)->delete();
+            $conta->delete();
+
+            return null;
+        });
+
+        if ($recusa) {
+            return back()->withErrors(['account' => $recusa]);
+        }
 
         return redirect()->route('accounts.index')
             ->with('status', 'Conta removida.');
+    }
+
+    /**
+     * O que ainda está guardado A PARTIR desta conta, meta a meta e investimento a
+     * investimento — ou null quando tudo se anulou e a conta pode sair.
+     *
+     * Antes o `destroy` recusava qualquer conta que JÁ TIVESSE TIDO um aporte, e a
+     * mensagem mandava "resgatar o que está guardado por ela primeiro". Só que
+     * resgatar não apaga o aporte (cria outra linha, de resgate), então a saída
+     * prometida não funcionava: a conta nunca mais podia ser excluída.
+     *
+     * A régua é o líquido POR META/INVESTIMENTO, não o reservado total da conta:
+     * +R$ 100 numa meta e −R$ 100 em outra (dado antigo, de antes do resgate ficar
+     * preso à conta de origem) somam zero, mas apagar essas linhas mudaria o
+     * guardado das duas metas.
+     */
+    private function dinheiroGuardadoQueImpedeExclusao(Account $conta): ?string
+    {
+        $liquido = fn ($query, string $pai) => $query
+            ->where('account_id', $conta->id)
+            ->groupBy($pai)
+            ->selectRaw($pai)
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'aporte' THEN amount ELSE -amount END), 0) AS total")
+            ->pluck('total', $pai)
+            ->map(fn ($total) => round((float) $total, 2))
+            ->filter(fn (float $total) => abs($total) > 0.001);
+
+        $metas = $liquido(GoalContribution::query(), 'goal_id');
+        $investimentos = $liquido(InvestmentContribution::query(), 'investment_id');
+
+        if ($metas->isEmpty() && $investimentos->isEmpty()) {
+            return null;
+        }
+
+        // Nomes escopados na família da conta: a mensagem nunca cita cofrinho alheio.
+        $nomeDaMeta = Goal::where('user_id', $conta->user_id)->whereIn('id', $metas->keys())->pluck('name', 'id');
+        $nomeDoInvestimento = Investment::where('user_id', $conta->user_id)->whereIn('id', $investimentos->keys())->pluck('name', 'id');
+
+        $guardado = [];   // saiu desta conta e continua lá: volta com um RESGATE
+        $aMais = [];      // voltou para ela mais do que saiu (dado antigo): acerta com um APORTE
+
+        foreach ([[$metas, $nomeDaMeta, 'na meta'], [$investimentos, $nomeDoInvestimento, 'no investimento']] as [$totais, $nomes, $onde]) {
+            foreach ($totais as $id => $total) {
+                $cofrinho = $onde.' "'.($nomes[$id] ?? 'sem nome').'"';
+
+                if ($total > 0) {
+                    $guardado[] = Brl::format($total).' '.$cofrinho;
+                } else {
+                    $aMais[] = Brl::format(-$total).' a mais '.$cofrinho;
+                }
+            }
+        }
+
+        // A tela onde a saída fica: a de Metas, a de Investimentos, ou as duas.
+        $telas = match (true) {
+            $metas->isEmpty() => 'na tela Investimentos',
+            $investimentos->isEmpty() => 'na tela Metas',
+            default => 'nas telas Metas e Investimentos',
+        };
+
+        $frases = [];
+
+        if ($guardado) {
+            $frases[] = 'Esta conta ainda tem dinheiro guardado a partir dela: '.Arr::join($guardado, ', ', ' e ').'. '
+                .'Resgate esse valor de volta para esta conta ('.$telas.') e depois exclua.';
+        }
+
+        if ($aMais) {
+            $frases[] = 'Esta conta recebeu em resgates mais do que aportou: '.Arr::join($aMais, ', ', ' e ').'. '
+                .'Faça um aporte desse valor a partir desta conta ('.$telas.') para zerar e depois exclua.';
+        }
+
+        return implode(' ', $frases);
     }
 }
