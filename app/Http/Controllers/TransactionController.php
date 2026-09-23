@@ -502,6 +502,25 @@ class TransactionController extends Controller
             : 0.0;
 
         $gravar = function () use ($transaction, $funding, $data, $fonte, $investimentoId, $maxFonte, $tinhaFonte) {
+            // CADA TENTATIVA COMEÇA DO BANCO, NÃO DA MEMÓRIA.
+            //
+            // Com fonte, isto roda dentro de `DB::transaction(..., attempts: 3)`: num
+            // deadlock (MySQL 1213) DEPOIS do `update()` do write — na gravação do
+            // resgate, por exemplo —, o rollback desfaz o banco, mas não este model.
+            // O Eloquent dá os valores novos por gravados e, na repetição: o
+            // `$ignore` sai do valor NOVO (e não do que está no banco), a troca de
+            // conta parece não ter conta a trocar (só a nova é travada), e o
+            // `update()` do write sai sem UPDATE nenhum. A mutação provou o estrago:
+            // a despesa voltava ao valor antigo, o resgate era refeito e a tela dizia
+            // "Transação atualizada"; trocando de conta, a despesa ficava na antiga
+            // SEM a fonte e a conta ia abaixo do piso. `refresh()` relê a linha (e as
+            // relações já carregadas) e zera o que o Eloquent acha que já gravou.
+            //
+            // Tudo o mais que este fechamento usa é entrada imutável (`$data`, a
+            // fonte escolhida) ou foi lido ANTES da 1ª tentativa, do mesmo estado
+            // que o rollback restaura (`$tinhaFonte`).
+            $transaction->refresh();
+
             if ($tinhaFonte) {
                 $this->reconciliarFonte($transaction, $funding, (int) $data['account_id']);
             }
