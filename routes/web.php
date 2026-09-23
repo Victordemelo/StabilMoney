@@ -14,6 +14,7 @@ use App\Http\Controllers\InvestmentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PwaController;
 use App\Http\Controllers\SecurityController;
+use App\Http\Controllers\SeoController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\TwoFactorController;
@@ -54,6 +55,12 @@ Route::withoutMiddleware([
     Route::get('/site.webmanifest', [PwaController::class, 'manifest'])->name('pwa.manifest');
     Route::get('/sw.js', [PwaController::class, 'serviceWorker'])->name('pwa.sw');
     Route::view('/offline', 'pwa.offline')->name('pwa.offline');
+
+    // SEO (23/09/2026): gerados a partir do APP_URL e do ambiente — fora de produção o
+    // robots.txt fecha tudo (ver config/seo.php). Aqui pelo mesmo motivo do PWA: quem
+    // busca é o robô, a cada visita, e não há sessão a abrir para ele.
+    Route::get('/robots.txt', [SeoController::class, 'robots'])->name('seo.robots');
+    Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('seo.sitemap');
 });
 
 // Páginas legais (Termos / Privacidade) — PÚBLICAS: o cadastro e o aviso de

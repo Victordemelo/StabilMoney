@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Seo;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Vite;
@@ -70,6 +71,13 @@ class SecurityHeaders
             $response->headers->set($nome, $valor);
         }
 
+        // Os buscadores: fora por padrão (ver `cabecalhosBasicos`). Só as páginas públicas
+        // da lista, em produção, abrem — e o robots.txt e o sitemap.xml, que existem para
+        // o robô e não são páginas.
+        if (Seo::indexavel($request, $response) || $request->routeIs('seo.*')) {
+            $response->headers->remove('X-Robots-Tag');
+        }
+
         return $response;
     }
 
@@ -117,6 +125,12 @@ class SecurityHeaders
             'X-Frame-Options' => 'DENY',
             'Referrer-Policy' => 'strict-origin-when-cross-origin',
             'Permissions-Policy' => 'geolocation=(), camera=(), microphone=(), payment=()',
+            // Fora dos buscadores POR PADRÃO (23/09/2026): o app é privado, e página nova
+            // tem de nascer fora do Google sem ninguém lembrar. Vale também para as
+            // respostas de erro e para o painel administrativo — que assim nunca precisa
+            // ser citado num robots.txt. O `handle()` tira o cabeçalho só das páginas
+            // públicas da lista (config/seo.php), e só em produção.
+            'X-Robots-Tag' => Seo::NOINDEX,
         ];
 
         // HSTS só faz sentido (e só é honrado) sobre HTTPS. Enviar em http é inócuo,

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<!--
+  Fonte da imagem de prévia de link (Open Graph) — public/assets/og-stabilmoney.jpg, 1200×630.
+  É o painel visual do login do design v2 (resources/css/auth.css): mesmo gradiente, logo,
+  frase e destaques. Mudou a frase do login? Gere de novo, da raiz do repositório:
+
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu \
+      --hide-scrollbars --force-device-scale-factor=1 --window-size=1200,630 \
+      --virtual-time-budget=8000 --screenshot=/tmp/og.png "file://$PWD/resources/og/og-stabilmoney.html"
+    sips -s format jpeg -s formatOptions 88 /tmp/og.png --out public/assets/og-stabilmoney.jpg
+
+  Fique abaixo de 300 KB (o WhatsApp costuma não mostrar prévia maior). As redes sociais
+  guardam a imagem pela URL: trocou o conteúdo, troque também o nome do arquivo em config/seo.php.
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Plus+Jakarta+Sans:wght@500;600&display=block" rel="stylesheet">
+<style>
+  /* Prévia de link (Open Graph) — o painel visual do login do design v2 (auth.css), em 1200×630. */
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    position: relative; isolation: isolate; box-sizing: border-box; padding: 64px 72px;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #EAF5EF;
+    background:
+      radial-gradient(120% 80% at 20% 0%, #15795A 0%, transparent 55%),
+      linear-gradient(155deg, #0E4A35 0%, #0B3A28 55%, #082619 100%);
+    display: grid; grid-template-columns: 1fr 390px; column-gap: 64px;
+  }
+  body::after {
+    content: ""; position: absolute; z-index: -1; width: 620px; height: 620px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(52,181,135,.35), transparent 65%);
+    top: -230px; right: -170px;
+  }
+  .veu { position: absolute; inset: 0; z-index: -1;
+    background: radial-gradient(80% 60% at 70% 40%, rgba(28,154,112,.22), transparent 70%); }
+  .esq { display: flex; flex-direction: column; justify-content: space-between; }
+  .topo { display: flex; align-items: center; gap: 16px; }
+  .badge { width: 62px; height: 62px; border-radius: 18px; background: #fff; display: grid; place-items: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,.28); }
+  .badge img { width: 46px; height: 46px; display: block; }
+  .word { font-family: 'Sora', sans-serif; font-weight: 700; letter-spacing: .14em; font-size: 26px; }
+  .word b { color: #6FCDA8; font-weight: 700; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 600; letter-spacing: .04em;
+    color: #A8E2CC; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14);
+    padding: 9px 18px; border-radius: 40px; margin-bottom: 26px; }
+  .eyebrow i { width: 10px; height: 10px; border-radius: 50%; background: #6FCDA8; box-shadow: 0 0 0 6px rgba(111,205,168,.18); }
+  h1 { font-family: 'Sora', sans-serif; font-size: 62px; line-height: 1.07; font-weight: 700; letter-spacing: -.02em; margin: 0; }
+  h1 em { font-style: normal; color: #6FCDA8; }
+  p { font-size: 22px; line-height: 1.5; color: #BFD8CC; margin: 22px 0 0; max-width: 600px; }
+  .dir { display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+  .feat { display: flex; align-items: center; gap: 16px; font-size: 20px; font-weight: 600; line-height: 1.3;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 18px; padding: 18px 20px; }
+  .fi { width: 46px; height: 46px; border-radius: 13px; flex: none; display: grid; place-items: center;
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.14); color: #6FCDA8; }
+  .fi svg { width: 24px; height: 24px; stroke-width: 2; }
+</style>
+</head>
+<body>
+  <div class="veu"></div>
+  <div class="esq">
+    <div class="topo">
+      <span class="badge"><img src="../../public/assets/stabilmoney-mark.png" alt=""></span>
+      <span class="word">Stabil<b>Money</b></span>
+    </div>
+    <div>
+      <div class="eyebrow"><i></i>Sua estabilidade financeira</div>
+      <h1>Seu dinheiro com <em>clareza</em>, controle e crescimento.</h1>
+      <p>Receitas, despesas, cartões, metas e investimentos da família — tudo num só lugar.</p>
+    </div>
+  </div>
+  <div class="dir">
+    <div class="feat"><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></span>Visão completa das suas finanças</div>
+    <div class="feat"><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M5 9a7 7 0 1 1 14 0c0 4-3 5-3 8H8c0-3-3-4-3-8Z"/><path d="M9 21h6"/></svg></span>Metas que você realmente alcança</div>
+    <div class="feat"><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18"/></svg></span>Cartões e contas sob controle</div>
+  </div>
+</body>
+</html>

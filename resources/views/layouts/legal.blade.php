@@ -10,6 +10,7 @@
          design system inteiro e o tema salvo. Ver o comentário longo lá. --}}
     <meta name="theme-color" content="#EFF4F1" data-sm-theme data-light="#EFF4F1" data-dark="#07140E" />
     <title>@yield('title', 'StabilMoney')</title>
+    @include('partials.seo', ['seoTitulo' => trim($__env->yieldContent('title', 'StabilMoney'))])
 
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
     @include('partials.pwa-head')

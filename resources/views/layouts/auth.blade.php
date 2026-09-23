@@ -24,8 +24,14 @@
          layout compõe. Com o título fixo, as cinco telas de auth apareciam
          idênticas na aba do navegador — e quem deixa a redefinição de senha
          aberta numa aba não achava mais qual era. --}}
-    @php($tituloPagina = trim($__env->yieldContent('title')))
-    <title>{{ $tituloPagina ? $tituloPagina . ' · StabilMoney' : 'StabilMoney' }}</title>
+    {{-- Num bloco só: a diretiva php na forma de UMA linha, seguida de um bloco no mesmo
+         arquivo, faz o Blade compilar as duas juntas (erro de sintaxe só em execução). --}}
+    @php
+        $tituloPagina = trim($__env->yieldContent('title'));
+        $tituloCompleto = $tituloPagina ? $tituloPagina . ' · StabilMoney' : 'StabilMoney';
+    @endphp
+    <title>{{ $tituloCompleto }}</title>
+    @include('partials.seo', ['seoTitulo' => $tituloCompleto])
 
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
     @include('partials.pwa-head')
