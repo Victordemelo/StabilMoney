@@ -44,11 +44,16 @@ class FixedBillService
      *
      * Marca o que está pago com UMA query só — nada de N+1.
      *
+     * `$comRelacoes = false` pula o eager load de conta e categoria, que só a tela
+     * de /faturas usa (ícone da categoria, conta padrão). O sino chama isto em TODA
+     * página e só lê nome, valor e datas: eram duas queries por requisição à toa.
+     *
      * @return Collection<int, Fluent>
      */
-    public function occurrences(int $ownerId, CarbonImmutable $de, CarbonImmutable $ate): Collection
+    public function occurrences(int $ownerId, CarbonImmutable $de, CarbonImmutable $ate, bool $comRelacoes = true): Collection
     {
-        $bills = FixedBill::with(['account', 'category'])
+        $bills = FixedBill::query()
+            ->when($comRelacoes, fn ($q) => $q->with(['account', 'category']))
             ->where('user_id', $ownerId)
             ->where('active', true)
             ->orderBy('due_day')
@@ -58,9 +63,22 @@ class FixedBillService
             return collect();
         }
 
-        // Competências já pagas: "{bill_id}:{Y-m}" => transação.
+        // Competências já pagas DENTRO DA JANELA: "{bill_id}:{Y-m}" => transação.
+        //
+        // Só a janela (V-6 da auditoria de volume de 06/09/2026): antes vinham TODOS
+        // os pagamentos de contas fixas desde sempre — 144 linhas com 3 anos de uso,
+        // 288 com 6 — em toda página, pelo sino, para usar no máximo ~14 por conta. O
+        // laço abaixo só consulta competências entre o mês de `$de` e o de `$ate`,
+        // então nenhum pagamento de fora dela muda o resultado.
+        //
+        // O teto é "< 1º dia do mês SEGUINTE a `$ate`", e não "<= mês de `$ate`": a
+        // competência é sempre dia 01, mas comparar com o começo do mês seguinte não
+        // depende disso, nem do formato gravado (o sqlite compara texto, e
+        // "2026-09-01 00:00:00" <= "2026-09-01" é falso). O intervalo usa o índice
+        // único (fixed_bill_id, competence), e NULL fica fora sozinho.
         $pagos = Transaction::whereIn('fixed_bill_id', $bills->pluck('id'))
-            ->whereNotNull('competence')
+            ->where('competence', '>=', $de->startOfMonth()->toDateString())
+            ->where('competence', '<', $ate->startOfMonth()->addMonthNoOverflow()->toDateString())
             ->get(['id', 'fixed_bill_id', 'competence', 'amount', 'paid_at'])
             ->keyBy(fn ($t) => $t->fixed_bill_id.':'.CarbonImmutable::parse($t->competence)->format('Y-m'));
 
@@ -126,18 +144,21 @@ class FixedBillService
      * `FaturaService::upcomingDue`) corta de novo pela própria janela, então
      * nada aqui aparece "cedo demais" no sino.
      *
+     * `$comRelacoes`: ver `occurrences()`.
+     *
      * @return Collection<int, Fluent>
      */
     public function currentAndOverdue(
         int $ownerId,
         int $maxMesesAtras = self::MAX_MESES_ATRAS,
         int $diasAFrente = self::DIAS_A_FRENTE,
+        bool $comRelacoes = true,
     ): Collection {
         $hoje = CarbonImmutable::today();
         $limite = $hoje->addDays(max(0, $diasAFrente));
         $mesCorrente = $hoje->startOfMonth();
 
-        return $this->occurrences($ownerId, $hoje->subMonthsNoOverflow($maxMesesAtras), $limite)
+        return $this->occurrences($ownerId, $hoje->subMonthsNoOverflow($maxMesesAtras), $limite, $comRelacoes)
             ->filter(function ($o) use ($mesCorrente, $limite) {
                 // Competência FUTURA (mês seguinte): só entra se o vencimento
                 // dela couber na janela de aviso — senão a tela "Contas fixas

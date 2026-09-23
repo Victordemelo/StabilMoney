@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\PayInvoiceRequest;
 use App\Http\Requests\StoreFaturaLaunchRequest;
 use App\Models\Account;
+use App\Models\EndedRecurrence;
 use App\Models\Transaction;
 use App\Services\FaturaService;
 use App\Services\FundingService;
@@ -28,6 +29,9 @@ use Illuminate\Support\Str;
 class FaturaController extends Controller
 {
     use AuthorizesRequests;
+
+    /** Resposta a qualquer tentativa de avançar uma série recorrente já excluída. */
+    private const AVISO_SERIE_ENCERRADA = 'Esta recorrência foi excluída: nenhuma cobrança nova é lançada. As já pagas continuam no histórico.';
 
     public function index(Request $request, FaturaService $faturas)
     {
@@ -125,8 +129,11 @@ class FaturaController extends Controller
 
     /**
      * Remove a COMPRA inteira: se a transação faz parte de um grupo
-     * (parcelada/recorrente), apaga todas as linhas do grupo; senão, só ela.
+     * (parcelada/recorrente), apaga todas as linhas EM ABERTO do grupo; senão, só ela.
      * Escopo de família garantido pela TransactionPolicy.
+     *
+     * Numa série RECORRENTE, excluir também a ENCERRA (`EndedRecurrence`) — ver
+     * `encerrarSerie()`.
      */
     public function destroy(Transaction $transaction, FundingService $funding)
     {
@@ -163,20 +170,39 @@ class FaturaController extends Controller
             ]);
         }
 
+        // Série RECORRENTE (grupo com `recurring`): excluir é ENCERRAR a série.
+        $serieRecorrente = $transaction->group_id !== null && (bool) $transaction->recurring;
+
         // Compra de CARTÃO já quitada também não se apaga. O ramo do grupo já
         // protegia as parcelas pagas (`whereNull('paid_at')`), mas a compra
         // avulsa caía direto no `delete()`: a saída de caixa que pagou aquela
         // fatura continuava lá, sem a compra que a originou — dívida apagada,
         // dinheiro debitado, e o estorno do pagamento deixaria de reencontrar a
         // compra. A saída correta é estornar o pagamento e só então excluir.
-        if ($this->cartaoComTudoQuitado($transaction)) {
+        //
+        // A série recorrente toda paga NÃO é recusada: nela o destroy não apaga
+        // linha paga nenhuma (só as em aberto, que aqui são zero) — só a encerra.
+        // Recusar mandava "estornar o pagamento primeiro", ou seja, desfazer uma
+        // cobrança que aconteceu de verdade só para conseguir parar as próximas.
+        if (! $serieRecorrente && $this->cartaoComTudoQuitado($transaction)) {
             return back()->withErrors([
                 'transaction' => 'Esta compra já foi paga junto com a fatura do cartão e não pode ser excluída. Use "Estornar pagamento" no cartão primeiro — a compra volta a ficar em aberto e aí sim pode ser removida.',
             ]);
         }
 
-        $status = DB::transaction(function () use ($transaction, $funding) {
+        $status = DB::transaction(function () use ($transaction, $funding, $serieRecorrente) {
             if ($transaction->group_id) {
+                // Recorrência de CARTÃO: trava a conta ANTES de ler o que apagar. É a
+                // mesma trava que o `gerarProximaOcorrencia` pega (via FundingService)
+                // antes de lançar a sucessora, então os dois se enfileiram: ou o
+                // clique em "Lançar neste ciclo" termina antes (e a ocorrência que ele
+                // criou entra na lista abaixo e é apagada junto), ou espera o
+                // encerramento e desiste. Mesma ordem nos dois caminhos — conta →
+                // linhas da série —, então não há deadlock entre eles.
+                if ($serieRecorrente && $transaction->account?->type === 'credit_card') {
+                    Account::whereKey($transaction->account_id)->lockForUpdate()->first();
+                }
+
                 // Parcelas JÁ PAGAS não são apagadas: o pagamento delas existe no extrato
                 // (saiu dinheiro de verdade), e apagar a dívida deixaria a saída de caixa
                 // órfã — histórico financeiro não se reescreve. Some só o que ainda é dívida.
@@ -195,6 +221,10 @@ class FaturaController extends Controller
                 $restaram = Transaction::where('user_id', $transaction->user_id)
                     ->where('group_id', $transaction->group_id)
                     ->count();
+
+                if ($serieRecorrente) {
+                    return $this->encerrarSerie($transaction, $apagadas, $restaram);
+                }
 
                 return $restaram > 0
                     ? "Parcelas em aberto removidas ({$apagadas}). As já pagas foram mantidas no histórico."
@@ -234,6 +264,40 @@ class FaturaController extends Controller
         }
 
         return $transaction->paid_at !== null || $transaction->settled_by_id !== null;
+    }
+
+    /**
+     * Encerra a série recorrente cujas ocorrências em aberto o `destroy` acabou de
+     * apagar (R2-2 da auditoria financeira, rodada 2). Roda na MESMA transação.
+     *
+     * Sem o marcador, a ocorrência paga mais recente continuava sendo "a última da
+     * série": voltava em "Recorrente · Lançar neste ciclo" e um clique recriava a
+     * sucessora — a assinatura excluída ressuscitava. O marcador fica numa tabela à
+     * parte e não toca em NENHUMA linha da série: as pagas seguem idênticas (valor,
+     * `paid_at`, `settled_by_id`, selo "Recorrente") e nenhum saldo, limite ou
+     * fatura muda.
+     *
+     * Sem ocorrência que tenha sobrado não há o que ressuscitar — nem marcador a
+     * guardar.
+     */
+    private function encerrarSerie(Transaction $ocorrencia, int $apagadas, int $restaram): string
+    {
+        if ($restaram === 0) {
+            return 'Recorrência removida (todas as cobranças).';
+        }
+
+        // `createOrFirst`: dois cliques em "excluir" encerram uma vez só (índice
+        // único em user_id + group_id).
+        EndedRecurrence::createOrFirst(
+            ['user_id' => $ocorrencia->user_id, 'group_id' => $ocorrencia->group_id],
+            ['ended_by_user_id' => auth()->id()],
+        );
+
+        return $apagadas > 0
+            ? 'Recorrência excluída: '.$apagadas.' '
+                .($apagadas === 1 ? 'cobrança em aberto removida' : 'cobranças em aberto removidas')
+                .'. As já pagas continuam no histórico, e nenhuma nova será lançada.'
+            : 'Recorrência encerrada: nenhuma cobrança nova será lançada. As já pagas continuam no histórico.';
     }
 
     /**
@@ -642,8 +706,9 @@ class FaturaController extends Controller
     /**
      * Paga a ocorrência recorrente em aberto: marca como paga e gera a PRÓXIMA
      * (+1 mês, mantém o dia de vencimento, mesmo grupo, em aberto) — a
-     * recorrência nunca termina. Idempotente: pagar de novo uma ocorrência já
-     * paga (ou uma não-recorrente) não gera nada.
+     * recorrência só termina quando é excluída (`destroy` → `EndedRecurrence`).
+     * Idempotente: pagar de novo uma ocorrência já paga (ou uma não-recorrente)
+     * não gera nada.
      */
     public function pay(Transaction $transaction, FundingService $funding)
     {
@@ -652,6 +717,14 @@ class FaturaController extends Controller
         // Não-recorrente: nada a fazer.
         if (! $transaction->recurring) {
             return redirect()->route('faturas.index');
+        }
+
+        // Série ENCERRADA (excluída em /faturas): não gera mais nada (R2-2). Sem esta
+        // guarda, o POST na ocorrência paga que sobrou recriava a sucessora. A tela
+        // ainda mostra "Lançar próxima" numa ocorrência paga do ciclo aberto de uma
+        // série encerrada — o botão vem da view; quem decide é esta linha.
+        if (EndedRecurrence::daSerie($transaction)) {
+            return redirect()->route('faturas.index')->with('status', self::AVISO_SERIE_ENCERRADA);
         }
 
         // Recorrência NO CARTÃO não é quitada aqui: quem quita é a fatura.
@@ -689,12 +762,30 @@ class FaturaController extends Controller
 
             return redirect()->route('faturas.index')->with(
                 'status',
-                $proxima
-                    ? 'Próxima ocorrência lançada na fatura aberta. Esta despesa é quitada junto com a fatura do cartão.'
-                    : 'A próxima ocorrência já estava lançada. No cartão, a cobrança é quitada com a fatura.',
+                match (true) {
+                    $proxima => 'Próxima ocorrência lançada na fatura aberta. Esta despesa é quitada junto com a fatura do cartão.',
+                    // Encerrada enquanto este clique esperava a trava (ver `destroy`).
+                    EndedRecurrence::daSerie($transaction) => self::AVISO_SERIE_ENCERRADA,
+                    default => 'A próxima ocorrência já estava lançada. No cartão, a cobrança é quitada com a fatura.',
+                },
             );
         }
 
+        // Recorrência FORA do cartão (legada, em conta): a transação de fora é quem
+        // repete num deadlock. O `spend()` do `gerarProximaOcorrencia` roda
+        // ANINHADO nela, e aninhado ele não repete sozinho — no deadlock o MySQL
+        // desfaz a transação de FORA inteira (ver `FundingService::repetirNoDeadlock`,
+        // caso 2). Sem `attempts` aqui, o deadlock virava HTTP 500.
+        //
+        // Repetir o fechamento inteiro é seguro porque ele não reusa model que uma
+        // tentativa anterior tenha salvado — a armadilha que a rodada 1 achou no
+        // `TransactionController`, onde o `update()` da repetição num model que o
+        // Eloquent já dava por gravado não gravava nada:
+        //  - o `paid_at` sai de um UPDATE do query builder (nenhum model em memória
+        //    muda); o rollback o desfaz e o `whereNull('paid_at')` volta a casar;
+        //  - `$transaction` só é LIDO (data, valor, grupo, conta) — nunca salvo;
+        //  - a sucessora nasce de um `Transaction::create` novo a cada tentativa; e
+        //  - a conta é relida e travada do banco dentro do `spend()`.
         DB::transaction(function () use ($transaction, $funding) {
             // Update condicional ATÔMICO: marca como paga só se ainda estava em
             // aberto. Duas requisições simultâneas: só uma afeta a linha; a outra
@@ -787,7 +878,11 @@ class FaturaController extends Controller
             // duas ocorrências do mesmo mês — dívida em dobro no cartão, com a
             // recorrência andando dois meses de uma vez.
             write: function (array $auditoria) use ($transaction, $proxima, $temSucessora) {
-                if ($temSucessora(true)) {
+                // A sucessora já existe, ou a série foi encerrada (excluída) enquanto
+                // este clique esperava a trava da conta: nada a lançar. As duas
+                // leituras são travadas — enxergam o que outra transação acabou de
+                // gravar, mesmo com o snapshot desta já aberto.
+                if ($temSucessora(true) || EndedRecurrence::daSerie($transaction, travar: true)) {
                     return null;
                 }
 

@@ -135,7 +135,9 @@ class FaturaService
         }
 
         // (3) Contas fixas mensais: a competência do mês e todas as atrasadas.
-        foreach (app(FixedBillService::class)->currentAndOverdue($userId) as $ocorrencia) {
+        // Sem as relações (conta/categoria): o sino roda em TODA página e só lê
+        // nome, valor e datas — ver `FixedBillService::occurrences`.
+        foreach (app(FixedBillService::class)->currentAndOverdue($userId, comRelacoes: false) as $ocorrencia) {
             if ($ocorrencia['paga'] || $ocorrencia['vencimento']->greaterThan($limit)) {
                 continue;
             }
@@ -319,6 +321,20 @@ class FaturaService
      * do ciclo aberto — este é o lugar dela. Some no instante em que a
      * sucessora é lançada (ela passa a ser a última, e cai no ciclo aberto).
      *
+     * Série ENCERRADA (excluída em /faturas — `EndedRecurrence`) fica de fora:
+     * era aqui que a assinatura excluída ressuscitava (R2-2 da auditoria
+     * financeira, rodada 2), com a ocorrência paga que sobrou oferecendo
+     * "Lançar neste ciclo".
+     *
+     * A "mais recente de cada série" é calculada NO BANCO (V-4 da auditoria de
+     * volume de 06/09/2026): antes vinham todas as ocorrências de todas as
+     * recorrências do cartão desde sempre — 36 linhas por assinatura com três
+     * anos de uso, hidratadas em PHP — só para ficar com uma de cada. Agora o
+     * banco devolve, por série, a data da ocorrência mais recente (já filtrada
+     * pelo início do ciclo aberto), e só as linhas dessa data são carregadas. O
+     * resultado é o mesmo, na mesma ordem: data desc, id desc — e, se duas
+     * ocorrências da série caírem na mesma data, fica a de id maior, como antes.
+     *
      * @param  array{0: CarbonImmutable, 1: CarbonImmutable}|null  $cycle
      * @return Collection<int, Transaction>
      */
@@ -330,16 +346,35 @@ class FaturaService
 
         [$inicioAberto] = $cycle;
 
-        return Transaction::with(['category'])
+        // Data da ocorrência MAIS RECENTE de cada série, só das séries cuja mais
+        // recente já fechou. `MAX(date)` devolve o valor gravado (texto no sqlite,
+        // DATE no MySQL), então a junção abaixo casa pela igualdade exata.
+        $ultimas = Transaction::query()
+            ->select('group_id')
+            ->selectRaw('MAX(date) AS ultima')
             ->where('account_id', $card->id)
             ->where('type', 'expense')
             ->where('recurring', true)
             ->whereNotNull('group_id')
-            ->orderByDesc('date')
-            ->orderByDesc('id')
+            ->groupBy('group_id')
+            ->havingRaw('MAX(date) <= ?', [$inicioAberto->toDateString()]);
+
+        return Transaction::with(['category'])
+            ->select('transactions.*')
+            ->joinSub($ultimas, 'ultimas', fn ($join) => $join
+                ->on('ultimas.group_id', '=', 'transactions.group_id')
+                ->on('ultimas.ultima', '=', 'transactions.date'))
+            ->where('transactions.account_id', $card->id)
+            ->where('transactions.type', 'expense')
+            ->where('transactions.recurring', true)
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')
+                ->from('ended_recurrences')
+                ->whereColumn('ended_recurrences.user_id', 'transactions.user_id')
+                ->whereColumn('ended_recurrences.group_id', 'transactions.group_id'))
+            ->orderByDesc('transactions.date')
+            ->orderByDesc('transactions.id')
             ->get()
-            ->unique('group_id')           // a mais recente de cada grupo
-            ->filter(fn (Transaction $t) => $t->date->lessThanOrEqualTo($inicioAberto))
+            ->unique('group_id')           // empate de data na série: fica a de id maior
             ->values();
     }
 
