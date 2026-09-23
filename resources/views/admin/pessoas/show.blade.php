@@ -30,6 +30,11 @@
                 'Aceite dos termos' => $titular->terms_accepted_at
                     ? $titular->terms_accepted_at->format('d/m/Y') . ' (v' . $titular->terms_version . ')'
                     : '—',
+                // Só o carimbo da confirmação chega aqui, pela lista AdminPanelService::COLUNAS —
+                // nunca o segredo. Setup começado e não confirmado não protege nada: "Desligado".
+                '2FA' => $titular->two_factor_confirmed_at
+                    ? 'Ligado desde ' . $titular->two_factor_confirmed_at->format('d/m/Y')
+                    : 'Desligado',
             ])
             @foreach ($linhas as $rotulo => $valor)
                 <div>
@@ -85,7 +90,8 @@
                     </div>
                     <div style="font-size:11px;color:var(--muted);margin-top:2px">
                         {{ $dep->made_transactions_count }} lançamento(s) feitos ·
-                        {{ $acessos->has($dep->id) ? 'último acesso ' . $acessos[$dep->id]->diffForHumans() : 'nunca acessou' }}
+                        {{ $acessos->has($dep->id) ? 'último acesso ' . $acessos[$dep->id]->diffForHumans() : 'nunca acessou' }} ·
+                        {{ $dep->two_factor_confirmed_at ? '2FA ligado desde ' . $dep->two_factor_confirmed_at->format('d/m/Y') : 'sem 2FA' }}
                     </div>
                 </div>
 

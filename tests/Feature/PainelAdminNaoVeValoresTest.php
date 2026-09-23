@@ -179,6 +179,11 @@ class PainelAdminNaoVeValoresTest extends TestCase
 
         $this->assertNotEmpty($consultas, 'Nenhuma query capturada — o teste não estaria provando nada.');
 
+        // Procurar pelo NOME da coluna não basta: `select *` a traz sem nomeá-la, e um
+        // `->with('accounts')` passava por aqui carregando saldo e limite de todo mundo
+        // (conferido por mutação em 23/09/2026). O painel só CONTA linhas destas tabelas.
+        $tabelasDeDinheiro = 'accounts|transactions|goals|goal_contributions|investments|investment_contributions|fixed_bills';
+
         foreach ($consultas as $sql) {
             foreach ($proibidas as $coluna) {
                 $this->assertStringNotContainsString(
@@ -187,6 +192,12 @@ class PainelAdminNaoVeValoresTest extends TestCase
                     "Uma query do painel tocou a coluna monetária `{$coluna}`:\n{$sql}",
                 );
             }
+
+            $this->assertDoesNotMatchRegularExpression(
+                '/select\s+\*\s+from\s+"('.$tabelasDeDinheiro.')"|"('.$tabelasDeDinheiro.')"\.\*/i',
+                $sql,
+                "Uma query do painel carregou linhas inteiras de uma tabela de dinheiro:\n{$sql}",
+            );
         }
     }
 

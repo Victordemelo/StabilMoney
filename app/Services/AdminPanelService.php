@@ -27,12 +27,19 @@ use Illuminate\Support\Facades\DB;
  */
 class AdminPanelService
 {
-    /** Colunas de `users` que o painel pode ler. Lista fechada, e sem nada financeiro. */
+    /**
+     * Colunas de `users` que o painel pode ler. Lista fechada, e sem nada financeiro.
+     *
+     * Do 2FA entra só o CARIMBO `two_factor_confirmed_at` (achado A-6 da auditoria de
+     * 06/09/2026): é o que responde "esta conta tem verificação em duas etapas desde quando".
+     * O segredo e os códigos de recuperação ficam de fora pela mesma razão do dinheiro — o
+     * painel precisa saber que a proteção existe, nunca poder usá-la no lugar da pessoa.
+     */
     private const COLUNAS = [
         'id', 'name', 'email', 'phone', 'avatar_path', 'email_verified_at',
         'is_admin', 'account_owner_id', 'relationship',
         'banned_at', 'banned_reason', 'banned_by_admin_id',
-        'terms_accepted_at', 'terms_version', 'created_at',
+        'terms_accepted_at', 'terms_version', 'two_factor_confirmed_at', 'created_at',
     ];
 
     /** Contagens exibidas por pessoa — quantidade de registros, jamais soma de valores. */
