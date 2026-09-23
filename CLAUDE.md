@@ -47,13 +47,13 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.844 testes PHP / 10.762 asserções** — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **314 testes JS** (Vitest) + **83 checagens dos scripts de backup** verdes |
+| Suíte de testes | ✅ **1.878 testes PHP / 10.968 asserções** — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **314 testes JS** (Vitest) + **197 checagens dos scripts** (backup 83, deploy 83, nginx 16, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
 | PWA (manifest + SW + lançamento offline com fila e Background Sync) | ✅ Instalável + offline (Fases 1-2) |
 | **Painel administrativo** (guard próprio, 2FA obrigatório, banir/excluir, sem ver valores) | ✅ **Implementado** (02/09/2026) — **desligado por padrão**, ver seção própria |
-| Deploy (VPS) / domínio | ⬜ Futuro (ver "Visão de infraestrutura") |
+| Deploy (VPS) / domínio | 🟡 **Pacote pronto** (23/09/2026) — falta executar na VPS: `docs/deploy-oracle-cloudflare.md` (ver "🚀 Publicação") |
 
 **Para subir o ambiente:** seção "Fluxo de trabalho" abaixo. **Login de dev:** o usuário do
 seeder vem das variáveis `SEED_USER_*` no `.env` (e-mail `victor.rosa.system@gmail.com`;
@@ -157,7 +157,8 @@ app/
 │                           # TwoFactorService (liga/confirma/desliga o 2FA, valida sob lock e gera o QR)
 ├── Support/                # DefaultCategories, BrowserSessions, Brl (formato R$ pt-BR), FundingSource (constantes),
 │                           # Totp (RFC 6238, sem biblioteca), RecoveryCodes (códigos de emergência), Mailer, ImageMetadata,
-│                           # VerificadorDeSenhaVazada (checagem de senha vazada que avisa quando falha), Texto (paraColuna)
+│                           # VerificadorDeSenhaVazada (checagem de senha vazada que avisa quando falha), Texto (paraColuna),
+│                           # Seo (páginas indexáveis, URLs pelo APP_URL, robots/sitemap/dados estruturados)
 ├── Listeners/              # SeedDefaultCategoriesForNewUser (evento Registered, auto-descoberto)
 └── Providers/              # AppServiceProvider (Carbon::setLocale, directive @brl, View Composers, rate limits)
 
@@ -181,7 +182,10 @@ resources/
     ├── profile/            # edit + partials (perfil, senha, excluir conta com modal)
     └── coming-soon.blade.php   # placeholder das seções futuras
 
-public/assets/              # stabilmoney-mark.png (logo), favicon.png, video_login.mp4 (login), icons/ (ícones do PWA)
+public/assets/              # stabilmoney-mark.png (logo), favicon.png, video_login.mp4 (login), icons/ (ícones do PWA),
+                            # og-stabilmoney.jpg (prévia de link; fonte em resources/og/)
+deploy/nginx/               # o nginx do host da VPS (site, servidor padrão, faixas da Cloudflare) — ver "🚀 Publicação"
+docker-compose.prod.yml     # o compose de PRODUÇÃO (o de dev é o docker-compose.yml)
 design/                     # Handoff do Claude Design v2 (fonte da verdade visual — NÃO editar)
 lang/pt_BR(+.json)          # Traduções PT-BR (laravel-lang)
 routes/web.php              # Rotas do app | routes/auth.php (Breeze)
@@ -215,8 +219,10 @@ tests/js/                   # Vitest + jsdom (`npm run test:js`, roda no HOST): 
                             # verificado em container Linux x64 a partir de clone limpo em 16/09.
 tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/restauração de VERDADE
                             # contra um `docker` falso (docker-falso.sh) — sem Docker nem MySQL; job
-                            # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`
-tests/Feature/              # 1.844 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+                            # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
+                            # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
+                            # (ver "🚀 Publicação")
+tests/Feature/              # 1.878 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -298,6 +304,7 @@ tests/Feature/              # 1.844 testes (PHP): auth, dashboard, CRUD, valida�
 | `/faturas` (**"Pagar despesas"**: `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy` + **`faturas.fatura.pagar`** + **`faturas.fatura.estornar`** + `faturas.recorrente.pagar` + `faturas.fatura.quitar-pelo-credito` + `faturas.fatura.desfazer-quitacao`) | `faturas/index` | **Pagar despesas (implementado).** Três blocos: **contas fixas do mês** (topo — competências projetadas, badge de vencida, botão Pagar e "+ Nova conta fixa"), faturas por cartão (parcelas/recorrência, ciclo, limite) e despesas avulsas. **Marcar fatura como paga** usa `PayInvoiceRequest` (com **data do pagamento** informável) e passa pelo `FundingService` — respeita saldo e pergunta a fonte. `Account::openInvoiceDue` = fatura do ciclo aberto; **`closedInvoiceDue`/`overdueInvoice`** = a do ciclo fechado e vencida. A recorrência de cartão agora tem **botão "Pagar"** (a rota existia sem UI, então nunca avançava de mês). |
 | `/contas-fixas` (`FixedBillController` store/update/destroy + **`contas-fixas.pagar/{competencia}`**) | bloco em `faturas/index` | **Contas fixas mensais (implementado).** Condomínio, aluguel, parcela do carro. **Sem rota de listagem** — aparecem em `/faturas`. `due_day` aceita **1..31**. Pagar recebe o valor REAL (editável, vem preenchido com o previsto) e a data; idempotente pelo `unique(fixed_bill_id, competence)`. |
 | `routes/auth.php` | `auth/*` | Breeze: login, registro, esqueci/redefinir senha, confirmar senha, verificar e-mail. |
+| `GET /robots.txt` (`seo.robots`) + `GET /sitemap.xml` (`seo.sitemap`) → `SeoController` | — (texto/XML) | **SEO** (23/09/2026 — `SeoDasPaginasPublicasTest`): gerados pelo app a partir do APP_URL e do ambiente — em produção o robots abre tudo e aponta o sitemap; fora dela, `Disallow: /` e sitemap vazio. Sem sessão nem cookie (grupo do PWA). O `public/robots.txt` estático saiu: o Apache o serviria antes do Laravel. Ver "🔎 SEO". |
 | `GET /up` (`saude`) → `SaudeController` | — (texto) | **Checagem de saúde para o monitor** (22/09/2026 — `ChecagemDeSaudeEnxergaOAppTest`): responde `ok` (200), `manutencao` (503) ou `indisponivel` (503) em texto, com `no-store` e cabeçalhos de segurança; confere o banco (`select 1`) e se a pasta do log aceita escrita, e o motivo da falha vai só para o log. Registrada no `then:` do `bootstrap/app.php`, **fora do grupo `web`** (sem sessão nem cookie a cada batida) e excluída do middleware de manutenção (`preventRequestsDuringMaintenance(except: ['up'])`) para responder ela mesma. Substituiu o `health: '/up'` do framework, que servia HTML com script de CDN de terceiro e respondia 200 com o banco fora do ar — não volte a ele. |
 
 **Menu da sidebar (v2):** grupo **Menu** = Visão geral → `dashboard`, **Histórico** →
@@ -1155,6 +1162,32 @@ Relatório: `docs/auditoria-completa-2026-07-28.md`. Testes: `AuditoriaCorrecoes
 
 ---
 
+## 🔎 SEO (23/09/2026) — `SeoDasPaginasPublicasTest`
+
+O app é quase todo privado. **Só login, cadastro, Termos e Privacidade vão para os buscadores**, e só
+em produção — a lista vive em `config/seo.php` (`paginas`, por nome de rota, com a descrição de cada
+uma). Página nova entra lá e aparece sozinha no sitemap.
+
+- **`noindex` POR PADRÃO:** o `SecurityHeaders` põe `X-Robots-Tag: noindex, nofollow` em TODA resposta
+  (inclusive erros, pelo `completarRespostaSemScript`, e o painel admin) e só o tira das páginas da
+  lista respondendo 200 em produção (`Seo::indexavel`) e do robots/sitemap. Página nova nasce fora do
+  Google sem ninguém lembrar, e o caminho do painel **nunca** é citado num robots.txt.
+- **robots.txt não proíbe as telas privadas** de propósito: um `Disallow` impediria o buscador de ler o
+  noindex delas (e listaria os caminhos para qualquer curioso). Quem as tira do índice é o cabeçalho.
+- **Meta das páginas públicas** (`partials/seo`, incluído nos layouts auth e legal): description,
+  canonical sem query string, Open Graph/Twitter (`summary_large_image`) e, no login e no cadastro, JSON-LD
+  `WebApplication` gratuito — com nonce e as flags de escape do `@json`. Nas outras páginas não sai nada
+  (a redefinição de senha tem o token no caminho: canônica/og:url ali só espalhariam o link).
+- 🚨 **Toda URL de SEO sai do APP_URL (`Seo::url`), nunca do Host da requisição** — um Host forjado não
+  pode virar a canônica. (As URLs geradas pelo Laravel, inclusive a do e-mail de redefinir senha, também
+  vinham do Host: ver o `forceRootUrl`/`TrustHosts` de produção.)
+- **Imagem de prévia** `public/assets/og-stabilmoney.jpg` (1200×630, 127 KB — o WhatsApp costuma não
+  mostrar acima de ~300 KB): é o painel visual do login do design v2. Fonte e comando para gerar de novo
+  (Chrome headless + `sips`) em `resources/og/og-stabilmoney.html`. Trocou o conteúdo? Troque o NOME do
+  arquivo: as redes guardam a prévia pela URL.
+- Pendente (fora do código): verificar o domínio no Google Search Console (TXT na Cloudflare) e enviar o
+  `/sitemap.xml`; o vídeo do login (1,5 MB, `preload="auto"`, sem `poster`) pesa no LCP do celular.
+
 ## 🔒 Segurança (pentest de 27/07/2026 — ondas 1, 2 e 3 aplicadas)
 
 Auditoria completa em jul/2026 (SQL injection, IDOR, auth/sessão, XSS/PWA). **Limpo em
@@ -2001,7 +2034,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (1.844 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (1.878 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
@@ -2075,6 +2108,67 @@ Investido" (`SidebarService`); e o rótulo "Saldo disponível" do card "Meu cart
 já vira "Limite disponível" quando a primeira conta é cartão de crédito.
 
 ---
+
+## 🚀 Publicação na VPS (pacote de 23/09/2026 — ainda não executado)
+
+**https://stabilmoney.victordemelo.com.br**, na VPS Oracle (Ubuntu 24.04 **ARM64**) que já serve o
+portfólio. Passo a passo: **`docs/deploy-oracle-cloudflare.md`**; o porquê de cada item:
+`docs/checklist-de-publicacao.md`.
+
+```
+visitante → Cloudflare (proxy, SSL Full strict) → nginx do HOST (:443, Let's Encrypt/Certbot)
+          → 127.0.0.1:8081 → container app (Apache+PHP) → container db (MySQL)
+```
+
+- **Convenções da VPS (do Victor):** cada app em `/opt/apps/<nome>` (o nosso: `/opt/apps/stabilmoney`,
+  Deploy Key só de leitura), container próprio publicado **só em 127.0.0.1** (o Docker passa por
+  cima do iptables quando publica em 0.0.0.0), firewall só 22/80/443, HTTPS **exclusivo** do nginx do
+  host + Certbot. O portfólio ocupa a **8080** → o app usa **`HTTP_PORT=8081`**.
+- **`docker-compose.prod.yml`** (arquivo INTEIRO, não override — override somaria as portas do dev):
+  app em `127.0.0.1:${HTTP_PORT:-8081}`, banco sem porta e com healthcheck, serviço **`agendador`**
+  (`schedule:work` como www-data — não há cron do Laravel), `assets` (Node 24 num container, perfil
+  `ferramentas`), log com rotação, e rede com **gateway fixo 172.16.80.1**. O `.env` do servidor tem
+  **`COMPOSE_FILE=docker-compose.prod.yml`**: o `docker compose` da pasta nunca sobe o compose de dev
+  (8001 aberta + Mailpit). A pasta é montada no container, como no dev.
+- **🚨 `TRUSTED_PROXIES=172.16.80.1`** (`config/trustedproxy.php`, lido pelo `TrustProxies` do
+  framework — sobrevive ao `config:cache`): sem ele o app vê todo mundo com o IP do gateway, e os
+  limites por IP (login, cadastro, "esqueci a senha") viram UM limite para o site inteiro. Curinga
+  (`*`, `0.0.0.0/0`) e lixo são RECUSADOS em silêncio (viram "ninguém confiável"). O `bootstrap/app.php`
+  aceita só X-Forwarded-For/Host/Port/Proto — o `Prefix` fica de fora. `AtrasDoProxyOAppEnxergaOVisitanteTest`.
+- **🚨 Host forjado (password reset poisoning):** o link do "esqueci a senha" era montado com o Host
+  da requisição. Três camadas, cada uma sozinha basta: nginx `00-host-desconhecido.conf` (444 para Host
+  desconhecido, `ssl_reject_handshake`); `TrustHosts` só com o host EXATO do `APP_URL` (400; APP_URL
+  sem host ⇒ recusa tudo, nunca aceita tudo); e `App\Support\EnderecoPublico::fixarEmProducao`
+  (`forceRootUrl` + `forceScheme('https')` em produção). Fora de produção nada disso vale — o dev
+  abre por localhost E pelo IP do Wi-Fi. `HostForjadoNaoEntraNosLinksTest`.
+- **nginx (`deploy/nginx/`):** o site (443 só aceita conexão vinda das faixas da Cloudflare —
+  `$stabilmoney_via_cloudflare`, pelo `$realip_remote_addr`; manda ao app `X-Forwarded-For` =
+  `$remote_addr` já corrigido, apaga `X-Forwarded-Prefix`/`Forwarded`; `client_max_body_size 12m` =
+  `post_max_size`), `cloudflare-ip-real.conf` (snippet dentro do server — não conflita com o real_ip
+  do portfólio), `cloudflare-origem.conf` (`geo`, em conf.d/), `stabilmoney-emitir-certificado.conf`
+  (só porta 80, para a PRIMEIRA emissão: o arquivo do site aponta para um certificado que ainda não
+  existe, e `nginx -t` recusaria tudo) e `atualizar-ips-cloudflare.sh` (cron mensal; desfaz se o
+  `nginx -t` reprovar). Certificado com **`certbot certonly --nginx ... --deploy-hook "systemctl
+  reload nginx"`** — nunca `certbot --nginx`, que reescreveria o arquivo e duplicaria as diretivas SSL.
+- **`scripts/deploy.sh`** (+ `scripts/lib/deploy-comum.sh`): o `git pull && docker compose up -d
+  --build` dos outros apps não basta aqui (vendor, migrations, caches e assets não acompanham). Confere
+  o `.env` contra os bloqueadores (APP_ENV/DEBUG/KEY/URL, SESSION_*, TRUSTED_PROXIES, COMPOSE_FILE,
+  senhas sem `$` — o Compose interpola o `.env`) e **recusa porta publicada fora de 127.0.0.1**
+  (`docker compose config`); backup → manutenção → pull → up → `composer install --no-dev` →
+  permissões (www-data + grupo do deploy, 2770/660, `storage/backups` fora, `.env` 640) → migrate →
+  caches → `view:cache` ANTES do build → apaga `public/hot` → sai da manutenção → confere o `/up` e
+  o tamanho do CSS. Falhou no meio? Fica em manutenção (o lado seguro); rodar de novo é seguro.
+  `--primeiro-deploy`, `--sem-git`. ⚠️ **Todo `php artisan` na VPS com `-u www-data`**: como root, ele
+  pode criar o log do dia como root e o site passa a dar 500.
+- **Testes (job `scripts` do CI):** `deploy.test.sh` (docker e curl falsos + `docker compose config`
+  de verdade; também cobra que o guia, o `.env.example` e o config usem o MESMO gateway e a MESMA
+  porta), `nginx.test.sh` (nginx 1.24 de verdade em container: Cloudflare × acesso direto, SNI, Host
+  desconhecido, redirect, upload de 11 × 13 MB, o arquivo da emissão sem certificado) e
+  `atualizar-ips-cloudflare.test.sh`. Sem Docker, as partes que dependem dele são puladas com aviso.
+- **Pendências (não são código):** provedor de e-mail com remetente do domínio (SPF/DKIM/DMARC na
+  Cloudflare — ela não envia e-mail); a Política de Privacidade listar Oracle (com a região) e
+  Cloudflare como operadores, com `legal.version` subindo; revisão jurídica; Search Console (TXT na
+  Cloudflare + `/sitemap.xml`); desligar Rocket Loader e Email Obfuscation na Cloudflare.
 
 ## 🏗️ Visão de infraestrutura (decidida em jun/2026, ainda não executada)
 
