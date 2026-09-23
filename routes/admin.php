@@ -23,7 +23,8 @@ use Illuminate\Support\Facades\Route;
 |      roteador (pilha global, `bootstrap/app.php`) e de novo aqui, como rede de
 |      segurança: só na rota ele chegava tarde (405, 419). Ver o docblock dele.
 |   2. `throttle`           — limites por IP, mais apertados que os do app.
-|   3. `auth:admin`         — sessão do guard próprio (a do app não vale).
+|   3. `AutenticaNoPainel`  — sessão do guard próprio `admin` (a do app não vale).
+|      Não troca o guard PADRÃO: ele continua `web` também aqui.
 |   4. `ExigeDoisFatoresDoAdmin` — TOTP obrigatório, sem exceção.
 |
 | O prefixo vem do config (`admin.path`), então mudar a URL do painel não exige

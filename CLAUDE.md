@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.744 testes PHP / 9.842 asserções** — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **294 testes JS** (Vitest) + **83 checagens dos scripts de backup** verdes |
+| Suíte de testes | ✅ **1.844 testes PHP / 10.762 asserções** — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **314 testes JS** (Vitest) + **83 checagens dos scripts de backup** verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -148,7 +148,8 @@ app/
 │   ├── Controllers/        # Dashboard, Transaction, Account, Category, Fatura, FixedBill, Goal, Investment, Profile, Settings, Security, Dependent,
 │   │                       # TwoFactor (2FA nas Configurações) + Auth/ (Breeze + TwoFactorChallengeController = 2ª etapa do login)
 │   └── Requests/           # Form Requests com mensagens/attributes PT-BR (Store/Update por recurso) + PayInvoiceRequest, PayFixedBillRequest
-├── Models/                 # User (bolsos de auth: two_factor_*), Account (bolsos: balance/reserved/available/spendable), Category, Transaction, Goal, Investment, FixedBill
+├── Models/                 # User (bolsos de auth: two_factor_*), Account (bolsos: balance/reserved/available/spendable), Category, Transaction, Goal, Investment, FixedBill, CreditSettlement
+│   └── Concerns/           # EscopoDaFamiliaNaRota (recurso de outra família na URL = recurso que não existe)
 ├── Policies/               # Account/Category/Transaction/FixedBillPolicy (update+delete = família); descoberta automática
 ├── Services/               # DashboardService, SidebarService, FaturaService,
 │                           # SpendingGuard (calcula os bolsos e decide), FundingService (grava sob lock),
@@ -206,8 +207,8 @@ tests/js/                   # Vitest + jsdom (`npm run test:js`, roda no HOST): 
                             # launch (419, fila, client_uuid), service-worker (limpeza do HTML
                             # autenticado no logout), offline-queue, camadas (z-index), categories
                             # (recusa do arraste mostra o porquê do servidor), dialogo (foco preso, Esc,
-                            # inert), confirmar (`data-confirmar`), theme (tema do sistema) e pwa (versão
-                            # nova do app). Importam os módulos REAIS de
+                            # inert), confirmar (`data-confirmar`), theme (tema do sistema), pwa (versão
+                            # nova do app), faturas (os 5 modais de Pagar despesas) e popover-perfil. Importam os módulos REAIS de
                             # resources/js/sm/ — validado por mutação em 16/09: desligar a guarda da
                             # CSP derruba 6+ testes, trocar a vírgula decimal derruba 34.
                             # Rodam no CI (job `javascript`: `npm ci` + `npm run test:js`, Node 24),
@@ -215,7 +216,7 @@ tests/js/                   # Vitest + jsdom (`npm run test:js`, roda no HOST): 
 tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/restauração de VERDADE
                             # contra um `docker` falso (docker-falso.sh) — sem Docker nem MySQL; job
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`
-tests/Feature/              # 1.744 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 1.844 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -291,10 +292,10 @@ tests/Feature/              # 1.744 testes (PHP): auth, dashboard, CRUD, valida�
 | `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security|two-factor|conta`) | **Três subabas-pílula** (Segurança · **2FA** · Conta) numa coluna de 1120px, com o corpo em grid de 12 colunas — cada aba tem DOIS cards lado a lado (`span6`/`span7`+`span5`), de altura igual, e cabe sem rolar. **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), (lista com **teto de 4 itens** e rolagem interna — sem isso o card esticava além do de Senha e a página voltava a rolar). **2FA** = card de ação + card "Como funciona" ao lado. **O SWITCH é o controle**: a linha inteira é um `<summary>` (`.tfa-toggle`) que abre a confirmação por senha DENTRO do card — ligar e desligar seguem exigindo senha, sem botão-gatilho separado empurrando o conteúdo. No rodapé, **"Autenticadores da família"** lista quem já protegeu o próprio login (nome, papel, desde quando) — só status, nunca segredo: `two_factor_secret` é `encrypted` e não chega à view. **Conta** = resumo real da conta (e-mail, desde quando, dependentes, estado do 2FA) + zona de perigo. |
 | `POST/DELETE /configuracoes/2fa` (`settings.2fa.ativar` / `.desativar`), `POST /configuracoes/2fa/confirmar` (`.confirmar`), `POST /configuracoes/2fa/codigos` (`.codigos`) → `TwoFactorController` | bloco em `settings/partials/two-factor` | **2FA (opcional).** Ligar/desligar/trocar códigos exigem a **senha atual** (`throttle:senha`); confirmar o setup exige o **código** (`throttle:dois-fatores`). Sem rota de listagem — tudo acontece no card da aba **2FA**, e toda ação volta para ela (`TwoFactorController::voltar()` → `settings/2fa`, 22/09/2026). Voltando para a aba Segurança, o QR sumia de quem pediu para ligar e — pior — o flash com os **códigos de recuperação** era consumido numa aba que não os mostra: quem ligava o 2FA nunca via a única porta de volta. Teste de flash depois de redirect SEGUE o redirect (`followingRedirects`): um GET direto na aba certa passava verde com o defeito. |
 | `GET/POST /verificacao-em-duas-etapas` (`two-factor.login`) + `POST /verificacao-em-duas-etapas/cancelar` (`two-factor.cancel`) → `Auth\TwoFactorChallengeController` | `auth/two-factor-challenge` | **Segunda etapa do login.** Grupo `guest`: quem está aqui ainda NÃO tem sessão. Aceita o código do autenticador ou um **código de recuperação** (`?recuperacao=1`, sem depender de JS). |
-| `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais **fora da `.card`** — ela tem `overflow:hidden`+animação `transform`, que prendia o `position:fixed`). **Redesign v2 (06/08/2026):** o topo traz o **resumo da família** (pessoas na conta · gasto do mês · quem mais gastou) e cada card mostra **foto** (avatar), nome com **selo de papel** (`.dp-badge`), e-mail, **quanto gastou no mês** (`Σ` despesas do mês corrente com `made_by_user_id` da pessoa; titular incluso) e a **fatia do gasto da família** em barra. O denominador é o ponto: número solto não responde "quem está gastando quanto" — R$ 1.590 é muito ou pouco só em relação ao total (`$gastoFamilia`, com guarda de divisão por zero). Sem dependente nenhum aparece um **card-fantasma** (`.dep-ghost`, `aria-hidden`) mostrando o FORMATO do card que a pessoa vai receber; ele some no instante em que existe um dependente de verdade, e seus números são 0% / R$ 0,00 — valor inventado ao lado de barra cheia contaria duas histórias no mesmo card. Botões **editar** e **excluir** por card. No cadastro/edição define-se nome, e-mail, **foto** (avatar central clicável — a bolinha É o botão de upload, classe `.avatar-pick`), **parentesco** (select `User::RELATIONSHIPS`) e senha (Store/UpdateDependentRequest; senha opcional na edição). **Lançar em nome de um dependente** é feito no formulário de transação, pelo seletor "quem fez a compra" (suporta deep-link `transactions.create?autor=ID`). **Editar sem o campo PRESERVA o autor gravado**, e autor nulo aparece como "Não informado" — antes a autoria passava para quem editava (23/09/2026, A-11 — `EditarLancamentoPreservaOAutorTest`). Só titular acessa (403 p/ dependente). |
+| `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais **fora da `.card`** — ela tem `overflow:hidden`+animação `transform`, que prendia o `position:fixed`). **Redesign v2 (06/08/2026):** o topo traz o **resumo da família** (pessoas na conta · gasto do mês · quem mais gastou) e cada card mostra **foto** (avatar), nome com **selo de papel** (`.dp-badge`), e-mail, **quanto gastou no mês** (`Σ` despesas do mês corrente com `made_by_user_id` da pessoa; titular incluso) e a **fatia do gasto da família** em barra. O denominador é o ponto: número solto não responde "quem está gastando quanto" — R$ 1.590 é muito ou pouco só em relação ao total (`$gastoFamilia`, com guarda de divisão por zero). Sem dependente nenhum aparece um **card-fantasma** (`.dep-ghost`, `aria-hidden`) mostrando o FORMATO do card que a pessoa vai receber; ele some no instante em que existe um dependente de verdade, e seus números são 0% / R$ 0,00 — valor inventado ao lado de barra cheia contaria duas histórias no mesmo card. Botões **editar** e **excluir** por card. No cadastro/edição define-se nome, e-mail, **foto** (avatar central clicável — a bolinha É o botão de upload, classe `.avatar-pick`), **parentesco** (select `User::RELATIONSHIPS`) e senha (Store/UpdateDependentRequest; senha opcional na edição). **Lançar em nome de um dependente** é feito no formulário de transação, pelo seletor "quem fez a compra" (suporta deep-link `transactions.create?autor=ID`). **Editar sem o campo PRESERVA o autor gravado**, e autor nulo aparece como "Não informado" — antes a autoria passava para quem editava (23/09/2026, A-11 — `EditarLancamentoPreservaOAutorTest`). Só titular acessa (403 p/ dependente); dependente de outra família: 404, como id que não existe. |
 | `/metas` (`GoalController` index/store/update/destroy + aportes/resgates) | `metas/index` | **Metas (implementado).** Objetivos de poupança modelo "cofrinho": aporte reserva, resgate devolve à conta. Compartilhadas na família (`ownerId`). |
 | `/investimentos` (`InvestmentController` index/store/update/destroy + aportes/resgates) | `investimentos/index` | **Investimentos (implementado).** Cofrinho + metadados/projeções (indexador CDI/Selic/IPCA+/Prefixado, % do indexador, prévia de IR/IOF). Compartilhados na família. |
-| `/faturas` (**"Pagar despesas"**: `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy` + **`faturas.fatura.pagar`** + **`faturas.fatura.estornar`** + `faturas.recorrente.pagar`) | `faturas/index` | **Pagar despesas (implementado).** Três blocos: **contas fixas do mês** (topo — competências projetadas, badge de vencida, botão Pagar e "+ Nova conta fixa"), faturas por cartão (parcelas/recorrência, ciclo, limite) e despesas avulsas. **Marcar fatura como paga** usa `PayInvoiceRequest` (com **data do pagamento** informável) e passa pelo `FundingService` — respeita saldo e pergunta a fonte. `Account::openInvoiceDue` = fatura do ciclo aberto; **`closedInvoiceDue`/`overdueInvoice`** = a do ciclo fechado e vencida. A recorrência de cartão agora tem **botão "Pagar"** (a rota existia sem UI, então nunca avançava de mês). |
+| `/faturas` (**"Pagar despesas"**: `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy` + **`faturas.fatura.pagar`** + **`faturas.fatura.estornar`** + `faturas.recorrente.pagar` + `faturas.fatura.quitar-pelo-credito` + `faturas.fatura.desfazer-quitacao`) | `faturas/index` | **Pagar despesas (implementado).** Três blocos: **contas fixas do mês** (topo — competências projetadas, badge de vencida, botão Pagar e "+ Nova conta fixa"), faturas por cartão (parcelas/recorrência, ciclo, limite) e despesas avulsas. **Marcar fatura como paga** usa `PayInvoiceRequest` (com **data do pagamento** informável) e passa pelo `FundingService` — respeita saldo e pergunta a fonte. `Account::openInvoiceDue` = fatura do ciclo aberto; **`closedInvoiceDue`/`overdueInvoice`** = a do ciclo fechado e vencida. A recorrência de cartão agora tem **botão "Pagar"** (a rota existia sem UI, então nunca avançava de mês). |
 | `/contas-fixas` (`FixedBillController` store/update/destroy + **`contas-fixas.pagar/{competencia}`**) | bloco em `faturas/index` | **Contas fixas mensais (implementado).** Condomínio, aluguel, parcela do carro. **Sem rota de listagem** — aparecem em `/faturas`. `due_day` aceita **1..31**. Pagar recebe o valor REAL (editável, vem preenchido com o previsto) e a data; idempotente pelo `unique(fixed_bill_id, competence)`. |
 | `routes/auth.php` | `auth/*` | Breeze: login, registro, esqueci/redefinir senha, confirmar senha, verificar e-mail. |
 | `GET /up` (`saude`) → `SaudeController` | — (texto) | **Checagem de saúde para o monitor** (22/09/2026 — `ChecagemDeSaudeEnxergaOAppTest`): responde `ok` (200), `manutencao` (503) ou `indisponivel` (503) em texto, com `no-store` e cabeçalhos de segurança; confere o banco (`select 1`) e se a pasta do log aceita escrita, e o motivo da falha vai só para o log. Registrada no `then:` do `bootstrap/app.php`, **fora do grupo `web`** (sem sessão nem cookie a cada batida) e excluída do middleware de manutenção (`preventRequestsDuringMaintenance(except: ['up'])`) para responder ela mesma. Substituiu o `health: '/up'` do framework, que servia HTML com script de CDN de terceiro e respondia 200 com o banco fora do ar — não volte a ele. |
@@ -319,8 +320,9 @@ id, e o `nav.js` copia da página buscada os FILHOS (clonados do documento inert
 `open`). Antes o sino só mudava recarregando a página (P-4). Depois da troca, `#sm-anuncio` diz o
 título ao leitor de tela e o foco vai para o primeiro h1/h2 focável. `meta sm-versao` diferente da
 página buscada (ou o evento `sm:versao-nova`) faz a navegação ser COMPLETA — é assim que a aba
-aberta pega o CSS/JS de um deploy novo. ⚠️ O card "Patrimônio total" da sidebar ainda fica velho
-depois do pjax: basta `id` + `data-pjax-atualizar` nele, mas a sidebar está com o redesenho.
+aberta pega o CSS/JS de um deploy novo. O card "Patrimônio total" da sidebar (`#sidePatrimonio`,
+só os filhos) entrou em 23/09/2026: ficava com o saldo de quando a aba abriu, inclusive logo depois
+de um lançamento pelo modal "Lançar" (salva por AJAX e recarrega só o `#content`).
 
 **Notificações (topbar):** o sino mostra **vencidas primeiro**, depois o que vence nos próximos
 7 dias, de três fontes: faturas de cartão (do ciclo aberto **e do fechado não pago**), **contas
@@ -331,9 +333,13 @@ PWA-first). **Saldo negativo:** a sidebar mostra "Disponível para gastar" em ve
 de cheque especial usado.
 
 **Foto do perfil no shell:** o rodapé da sidebar e o popover mostram a **foto** quando existe
-(`$usuario->avatarUrl()`); as iniciais são o FALLBACK, não o padrão. `.avatar-initials` ganhou
+(`$usuario->avatarUrl()`, servida por `/avatar/{membro}` — pessoa de outra família = 404); as iniciais são o FALLBACK, não o padrão. `.avatar-initials` ganhou
 `overflow: hidden` + `img { object-fit: cover }`, então tamanho e recorte redondo valem nos dois
 estados. Era o único lugar do app que continuava exibindo as letras depois do upload.
+**Remover a foto sem trocar** (23/09/2026 — `RemoverFotoSemTrocarTest`): checkbox `remover_foto`
+em "Meu perfil" e no modal de editar dependente, só quando há foto. `User::removeAvatar()` segue o
+contrato do `storeAvatar` (não persiste, não apaga): o arquivo sai pelo hook `updated`, depois do
+commit. Arquivo novo enviado junto vence. Antes a foto só podia ser trocada por outra.
 **A URL da foto é versionada** (22/09/2026 — `FotoTrocadaApareceNaHoraTest`): `avatarUrl()` leva
 `?v=` (hash curto do `avatar_path`, que muda a cada upload porque o `storeAvatar` sorteia o nome —
 não troque isso por nome fixo). Com a versão atual, `Cache-Control` de 1 hora; sem versão ou com
@@ -375,8 +381,8 @@ o `initContent` chama `liberarDialogosOrfaos()` para uma troca por pjax não dei
 travada. `role="dialog"` + `aria-modal` + `aria-labelledby` (id único) vão no `.modal`, não no
 véu. ⚠️ O X e o "Cancelar" têm `transition: all` e herdam o `visibility` do véu animando: na
 abertura ainda estão `hidden`, e o foco caía no botão destrutivo — a abertura ignora esse
-`visibility` e tenta de novo no quadro seguinte. Os 4 modais de `/faturas` ainda abrem pela classe
-(arquivo com o redesenho).
+`visibility` e tenta de novo no quadro seguinte. Os 5 modais de `/faturas` passaram em 23/09/2026
+(`sm/faturas.js`, `tests/js/faturas.test.js`); o de editar conta fixa saiu do script inline.
 
 **⚠️ Camadas: popovers (80) < barra de cookies (85) < modais (`.modal-scrim`, 90).** Nunca empate
 entre barra e modal: no empate decide a ordem do HTML, e o `cookie-consent` entra no layout DEPOIS
@@ -542,6 +548,10 @@ Saldo total = atual de todas as contas, independe do período.
   `due_day` (**1..31** — o clamp de mês curto é feito em PHP, ao contrário do 1..28 dos cartões),
   `account_id`/`category_id` (nullable, padrão de pagamento), `starts_on`, `ends_on` (nullable =
   sem fim), `active`. **As competências mensais NÃO são materializadas** — ver "Modelo de dinheiro".
+- **credit_settlements** (23/09/2026) — quitação de fatura PELO CRÉDITO de um estorno, sem saída de
+  caixa: `user_id`, `account_id` (o cartão), `made_by_user_id`, `paid_at`. **Sem coluna de dinheiro**:
+  o valor coberto é a soma das linhas que apontam para ela em `transactions.credit_settlement_id`
+  (sem FK, como o `settled_by_id`). Desfazer = linhas voltam a em aberto e ela some.
 - **goal_contributions / investment_contributions** — ganharam `transaction_id` (nullable, **sem
   FK**, indexado): liga o resgate à despesa que ele cobriu quando o usuário escolheu "tirar do
   investimento". Null nos aportes/resgates feitos direto na tela.
@@ -778,9 +788,33 @@ exigia despesa + receita, e o mês ganhava R$ 300 de gasto e R$ 300 de renda que
   grava `ended_recurrences` (única por `user_id` + `group_id`), sem tocar em transação, saldo ou
   limite; `recorrenciasParaAvancar` ignora séries encerradas e o `pay()` recusa no topo e de novo
   sob a trava. Antes a ocorrência paga que sobrava voltava em "Lançar neste ciclo" e um clique
-  recriava a sucessora. Série toda paga é encerrada sem apagar nada. Excluir UMA ocorrência pelo
-  Histórico não encerra a série. ⚠️ A tela de faturas (com o redesenho) ainda mostra "Lançar
-  próxima" numa série encerrada — o servidor recusa o clique.
+  recriava a sucessora. Série toda paga é encerrada sem apagar nada. **Excluir UMA ocorrência pelo
+  Histórico PERGUNTA** (23/09/2026 — `ExcluirPeloHistoricoPodeEncerrarARecorrenciaTest`): caixa
+  "Encerrar também a recorrência", **desmarcada**, dentro do form de exclusão (funciona sem JS). Só
+  aparece em ocorrência recorrente (`Transaction::isOcorrenciaRecorrente()`) que o `destroy` aceita
+  apagar (compra de cartão quitada, não) e cuja série não acabou
+  (`TransactionController::ofereceEncerrarRecorrencia`). Marcada: `estornarFonte` + delete +
+  `EndedRecurrence::createOrFirst` na MESMA transação (cartão trava a conta antes); sem ocorrência
+  restante, sem marcador. Desmarcada: só a linha sai, a série continua. O campo só é validado em
+  ocorrência recorrente, DEPOIS das guardas. Recorrência legada de série encerrada sai do sino
+  (`upcomingDue`): o pagar dela é recusado, e o aviso ficaria vencido para sempre. A tela não oferece
+  "Lançar próxima" em série encerrada (`FaturaService` → `lancarProxima`, uma consulta por família); o
+  servidor segue recusando o POST, dizendo "foi encerrada" no aviso de ERRO (`AVISO_SERIE_ENCERRADA`).
+- **Fatura COBERTA pelo estorno é estado próprio, e a quitação pelo crédito se desfaz** (23/09/2026,
+  R2-3/R2-4/R2-5 — `FaturaCobertaPeloEstornoTest`). Com líquido exatamente 0 o card diz "Coberta pelo
+  estorno: nada a pagar" (nunca "Fatura paga") e oferece "Quitar pelo crédito"
+  (`faturas.fatura.quitar-pelo-credito`): marca as linhas pagas sem saída de caixa e grava uma
+  `CreditSettlement` (`credit_settlements`; as linhas apontam em `transactions.credit_settlement_id`,
+  sem FK). O `payInvoice` com líquido 0 cai no mesmo caminho. "Desfazer quitação"
+  (`faturas.fatura.desfazer-quitacao`) devolve as linhas a em aberto — é o que permite corrigir ou
+  excluir a compra. Nenhum dos dois mexe em caixa ou limite. Estados em
+  `FaturaService::estadoDaFatura`: `a_pagar` · `coberta` · `credito_sobrando` · `paga` (só com saída
+  de caixa) · `quitada_pelo_credito`. O lote de quitação é UMA régua, `Account::linhasAQuitar()` +
+  `liquidoComSinal()` (em centavos), usada pelo controller e pela tela; o fechado de líquido ZERO vai
+  junto com o aberto (`<= 0`). A recusa de editar/excluir linha quitada pelo crédito aponta
+  "Desfazer quitação" (`CreditSettlement::recusaParaLinha`). As rotas novas não têm model binding:
+  buscam já escopadas na família, e recurso alheio dá o 404 de id inexistente. ⚠️ Quitações pelo
+  crédito feitas antes da migration não têm registro (não se desfazem pela tela).
 - **Estornos aparecem na lista de itens do cartão** (`cycleItems` inclui `income`), com selo
   "Estorno" e valor `−R$ 400,00` — `EstornoApareceNaListaDoCartaoTest`.
 - **"Total das faturas" em `/faturas` = `openInvoiceDue` + fechada em aberto**, não
@@ -959,9 +993,11 @@ injetado por `innerHTML` foram os três bloqueados.
   SILÊNCIO: desde 05/08, cada `onsubmit="return confirm(...)"` virou um "Excluir" que apagava
   sem perguntar (conta, categoria, lançamento, dependente). Confirmação = `data-confirmar="…"` no
   form (`sm/confirmar.js`, um ouvinte de submit delegado no document, em captura — vale para o
-  conteúdo do pjax); qualquer outro comportamento, ouvinte num script com nonce (ex.: o
-  `a[data-voltar]` das páginas legais). ⚠️ Pendência declarada no teste: `faturas/index.blade.php`,
-  com 4 exclusões ainda SEM confirmação, preso ao redesenho não commitado.
+  conteúdo do pjax). Uma caixa MARCADA do form com `data-confirmar-marcado="…"` troca a pergunta
+  (`perguntaDo`, que lê `form.elements` — vale para caixa ligada por `form=`); qualquer outro comportamento, ouvinte num script com nonce (ex.: o
+  `a[data-voltar]` das páginas legais). A pendência de `faturas/index.blade.php` (4 exclusões sem
+  confirmação) foi resolvida em 23/09/2026 (`ExclusoesEmPagarDespesasPedemConfirmacaoTest`); a lista
+  `PENDENTES` do teste está vazia.
 - **O pjax valida no documento INERTE, antes do `innerHTML`.** Aqui está a armadilha que custou
   uma rodada: assim que o script entra num documento VIVO o navegador **esvazia o atributo**
   `nonce` (guarda o valor num slot interno, exposto só por `.nonce`), para um XSS não raspá-lo do
@@ -1063,8 +1099,8 @@ com cenário, esperado × obtido e arquivo:linha de cada item). Testes:
   duas respostas já é vazamento, mesmo sem dado na mensagem.** Os outros 23 estão seguros. Sentinelas:
   `RecursoAlheioNaRotaNaoViraSondaTest` (dois chutes em lados opostos do segredo recebem o mesmo 403)
   e `IdAlheioNoCorpoIgualAIdInexistenteTest` (id de outra família no corpo ≡ id inexistente, em todo
-  FK). ⚠️ Ainda aberto, decisão do app inteiro: recurso alheio responde **403** e inexistente **404**
-  — a diferença revela que o recurso existe.
+  FK). **Fechado em 23/09/2026:** recurso de outra família na URL responde o MESMO 404 de um id que
+  não existe — ver "Recurso de outra família = recurso que não existe" em 🔒 Segurança.
 - **Meta com prazo vencido é editável**: `after_or_equal:hoje` só quando `target_date` muda.
 - **Aporte/resgate/investimento com valor inicial levam `client_uuid`** (índice único por pai
   em `goal_contributions`/`investment_contributions`; fast-path fora do lock + exceção de
@@ -1122,8 +1158,8 @@ Relatório: `docs/auditoria-completa-2026-07-28.md`. Testes: `AuditoriaCorrecoes
 ## 🔒 Segurança (pentest de 27/07/2026 — ondas 1, 2 e 3 aplicadas)
 
 Auditoria completa em jul/2026 (SQL injection, IDOR, auth/sessão, XSS/PWA). **Limpo em
-SQL injection e isolamento entre famílias** — o padrão "escopo por `ownerId()` + policy no
-binding + `Rule::exists` escopado em todo FK" está consistente; não há SQL cru com input do
+SQL injection e isolamento entre famílias** — o padrão "escopo por `ownerId()` no PRÓPRIO
+binding (23/09/2026) + policy como segunda linha + `Rule::exists` escopado em todo FK" está consistente; não há SQL cru com input do
 usuário (a única interpolação, `DashboardService` `$monthExpr`, é ternário entre constantes).
 
 Corrigido nesta rodada — **não regredir**:
@@ -1153,6 +1189,35 @@ Corrigido nesta rodada — **não regredir**:
   script montava a lista de clientes —, e o SMTP recusando era HTTP 500. **`auth.timebox_duration`
   = 500 ms** (o framework usa 200; o argon2id do token leva ~134 ms e numa VPS lenta passaria):
   vale para o "esqueci a senha" e para o `validate()` do login, e login CERTO não espera.
+  **O cadastro continua dizendo "Este e-mail já está em uso"** — decisão consciente do Victor em
+  23/09/2026: esconder isso exigiria mandar e-mail até para quem erra o próprio endereço, e o
+  `throttle:credencial` (5/min por IP) já encarece a varredura. Não "conserte" sem falar com ele.
+- **Recurso de outra família na URL = recurso que não existe** (23/09/2026 —
+  `IdAlheioNaRotaIgualAIdInexistenteTest`). Antes: id alheio → 403 da policy/`authorize()`;
+  inexistente → 404 do binding — varrendo ids dava para saber quais existem (em `/avatar/{id}`,
+  contar os usuários). O escopo está no PRÓPRIO route model binding:
+  `App\Models\Concerns\EscopoDaFamiliaNaRota` (sobrescreve `resolveRouteBindingQuery`, por onde
+  passam o binding comum, o `withTrashed` e o aninhado: `user_id = ownerId()` do guard `web`; sem
+  usuário do app nada é encontrado) em Account, Category, Transaction, Goal, Investment e FixedBill;
+  pessoas por `User::daFamiliaNaRota()`, via `Route::bind` para `{dependent}` (só dependente da
+  família) e `{membro}` (a foto: `/avatar/{membro}`).
+  - **Por que no binding e não `denyAsNotFound()` na policy:** o 404 do binding nasce no
+    `SubstituteBindings`, ANTES do `SecurityHeaders` (CSP estática, sem `X-Csp-Nonce`) e diz "No
+    query results for model [...] {id}" no JSON; um 404 da policy/controller/Form Request sai com a
+    CSP com nonce e outra mensagem. Provado por mutação.
+  - 🚨 **Nunca `Route::bind('user')`**: é global e pegaria o `{user}` do painel (que modera qualquer
+    família). 🚨 **`Route::bind` mora no `AppServiceProvider`, nunca em `routes/*.php`**: com
+    `route:cache` os arquivos de rota nem são lidos e o binding some em produção sem erro (medido;
+    travado por `test_os_bindings_de_pessoa_sobrevivem_ao_cache_de_rotas`).
+  - Model novo amarrado a rota com `user_id` da família: `use EscopoDaFamiliaNaRota`. O sentinela varre
+    `Route::getRoutes()` (fora o painel) e compara status, cabeçalhos e corpo, em HTML e JSON; model
+    que ele não sabe montar o faz falhar pedindo a receita (`recursoDe()`).
+  - Policies, `authorize()` e `abort_unless` de posse ficaram como SEGUNDA linha, com o 403 de
+    sempre; os testes que as prendem desligam o escopo com `Tests\Concerns\DesligaEscopoDaFamiliaNaRota`.
+    403 por PAPEL, de assinatura e de "não é cartão" não mudaram.
+  - `/meu-perfil/confirmar-email/{user}` **não tem model binding** (`ConfirmarEmailNaoRevelaQuemExisteTest`):
+    ele rodaria ANTES do `signed`, e sem assinatura um id existente dava 403 e um inexistente 404. A
+    pessoa só é procurada depois de a assinatura conferir.
 - **Trocar senha derruba as outras sessões** (`PasswordController` → `logoutOtherDevices` +
   `BrowserSessions::purgeForUser`). `AuthenticateSession` NÃO está habilitado, então é a purga
   das linhas de `sessions` que efetivamente desconecta.
@@ -1163,7 +1228,16 @@ Corrigido nesta rodada — **não regredir**:
   invasor seguia entrando depois da troca — e a caixa vem marcada no login. A troca vem ANTES do
   `logoutOtherDevices`, já salva, porque é ele que reemite o cookie do aparelho atual (trocada
   depois, só o dono perderia o "lembrar de mim"). **Todo caminho que muda credencial ou derruba
-  sessões troca o token** (também `NewPasswordController` e `DependentController::update`).
+  sessões troca o token** (também `NewPasswordController`, `DependentController::update` e ligar o
+  2FA — `TwoFactorController::confirmar`).
+- **Senha nova igual à atual é recusada** (23/09/2026 — `SenhaNovaIgualAAtualTest`), com a mesma
+  mensagem (`PasswordController::MENSAGEM_SENHA_REPETIDA`) nas duas portas. Antes passava: derrubava
+  as sessões e mandava o alerta sem nada ter mudado — e quem trocava por suspeitar de invasão
+  mantinha a senha que o invasor conhece. Configurações: `different:current_password`. Redefinição:
+  `Hash::check` DENTRO do callback do broker, que só roda com token válido (fora dele, seria sonda
+  da senha para quem soubesse um e-mail); a exceção sobe antes de o broker apagar o token, então o
+  link continua valendo. **Não** vale na edição do dependente pelo titular: lá a recusa diria ao
+  titular a senha que o dependente usa hoje.
 - **Redefinir a senha pelo link derruba TODAS as sessões** (16/09/2026, A-2 —
   `RedefinirSenhaDerrubaSessoesTest`): `NewPasswordController` chama
   `BrowserSessions::purgeForUser` sem exceção, grava `password_changed_at` e troca o
@@ -1418,10 +1492,12 @@ o único canal que o invasor não controla.**
 |---|---|
 | Trocar senha (Configurações) | `senhaAlterada` |
 | Redefinir senha pelo link | `senhaRedefinida` |
-| Ativar / desativar 2FA | `doisFatoresAtivado` / `doisFatoresDesativado` |
+| Ativar / desativar 2FA | `doisFatoresAtivado` / `doisFatoresDesativado`. O `doisFatoresAtivado` diz que os outros aparelhos foram desconectados e tem "Não foi você?" próprio: o "Esqueci a senha" troca a senha, mas não tira da conta o celular de outra pessoa (23/09/2026) |
 | Encerrar outras sessões | `sessoesEncerradas` (com quantos aparelhos caíram) |
 | Excluir conta | `contaExcluida` — montado antes do delete, enviado **depois do commit** (22/09/2026; antes saía antes do delete e anunciava exclusões que uma falha desfazia). Nomeia os dependentes que perderam o acesso junto; ao dependente que apaga o próprio login, diz que o dinheiro fica com o titular (`AvisoDeContaExcluidaNomeiaOsDependentesTest`) |
-| Titular exclui a conta | `ContaDaFamiliaExcluida` para **cada dependente**, depois do commit. O modal nomeia quem perde o acesso e exige o aceite `confirmo_dependentes` (regra única em `ProfileController::dependentesQuePerdemOAcesso`, usada pela view e pelo `destroy`); sem mailer, o modal não promete e-mail. A exclusão pelo painel NÃO avisa os dependentes — decisão pendente de moderação/LGPD (`ExcluirTitularAvisaOsDependentesTest`) |
+| Titular exclui a conta | `ContaDaFamiliaExcluida` para **cada dependente**, depois do commit. O modal nomeia quem perde o acesso e exige o aceite `confirmo_dependentes` (regra única em `ProfileController::dependentesQuePerdemOAcesso`, usada pela view e pelo `destroy`); sem mailer, o modal não promete e-mail. A exclusão pelo painel também avisa — ver a linha "Admin exclui pelo painel" |
+| Admin exclui pelo painel | `AlertaDeSeguranca::contaExcluidaPelaAdministracao` para a pessoa excluída (nomeia os dependentes) + `ContaDaFamiliaExcluida::pelaAdministracao()` para cada dependente, se era titular (23/09/2026 — `PainelAdminExclusaoAvisaQuemPerdeOAcessoTest`). Montados antes do delete, enviados depois que ele aconteceu (inclusive com erro pós-commit), pelo `Notificador`. Sem o motivo da moderação e sem IP/aparelho do admin (só "Quando"), com o `legal.contact_email`. Excluir UM dependente avisa só ele — nunca "conta-família excluída" |
+| 2FA do admin zerado (`admin:zerar-2fa`) | `AlertaDoPainel` `ZEROU_2FA` → `ADMIN_ALERT_EMAIL` ou o próprio admin, com o contexto "Terminal do servidor" (`ContextoDeSeguranca::doTerminal`, sem IP) |
 | Criar dependente | `BemVindoDependente` (para o dependente) |
 | Titular troca a senha do dependente | `senhaAlteradaPeloTitular` — para o e-mail que o dependente tinha ANTES da edição; também derruba as sessões dele e troca `remember_token` e `password_changed_at` (A-6) |
 | Titular troca SÓ o e-mail do dependente | `emailAlteradoPeloTitular` — para o e-mail ANTIGO do dependente, com o novo mascarado. Era o caminho de tomada silenciosa do login dele (troca o e-mail, "Esqueci a senha" no endereço novo). Com a senha junto sai só o `senhaAlteradaPeloTitular(emailNovo:)`: um aviso por clique (`EmailDoDependenteTrocadoPeloTitularTest`, 22/09/2026) |
@@ -1537,6 +1613,15 @@ banido com o login já pendente.
 
 **O login por AJAX (`sm/auth.js`) não precisou de uma linha nova**: ele já navega para o
 `redirect` que vier no JSON, e o desafio é só outro destino.
+
+### Ligar derruba os outros aparelhos (23/09/2026 — `LigarODoisFatoresDerrubaOsOutrosAparelhosTest`)
+
+Quem liga o 2FA muitas vezes está reagindo a uma suspeita, e a sessão de um invasor já aberta
+sobrevivia à proteção nova (o código só é cobrado no LOGIN). Confirmar o setup — só com o código
+certo — troca o `remember_token`, apaga as outras linhas de `sessions` e chama
+`Auth::guard('web')->login($user, $lembrado)`: é o que reemite o cookie de "lembrar de mim" deste
+aparelho com o token novo (o `logoutOtherDevices` exige a senha em texto, e ali só há o código) e
+dá id novo à sessão atual. Código errado não derruba nada.
 
 ### Uso único dos dois lados
 
@@ -1656,7 +1741,7 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   guard carregou no começo da requisição, e dois envios simultâneos do mesmo código passavam os
   dois. `confirmarDoisFatores` também recusa, no próprio model, admin já confirmado.
 - **Camadas, na ordem:** `PainelAdminLigado` → throttle (`painel-login` 3/min + 10/h por IP,
-  `painel-totp` idem, `painel-acao` 5/min + 30/h por admin) → `auth:admin` →
+  `painel-totp` idem, `painel-acao` 5/min + 30/h por admin) → `AutenticaNoPainel` →
   `ExigeDoisFatoresDoAdmin`. Limites bem mais apertados que os do app porque há UM usuário
   legítimo: qualquer volume acima disso é ataque.
 - **🚨 O painel NUNCA vê valor em dinheiro.** Mostra a ESTRUTURA da conta (existe, quantos
@@ -1669,8 +1754,8 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   os dependentes** (`User::estaBanido()` consulta o titular só quando é dependente); banir um
   dependente afeta só ele. `BloqueiaUsuarioBanido` roda no grupo `web` em **toda** requisição
   — checar só no login não basta, o cookie de "lembrar de mim" re-autentica quem acabou de
-  ser banido. Ele lê `$request->user('web')` com guard explícito: numa requisição do painel o
-  guard padrão é `admin`. E o `LoginRequest` barra o banido logo depois da senha e ANTES do
+  ser banido. Ele lê `$request->user('web')` com guard explícito. (O painel usa `AutenticaNoPainel`,
+  não `auth:admin`: o guard PADRÃO continua `web` mesmo numa requisição do painel.) E o `LoginRequest` barra o banido logo depois da senha e ANTES do
   `login()` (23/09/2026 — `BanidoNaoRecebeSessaoNoLoginTest`): antes a conta entrava — sessão e,
   com "lembrar de mim", remember token e cookie — e só caía na requisição seguinte. Depois da
   senha para a mensagem não virar sonda (senha errada = resposta de sempre), e a tentativa conta
@@ -1682,6 +1767,18 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   banimento inteiro falhava com erro 1406, e o corte levava justamente o e-mail do registro de exclusão). Login no painel, código TOTP
   errado, banir, desbanir e excluir disparam **`AlertaDoPainel`** por e-mail (`ADMIN_ALERT_EMAIL`, ou o
   e-mail do próprio admin).
+- **`php artisan admin:zerar-2fa {email} {--force}`** (23/09/2026 —
+  `PainelAdminDoisFatoresZeradoPeloTerminalTest`): a volta de quem perdeu o celular E os códigos
+  (antes, só pelo tinker). Numa transação: `Admin::zerarDoisFatores()`,
+  `BrowserSessions::purgeForGuard('admin', id)` e `AdminAudit::registrar(ZEROU_2FA, $admin, null)`
+  (sem IP; `target_user_id` nulo; vermelho no histórico); o alerta sai depois do commit.
+  Confirmação interativa ou `--force`; recusa sem mudar nada se o driver de sessão não for
+  `database`. ⚠️ **`sessions.user_id` nunca guarda admin:** a coluna vem do guard padrão (`web`),
+  que o painel não troca — numa sessão de painel fica nula, ou com o cliente do app logado no
+  mesmo navegador. Sessão de admin só se acha pelo payload (`login_admin_<sha1>`, cifrado);
+  `purgeForUser($admin->id)` derrubaria o cliente de mesmo id. A linha sai inteira (um navegador
+  logado nos dois perde também o app). Até reconfigurar, a senha sozinha leva ao setup — se ela
+  pode ter vazado, troque com `admin:criar --email=…`.
 - **Sem protótipo do Claude Design**: as views seguem os tokens do design system, mas não
   passaram por handoff. Se quiser o padrão pixel-fiel do resto, é uma rodada no Design.
 
@@ -1742,7 +1839,13 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   `resolverTema` + anti-flash dos layouts app e legal, conferidos pelo `tests/js/theme.test.js`. Só
   páginas com a meta `data-sm-theme`; auth, painel e e-mails seguem sempre claros.
 - Flash de sucesso: `session('status')` ou `session('success')` (partial `partials/flash`);
-  erros via `$errors` / banner `.flash-error`.
+  erros via `$errors` / banner `.flash-error`. **Falha de ação que não é erro de campo vai por
+  `->with('erro', ...)`** (aviso vermelho, `role="alert"`, sem `data-flash` — não some sozinho),
+  nunca por `status`: o verde com ✓ é lido como sucesso. Era assim que "Não conseguimos remover…
+  nada foi apagado" aparecia (23/09/2026 — `FalhaNaoApareceNoVerdeDeSucessoTest`). Código interno no
+  `status` sem tradução em `$mensagensConhecidas` (minúsculo com hífen, ex.: `two-factor-enabled`) NÃO
+  aparece no topo — é a própria tela que o vira aviso no card certo; antes saía cru por cima dele
+  (`AvisoDoTopoSemCodigoInternoTest`).
 - Strings de UI e comentários de código em **PT-BR**.
 - Migrations sempre reversíveis (`down()`); SQL compatível com MySQL **e** sqlite
   (testes rodam em sqlite `:memory:` — cuidado com funções tipo `MONTH()`, ver
@@ -1773,6 +1876,9 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   tem `LOG_CHANNEL=null` (a suíte enchia o log de dev; para conferir log, `Log::listen`). Teste que
   olha SQL cru compara pela gramática (`getQueryGrammar()->wrap()`/`wrapTable()`), **nunca com as
   aspas do sqlite** (M-3: no MySQL o filtro nunca casava, e teste passava sem testar nada).
+  Teste com VÁRIOS aparelhos e driver `database`: além de `forgetGuards()`, zere
+  `$this->app->forgetInstance('auth.driver')` (é ele que preenche `sessions.user_id`) e
+  `$this->app['cookie']->flushQueuedCookies()` — o app de teste não é recriado entre requisições.
 - **MySQL no CI: o job `mysql` está LIGADO** (23/09/2026) — a mesma suíte num serviço `mysql:8.0`.
   Para rodar local, crie um banco PRÓPRIO no container `db` (com o root, cuja senha está em
   `MYSQL_ROOT_PASSWORD` dentro dele) e rode com `-e DB_CONNECTION=mysql -e DB_DATABASE=<o seu>`;
@@ -1895,7 +2001,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (1.744 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (1.844 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
@@ -1971,6 +2077,12 @@ já vira "Limite disponível" quando a primeira conta é cartão de crédito.
 ---
 
 ## 🏗️ Visão de infraestrutura (decidida em jun/2026, ainda não executada)
+
+> **Atualização de 23/09/2026 (decisão do Victor):** a publicação vai para um **subdomínio de
+> `victordemelo.com.br`** (domínio já registrado por ele), numa **VPS da Oracle Cloud** que ele
+> já tem — no lugar do `stabilmoney.com.br` e da VPS HostGator abaixo, que ficam como histórico.
+> E o **cadastro abre ao público** desde o primeiro dia: os Termos e a Política valem para
+> desconhecidos, o que faz da revisão jurídica (item 17 do checklist) um bloqueador.
 
 - **Hoje (dev):** tudo local (Docker + `npm run dev`). Para demo/PWA no celular: Cloudflare Tunnel.
 - **Domínio:** registrar `stabilmoney.com.br` no **registro.br** (principal; ~R$40/ano) e,

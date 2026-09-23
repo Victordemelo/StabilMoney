@@ -36,8 +36,9 @@ class BloqueiaUsuarioBanido
 
     public function handle(Request $request, Closure $next): Response
     {
-        // Guard EXPLÍCITO: `$request->user()` devolve o guard padrão, que numa
-        // requisição do painel é o `admin` — e Admin não tem (nem deve ter) banimento.
+        // Guard EXPLÍCITO: o banimento é de quem usa o APP. Não depender do guard padrão
+        // (hoje `web` em toda requisição, painel inclusive — o `AutenticaNoPainel` não o
+        // troca) é o que mantém isto certo se um dia ele mudar; Admin não tem banimento.
         $user = $request->user('web');
 
         if ($user && $user->estaBanido()) {
