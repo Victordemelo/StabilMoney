@@ -35,6 +35,8 @@ class UpdateDependentRequest extends FormRequest
             // Opcional: em branco mantém a senha atual.
             'password' => ['nullable', Password::defaults()],
             'avatar' => ['nullable', 'image', 'max:2048'],
+            // Tirar a foto sem subir outra. Com arquivo novo junto, vale o arquivo.
+            'remover_foto' => ['nullable', 'boolean'],
             'relationship' => ['nullable', Rule::in(array_keys(User::RELATIONSHIPS))],
         ];
     }

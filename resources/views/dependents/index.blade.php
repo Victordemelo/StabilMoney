@@ -294,7 +294,7 @@
                     <label class="avatar-pick" for="dep-edit-avatar-{{ $dep->id }}">
                         <input type="file" id="dep-edit-avatar-{{ $dep->id }}" name="avatar" accept="image/*" data-avatar-input class="sr-only">
                         <span class="avatar-pick-img" aria-hidden="true">
-                            <span data-avatar-preview>
+                            <span data-avatar-preview data-iniciais="{{ $iniciais($dep->name) }}">
                                 @if ($dep->avatarUrl())
                                     <img src="{{ $dep->avatarUrl() }}" alt="{{ $dep->name }}">
                                 @else
@@ -306,6 +306,16 @@
                         <span class="avatar-pick-hint">Clique para trocar a foto</span>
                         <span class="hint">JPG ou PNG até 2 MB</span>
                     </label>
+                    {{-- Tirar a foto sem pôr outra. Fora do `.avatar-pick`: ele inteiro é o
+                         rótulo do campo de arquivo, e um rótulo não pode conter outro. --}}
+                    @if ($dep->avatarUrl())
+                        <label class="check" style="justify-content: center; margin: -6px 0 14px;">
+                            <input type="checkbox" name="remover_foto" value="1" data-avatar-remover
+                                   @checked(old('_form') === 'edit-' . $dep->id && old('remover_foto'))>
+                            <span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
+                            <span>Remover a foto</span>
+                        </label>
+                    @endif
                     <div class="field">
                         <label for="dep-edit-name-{{ $dep->id }}">Nome</label>
                         <input class="input" type="text" id="dep-edit-name-{{ $dep->id }}" name="name" value="{{ old('_form') === 'edit-' . $dep->id ? old('name', $dep->name) : $dep->name }}" required>
@@ -397,6 +407,26 @@
                 if (!file) return;
                 var preview = input.closest('.avatar-pick').querySelector('[data-avatar-preview]');
                 if (preview) preview.innerHTML = '<img src="' + URL.createObjectURL(file) + '" alt="Pré-visualização">';
+                // Foto nova escolhida: é ela que vale (o servidor também dá preferência a ela).
+                var remover = input.form && input.form.querySelector('[data-avatar-remover]');
+                if (remover) remover.checked = false;
+            });
+        });
+
+        // "Remover a foto": iniciais na hora (por textContent — o nome é dado do usuário);
+        // desmarcar devolve a foto atual.
+        document.querySelectorAll('[data-avatar-remover]').forEach(function (remover) {
+            var preview = remover.form && remover.form.querySelector('[data-avatar-preview]');
+            if (!preview) return;
+            var fotoAtual = preview.innerHTML;
+            remover.addEventListener('change', function () {
+                var arquivo = remover.form.querySelector('[data-avatar-input]');
+                if (remover.checked) {
+                    if (arquivo) arquivo.value = '';
+                    preview.textContent = preview.getAttribute('data-iniciais') || '';
+                } else {
+                    preview.innerHTML = fotoAtual;
+                }
             });
         });
 

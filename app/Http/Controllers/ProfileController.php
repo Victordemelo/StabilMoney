@@ -45,9 +45,9 @@ class ProfileController extends Controller
         // de e-mail (A-7) ao endereço antigo — nunca é salva.
         $antes = clone $user;
 
-        // 'avatar' é arquivo e 'current_password' é só confirmação — nenhum dos dois
-        // é coluna do model, então ficam fora do fill().
-        $user->fill($request->safe()->except(['avatar', 'current_password']));
+        // 'avatar' é arquivo, 'remover_foto' é uma ordem e 'current_password' é só
+        // confirmação — nenhum é coluna do model, então ficam fora do fill().
+        $user->fill($request->safe()->except(['avatar', 'remover_foto', 'current_password']));
 
         $trocouEmail = $user->isDirty('email');
         $emailNovo = $user->email;
@@ -83,6 +83,9 @@ class ProfileController extends Controller
         if ($request->hasFile('avatar')) {
             // Grava a nova sem metadados (EXIF/GPS); a antiga só sai depois do save (hook `updated` do User).
             $user->storeAvatar($request->file('avatar'));
+        } elseif ($request->boolean('remover_foto')) {
+            // Sem foto nova: volta às iniciais. O arquivo sai pelo mesmo hook `updated`.
+            $user->removeAvatar();
         }
 
         $user->save();

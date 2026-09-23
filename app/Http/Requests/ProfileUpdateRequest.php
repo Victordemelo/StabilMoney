@@ -41,6 +41,8 @@ class ProfileUpdateRequest extends FormRequest
             'gender' => ['nullable', Rule::in(array_keys(User::GENEROS))],
 
             'avatar' => ['nullable', 'image', 'max:2048'],
+            // Tirar a foto sem subir outra. Com arquivo novo junto, vale o arquivo.
+            'remover_foto' => ['nullable', 'boolean'],
             // Senha atual exigida SÓ quando o e-mail muda. O e-mail é o que recupera a
             // conta: quem consegue trocá-lo (sessão sequestrada, aparelho aberto) pedia
             // "esqueci a senha" e tomava a conta em definitivo. Trocar nome, telefone ou

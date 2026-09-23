@@ -44,7 +44,7 @@
                 </div>
 
                 <div class="avatar-edit">
-                    <span class="avatar-preview" id="avatarPreview">
+                    <span class="avatar-preview" id="avatarPreview" data-iniciais="{{ $iniciais($user->name) }}">
                         @if ($user->avatarUrl())
                             <img src="{{ $user->avatarUrl() }}" alt="Foto de perfil">
                         @else
@@ -58,6 +58,15 @@
                         </label>
                         <input type="file" id="avatar" name="avatar" accept="image/*" hidden>
                         <span class="hint">JPG ou PNG, até 2 MB</span>
+                        {{-- Tirar a foto sem pôr outra (antes só dava para trocar). Só aparece
+                             quando há foto; vale ao salvar, como o resto do formulário. --}}
+                        @if ($user->avatarUrl())
+                            <label class="check">
+                                <input type="checkbox" id="removerFoto" name="remover_foto" value="1" @checked(old('remover_foto'))>
+                                <span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
+                                <span>Remover a foto</span>
+                            </label>
+                        @endif
                     </div>
                 </div>
 
@@ -140,12 +149,28 @@
         // Pré-visualização da foto escolhida antes de salvar
         var input = document.getElementById('avatar');
         var preview = document.getElementById('avatarPreview');
+        var remover = document.getElementById('removerFoto');
+        var fotoAtual = preview ? preview.innerHTML : '';
         if (input && preview) {
             input.addEventListener('change', function () {
                 var file = input.files && input.files[0];
                 if (!file) return;
                 var url = URL.createObjectURL(file);
                 preview.innerHTML = '<img src="' + url + '" alt="Pré-visualização">';
+                // Foto nova escolhida: é ela que vale (o servidor também dá preferência a ela).
+                if (remover) remover.checked = false;
+            });
+        }
+        // "Remover a foto": mostra as iniciais já, para a pessoa ver o que vai ficar; desmarcar
+        // devolve a foto atual. Iniciais por textContent — o nome é dado do usuário.
+        if (remover && preview) {
+            remover.addEventListener('change', function () {
+                if (remover.checked) {
+                    if (input) input.value = '';
+                    preview.textContent = preview.getAttribute('data-iniciais') || '';
+                } else {
+                    preview.innerHTML = fotoAtual;
+                }
             });
         }
 

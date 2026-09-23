@@ -136,6 +136,9 @@ class DependentController extends Controller
         if ($request->hasFile('avatar')) {
             // Grava a nova sem metadados (EXIF/GPS); a antiga só sai depois do save (hook `updated` do User).
             $dependent->storeAvatar($request->file('avatar'));
+        } elseif ($request->boolean('remover_foto')) {
+            // Sem foto nova: volta às iniciais. O arquivo sai pelo mesmo hook `updated`.
+            $dependent->removeAvatar();
         }
 
         $dependent->save();

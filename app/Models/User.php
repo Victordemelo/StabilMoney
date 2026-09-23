@@ -311,6 +311,19 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Tira a foto de perfil SEM pôr outra no lugar: a pessoa volta às iniciais.
+     *
+     * Como o `storeAvatar`, não persiste e não apaga o arquivo: quem chama dá o `save()`, e o
+     * arquivo sai no hook `updated` (ver `booted`) só depois que o banco confirmou que a linha
+     * deixou de apontar para ele. Antes deste método, a única forma de se livrar de uma foto
+     * era subir outra por cima.
+     */
+    public function removeAvatar(): void
+    {
+        $this->avatar_path = null;
+    }
+
+    /**
      * O link de confirmação do cadastro, no layout do app — e não no modelo padrão do
      * framework, sem marca e desmontado pelo Outlook (achado E-2 da auditoria de 07/09/2026).
      *
