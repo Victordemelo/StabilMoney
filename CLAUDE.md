@@ -1051,6 +1051,14 @@ Corrigido nesta rodada — **não regredir**:
 - **Trocar senha derruba as outras sessões** (`PasswordController` → `logoutOtherDevices` +
   `BrowserSessions::purgeForUser`). `AuthenticateSession` NÃO está habilitado, então é a purga
   das linhas de `sessions` que efetivamente desconecta.
+- **Trocar a senha e "Encerrar outras sessões" trocam o `remember_token`** (22/09/2026 —
+  `LembrarDeMimAntigoNaoEntraMaisTest`). O cookie de "lembrar de mim" re-autentica SEM sessão, e
+  o guard confere só id + token: apagar as linhas de `sessions` não o alcança, e o
+  `logoutOtherDevices` NÃO troca o token (só regrava o hash da senha). Antes, o aparelho do
+  invasor seguia entrando depois da troca — e a caixa vem marcada no login. A troca vem ANTES do
+  `logoutOtherDevices`, já salva, porque é ele que reemite o cookie do aparelho atual (trocada
+  depois, só o dono perderia o "lembrar de mim"). **Todo caminho que muda credencial ou derruba
+  sessões troca o token** (também `NewPasswordController` e `DependentController::update`).
 - **Redefinir a senha pelo link derruba TODAS as sessões** (16/09/2026, A-2 —
   `RedefinirSenhaDerrubaSessoesTest`): `NewPasswordController` chama
   `BrowserSessions::purgeForUser` sem exceção, grava `password_changed_at` e troca o
