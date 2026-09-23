@@ -800,7 +800,7 @@ class FaturaController extends Controller
             }
 
             $this->gerarProximaOcorrencia($transaction, $funding);
-        });
+        }, attempts: FundingService::TENTATIVAS);
 
         return redirect()->route('faturas.index')
             ->with('status', 'Recorrência paga — a próxima já foi lançada.');
