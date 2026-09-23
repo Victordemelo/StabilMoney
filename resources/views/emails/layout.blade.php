@@ -21,6 +21,11 @@
     Opcionais: $secoes (lista de {titulo, tom: normal|alerta, itens: [{nome, quando,
     valor}]} — usada pelo lembrete de vencimentos) e $rodapeNota (HTML confiável que
     substitui a frase "aviso automático de segurança" do rodapé).
+
+    Escape: $titulo, $preheader, $saudacao, $detalhes, $secoes e $acaoUrl chegam CRUS e saem
+    por `{{ }}`. $paragrafos, $rodapeAviso e $rodapeNota são HTML confiável (`{!! !!}`): quem
+    os monta passa o dado do usuário por `e()`. A parte texto (layout-texto) imprime tudo
+    cru — o escape é assunto só daqui.
 --}}
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -35,9 +40,18 @@
 <body style="margin:0; padding:0; background-color:#EFF4F1; -webkit-font-smoothing:antialiased;">
 
     {{-- Preheader: o trecho que a caixa de entrada mostra ao lado do assunto. Sem ele,
-         o cliente puxa o primeiro texto visível (que aqui seria "Stabil Money"). --}}
-    <div style="display:none; font-size:1px; color:#EFF4F1; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden;">
-        {{ $preheader }}&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;
+         o cliente puxa o primeiro texto visível (que aqui seria "Stabil Money").
+
+         Depois do texto vem um enchimento invisível (espaço de algarismo, espaço de largura
+         zero e uma marca que não ocupa lugar), para a prévia não emendar o resto do e-mail.
+         Os três não aceitam quebra de linha entre si nem com a palavra de antes, então cada
+         grupo vem SEPARADO POR ESPAÇO COMUM — e o texto também. Colados, formavam uma cadeia
+         única: 90 caracteres sem espaço no código, que alargavam para 463 px um e-mail lido
+         a 375 px onde o preheader aparece (Outlook antigo, visualização crua) — achado E-5
+         da auditoria de 07/09/2026. `mso-hide:all` é o `display:none` do Outlook de mesa. --}}
+    <div style="display:none; font-size:1px; color:#EFF4F1; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all;">
+        {{ $preheader }}
+        &#8199;&#65279;&#847; &#8199;&#65279;&#847; &#8199;&#65279;&#847; &#8199;&#65279;&#847;
     </div>
 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#EFF4F1;">

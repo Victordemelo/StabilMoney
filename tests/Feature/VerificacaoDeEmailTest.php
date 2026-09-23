@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Notifications\VerificacaoDeEmail;
 use App\Support\Mailer;
-use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -195,7 +195,7 @@ class VerificacaoDeEmailTest extends TestCase
         $this->assertNull($user->email_verified_at, 'Com mailer, o usuário novo confirma o e-mail.');
         $this->assertFalse($user->hasVerifiedEmail());
 
-        Notification::assertSentTo($user, VerifyEmail::class);
+        Notification::assertSentTo($user, VerificacaoDeEmail::class);
     }
 
     /**
@@ -212,7 +212,7 @@ class VerificacaoDeEmailTest extends TestCase
         $dependente = $this->criarDependente($titular);
 
         $this->assertNotNull($dependente->email_verified_at);
-        Notification::assertNotSentTo($dependente, VerifyEmail::class);
+        Notification::assertNotSentTo($dependente, VerificacaoDeEmail::class);
 
         $this->actingAs($dependente)->get(route('dashboard'))->assertOk();
     }

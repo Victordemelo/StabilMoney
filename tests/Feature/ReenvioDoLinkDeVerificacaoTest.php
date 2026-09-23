@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use Illuminate\Auth\Notifications\VerifyEmail;
+use App\Notifications\VerificacaoDeEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -109,7 +109,7 @@ class ReenvioDoLinkDeVerificacaoTest extends TestCase
             ->assertRedirect(route('verification.notice'))
             ->assertSessionHas('status', 'verification-link-sent');
 
-        Notification::assertSentToTimes($user, VerifyEmail::class, 1);
+        Notification::assertSentToTimes($user, VerificacaoDeEmail::class, 1);
         $this->assertNull($user->fresh()->email_verified_at, 'Enviar o link não confirma nada sozinho.');
     }
 

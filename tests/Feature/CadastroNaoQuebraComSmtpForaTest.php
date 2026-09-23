@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use Illuminate\Auth\Notifications\VerifyEmail;
+use App\Notifications\VerificacaoDeEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -168,7 +168,7 @@ class CadastroNaoQuebraComSmtpForaTest extends TestCase
 
         $this->assertNull($user->email_verified_at, 'Com entrega possível, a confirmação continua obrigatória.');
 
-        Notification::assertSentTo($user, VerifyEmail::class);
+        Notification::assertSentTo($user, VerificacaoDeEmail::class);
 
         $this->actingAs($user)->get(route('dashboard'))
             ->assertRedirect(route('verification.notice'));
@@ -188,6 +188,6 @@ class CadastroNaoQuebraComSmtpForaTest extends TestCase
 
         $user = User::where('email', self::EMAIL)->firstOrFail();
 
-        Notification::assertSentToTimes($user, VerifyEmail::class, 1);
+        Notification::assertSentToTimes($user, VerificacaoDeEmail::class, 1);
     }
 }

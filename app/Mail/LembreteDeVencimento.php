@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\TextoSemMarcacao;
 use App\Models\User;
 use App\Support\Brl;
 use Carbon\CarbonInterface;
@@ -30,7 +31,7 @@ use Illuminate\Queue\SerializesModels;
  */
 class LembreteDeVencimento extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, TextoSemMarcacao;
 
     /**
      * @param  list<Item>  $vencidas
@@ -141,10 +142,5 @@ class LembreteDeVencimento extends Mailable
             'quando' => self::quando((int) $i['diasRestantes']).' · '.$i['due']->format('d/m/Y'),
             'valor' => Brl::format($i['valor']),
         ], $itens);
-    }
-
-    private static function semMarcacao(string $html): string
-    {
-        return trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5));
     }
 }

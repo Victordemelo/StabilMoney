@@ -335,7 +335,10 @@ class ProfileController extends Controller
         // continuava com a conta de pé.
         $contexto = ContextoDeSeguranca::doRequest($request);
 
-        $avisos = [[$user, AlertaDeSeguranca::contaExcluida($user, $contexto)]];
+        // O aviso ao titular NOMEIA quem perdeu o acesso junto: o modal mostrou os nomes, mas
+        // o e-mail é o que fica — e, se a exclusão não partiu dele, é por ele que o dono
+        // descobre que a família inteira ficou sem login.
+        $avisos = [[$user, AlertaDeSeguranca::contaExcluida($user, $contexto, $dependentes->pluck('name')->all())]];
 
         foreach ($dependentes as $dependente) {
             $avisos[] = [$dependente, new ContaDaFamiliaExcluida($dependente->name, $user->name, $contexto->quando)];

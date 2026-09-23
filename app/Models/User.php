@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Mail\ConfirmarNovoEmail;
+use App\Notifications\RedefinicaoDeSenha;
+use App\Notifications\VerificacaoDeEmail;
 use App\Support\BrowserSessions;
 use App\Support\ImageMetadata;
 use Database\Factories\UserFactory;
@@ -262,6 +264,25 @@ class User extends Authenticatable implements MustVerifyEmail
         Storage::disk(self::AVATAR_DISK)->put($caminho, $limpo);
 
         $this->avatar_path = $caminho;
+    }
+
+    /**
+     * O link de confirmação do cadastro, no layout do app — e não no modelo padrão do
+     * framework, sem marca e desmontado pelo Outlook (achado E-2 da auditoria de 07/09/2026).
+     *
+     * ⚠️ Lança exceção quando o SMTP recusa o endereço, como a notificação do framework
+     * lançava: quem chama (RegisteredUserController, EmailVerificationNotificationController)
+     * passa por `Notificador::tentarEnviar()` e decide o que fazer com a falha.
+     */
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new VerificacaoDeEmail);
+    }
+
+    /** O link de "Esqueci a senha", no layout do app (mesmo achado E-2). Chamado pelo PasswordBroker. */
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new RedefinicaoDeSenha($token));
     }
 
     public function accounts(): HasMany

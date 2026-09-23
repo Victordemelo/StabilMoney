@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\TextoSemMarcacao;
 use App\Models\AdminAuditLog;
 use App\Support\ContextoDeSeguranca;
 use Illuminate\Bus\Queueable;
@@ -22,7 +23,7 @@ use Illuminate\Queue\SerializesModels;
  */
 class AlertaDoPainel extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, TextoSemMarcacao;
 
     public function __construct(
         public string $acao,
@@ -56,7 +57,9 @@ class AlertaDoPainel extends Mailable
                 'titulo' => $this->titulo(),
                 'preheader' => $this->titulo().' no painel do Stabil Money.',
                 'paragrafos' => $this->paragrafos(),
-                'paragrafosTexto' => array_map('strip_tags', $this->paragrafos()),
+                // `semMarcacao`, e não só `strip_tags`: o alvo entra nos parágrafos por `e()`, e
+                // sem decodificar o texto puro saía `&amp;lt;email@x&amp;gt;` (achado E-1).
+                'paragrafosTexto' => array_map(self::semMarcacao(...), $this->paragrafos()),
                 'detalhes' => $detalhes,
                 'acaoUrl' => null,
                 'acaoRotulo' => null,

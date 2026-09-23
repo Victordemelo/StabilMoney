@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\TextoSemMarcacao;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -28,7 +29,7 @@ use Illuminate\Mail\Mailables\Envelope;
  */
 class ContaDaFamiliaExcluida extends Mailable
 {
-    use Queueable;
+    use Queueable, TextoSemMarcacao;
 
     public function __construct(
         public string $dependenteNome,
@@ -88,10 +89,5 @@ class ContaDaFamiliaExcluida extends Mailable
                 'rodapeNotaTexto' => 'Stabil Money — aviso automático sobre a conta-família de que você fazia parte.',
             ],
         );
-    }
-
-    private static function semMarcacao(string $html): string
-    {
-        return trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5));
     }
 }

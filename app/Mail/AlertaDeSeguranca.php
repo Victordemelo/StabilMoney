@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\TextoSemMarcacao;
 use App\Models\User;
 use App\Support\ContextoDeSeguranca;
 use Illuminate\Bus\Queueable;
@@ -31,7 +32,7 @@ use Illuminate\Queue\SerializesModels;
  */
 class AlertaDeSeguranca extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, TextoSemMarcacao;
 
     /**
      * @param  list<string>  $paragrafos  HTML confiável (ver aviso do docblock)
@@ -317,17 +318,60 @@ class AlertaDeSeguranca extends Mailable
         );
     }
 
-    public static function contaExcluida(User $user, ContextoDeSeguranca $contexto): self
+    /**
+     * O último aviso ao TITULAR (ou ao dependente que apagou o próprio login).
+     *
+     * Excluir o titular apaga junto o login de cada dependente (hook `deleting` do User), e o
+     * aviso dizia só "sua conta foi excluída". Quem apagou sem querer — ou quem NÃO apagou, se
+     * a conta estava com outra pessoa — ficava sem saber que a família inteira perdeu o
+     * acesso, e a quem precisava explicar isso. Agora os dependentes são nomeados.
+     *
+     * @param  list<string>  $dependentes  nomes de quem perdeu o acesso junto (ver
+     *                                     ProfileController::dependentesQuePerdemOAcesso),
+     *                                     capturados ANTES do delete: depois dele as linhas
+     *                                     não existem mais
+     */
+    public static function contaExcluida(User $user, ContextoDeSeguranca $contexto, array $dependentes = []): self
     {
+        // O dependente leva só o que é dele: o dinheiro é da família e fica com o titular. Dizer
+        // a ele que "os lançamentos, contas e metas" foram apagados era falso — o mesmo engano
+        // que o card de exclusão cometia (profile/partials/delete-user-form).
+        $paragrafos = $user->isTitular()
+            ? ['Sua conta no Stabil Money foi <strong>excluída</strong>, junto com os lançamentos, contas, metas e a foto de perfil, como promete a nossa Política de Privacidade.']
+            : [
+                'Sua conta no Stabil Money foi <strong>excluída</strong>: o seu login, a sua foto de perfil e os seus dados pessoais foram apagados, como promete a nossa Política de Privacidade.',
+                'O dinheiro da família — contas, lançamentos, metas e investimentos — não foi apagado: continua com <strong>'
+                    .e($user->titular?->name ?? 'o titular').'</strong>, que responde pela conta.',
+            ];
+
+        $quantos = count($dependentes);
+
+        if ($quantos > 0) {
+            $nomes = collect($dependentes)
+                ->map(fn (string $nome) => '<strong>'.e($nome).'</strong>')
+                ->join(', ', ' e ');
+
+            $paragrafos[] = $quantos === 1
+                ? 'Junto com ela foi apagado também o acesso de '.$nomes.', que era dependente da sua conta-família: '
+                    .'o login, a foto de perfil e os dados pessoais. Essa pessoa não consegue mais entrar no app, '
+                    .'e também recebe um aviso por e-mail.'
+                : 'Junto com ela foram apagados também os acessos de quem era dependente da sua conta-família: '
+                    .$nomes.'. O login, a foto de perfil e os dados pessoais de cada um foram apagados; ninguém '
+                    .'mais entra no app com eles, e cada um também recebe um aviso por e-mail.';
+        }
+
+        $paragrafos[] = 'Este é o último e-mail que você recebe de nós. Obrigado por ter usado o app.';
+
         return new self(
             user: $user,
             assunto: 'Sua conta do Stabil Money foi excluída',
             titulo: 'Conta excluída',
-            preheader: 'Sua conta e seus dados foram removidos.',
-            paragrafos: [
-                'Sua conta no Stabil Money foi <strong>excluída</strong>, junto com os lançamentos, contas, metas e a foto de perfil, como promete a nossa Política de Privacidade.',
-                'Este é o último e-mail que você recebe de nós. Obrigado por ter usado o app.',
-            ],
+            preheader: match (true) {
+                $quantos === 0 => 'Sua conta e seus dados foram removidos.',
+                $quantos === 1 => 'Sua conta e o acesso de 1 dependente foram removidos.',
+                default => 'Sua conta e o acesso de '.$quantos.' dependentes foram removidos.',
+            },
+            paragrafos: $paragrafos,
             detalhes: $contexto->paraDetalhes(),
             // Sem "entre na sua conta": ela não existe mais. A única saída é o contato humano.
             rodapeAviso: 'Não foi você? A exclusão é definitiva e não temos como desfazê-la, '
@@ -355,11 +399,6 @@ class AlertaDeSeguranca extends Mailable
                 'rodapeAvisoTexto' => $this->rodapeAviso ? self::semMarcacao($this->rodapeAviso) : null,
             ],
         );
-    }
-
-    private static function semMarcacao(string $html): string
-    {
-        return trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5));
     }
 
     /**

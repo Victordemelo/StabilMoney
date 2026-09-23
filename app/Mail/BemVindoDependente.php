@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Mail\Concerns\TextoSemMarcacao;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -26,7 +27,7 @@ use Illuminate\Queue\SerializesModels;
  */
 class BemVindoDependente extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, TextoSemMarcacao;
 
     public function __construct(
         public User $dependente,
@@ -64,10 +65,7 @@ class BemVindoDependente extends Mailable
                 'preheader' => $this->titular->name.' criou uma conta para você no Stabil Money.',
                 'saudacao' => 'Olá, '.$this->dependente->name.'.',
                 'paragrafos' => $paragrafos,
-                'paragrafosTexto' => array_map(
-                    fn (string $p) => trim(html_entity_decode(strip_tags($p), ENT_QUOTES | ENT_HTML5)),
-                    $paragrafos,
-                ),
+                'paragrafosTexto' => array_map(self::semMarcacao(...), $paragrafos),
                 'detalhes' => [],
                 'acaoUrl' => route('login'),
                 'acaoRotulo' => 'Entrar no Stabil Money',
