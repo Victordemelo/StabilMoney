@@ -245,19 +245,17 @@ class ExclusaoDeContaNaoFicaPelaMetadeTest extends TestCase
     public function test_falha_no_meio_da_exclusao_pelo_painel_nao_apaga_nada_nem_registra(): void
     {
         Mail::fake();
+        Exceptions::fake();
         $this->falharNoSegundoDependente();
 
-        // A exceção sobe até o topo (no painel vira um 500): sem tratamento de exceção
-        // aqui, o teste não depende da página de erro, que é de outra frente.
-        $this->withoutExceptionHandling();
+        // Desde 23/09/2026 a falha não sobe mais como HTTP 500: vai para o log e o admin recebe
+        // o recado "nada foi apagado" (PainelAdminExclusaoQueFalhaTest cobre o texto). O que
+        // este teste guarda é o lado do banco E do disco: nada pela metade.
+        $this->comoAdmin()
+            ->delete(route('painel.excluir', $this->titular->id), ['confirmacao' => 'titular@familia.test'])
+            ->assertSessionHasErrors('excluir');
 
-        try {
-            $this->comoAdmin()->delete(route('painel.excluir', $this->titular->id), ['confirmacao' => 'titular@familia.test']);
-            $this->fail('A falha simulada deveria ter subido.');
-        } catch (\RuntimeException $e) {
-            $this->assertStringContainsString('Falha simulada', $e->getMessage());
-        }
-
+        Exceptions::assertReported(fn (\RuntimeException $e) => str_contains($e->getMessage(), 'Falha simulada'));
         $this->assertNadaFoiApagado();
         $this->assertDatabaseMissing('admin_audit_logs', ['acao' => AdminAuditLog::EXCLUIU]);
         Mail::assertNothingSent();
@@ -277,15 +275,13 @@ class ExclusaoDeContaNaoFicaPelaMetadeTest extends TestCase
             }
         });
 
-        $this->withoutExceptionHandling();
+        Exceptions::fake();
 
-        try {
-            $this->comoAdmin()->delete(route('painel.excluir', $this->titular->id), ['confirmacao' => 'titular@familia.test']);
-            $this->fail('A falha simulada deveria ter subido.');
-        } catch (\RuntimeException $e) {
-            $this->assertStringContainsString('histórico', $e->getMessage());
-        }
+        $this->comoAdmin()
+            ->delete(route('painel.excluir', $this->titular->id), ['confirmacao' => 'titular@familia.test'])
+            ->assertSessionHasErrors('excluir');
 
+        Exceptions::assertReported(fn (\RuntimeException $e) => str_contains($e->getMessage(), 'histórico'));
         $this->assertNadaFoiApagado();
         Mail::assertNothingSent();
     }

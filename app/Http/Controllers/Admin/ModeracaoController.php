@@ -122,19 +122,35 @@ class ModeracaoController extends Controller
         //
         // Sem `attempts`: repetir o closure reusaria models que a tentativa desfeita já
         // marcou como apagados, e o `delete()` deles viraria no-op.
-        DB::transaction(function () use ($user, $admin, $request, $descricao) {
-            $user->delete();
+        try {
+            DB::transaction(function () use ($user, $admin, $request, $descricao) {
+                $user->delete();
 
-            // O model ainda carrega o id depois do delete: é ele que vai em
-            // `target_user_id` (sem FK, para a linha sobreviver ao alvo).
-            AdminAudit::registrar(
-                AdminAuditLog::EXCLUIU,
-                $admin,
-                $request,
-                $user,
-                alvoDescricao: $descricao,
-            );
-        });
+                // O model ainda carrega o id depois do delete: é ele que vai em
+                // `target_user_id` (sem FK, para a linha sobreviver ao alvo).
+                AdminAudit::registrar(
+                    AdminAuditLog::EXCLUIU,
+                    $admin,
+                    $request,
+                    $user,
+                    alvoDescricao: $descricao,
+                );
+            });
+        } catch (\Throwable $e) {
+            // Antes a falha subia como um 500 sem explicação. A exceção continua indo para
+            // o log; o admin recebe o que aconteceu, no mesmo tom do ProfileController::destroy.
+            report($e);
+
+            // "Nada foi apagado" só se for verdade. O rollback devolve tudo o que é de banco,
+            // e a foto e o e-mail rodam depois do commit — mas justamente por isso uma falha
+            // vinda deles chegaria aqui com a exclusão JÁ feita, e o admin tentaria de novo
+            // apagar quem não existe mais. Confere-se no banco, não se supõe.
+            if (User::whereKey($user->getKey())->exists()) {
+                throw ValidationException::withMessages([
+                    'excluir' => 'Não conseguimos excluir esta conta agora, e nada foi apagado. Tente de novo em instantes.',
+                ]);
+            }
+        }
 
         return redirect()->route('painel.pessoas')
             ->with('status', 'Conta de '.$descricao.' excluída definitivamente.');
