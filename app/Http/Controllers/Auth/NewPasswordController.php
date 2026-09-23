@@ -47,6 +47,22 @@ class NewPasswordController extends Controller
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user) use ($request) {
+                // Senha nova igual à atual é recusada, como na troca pelas Configurações. Aqui
+                // pesa mais: a redefinição é o caminho de quem perdeu a conta para um invasor
+                // — ela derruba TODAS as sessões (abaixo) —, e redefinir para a MESMA senha,
+                // que o invasor conhece, deixava a porta aberta com cara de trancada.
+                //
+                // Dentro do callback de propósito: o broker só o chama com o token VÁLIDO.
+                // Fora dele, qualquer um que soubesse um e-mail testaria candidatas à senha
+                // da conta sem ter o link. Quem tem o link já controla a caixa de e-mail (e
+                // poderia simplesmente trocar a senha); a exceção sobe antes de o broker
+                // apagar o token, então o dono tenta de novo com outra senha sem pedir outro.
+                if (Hash::check($request->password, $user->password)) {
+                    throw ValidationException::withMessages([
+                        'password' => PasswordController::MENSAGEM_SENHA_REPETIDA,
+                    ]);
+                }
+
                 $user->forceFill([
                     'password' => Hash::make($request->password),
                     // Token novo = todo cookie de "lembrar de mim" emitido antes deixa de

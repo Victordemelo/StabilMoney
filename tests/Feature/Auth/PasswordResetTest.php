@@ -59,8 +59,10 @@ class PasswordResetTest extends TestCase
             $response = $this->post('/reset-password', [
                 'token' => $notification->token,
                 'email' => $user->email,
-                'password' => 'password',
-                'password_confirmation' => 'password',
+                // Diferente da senha da factory ('password'): redefinir para a MESMA senha é
+                // recusado (SenhaNovaIgualAAtualTest).
+                'password' => 'nova-senha-redefinida',
+                'password_confirmation' => 'nova-senha-redefinida',
             ]);
 
             $response

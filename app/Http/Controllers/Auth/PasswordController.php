@@ -16,14 +16,24 @@ use Illuminate\Validation\Rules\Password;
 
 class PasswordController extends Controller
 {
+    /** Também usada pelo NewPasswordController: as duas portas dizem a mesma coisa. */
+    public const MENSAGEM_SENHA_REPETIDA = 'A nova senha precisa ser diferente da atual.';
+
     /**
      * Update the user's password.
      */
     public function update(Request $request): RedirectResponse
     {
+        // `different:current_password`: a senha nova igual à atual era aceita, e a troca
+        // derrubava as outras sessões e mandava o alerta "sua senha foi alterada" sem que
+        // nada tivesse mudado. Pior: quem troca a senha por suspeitar de invasão e digita a
+        // mesma achava que tinha trancado o invasor para fora. Comparar os dois campos basta
+        // — o `current_password` acima já confere que o primeiro é a senha de verdade.
         $validated = $request->validateWithBag('updatePassword', [
             'current_password' => ['required', 'current_password'],
-            'password' => ['required', Password::defaults(), 'confirmed'],
+            'password' => ['required', Password::defaults(), 'confirmed', 'different:current_password'],
+        ], [
+            'password.different' => self::MENSAGEM_SENHA_REPETIDA,
         ]);
 
         $user = $request->user();
