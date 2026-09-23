@@ -430,7 +430,7 @@ class TransactionController extends Controller
                 return back()->withErrors(['transaction' => $motivo])->withInput();
             }
 
-            DB::transaction(function () use ($transaction, $data) {
+            DB::transaction(function () use ($transaction, $data, $funding) {
                 $pontas = Transaction::with('account')
                     ->where('user_id', $transaction->user_id)
                     ->where('transfer_group_id', $transaction->transfer_group_id)
@@ -448,6 +448,10 @@ class TransactionController extends Controller
                         // deixar as duas linhas mudas no extrato.
                         'description' => $descricao !== '' ? $descricao : $this->descricaoPadraoDaPonta($ponta, $outra),
                     ]);
+
+                    // A saída pode ter sido coberta por um resgate: ele acompanha a
+                    // data e o autor dela, como numa despesa comum (R2-7).
+                    $funding->acompanharDespesa($ponta);
                 }
             });
 
@@ -473,8 +477,17 @@ class TransactionController extends Controller
         // voltaram para o investimento"), num resgate que já tinha acontecido no
         // banco de verdade. As guardas do topo continuam valendo — elas rodaram
         // antes de chegar aqui.
+        //
+        // O resgate ligado é PRESERVADO, mas não congelado: se a data ou o autor da
+        // despesa mudaram, ele acompanha (R2-7) — senão a spark do saldo mostrava a
+        // saída num dia e a reposição em outro. Na mesma transação de banco, para a
+        // despesa e o resgate nunca discordarem da data. Sem `attempts`: repetir o
+        // `update()` num model que já se dá por gravado não grava nada (ver `$gravar`).
         if (! $this->mexeNoDinheiro($transaction, $data)) {
-            $transaction->update($data);
+            DB::transaction(function () use ($transaction, $data, $funding) {
+                $transaction->update($data);
+                $funding->acompanharDespesa($transaction);
+            });
 
             return redirect()->route('transactions.index')
                 ->with('status', 'Transação atualizada.');

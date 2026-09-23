@@ -10,6 +10,7 @@ use App\Models\InvestmentContribution;
 use App\Models\Transaction;
 use App\Support\Brl;
 use App\Support\FundingSource;
+use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Database\DetectsConcurrencyErrors;
 use Illuminate\Support\Facades\DB;
@@ -315,10 +316,85 @@ class FundingService
             'made_by_user_id' => $madeByUserId,
             'type' => 'resgate',
             'amount' => $faltante,
-            'date' => $date ?? now()->toDateString(),
+            'date' => $this->dataDoResgate($date),
         ]);
 
         return $transacao;
+    }
+
+    /**
+     * Data do resgate que cobre uma despesa: a da própria despesa, mas NUNCA no
+     * futuro — a menor entre as duas (R2-7 e R2-8 da auditoria de 02/09/2026, rodada 2).
+     *
+     * Na data da despesa, porque é o que faz a linha do saldo fechar: a saída e o
+     * resgate que a cobre caem no MESMO dia da spark e se anulam ali. Nunca no
+     * futuro, porque o `aplicado` do investimento e o `reserved` da conta somam
+     * tudo sem olhar data — o resgate já vale HOJE. Um resgate datado em 2027 (a
+     * despesa lançada adiantada) era a "sexta porta" de data futura: as cinco
+     * portas de aporte/resgate recusam isso, e a spark (que olha data) discordava
+     * do stat (que não olha).
+     *
+     * A mesma regra vale quando a despesa muda de data depois (`acompanharDespesa`).
+     */
+    private function dataDoResgate(?string $dataDaDespesa): string
+    {
+        $hoje = CarbonImmutable::today();
+
+        if ($dataDaDespesa === null || trim($dataDaDespesa) === '') {
+            return $hoje->toDateString();
+        }
+
+        $data = CarbonImmutable::parse($dataDaDespesa)->startOfDay();
+
+        return ($data->greaterThan($hoje) ? $hoje : $data)->toDateString();
+    }
+
+    /**
+     * O resgate que financiou uma despesa ACOMPANHA a data e o autor dela quando
+     * eles mudam numa edição que não mexe no dinheiro (descrição, categoria, data,
+     * autor — ver `TransactionController::mexeNoDinheiro`).
+     *
+     * Antes, corrigir só a data de uma despesa financiada deixava o resgate na data
+     * antiga (R2-7): a spark do saldo mostrava a saída num dia e a reposição em
+     * outro — um vermelho que a conta nunca teve, entre as duas datas. A data nova
+     * segue a regra de `dataDoResgate`: a da despesa, nunca no futuro.
+     *
+     * Só mexe no que MUDOU na despesa (`wasChanged`), então chame logo depois de
+     * gravá-la. Uma edição só da descrição não move o resgate de uma despesa datada
+     * no futuro para "hoje" à toa. O valor nunca é tocado aqui: edição que muda
+     * valor, conta ou tipo passa pela reconciliação (`estornarFonte` + `spend`).
+     *
+     * Metas e investimentos, como no `estornarFonte`: os dois gravam `transaction_id`.
+     *
+     * @return int quantas movimentações foram ajustadas
+     */
+    public function acompanharDespesa(Transaction $despesa): int
+    {
+        $campos = [];
+
+        if ($despesa->wasChanged('date')) {
+            $campos['date'] = $this->dataDoResgate($despesa->date?->toDateString());
+        }
+
+        if ($despesa->wasChanged('made_by_user_id')) {
+            $campos['made_by_user_id'] = $despesa->made_by_user_id;
+        }
+
+        if ($campos === [] || ! $despesa->getKey()) {
+            return 0;
+        }
+
+        // Um a um (são um ou dois por despesa), e não `update()` em massa: assim a
+        // data passa pelo cast do model e fica gravada no mesmo formato das
+        // movimentações criadas pelo `create()`.
+        $movimentos = InvestmentContribution::where('transaction_id', $despesa->getKey())->get()
+            ->concat(GoalContribution::where('transaction_id', $despesa->getKey())->get());
+
+        foreach ($movimentos as $movimento) {
+            $movimento->update($campos);
+        }
+
+        return $movimentos->count();
     }
 
     /**
