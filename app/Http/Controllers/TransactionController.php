@@ -8,6 +8,7 @@ use App\Http\Requests\StoreTransferRequest;
 use App\Http\Requests\UpdateTransactionRequest;
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\CreditSettlement;
 use App\Models\EndedRecurrence;
 use App\Models\Transaction;
 use App\Models\User;
@@ -637,10 +638,14 @@ class TransactionController extends Controller
         //    linhas com `paid_at`, então editar o valor aqui muda uma dívida que já
         //    foi quitada sem o cartão registrar nada — e a quitação que a pagou
         //    continua com o valor velho.
+        //    Quitada PELO CRÉDITO de um estorno, a saída é outra ("Desfazer quitação"):
+        //    não há pagamento a estornar (R2-4 da auditoria financeira, rodada 2).
         if ($transaction->paid_at && $transaction->account?->isCard()) {
-            return 'Esta compra já foi paga na fatura do cartão '.$transaction->account->name
-                .' e não pode ser editada. Estorne o pagamento da fatura na tela Pagar despesas, '
-                .'corrija a compra e pague de novo.';
+            return $transaction->credit_settlement_id
+                ? CreditSettlement::recusaParaLinha($transaction, 'editar')
+                : 'Esta compra já foi paga na fatura do cartão '.$transaction->account->name
+                    .' e não pode ser editada. Estorne o pagamento da fatura na tela Pagar despesas, '
+                    .'corrija a compra e pague de novo.';
         }
 
         // 4) PAGAMENTO DE CONTA FIXA virando RECEITA: o dinheiro voltaria para o
@@ -856,9 +861,13 @@ class TransactionController extends Controller
         // dívida do outro lado. Mesma família das guardas 1 e 3 da edição.
         if ($transaction->paid_at && $transaction->account?->isCard()) {
             return back()->withErrors([
-                'transaction' => 'Esta compra já foi paga na fatura do cartão '.$transaction->account->name
-                    .' e não pode ser excluída — o pagamento continuaria no extrato sem a compra que o '
-                    .'originou. Use "Estornar pagamento" na tela Pagar despesas primeiro.',
+                // Quitada pelo crédito de um estorno: não há pagamento no extrato, e
+                // quem desfaz é o "Desfazer quitação" (R2-4).
+                'transaction' => $transaction->credit_settlement_id
+                    ? CreditSettlement::recusaParaLinha($transaction, 'excluir')
+                    : 'Esta compra já foi paga na fatura do cartão '.$transaction->account->name
+                        .' e não pode ser excluída — o pagamento continuaria no extrato sem a compra que o '
+                        .'originou. Use "Estornar pagamento" na tela Pagar despesas primeiro.',
             ]);
         }
 

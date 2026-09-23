@@ -217,6 +217,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Desfaz o pagamento: as compras voltam para a fatura e o dinheiro, para a conta.
     Route::delete('/faturas/quitacao/{transaction}', [FaturaController::class, 'estornarFatura'])
         ->name('faturas.fatura.estornar');
+    // Fatura que um estorno cobriu EXATAMENTE (líquido zero): encerrada sem tirar
+    // dinheiro de conta nenhuma — e desfeita do mesmo jeito, para a compra voltar a
+    // poder ser corrigida ou excluída. Sem model binding de propósito: o controller
+    // busca já escopado na família, e o de outra família dá o 404 de um id que não
+    // existe.
+    Route::post('/faturas/cartao/{cartao}/quitar-pelo-credito', [FaturaController::class, 'quitarFaturaPeloCredito'])
+        ->whereNumber('cartao')
+        ->name('faturas.fatura.quitar-pelo-credito');
+    Route::delete('/faturas/quitacao-pelo-credito/{quitacao}', [FaturaController::class, 'desfazerQuitacaoPeloCredito'])
+        ->whereNumber('quitacao')
+        ->name('faturas.fatura.desfazer-quitacao');
 
     // Contas fixas mensais (condomínio, aluguel, carro…). A listagem não tem
     // rota própria: as ocorrências aparecem como um bloco de /faturas.

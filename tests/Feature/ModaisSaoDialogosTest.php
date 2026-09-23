@@ -30,8 +30,8 @@ use Tests\TestCase;
  * vez na página — com um modal por conta/meta/ativo/dependente, dois `aria-labelledby`
  * apontando para o mesmo id dariam a todos o nome do primeiro.
  *
- * Fora daqui, de propósito: os modais de `/faturas` (a view está com outra frente de
- * trabalho e ainda não passou por isto).
+ * Os cinco modais de `/faturas` entraram em 23/09/2026 — o comportamento deles está em
+ * `tests/js/faturas.test.js`.
  */
 class ModaisSaoDialogosTest extends TestCase
 {
@@ -141,6 +141,23 @@ class ModaisSaoDialogosTest extends TestCase
             $this->assertFalse($campo->hasAttribute('hidden'), '#'.$campo->getAttribute('id').' não pode ser hidden');
             $this->assertStringContainsString('sr-only', $campo->getAttribute('class'));
         }
+    }
+
+    public function test_os_cinco_modais_de_pagar_despesas_sao_dialogos(): void
+    {
+        // Sem conta de caixa, "Pagar fatura" e "Pagar conta fixa" nem são renderizados.
+        Account::factory()->for($this->user)->create(['type' => 'checking', 'name' => 'Corrente']);
+
+        $xp = $this->pagina(route('faturas.index'));
+
+        $this->assertModaisSaoDialogos($xp, [
+            'lancarModal', 'payInvoiceModal', 'fixaPagarModal', 'fixaNovaModal', 'fixaEditarModal',
+        ]);
+        $this->assertSame('Lançar despesa', $this->nomeDoDialogo($xp, 'lancarModal'));
+        $this->assertSame('Pagar fatura', $this->nomeDoDialogo($xp, 'payInvoiceModal'));
+        $this->assertSame('Pagar conta fixa', $this->nomeDoDialogo($xp, 'fixaPagarModal'));
+        $this->assertSame('Nova conta fixa', $this->nomeDoDialogo($xp, 'fixaNovaModal'));
+        $this->assertSame('Editar conta fixa', $this->nomeDoDialogo($xp, 'fixaEditarModal'));
     }
 
     public function test_o_modal_de_excluir_conta_tem_o_papel_no_painel_e_nao_no_veu(): void

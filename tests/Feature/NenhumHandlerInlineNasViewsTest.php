@@ -17,10 +17,11 @@ use Tests\TestCase;
  * Confirmação passa por `data-confirmar` (sm/confirmar.js); qualquer outro comportamento, por
  * um ouvinte registrado num script que leve o nonce.
  *
- * ⚠️ `faturas/index.blade.php` está na lista de pendências: tem quatro `onsubmit` (excluir conta
- * fixa, estornar pagamento, remover estorno, remover despesa) e está com trabalho não commitado
- * de outra sessão (o redesenho). Sai da lista junto com a correção — o segundo teste avisa
- * quando ela já não for necessária.
+ * A lista de pendências está VAZIA desde 23/09/2026: a última view nela, `faturas/index.blade.php`,
+ * trocou os quatro `onsubmit` (excluir conta fixa, estornar pagamento, remover compra/estorno,
+ * remover despesa) por `data-confirmar` — o que ela renderiza está em
+ * `ExclusoesEmPagarDespesasPedemConfirmacaoTest`. A lista fica para a próxima vez que uma view
+ * precisar esperar: o segundo teste avisa quando ela sobrar.
  */
 class NenhumHandlerInlineNasViewsTest extends TestCase
 {
@@ -32,9 +33,7 @@ class NenhumHandlerInlineNasViewsTest extends TestCase
     private const HANDLER_INLINE = '/(?:^|(?<=\s))on[a-z]+\s*=\s*["\']/i';
 
     /** @var list<string> */
-    private const PENDENTES = [
-        'faturas/index.blade.php',
-    ];
+    private const PENDENTES = [];
 
     public function test_nenhuma_view_usa_handler_de_evento_inline(): void
     {
@@ -64,6 +63,14 @@ class NenhumHandlerInlineNasViewsTest extends TestCase
 
     public function test_a_lista_de_pendencias_so_tem_view_que_ainda_precisa_dela(): void
     {
+        if (self::PENDENTES === []) {
+            // Nada pendente — o estado certo. Sem isto o PHPUnit marcaria o teste como
+            // "arriscado" por não conferir nada.
+            $this->expectNotToPerformAssertions();
+
+            return;
+        }
+
         foreach (self::PENDENTES as $relativo) {
             $this->assertMatchesRegularExpression(
                 self::HANDLER_INLINE,

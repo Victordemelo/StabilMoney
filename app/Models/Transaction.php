@@ -37,6 +37,10 @@ class Transaction extends Model
         // Aponta para a transação de QUITAÇÃO que pagou esta compra. É o que
         // torna o estorno da fatura exato (ver migration add_settled_by_id).
         'settled_by_id',
+        // O mesmo papel quando a fatura foi quitada PELO CRÉDITO de um estorno,
+        // sem saída de caixa: aponta para a `CreditSettlement` que a quitou, e é
+        // por ela que o "Desfazer quitação" é exato.
+        'credit_settlement_id',
         'competence',
         'installment_no',
         'installments',

@@ -3,15 +3,22 @@
 //
 // O app é server-routed — o lançamento é um <form> Laravel real (POST faturas.lancar)
 // e a remoção de compra também (DELETE via form inline). Este módulo cuida só da UI:
-//   • abrir/fechar o modal de lançar (.modal-scrim → classe .open), com Esc e clique no véu;
+//   • abrir/fechar os CINCO modais da tela (lançar, pagar fatura, pagar conta fixa,
+//     nova conta fixa, editar conta fixa) como DIÁLOGOS (sm/dialogo.js: foco dentro,
+//     Tab preso, Esc fecha só o do topo, resto da página inerte e o foco de volta a quem
+//     abriu), com clique no véu;
 //   • o TOGGLE de modo (À vista / Parcelado / Recorrente): só faz sentido em cartão —
 //     quando o método não é cartão, força "à vista" e desabilita os outros (espelha
 //     lanc.syncMethod/syncMode do finance.js); o campo de parcelas aparece só em parcelado;
 //   • o hint "Nx de R$ Y (sem juros)" recalculado ao mudar valor/parcelas (lanc.syncHint);
 //   • reabrir o modal com os dados digitados quando a validação do servidor volta com erro.
 //
+// O "Tem certeza?" das exclusões da tela NÃO mora aqui: é o `data-confirmar` de cada
+// formulário (sm/confirmar.js), que vale também sem este módulo.
+//
 // Só roda na tela de faturas (guard pelo modal de lançar da view).
 
+import { abrirDialogo, fecharDialogo } from './dialogo';
 import { enviarComFonte, respostaOk } from './funding';
 
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
@@ -36,6 +43,22 @@ function erroNoModal(modal, msg) {
 function limparErro(modal) {
     const box = modal.querySelector('[data-erro-pagamento]');
     if (box) box.hidden = true;
+}
+
+/**
+ * Liga um modal da tela ao utilitário de diálogo: fecha no clique no véu e nos botões
+ * de fechar (o X e o "Cancelar"). O Esc é do utilitário, que fecha só o diálogo do
+ * TOPO — com o "De onde sai esse dinheiro?" aberto por cima do "Pagar fatura", o
+ * primeiro Esc fecha só ele. Os ouvintes de Esc que cada modal prendia no documento
+ * somavam um a cada visita pelo pjax e fechavam tudo de uma vez.
+ *
+ * Devolve `fechar`, para quem precisa fechar por código (o pagamento que deu certo).
+ */
+function ligarFechamento(modal, seletorDosBotoes) {
+    const fechar = () => fecharDialogo(modal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) fechar(); });
+    $$(seletorDosBotoes, modal).forEach((btn) => btn.addEventListener('click', fechar));
+    return fechar;
 }
 
 /**
@@ -68,7 +91,10 @@ function ligarPagamentoAjax(form, modal, fechar) {
         const dados = new FormData(form);
         let resp;
         try {
-            resp = await enviarComFonte(form.action, dados);
+            // `retorno`: o modal de fonte abre POR CIMA deste, e ao fechar devolve o
+            // foco ao "Confirmar pagamento" (ou, com ele ainda desabilitado, a este
+            // diálogo — o utilitário resolve).
+            resp = await enviarComFonte(form.action, dados, { retorno: botao });
         } catch (_) {
             carregando(false);
             erroNoModal(modal, 'Sem conexão. Verifique sua internet e tente de novo.');
@@ -116,23 +142,16 @@ export function initFaturas() {
     const modal = document.getElementById('lancarModal');
     if (!modal) return;
 
-    const abrir = () => {
-        modal.classList.add('open');
-        const desc = document.getElementById('lanc-desc');
-        if (desc) setTimeout(() => desc.focus(), 120);
-    };
-    const fechar = () => modal.classList.remove('open');
+    // `gatilho` = o botão que abriu: recebe o foco de volta ao fechar. Vai explícito
+    // porque o Safari não dá foco a botão clicado com o mouse.
+    const abrir = (gatilho = null) => abrirDialogo(modal, { foco: '#lanc-desc', retorno: gatilho });
+    ligarFechamento(modal, '[data-lancar-close]');
 
     // ---- Abrir (botão do topo + botão do estado vazio) ----
     ['lancarBtn', 'lancarBtnVazio'].forEach((id) => {
         const el = document.getElementById(id);
-        if (el) el.addEventListener('click', abrir);
+        if (el) el.addEventListener('click', () => abrir(el));
     });
-
-    // ---- Fechar: véu, X e "Cancelar" ----
-    modal.addEventListener('click', (e) => { if (e.target === modal) fechar(); });
-    $$('[data-lancar-close]', modal).forEach((btn) => btn.addEventListener('click', fechar));
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fechar(); });
 
     // ---- Elementos do modal ----
     const methodSel   = document.getElementById('lanc-method');
@@ -209,8 +228,7 @@ export function initFaturas() {
         // Qual fatura: "aberto" (a do mês) ou "fechado" (a que já fechou/venceu).
         const payCiclo = payModal.querySelector('[data-pay-ciclo]');
         const payData = payModal.querySelector('#pay-data');
-        const abrirPay = () => payModal.classList.add('open');
-        const fecharPay = () => payModal.classList.remove('open');
+        const fecharPay = ligarFechamento(payModal, '[data-pay-close]');
 
         ligarPagamentoAjax(payForm, payModal, fecharPay);
 
@@ -230,11 +248,9 @@ export function initFaturas() {
                 else payData.removeAttribute('min');
                 payData.value = payData.max || payData.value;
             }
-            abrirPay();
+            // O foco entra em "Debitar de", o primeiro campo.
+            abrirDialogo(payModal, { retorno: btn });
         }));
-        payModal.addEventListener('click', (e) => { if (e.target === payModal) fecharPay(); });
-        $$('[data-pay-close]', payModal).forEach((b) => b.addEventListener('click', fecharPay));
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharPay(); });
     }
 
     // ---- Modal "Pagar conta fixa" (uma competência de uma conta mensal) ----
@@ -244,7 +260,7 @@ export function initFaturas() {
         const fixaNome = fixaModal.querySelector('[data-fixa-nome]');
         const fixaValor = fixaModal.querySelector('#fixa-valor');
         const fixaConta = fixaModal.querySelector('#fixa-conta');
-        const fecharFixa = () => fixaModal.classList.remove('open');
+        const fecharFixa = ligarFechamento(fixaModal, '[data-fixa-close]');
 
         ligarPagamentoAjax(fixaForm, fixaModal, fecharFixa);
 
@@ -260,24 +276,48 @@ export function initFaturas() {
             // anterior à competência (senão a despesa sumia do fluxo de caixa).
             const fixaData = fixaModal.querySelector('#fixa-data');
             if (fixaData && btn.dataset.min) fixaData.min = btn.dataset.min;
-            fixaModal.classList.add('open');
+            // O foco entra no "Valor pago" — é o que mais muda de um mês para outro.
+            abrirDialogo(fixaModal, { foco: fixaValor, retorno: btn });
         }));
-        fixaModal.addEventListener('click', (e) => { if (e.target === fixaModal) fecharFixa(); });
-        $$('[data-fixa-close]', fixaModal).forEach((b) => b.addEventListener('click', fecharFixa));
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharFixa(); });
     }
 
     // ---- Modal "Nova conta fixa" ----
     const novaFixa = document.getElementById('fixaNovaModal');
     if (novaFixa) {
-        const fecharNova = () => novaFixa.classList.remove('open');
+        ligarFechamento(novaFixa, '[data-fixanova-close]');
         const btnNova = document.getElementById('novaContaFixaBtn');
-        if (btnNova) btnNova.addEventListener('click', () => novaFixa.classList.add('open'));
-        novaFixa.addEventListener('click', (e) => { if (e.target === novaFixa) fecharNova(); });
-        $$('[data-fixanova-close]', novaFixa).forEach((b) => b.addEventListener('click', fecharNova));
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharNova(); });
+        if (btnNova) {
+            btnNova.addEventListener('click', () => abrirDialogo(novaFixa, { foco: '#cf-nome', retorno: btnNova }));
+        }
+    }
+
+    // ---- Modal "Editar conta fixa" ----
+    // Um só modal, preenchido pelos data-* do lápis clicado (o mesmo padrão do "Pagar
+    // conta fixa"). Morava num script inline da view, com um ouvinte de Esc próprio que
+    // somava um a cada visita pelo pjax.
+    const editFixa = document.getElementById('fixaEditarModal');
+    if (editFixa) {
+        const editForm = editFixa.querySelector('[data-fixaedit-form]');
+        const campo = (sel) => editFixa.querySelector(sel);
+        const preencher = (sel, valor) => { const el = campo(sel); if (el) el.value = valor || ''; };
+        ligarFechamento(editFixa, '[data-fixaedit-close]');
+
+        $$('[data-fixa-editar]').forEach((btn) => btn.addEventListener('click', () => {
+            const d = btn.dataset;
+            if (editForm) editForm.setAttribute('action', d.action || '');
+            preencher('#cfe-nome', d.nome);
+            preencher('#cfe-valor', d.valor);
+            preencher('#cfe-dia', d.dia);
+            preencher('#cfe-conta', d.conta);
+            preencher('#cfe-cat', d.categoria);
+            preencher('#cfe-inicio', d.inicio);
+            preencher('#cfe-fim', d.fim);
+            abrirDialogo(editFixa, { foco: '#cfe-nome', retorno: btn });
+        }));
     }
 
     // ---- Reabrir o modal após erro de validação do servidor ----
-    if (modal.dataset.reopen === '1') abrir();
+    // Quem "abriu" é o botão do topo: sem ele, fechar jogaria o foco no <body> e quem usa
+    // teclado recomeçaria da primeira linha da página.
+    if (modal.dataset.reopen === '1') abrir(document.getElementById('lancarBtn'));
 }

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\EscopoDaFamiliaNaRota;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -870,7 +871,8 @@ class Account extends Model
      *  - O valor exibido/cobrado tem piso 0; quem decide é o líquido com sinal.
      *  - Pagar uma janela cujo líquido é ≤ 0 não tira dinheiro do caixa. Se o
      *    líquido é exatamente 0, as linhas são marcadas como pagas (o crédito
-     *    foi todo consumido); se ainda sobra crédito, as linhas FICAM em aberto
+     *    foi todo consumido) e apontam para uma `CreditSettlement`, o registro
+     *    que permite desfazer; se ainda sobra crédito, as linhas FICAM em aberto
      *    de propósito — são elas que carregam o crédito para a fatura seguinte,
      *    onde serão quitadas junto com as compras novas que ele abater. Pagar
      *    o ciclo aberto, havendo crédito fechado, quita as duas janelas de uma
@@ -1019,6 +1021,86 @@ class Account extends Model
     public function getClosedInvoiceDueAttribute(): float
     {
         return $this->closedInvoiceDueCache ??= max(0.0, $this->closedInvoiceNet);
+    }
+
+    /**
+     * Linhas EM ABERTO que quitar a fatura alcança agora — o LOTE que "Marcar como
+     * paga" (ou "Quitar pelo crédito") marca de uma vez, conforme a janela:
+     *
+     *  - `fechado`: tudo que já fechou (date ≤ início do ciclo aberto);
+     *  - `aberto`:  o ciclo aberto — e, se o que já fechou NÃO está em dívida
+     *    (líquido ≤ 0), as linhas fechadas também:
+     *      · em CRÉDITO (< 0), é esse crédito que abate a fatura aberta
+     *        (`openInvoiceDue`), e quitar as duas janelas juntas o consome
+     *        exatamente: o caixa sai só o que falta depois dele;
+     *      · ZERADAS (= 0: compras e estornos que se anulam), vêm junto para não
+     *        ficarem em aberto para sempre (R2-3 da auditoria financeira, rodada 2).
+     *        Nenhum botão as alcançava: o fechado só é oferecido com dívida, e o
+     *        aberto só arrastava o fechado em crédito — e a data delas prendia o
+     *        piso do "data do pagamento" no passado. Somam zero, então não mudam o
+     *        valor cobrado.
+     *    Se o fechado está em DÍVIDA, ele não é arrastado — a dívida atrasada tem
+     *    botão e vencimento próprios.
+     *
+     * É a régua ÚNICA de quem quita (`FaturaController`) e de quem diz o estado da
+     * fatura na tela (`FaturaService`): com duas cópias, a tela ofereceria um botão
+     * que o servidor recusa. `max(0, liquidoComSinal(lote do aberto))` é, por
+     * construção, o `openInvoiceDue`.
+     *
+     * Com `$travar`, a leitura é com `lockForUpdate` — a leitura autoritativa, dentro
+     * da transação de quem grava. O líquido do fechado é recalculado aqui (sob a
+     * mesma trava), nunca lido do cache do accessor: entre a pré-checagem e a
+     * gravação outra requisição pode ter mexido nele.
+     *
+     * @param  'aberto'|'fechado'  $ciclo
+     * @return EloquentCollection<int, Transaction>
+     */
+    public function linhasAQuitar(string $ciclo = 'aberto', bool $travar = false): EloquentCollection
+    {
+        $cycle = $this->billingCycle();
+        if (! $cycle) {
+            return new EloquentCollection;
+        }
+
+        [$inicioAberto, $fimAberto] = $cycle;
+
+        $query = Transaction::where('account_id', $this->id)->whereNull('paid_at');
+        if ($travar) {
+            $query->lockForUpdate();
+        }
+
+        $fechadas = (clone $query)->where('date', '<=', $inicioAberto->toDateString())->get();
+
+        if ($ciclo === 'fechado') {
+            return $fechadas;
+        }
+
+        $abertas = (clone $query)
+            ->where('date', '>', $inicioAberto->toDateString())
+            ->where('date', '<=', $fimAberto->toDateString())
+            ->get();
+
+        return self::liquidoComSinal($fechadas) <= 0 ? $fechadas->merge($abertas) : $abertas;
+    }
+
+    /**
+     * Soma COM SINAL de linhas do cartão: despesa +, estorno (receita) −.
+     *
+     * Em CENTAVOS inteiros, e só no fim em reais: a decisão entre "falta pagar",
+     * "coberta pelo estorno" e "sobra crédito" é a comparação deste número com
+     * ZERO, e somar floats deixaria resíduo (0,1 + 0,2 − 0,3 ≠ 0).
+     *
+     * @param  iterable<int, Transaction>  $linhas
+     */
+    public static function liquidoComSinal(iterable $linhas): float
+    {
+        $centavos = 0;
+        foreach ($linhas as $linha) {
+            $valor = (int) round((float) $linha->amount * 100);
+            $centavos += $linha->type === 'expense' ? $valor : -$valor;
+        }
+
+        return $centavos / 100;
     }
 
     /**

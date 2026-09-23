@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\PayInvoiceRequest;
 use App\Http\Requests\StoreFaturaLaunchRequest;
 use App\Models\Account;
+use App\Models\CreditSettlement;
 use App\Models\EndedRecurrence;
 use App\Models\Transaction;
 use App\Services\FaturaService;
@@ -12,12 +13,10 @@ use App\Services\FundingService;
 use App\Support\Brl;
 use App\Support\Texto;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -186,7 +185,9 @@ class FaturaController extends Controller
         // cobrança que aconteceu de verdade só para conseguir parar as próximas.
         if (! $serieRecorrente && $this->cartaoComTudoQuitado($transaction)) {
             return back()->withErrors([
-                'transaction' => 'Esta compra já foi paga junto com a fatura do cartão e não pode ser excluída. Use "Estornar pagamento" no cartão primeiro — a compra volta a ficar em aberto e aí sim pode ser removida.',
+                'transaction' => $this->quitadaSoPeloCredito($transaction)
+                    ? CreditSettlement::recusaParaLinha($transaction, 'excluir')
+                    : 'Esta compra já foi paga junto com a fatura do cartão e não pode ser excluída. Use "Estornar pagamento" no cartão primeiro — a compra volta a ficar em aberto e aí sim pode ser removida.',
             ]);
         }
 
@@ -267,6 +268,25 @@ class FaturaController extends Controller
     }
 
     /**
+     * O que está quitado foi quitado SÓ pelo crédito de um estorno — nenhum pagamento
+     * em caixa? Decide o caminho que a recusa aponta: "Estornar pagamento" desfaz a
+     * quitação em caixa, e a quitação pelo crédito se desfaz em "Desfazer quitação"
+     * (R2-4 da auditoria financeira, rodada 2). No parcelado, olha as parcelas pagas.
+     */
+    private function quitadaSoPeloCredito(Transaction $transaction): bool
+    {
+        $quitadas = $transaction->group_id
+            ? Transaction::where('user_id', $transaction->user_id)
+                ->where('group_id', $transaction->group_id)
+                ->whereNotNull('paid_at')
+                ->get(['credit_settlement_id'])
+            : collect([$transaction]);
+
+        return $quitadas->isNotEmpty()
+            && $quitadas->every(fn (Transaction $linha) => $linha->credit_settlement_id !== null);
+    }
+
+    /**
      * Encerra a série recorrente cujas ocorrências em aberto o `destroy` acabou de
      * apagar (R2-2 da auditoria financeira, rodada 2). Roda na MESMA transação.
      *
@@ -338,13 +358,13 @@ class FaturaController extends Controller
         // Somando tudo como despesa, uma compra de 1.000 com estorno de 300 cobrava
         // 1.300 do caixa — e o `committed` do cartão, que já considera o sinal,
         // discordaria do valor cobrado.
-        $abertas = $this->linhasDaFatura($account, $ciclo);
-        $total = $this->liquidoComSinal($abertas);
+        $abertas = $account->linhasAQuitar($ciclo);
+        $total = Account::liquidoComSinal($abertas);
 
         // Líquido ≤ 0: não há o que cobrar do caixa. Ver o desenho do crédito de
         // estorno em `Account::getOpenInvoiceDueAttribute`.
         if ($total <= 0) {
-            return $this->quitarPeloCredito($account, $abertas, $total, $pagoEm);
+            return $this->quitarPeloCredito($request, $account, $ciclo, $pagoEm);
         }
 
         $caixa = Account::whereKey($data['pay_account_id'])->firstOrFail();
@@ -366,10 +386,10 @@ class FaturaController extends Controller
                 // incondicionalmente: com 4 POSTs paralelos, uma fatura de R$ 300 gerava
                 // 4 pagamentos de R$ 300 (a conta ia a −R$ 1.100). O relock existia, mas
                 // só decidia o que MARCAR como pago — nunca se havia o que pagar.
-                $abertasAgora = $this->linhasDaFatura($account, $ciclo, lock: true);
+                $abertasAgora = $account->linhasAQuitar($ciclo, travar: true);
 
                 // Mesma soma com sinal da pré-checagem: o estorno abate.
-                $totalAgora = $this->liquidoComSinal($abertasAgora);
+                $totalAgora = Account::liquidoComSinal($abertasAgora);
 
                 // Outra requisição pagou primeiro: nada a fazer, e nada a debitar.
                 if ($totalAgora <= 0) {
@@ -423,65 +443,29 @@ class FaturaController extends Controller
     }
 
     /**
-     * Linhas EM ABERTO que um pagamento de fatura quita, conforme a janela:
+     * "Quitar pelo crédito": encerra a fatura que um estorno cobriu EXATAMENTE
+     * (R2-3 e R2-5 da auditoria financeira, rodada 2).
      *
-     *  - `fechado`: tudo que já fechou (date ≤ início do ciclo aberto);
-     *  - `aberto`:  o ciclo aberto — e, se o que já fechou está em CRÉDITO
-     *    (líquido negativo), as linhas fechadas também, porque é esse crédito
-     *    que abate a fatura aberta (`Account::openInvoiceDue`). Quitar as duas
-     *    janelas juntas consome o crédito exatamente: o caixa sai só o que
-     *    falta depois dele. Se o fechado está em DÍVIDA, ele não é arrastado —
-     *    a dívida atrasada tem botão e vencimento próprios.
-     *
-     * Com `$lock`, a leitura é feita com `lockForUpdate` (dentro da transação
-     * do FundingService) — é a leitura autoritativa.
-     *
-     * @return EloquentCollection<int, Transaction>
+     * Com líquido zero não há o que pagar, então "Marcar como paga" não aparece — e
+     * nada mais encerrava a fatura: as linhas ficavam em aberto para sempre (o piso da
+     * "data do pagamento" preso na compra mais antiga) e o card chegava a dizer "Fatura
+     * paga" sem ninguém ter pago nada. É o mesmo desfecho do `payInvoice` numa fatura
+     * de líquido zero, sem pedir uma conta de caixa que não vai ser usada.
      */
-    private function linhasDaFatura(Account $account, string $ciclo, bool $lock = false): EloquentCollection
+    public function quitarFaturaPeloCredito(Request $request, string $cartao)
     {
-        [$inicioAberto, $fimAberto] = $account->billingCycle();
-
-        $query = Transaction::where('account_id', $account->id)->whereNull('paid_at');
-        if ($lock) {
-            $query->lockForUpdate();
-        }
-
-        if ($ciclo === 'fechado') {
-            return (clone $query)->where('date', '<=', $inicioAberto->toDateString())->get();
-        }
-
-        // Crédito fechado? Recalculado AQUI (sob o mesmo lock quando `$lock`),
-        // nunca pelo cache do accessor: entre a pré-checagem e a gravação outra
-        // requisição pode ter consumido o crédito.
-        $fechadas = (clone $query)->where('date', '<=', $inicioAberto->toDateString())->get();
-        $creditoFechado = $this->liquidoComSinal($fechadas) < 0;
-
-        $abertas = (clone $query)
-            ->where('date', '>', $inicioAberto->toDateString())
-            ->where('date', '<=', $fimAberto->toDateString())
-            ->get();
-
-        return $creditoFechado ? $fechadas->merge($abertas) : $abertas;
-    }
-
-    /** Soma com sinal (despesa +, estorno −) de um conjunto de linhas do cartão. */
-    private function liquidoComSinal(Collection $linhas): float
-    {
-        return round(
-            (float) $linhas->sum(fn (Transaction $t) => $t->type === 'expense'
-                ? (float) $t->amount
-                : -(float) $t->amount),
-            2,
-        );
+        return $this->quitarPeloCredito($request, $this->cartaoDaFamilia($request, $cartao), 'aberto', CarbonImmutable::today());
     }
 
     /**
-     * Fatura cujo líquido é ≤ 0: nada sai do caixa.
+     * Fatura cujo líquido é ≤ 0: nada sai do caixa. Vale para o `payInvoice` (a
+     * pré-checagem deu ≤ 0) e para o "Quitar pelo crédito".
      *
      *  - Líquido = 0: o estorno cobriu as compras exatamente. As linhas ganham
-     *    `paid_at` (sem quitação em caixa, porque não houve saída) e a fatura
-     *    fica quitada.
+     *    `paid_at` sem quitação em caixa (não houve saída) e apontam para uma
+     *    `CreditSettlement` — o registro que o "Desfazer quitação" usa. Sem ele a
+     *    quitação era irreversível: a compra quitada assim não podia mais ser
+     *    excluída, porque a trava mandava estornar um pagamento que não existe (R2-4).
      *  - Líquido < 0: ainda sobra crédito. As linhas FICAM em aberto de
      *    propósito — são elas que carregam o crédito para a fatura seguinte
      *    (`Account::closedInvoiceNet`), onde serão quitadas junto com as compras
@@ -489,32 +473,108 @@ class FaturaController extends Controller
      *    inteiro em aberto e o crédito contaria em dobro; marcar tudo apagaria o
      *    crédito. Nenhuma linha nova é criada: uma "linha de crédito" sintética
      *    entraria no dashboard como um segundo estorno.
+     *  - Líquido > 0: há o que pagar — só por "Marcar como paga", com uma conta.
      *
-     * @param  Collection<int, Transaction>  $linhas
+     * Tudo é relido SOB A TRAVA do cartão: é a mesma que o lançamento de uma compra
+     * nova pega (`FundingService`), então uma compra não entra no meio da quitação, e
+     * dois cliques seguidos quitam uma vez só — o segundo já não acha nada em aberto.
+     *
+     * Deadlock vira nova tentativa, não HTTP 500. Repetir o fechamento inteiro é seguro:
+     * ele relê tudo sob a trava, cria a quitação do zero e grava pelo query builder —
+     * não reusa model que uma tentativa desfeita tenha dado por gravado (a armadilha do
+     * `FundingService::repetirNoDeadlock`). E não roda dentro de outra transação.
      */
-    private function quitarPeloCredito(Account $account, Collection $linhas, float $liquido, CarbonImmutable $pagoEm)
+    private function quitarPeloCredito(Request $request, Account $cartao, string $ciclo, CarbonImmutable $pagoEm)
     {
-        if ($linhas->isEmpty()) {
-            return redirect()->route('faturas.index')
-                ->with('status', 'Esta fatura já estava quitada.');
-        }
+        [$desfecho, $liquido] = DB::transaction(function () use ($request, $cartao, $ciclo, $pagoEm) {
+            Account::whereKey($cartao->id)->lockForUpdate()->first();
 
-        if ($liquido < 0) {
-            return redirect()->route('faturas.index')->with(
-                'status',
-                'Fatura quitada pelo crédito do estorno — nada saiu da conta. Sobram '
-                .Brl::format(-$liquido).' de crédito, que abatem a próxima fatura do '.$account->name.'.',
-            );
-        }
+            $linhas = $cartao->linhasAQuitar($ciclo, travar: true);
+            $liquido = Account::liquidoComSinal($linhas);
 
-        DB::transaction(function () use ($linhas, $pagoEm) {
+            if ($linhas->isEmpty()) {
+                return ['vazia', 0.0];
+            }
+            if ($liquido != 0) {
+                return [$liquido > 0 ? 'a_pagar' : 'sobra_credito', $liquido];
+            }
+
+            $quitacao = CreditSettlement::create([
+                'user_id' => $cartao->user_id,
+                'account_id' => $cartao->id,
+                'made_by_user_id' => $request->user()->id,
+                'paid_at' => $pagoEm,
+            ]);
+
             Transaction::whereIn('id', $linhas->pluck('id'))
                 ->whereNull('paid_at')
-                ->update(['paid_at' => $pagoEm]);
-        });
+                ->update(['paid_at' => $pagoEm, 'credit_settlement_id' => $quitacao->id]);
 
-        return redirect()->route('faturas.index')
-            ->with('status', 'Fatura quitada pelo crédito do estorno — nada saiu da conta.');
+            return ['quitada', 0.0];
+        }, attempts: FundingService::TENTATIVAS);
+
+        $voltar = redirect()->route('faturas.index');
+
+        return match ($desfecho) {
+            'quitada' => $voltar->with('status', 'Fatura quitada pelo crédito do estorno — nada saiu da conta. '
+                .'Se precisar corrigir uma dessas compras, use "Desfazer quitação" no cartão '.$cartao->name.'.'),
+            'sobra_credito' => $voltar->with('status', 'Nada a pagar: o crédito do estorno cobre esta fatura e ainda sobram '
+                .Brl::format(-$liquido).', que abatem a próxima fatura do '.$cartao->name.'. Nenhum dinheiro saiu da conta.'),
+            'a_pagar' => $voltar->withErrors(['transaction' => 'Esta fatura não está coberta pelo estorno: ainda faltam '
+                .Brl::format($liquido).'. Use "Marcar como paga" para pagar com uma conta.']),
+            default => $voltar->with('status', 'Esta fatura já estava quitada.'),
+        };
+    }
+
+    /**
+     * DESFAZ uma quitação pelo crédito — o "Estornar pagamento" dela (R2-4 da auditoria
+     * financeira, rodada 2).
+     *
+     * As linhas daquela quitação voltam a ficar EM ABERTO (`paid_at` e o vínculo em
+     * null) e o registro some. Nenhum dinheiro se move nos dois sentidos: não saiu nada
+     * de conta nenhuma na quitação, e as linhas se anulam, então nem o limite do cartão
+     * muda. É o que devolve à compra a chance de ser corrigida ou excluída.
+     *
+     * Sob a mesma trava do cartão que a quitação pegou. Dois cliques desfazem uma vez:
+     * o segundo não acha mais linha nenhuma apontando para ela. Deadlock repete, pelo
+     * mesmo motivo do `quitarPeloCredito`: só query builder dentro, nada reusado.
+     */
+    public function desfazerQuitacaoPeloCredito(Request $request, string $quitacao)
+    {
+        // Quitação de outra família recebe o MESMO 404 de um id que não existe: uma
+        // diferença entre as duas respostas diria a quem sonda que aquele id existe.
+        $registro = CreditSettlement::where('user_id', $request->user()->ownerId())->findOrFail($quitacao);
+
+        $voltaram = DB::transaction(function () use ($registro) {
+            Account::whereKey($registro->account_id)->lockForUpdate()->first();
+
+            $voltaram = Transaction::where('credit_settlement_id', $registro->id)
+                ->update(['paid_at' => null, 'credit_settlement_id' => null]);
+
+            CreditSettlement::whereKey($registro->id)->delete();
+
+            return $voltaram;
+        }, attempts: FundingService::TENTATIVAS);
+
+        return redirect()->route('faturas.index')->with(
+            'status',
+            $voltaram === 0
+                ? 'Esta quitação já tinha sido desfeita.'
+                : 'Quitação pelo crédito desfeita: '.$voltaram.' '.($voltaram === 1 ? 'linha voltou' : 'linhas voltaram')
+                    .' para a fatura em aberto. Nenhum dinheiro entrou nem saiu da conta.',
+        );
+    }
+
+    /**
+     * O cartão de crédito da FAMÍLIA com este id — ou o 404 de um id que não existe.
+     * Cartão de outra família, conta que não é cartão e id inexistente recebem a
+     * MESMA resposta: uma diferença entre elas diria a quem sonda que aquele id existe.
+     */
+    private function cartaoDaFamilia(Request $request, string $id): Account
+    {
+        return Account::where('user_id', $request->user()->ownerId())
+            ->where('type', 'credit_card')
+            ->findOrFail($id);
     }
 
     /**
@@ -546,10 +606,13 @@ class FaturaController extends Controller
         // Pagamentos feitos ANTES de existir o vínculo `settled_by_id` não têm
         // como ser rastreados linha a linha; o par (cartão, instante do
         // pagamento) é o que resta, e é exato — `payInvoice` grava o MESMO
-        // `paid_at` em todas as compras do lote.
+        // `paid_at` em todas as compras do lote. Linha quitada pelo CRÉDITO no
+        // mesmo dia tem o mesmo `paid_at`, mas não é deste pagamento: ela se
+        // desfaz pela quitação dela (`desfazerQuitacaoPeloCredito`).
         if ($compras->isEmpty() && $transaction->paid_at) {
             $compras = Transaction::where('account_id', $transaction->settles_account_id)
                 ->whereNull('settled_by_id')
+                ->whereNull('credit_settlement_id')
                 ->where('paid_at', $transaction->paid_at)
                 ->pluck('id');
         }
@@ -720,9 +783,10 @@ class FaturaController extends Controller
         }
 
         // Série ENCERRADA (excluída em /faturas): não gera mais nada (R2-2). Sem esta
-        // guarda, o POST na ocorrência paga que sobrou recriava a sucessora. A tela
-        // ainda mostra "Lançar próxima" numa ocorrência paga do ciclo aberto de uma
-        // série encerrada — o botão vem da view; quem decide é esta linha.
+        // guarda, o POST na ocorrência paga que sobrou recriava a sucessora. A tela já
+        // não oferece "Lançar próxima" numa série encerrada (`FaturaService`,
+        // `lancarProxima`), mas quem decide é esta linha: um POST montado à mão, ou
+        // vindo de uma aba aberta antes da exclusão, chega aqui do mesmo jeito.
         if (EndedRecurrence::daSerie($transaction)) {
             return redirect()->route('faturas.index')->with('status', self::AVISO_SERIE_ENCERRADA);
         }

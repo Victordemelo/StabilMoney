@@ -174,7 +174,7 @@
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg>
                         </button>
                         <form method="POST" action="{{ route('contas-fixas.destroy', $bill) }}"
-                              onsubmit="return confirm({{ Illuminate\Support\Js::from('Excluir a conta fixa “' . $bill->name . '”? As competências em aberto deixam de aparecer aqui; os pagamentos já feitos continuam no histórico.') }});">
+                              data-confirmar="Excluir a conta fixa “{{ $bill->name }}”? As competências em aberto deixam de aparecer aqui; os pagamentos já feitos continuam no histórico.">
                             @csrf
                             @method('DELETE')
                             <button class="fi-rm" type="submit" aria-label="Excluir conta fixa" title="Excluir conta fixa">
@@ -274,10 +274,15 @@
                     </div>
                 @endif
 
-                {{-- Pagar / status da fatura (só cartão de crédito) --}}
+                {{-- Pagar / status da fatura (só cartão de crédito). O estado vem do
+                     FaturaService, pela mesma régua de quem quita: "Fatura paga" só
+                     quando saiu dinheiro de uma conta. Fatura que um estorno cobriu é
+                     dita como tal — antes aparecia como "paga" sem ninguém ter pago. --}}
                 <div class="fatura-pay">
                     @if ($card->isPaid)
                         <span class="fatura-paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg> Fatura paga</span>
+                    @elseif ($card->estado === 'quitada_pelo_credito')
+                        <span class="fatura-paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg> Quitada pelo crédito do estorno</span>
                     @elseif ($card->canPay)
                         <span class="fatura-due">A pagar: <b>{{ $brl($card->invoiceDue) }}</b></span>
                         @if ($cashAccounts->isEmpty())
@@ -292,6 +297,22 @@
                                 Marcar como paga
                             </button>
                         @endif
+                    @elseif ($card->estado === 'coberta')
+                        {{-- O estorno cobre EXATAMENTE as compras em aberto: nada a pagar,
+                             mas as linhas só saem de "em aberto" quando alguém encerra a
+                             fatura — antes nada as encerrava, e elas ficavam lá para sempre.
+                             O form leva o `margin-left:auto` que o botão primário tem
+                             quando é filho direto da linha. --}}
+                        <span class="fatura-due">Coberta pelo estorno: <b>nada a pagar</b></span>
+                        <form method="POST" action="{{ route('faturas.fatura.quitar-pelo-credito', $card->account) }}" style="margin-left:auto">
+                            @csrf
+                            <button class="btn primary" type="submit"
+                                    title="Marca as compras e o estorno como quitados, sem tirar dinheiro de conta nenhuma">
+                                Quitar pelo crédito
+                            </button>
+                        </form>
+                    @elseif ($card->estado === 'credito_sobrando')
+                        <span class="fatura-due">Nada a pagar nesta fatura: sobram <b>@brl($card->creditoSobrando)</b> de crédito do estorno, que abatem a próxima</span>
                     @endif
 
                     {{-- Desfazer o último pagamento: as compras voltam para a fatura
@@ -301,12 +322,28 @@
                     @if ($card->settlement)
                         <form method="POST" action="{{ route('faturas.fatura.estornar', $card->settlement) }}"
                               class="fatura-estorno"
-                              onsubmit="return confirm('Estornar o pagamento de {{ $brl($card->settlement->amount) }}? As compras voltam para a fatura em aberto e o valor volta para a conta.')">
+                              data-confirmar="Estornar o pagamento de {{ $brl($card->settlement->amount) }}? As compras voltam para a fatura em aberto e o valor volta para a conta.">
                             @csrf
                             @method('DELETE')
                             <button class="btn ghost" type="submit"
                                     title="Pago em {{ optional($card->settlement->paid_at)->translatedFormat('d/m/Y') }}">
                                 Estornar pagamento
+                            </button>
+                        </form>
+                    @endif
+
+                    {{-- Desfazer a última quitação PELO CRÉDITO: as compras e o estorno
+                         voltam a ficar em aberto, sem dinheiro nenhum se mover. Sem isto
+                         a compra quitada assim não podia mais ser corrigida nem excluída. --}}
+                    @if ($card->quitacaoPeloCredito)
+                        <form method="POST" action="{{ route('faturas.fatura.desfazer-quitacao', $card->quitacaoPeloCredito) }}"
+                              class="fatura-estorno"
+                              data-confirmar="Desfazer a quitação pelo crédito do estorno? As compras e o estorno voltam para a fatura em aberto. Nenhum dinheiro entra nem sai de conta nenhuma.">
+                            @csrf
+                            @method('DELETE')
+                            <button class="btn ghost" type="submit"
+                                    title="Quitada pelo crédito do estorno em {{ $card->quitacaoPeloCredito->paid_at->translatedFormat('d/m/Y') }}">
+                                Desfazer quitação
                             </button>
                         </form>
                     @endif
@@ -367,6 +404,15 @@
                             if ($estorno) $badgeCls = 'estorno';
                             elseif ($badge === 'Recorrente') $badgeCls = 'recorrente';
                             elseif ($badge && str_contains($badge, '/')) $badgeCls = 'parcelado';
+                            // A pergunta diz o que o "x" apaga de fato (FaturaController::destroy):
+                            // no parcelado, todas as parcelas em aberto; na recorrência, a
+                            // série inteira deixa de gerar cobrança.
+                            $confirmaRemover = match (true) {
+                                $estorno => 'Remover este estorno da fatura?',
+                                (bool) $item->installments => 'Remover esta compra parcelada? As parcelas em aberto saem da fatura; as já pagas continuam no histórico.',
+                                (bool) $item->recurring => 'Excluir esta recorrência? A cobrança em aberto sai da fatura e nenhuma nova será lançada; as já pagas continuam no histórico.',
+                                default => 'Remover esta compra da fatura?',
+                            };
                         @endphp
                         <div class="fatura-item">
                             <span class="fi-ico">{{ $estorno ? '↩️' : ($catIcon ?: '📦') }}</span>
@@ -386,8 +432,10 @@
                                  esta já fechou ou foi quitada com a fatura dela. Na lista do
                                  ciclo aberto isso só acontece se a fatura foi paga
                                  antecipada; em aberto, o botão não aparece — clicar geraria
-                                 cobrança em ciclo futuro, consumindo limite antes da hora. --}}
-                            @if ($item->recurring && $item->paid_at)
+                                 cobrança em ciclo futuro, consumindo limite antes da hora.
+                                 Série ENCERRADA (excluída) também não: o servidor recusaria.
+                                 Quem decide é o FaturaService (`lancarProxima`). --}}
+                            @if ($card->lancarProxima->has($item->id))
                                 <form method="POST" action="{{ route('faturas.recorrente.pagar', $item->id) }}">
                                     @csrf
                                     <button class="btn primary" type="submit" title="Lançar a próxima ocorrência">
@@ -396,7 +444,7 @@
                                 </form>
                             @endif
                             <form method="POST" action="{{ route('faturas.compra.destroy', $item->id) }}"
-                                  onsubmit="return confirm('{{ $estorno ? 'Remover este estorno da fatura?' : 'Remover esta compra da fatura?' }}');">
+                                  data-confirmar="{{ $confirmaRemover }}">
                                 @csrf
                                 @method('DELETE')
                                 <button class="fi-rm" type="submit" aria-label="Remover" title="Remover">
@@ -444,7 +492,7 @@
                                 <small>{{ $exp->date?->translatedFormat('d M') }}</small>
                             </div>
                             <form method="POST" action="{{ route('faturas.compra.destroy', $exp->id) }}"
-                                  onsubmit="return confirm('Remover esta despesa?');">
+                                  data-confirmar="Remover esta despesa?">
                                 @csrf
                                 @method('DELETE')
                                 <button class="fi-rm" type="submit" aria-label="Remover" title="Remover">
@@ -477,12 +525,13 @@
 {{-- Único form que valida nesta tela é o de lançar despesa → o bag padrão já o identifica. --}}
 @php $reabreLancar = $errors->any(); @endphp
 <div class="modal-scrim" id="lancarModal" data-lancar-modal data-reopen="{{ $reabreLancar ? '1' : '' }}">
-    <div class="modal modal-lg">
+    <div class="modal modal-lg" role="dialog" aria-modal="true"
+         aria-labelledby="lancarModal-titulo" aria-describedby="lancarModal-descricao">
         <div class="modal-head">
             <span class="modal-ico ico-out" id="lancarIco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7 17 17M17 17h-7M17 17v-7"/></svg></span>
             <div>
-                <h3>Lançar despesa</h3>
-                <p>Registre uma compra no cartão ou um gasto em conta.</p>
+                <h3 id="lancarModal-titulo">Lançar despesa</h3>
+                <p id="lancarModal-descricao">Registre uma compra no cartão ou um gasto em conta.</p>
             </div>
             <button class="modal-x" type="button" data-lancar-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -605,12 +654,13 @@
 {{-- ======================== MODAL: PAGAR CONTA FIXA ======================== --}}
 @if ($accounts->isNotEmpty())
 <div class="modal-scrim" id="fixaPagarModal" data-fixa-scrim>
-    <div class="modal modal-md">
+    <div class="modal modal-md" role="dialog" aria-modal="true"
+         aria-labelledby="fixaPagarModal-titulo" aria-describedby="fixaPagarModal-descricao">
         <div class="modal-head">
             <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg></span>
             <div>
-                <h3>Pagar conta fixa</h3>
-                <p><b data-fixa-nome></b> — o valor sai da conta escolhida.</p>
+                <h3 id="fixaPagarModal-titulo">Pagar conta fixa</h3>
+                <p id="fixaPagarModal-descricao"><b data-fixa-nome></b> — o valor sai da conta escolhida.</p>
             </div>
             <button class="modal-x" type="button" data-fixa-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -651,12 +701,13 @@
 
 {{-- ====================== MODAL: NOVA CONTA FIXA ====================== --}}
 <div class="modal-scrim" id="fixaNovaModal" data-fixanova-scrim>
-    <div class="modal modal-lg">
+    <div class="modal modal-lg" role="dialog" aria-modal="true"
+         aria-labelledby="fixaNovaModal-titulo" aria-describedby="fixaNovaModal-descricao">
         <div class="modal-head">
             <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 10 12 4l9 6M5 10v9h14v-9"/></svg></span>
             <div>
-                <h3>Nova conta fixa</h3>
-                <p>Ela aparece todo mês aqui, e avisa quando estiver perto de vencer.</p>
+                <h3 id="fixaNovaModal-titulo">Nova conta fixa</h3>
+                <p id="fixaNovaModal-descricao">Ela aparece todo mês aqui, e avisa quando estiver perto de vencer.</p>
             </div>
             <button class="modal-x" type="button" data-fixanova-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -731,12 +782,13 @@
      "Pagar conta fixa"). Fica FORA da .card de propósito: a .card tem
      overflow:hidden + animação de transform, que prende position:fixed. --}}
 <div class="modal-scrim" id="fixaEditarModal" data-fixaedit-scrim>
-    <div class="modal modal-lg">
+    <div class="modal modal-lg" role="dialog" aria-modal="true"
+         aria-labelledby="fixaEditarModal-titulo" aria-describedby="fixaEditarModal-descricao">
         <div class="modal-head">
             <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg></span>
             <div>
-                <h3>Editar conta fixa</h3>
-                <p>Vale para as próximas competências — os pagamentos já feitos não mudam.</p>
+                <h3 id="fixaEditarModal-titulo">Editar conta fixa</h3>
+                <p id="fixaEditarModal-descricao">Vale para as próximas competências — os pagamentos já feitos não mudam.</p>
             </div>
             <button class="modal-x" type="button" data-fixaedit-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -800,51 +852,19 @@
     </div>
 </div>
 
-{{-- Abertura/fechamento do modal de edição. Inline de propósito: o resto da
-     tela vive em resources/js/sm/faturas.js, mas este bloco é pequeno, roda
-     também depois da navegação pjax (nav.js re-executa scripts inline) e evita
-     mexer no módulo compartilhado. --}}
-<script nonce="{{ Vite::cspNonce() }}">
-(function () {
-    var modal = document.getElementById('fixaEditarModal');
-    if (!modal) return;
-
-    var form = modal.querySelector('[data-fixaedit-form]');
-    var campo = function (sel) { return modal.querySelector(sel); };
-    var fechar = function () { modal.classList.remove('open'); };
-
-    document.querySelectorAll('[data-fixa-editar]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var d = btn.dataset;
-            if (form) form.setAttribute('action', d.action || '');
-            campo('#cfe-nome').value = d.nome || '';
-            campo('#cfe-valor').value = d.valor || '';
-            campo('#cfe-dia').value = d.dia || '';
-            campo('#cfe-conta').value = d.conta || '';
-            campo('#cfe-cat').value = d.categoria || '';
-            campo('#cfe-inicio').value = d.inicio || '';
-            campo('#cfe-fim').value = d.fim || '';
-            modal.classList.add('open');
-        });
-    });
-
-    modal.addEventListener('click', function (e) { if (e.target === modal) fechar(); });
-    modal.querySelectorAll('[data-fixaedit-close]').forEach(function (b) {
-        b.addEventListener('click', fechar);
-    });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fechar(); });
-})();
-</script>
+{{-- A abertura e o fechamento deste modal moram em resources/js/sm/faturas.js,
+     com os outros quatro da tela: todos passam pelo utilitário de diálogo. --}}
 
 {{-- ============================ MODAL: PAGAR FATURA ============================ --}}
 @if ($cashAccounts->isNotEmpty())
 <div class="modal-scrim" id="payInvoiceModal" data-pay-scrim>
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true"
+         aria-labelledby="payInvoiceModal-titulo" aria-describedby="payInvoiceModal-descricao">
         <div class="modal-head">
             <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg></span>
             <div>
-                <h3>Pagar fatura</h3>
-                <p>O valor é debitado da conta escolhida (desconta do seu saldo).</p>
+                <h3 id="payInvoiceModal-titulo">Pagar fatura</h3>
+                <p id="payInvoiceModal-descricao">O valor é debitado da conta escolhida (desconta do seu saldo).</p>
             </div>
             <button class="modal-x" type="button" data-pay-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>

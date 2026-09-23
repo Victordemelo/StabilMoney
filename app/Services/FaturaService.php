@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\CreditSettlement;
+use App\Models\EndedRecurrence;
 use App\Models\FixedBill;
 use App\Models\Transaction;
 use App\Models\User;
@@ -207,8 +209,13 @@ class FaturaService
         Account::preloadMoney($cartoes);
 
         $pisosDePagamento = $this->pisosDePagamento($cartoes);
+        $quitacoesPeloCredito = $this->ultimasQuitacoesPeloCredito($cartoes);
 
-        return $cartoes->map(function (Account $card) use ($pisosDePagamento) {
+        // Séries recorrentes ENCERRADAS da família (R2-2), numa query só — e não uma por
+        // ocorrência da lista: é o que decide o "Lançar próxima" abaixo.
+        $seriesEncerradas = EndedRecurrence::where('user_id', $userId)->pluck('group_id')->flip();
+
+        return $cartoes->map(function (Account $card) use ($pisosDePagamento, $quitacoesPeloCredito, $seriesEncerradas) {
             $cycle = $card->billingCycle();
             $items = $this->cycleItems($card, $cycle);
 
@@ -217,9 +224,15 @@ class FaturaService
             $used = round($limit - $available, 2);
             $usedPct = $limit > 0 ? (int) min(100, round($used / $limit * 100)) : 0;
 
-            // Valor EM ABERTO (a pagar) e estado da fatura do ciclo.
+            // Valor EM ABERTO (a pagar) do ciclo.
             $devido = $card->openInvoiceDue;
-            $temFatura = $card->currentInvoice > 0.001;
+
+            // O lote que quitar a fatura do ciclo aberto alcança AGORA, pela mesma
+            // régua de quem quita (`Account::linhasAQuitar`), e o líquido dele — é o
+            // que decide o estado. `max(0, $liquido)` é o `$devido`.
+            $lote = $card->linhasAQuitar('aberto');
+            $liquido = Account::liquidoComSinal($lote);
+            $estado = $this->estadoDaFatura($lote, $liquido, $items, $card->currentInvoice);
 
             // Fluent: a view acessa por -> (objeto) e os testes por []
             // (array) — Fluent suporta ambos (ArrayAccess + __get).
@@ -227,13 +240,28 @@ class FaturaService
                 'account' => $card,
                 'currentInvoice' => $card->currentInvoice,
                 'invoiceDue' => $devido,          // o que falta pagar do ciclo
-                'isPaid' => $temFatura && $devido <= 0.001,
-                'canPay' => $devido > 0.001,
+                'estado' => $estado,
+                // "Fatura paga" só quando saiu dinheiro de uma conta (ver `estadoDaFatura`).
+                'isPaid' => $estado === 'paga',
+                'canPay' => $estado === 'a_pagar',
+                // Crédito de estorno que sobra depois de cobrir a fatura inteira.
+                'creditoSobrando' => $estado === 'credito_sobrando' ? -$liquido : 0.0,
                 'committed' => $card->committed,
                 'availableLimit' => $available,
                 'limitUsedPct' => $usedPct,
                 'dueDate' => $card->dueDate,
                 'items' => $items,
+                // Ids das linhas da lista que oferecem "Lançar próxima": recorrência já
+                // quitada com a fatura dela (em aberto, a próxima consumiria limite antes
+                // da hora) e de série NÃO encerrada. Numa série encerrada o servidor
+                // recusa o clique (`FaturaController::pay`) — um botão que só existe
+                // para ser recusado não pode estar na tela.
+                'lancarProxima' => $items
+                    ->filter(fn (Transaction $linha) => $linha->recurring
+                        && $linha->paid_at !== null
+                        && ! ($linha->group_id !== null && $seriesEncerradas->has($linha->group_id)))
+                    ->pluck('id')
+                    ->flip(),
                 // Fatura JÁ FECHADA e não paga (valor, vencimento, se venceu e
                 // há quantos dias). O ramo `ciclo=fechado` do payInvoice existia
                 // desde a auditoria, mas NENHUMA tela o acionava: a fatura que
@@ -245,6 +273,10 @@ class FaturaService
                 // Último pagamento de fatura deste cartão — é o que o botão
                 // "Estornar" desfaz. Null quando nunca se pagou nada.
                 'settlement' => $this->lastSettlement($card),
+                // Última quitação PELO CRÉDITO de um estorno — o que o "Desfazer
+                // quitação" desfaz. Independente do `settlement`: são lotes de
+                // linhas diferentes, e desfazer um não mexe no outro.
+                'quitacaoPeloCredito' => $quitacoesPeloCredito[$card->id] ?? null,
                 // Recorrências cuja última ocorrência já FECHOU e ainda não têm
                 // a ocorrência deste ciclo. É onde vive o botão "Lançar neste
                 // ciclo": a ocorrência fechada não está na lista do ciclo aberto,
@@ -291,6 +323,72 @@ class FaturaService
             ->orderByDesc('paid_at')
             ->orderByDesc('id')
             ->first();
+    }
+
+    /**
+     * A quitação pelo crédito mais recente de cada cartão, numa query só — é o que o
+     * "Desfazer quitação" desfaz. Só a última, como no `lastSettlement`: desfazer é
+     * "desfazer o que acabei de fazer".
+     *
+     * @param  Collection<int, Account>  $cartoes
+     * @return Collection<int, CreditSettlement> indexada pelo id do cartão
+     */
+    private function ultimasQuitacoesPeloCredito(Collection $cartoes): Collection
+    {
+        if ($cartoes->isEmpty()) {
+            return collect();
+        }
+
+        return CreditSettlement::whereIn('id', CreditSettlement::query()
+            ->selectRaw('MAX(id)')
+            ->whereIn('account_id', $cartoes->pluck('id'))
+            ->groupBy('account_id'))
+            ->get()
+            ->keyBy('account_id');
+    }
+
+    /**
+     * Estado da fatura do ciclo aberto, dito com honestidade (R2-5 da auditoria
+     * financeira, rodada 2):
+     *
+     *  - `a_pagar`: o lote tem o que cobrar ("Marcar como paga");
+     *  - `coberta`: o estorno cobre EXATAMENTE as compras em aberto — nada a pagar,
+     *    mas as linhas seguem em aberto até alguém encerrar ("Quitar pelo crédito");
+     *  - `credito_sobrando`: o estorno cobre tudo e ainda sobra — as linhas ficam em
+     *    aberto de propósito, levando o crédito para a próxima fatura;
+     *  - `paga`: nada em aberto, e saiu dinheiro de uma conta para quitar o ciclo;
+     *  - `quitada_pelo_credito`: nada em aberto, e o que o ciclo tem foi quitado só
+     *    pelo crédito de um estorno — sem pagamento nenhum;
+     *  - null: ciclo sem fatura.
+     *
+     * Antes "Fatura paga" era "tem gasto no ciclo e nada a pagar": um estorno do mês
+     * passado cobrindo as compras deste aparecia como fatura PAGA, sem uma linha paga
+     * nem pagamento nenhum no extrato.
+     *
+     * @param  Collection<int, Transaction>  $lote  as linhas que quitar o ciclo aberto alcança
+     * @param  Collection<int, Transaction>  $itens  todas as linhas do ciclo aberto
+     */
+    private function estadoDaFatura(Collection $lote, float $liquido, Collection $itens, float $gastoDoCiclo): ?string
+    {
+        if ($lote->isNotEmpty()) {
+            return match (true) {
+                $liquido > 0 => 'a_pagar',
+                $liquido < 0 => 'credito_sobrando',
+                default => 'coberta',
+            };
+        }
+
+        // Nada em aberto: como foi quitado o que o ciclo tem?
+        if ($itens->contains(fn (Transaction $linha) => $linha->settled_by_id !== null)) {
+            return 'paga';
+        }
+        if ($itens->contains(fn (Transaction $linha) => $linha->credit_settlement_id !== null)) {
+            return 'quitada_pelo_credito';
+        }
+
+        // Linha paga sem registro de quitação nenhum (dado anterior a `settled_by_id`
+        // e a `credit_settlement_id`): a tela diz o que sempre disse.
+        return $gastoDoCiclo > 0.001 ? 'paga' : null;
     }
 
     /**

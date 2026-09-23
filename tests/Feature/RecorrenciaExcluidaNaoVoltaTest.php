@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\FaturaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -238,10 +239,73 @@ class RecorrenciaExcluidaNaoVoltaTest extends TestCase
         $setembro = Transaction::where('date', '2026-09-01')->firstOrFail();
         $this->excluir($setembro)->assertSessionHasNoErrors();
 
-        // O botão continua na tela (vem da view); o servidor é quem recusa.
+        // A tela já não oferece o botão (ver o teste seguinte), mas quem decide é o
+        // servidor: um POST de uma aba aberta antes da exclusão chega do mesmo jeito.
         $this->avancar($agosto->fresh())
             ->assertSessionHas('status', fn ($msg) => str_contains($msg, 'recorrência foi excluída'));
         $this->assertSame(['2026-08-01'], $this->datas());
+    }
+
+    /**
+     * A tela não oferece "Lançar próxima" numa série encerrada: o botão aparecia na
+     * ocorrência paga que sobrou e só existia para o servidor recusar o clique. A outra
+     * recorrência do cartão continua com o dela.
+     *
+     * A decisão sai de UMA consulta às séries encerradas da família (`FaturaService`), não
+     * de uma por ocorrência: o número de consultas a `ended_recurrences` não cresce com a
+     * lista.
+     */
+    public function test_a_tela_nao_oferece_lancar_proxima_em_serie_encerrada(): void
+    {
+        $streaming = $this->lancarRecorrente('2026-08-01', 'Streaming');
+        $musica = $this->lancarRecorrente('2026-08-02', 'Música');
+        $this->pagarFatura('aberto'); // em 05/08, ciclo ainda aberto: as duas oferecem "Lançar próxima"
+
+        $this->assertSame(['Streaming', 'Música'], $this->comLancarProxima());
+
+        $this->excluir($streaming->fresh())->assertSessionHasNoErrors();
+        $this->assertTrue(EndedRecurrence::daSerie($streaming), 'Pré-condição: a série ficou encerrada.');
+
+        $consultas = $this->consultasAsSeriesEncerradas(fn () => $this->assertSame(['Música'], $this->comLancarProxima()));
+
+        // Mais duas séries pagas na lista — uma delas encerrada — e as consultas não mudam.
+        $nuvem = $this->lancarRecorrente('2026-08-03', 'Nuvem');
+        $this->lancarRecorrente('2026-08-04', 'Jornal');
+        $this->pagarFatura('aberto');
+        $this->excluir($nuvem->fresh())->assertSessionHasNoErrors();
+
+        $this->assertSame(
+            $consultas,
+            $this->consultasAsSeriesEncerradas(fn () => $this->assertSame(['Música', 'Jornal'], $this->comLancarProxima())),
+            'A tela passou a consultar as séries encerradas uma vez por ocorrência.',
+        );
+        $this->assertNotNull($musica->fresh()->paid_at);
+    }
+
+    /** Descrições das linhas do cartão que a tela renderizou com "Lançar próxima", na ordem da data. */
+    private function comLancarProxima(): array
+    {
+        $html = $this->actingAs($this->user)->get(route('faturas.index'))->assertOk()->getContent();
+
+        return Transaction::where('account_id', $this->cartao->id)->orderBy('date')->get()
+            ->filter(fn (Transaction $t) => str_contains($html, 'action="'.route('faturas.recorrente.pagar', $t).'"'))
+            ->map(fn (Transaction $t) => $t->description)
+            ->values()
+            ->all();
+    }
+
+    /** Quantas consultas a `ended_recurrences` a `$acao` fez. */
+    private function consultasAsSeriesEncerradas(callable $acao): int
+    {
+        $total = 0;
+        DB::listen(function ($consulta) use (&$total) {
+            if (str_contains($consulta->sql, 'ended_recurrences')) {
+                $total++;
+            }
+        });
+        $acao();
+
+        return $total;
     }
 
     /**
