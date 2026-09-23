@@ -11,6 +11,13 @@
     if ($flash !== null) {
         $flash = $mensagensConhecidas[$flash] ?? $flash;
     }
+    // Código interno que sobrou sem tradução ("two-factor-enabled", "sessions-cleared"…) não
+    // aparece cru: é a PRÓPRIA tela que o transforma em aviso, no lugar certo (o card da aba
+    // 2FA, o de sessões). Antes o topo repetia o código por cima do aviso de verdade. Frase
+    // de gente tem espaço e maiúscula; código é minúsculo com hífen.
+    if (is_string($flash) && preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)+$/', $flash)) {
+        $flash = null;
+    }
 @endphp
 @if ($flash)
     <div class="flash" data-flash role="status">
