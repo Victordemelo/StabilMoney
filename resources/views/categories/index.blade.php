@@ -68,8 +68,10 @@
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/></svg>
                             </a>
                             @unless ($fixa)
+                                {{-- "Tem certeza?" pelo sm/confirmar.js: o `onsubmit` inline
+                                     de antes era bloqueado pela CSP, e excluía sem perguntar. --}}
                                 <form method="POST" action="{{ route('categories.destroy', $categoria) }}"
-                                      onsubmit="return confirm('Excluir esta categoria? As transações dela ficarão sem categoria.')">
+                                      data-confirmar="Excluir a categoria {{ $categoria->name }}? As transações dela ficarão sem categoria.">
                                     @csrf
                                     @method('DELETE')
                                     <button class="cc-del" type="submit" title="Excluir" aria-label="Excluir {{ $categoria->name }}">

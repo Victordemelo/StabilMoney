@@ -61,10 +61,14 @@
         </div>
         <h1>Você está offline</h1>
         <p>Não foi possível carregar esta página porque você está sem conexão. Suas finanças continuam seguras — é só reconectar.</p>
-        <button type="button" onclick="location.reload()">Tentar de novo</button>
+        <button type="button" id="tentarDeNovo">Tentar de novo</button>
         <div class="hint">A conexão volta? Esta tela recarrega sozinha.</div>
     </main>
     <script nonce="{{ Vite::cspNonce() }}">
+        // O clique é ligado AQUI, e não num `onclick="..."` no botão: a CSP com nonce
+        // bloqueia todo manipulador inline (nonce não vale para atributo), e o botão
+        // ficava sem fazer nada — em silêncio, só o console avisava.
+        document.getElementById('tentarDeNovo').addEventListener('click', function () { location.reload(); });
         // Quando a rede voltar, recarrega automaticamente.
         window.addEventListener('online', function () { location.reload(); });
     </script>

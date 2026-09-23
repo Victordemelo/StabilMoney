@@ -7,8 +7,10 @@
         <h2>Editar conta</h2>
         <span class="sub">Atualize os dados de "{{ $account->name }}"</span>
         <div class="head-actions">
+            {{-- "Tem certeza?" pelo sm/confirmar.js: o `onsubmit` inline de antes era
+                 bloqueado pela CSP, e excluía sem perguntar. --}}
             <form method="POST" action="{{ route('accounts.destroy', $account) }}"
-                  onsubmit="return confirm('Excluir esta conta? Contas com transações não podem ser excluídas.')">
+                  data-confirmar="Excluir esta conta? Contas com transações não podem ser excluídas.">
                 @csrf
                 @method('DELETE')
                 <button class="btn-danger" type="submit">

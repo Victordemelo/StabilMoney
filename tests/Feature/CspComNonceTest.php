@@ -168,6 +168,24 @@ class CspComNonceTest extends TestCase
         }
     }
 
+    /**
+     * Manipulador inline (`onclick="..."`) é bloqueado pela CSP com nonce SEMPRE: o nonce
+     * vale para `<script>`, não para atributo. O "Tentar de novo" da página offline era um
+     * `onclick` e não fazia nada — em silêncio, só o console avisava. É a tela que aparece
+     * justamente quando a pessoa está sem rede e quer tentar de novo.
+     */
+    public function test_a_pagina_offline_nao_depende_de_manipulador_inline(): void
+    {
+        $html = $this->get('/offline')->assertOk()->getContent();
+
+        preg_match_all('/<[a-z][^>]*\son[a-z]+\s*=/i', $html, $achados);
+
+        $this->assertSame([], $achados[0],
+            "Manipulador inline na página offline — a CSP o bloqueia:\n".implode("\n", $achados[0]));
+        // E o botão continua ligado, agora pelo script com nonce.
+        $this->assertStringContainsString("getElementById('tentarDeNovo').addEventListener('click'", $html);
+    }
+
     // ================= Não regrediu =================
 
     public function test_ambiente_local_continua_liberando_o_vite(): void

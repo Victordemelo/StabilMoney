@@ -7,8 +7,10 @@
         <h2>Editar transação</h2>
         <span class="sub">Atualize ou exclua esta movimentação</span>
         <div class="head-actions">
+            {{-- "Tem certeza?" pelo sm/confirmar.js: o `onsubmit` inline de antes era
+                 bloqueado pela CSP, e excluía sem perguntar. --}}
             <form method="POST" action="{{ route('transactions.destroy', $transaction) }}"
-                  onsubmit="return confirm('{{ $transaction->isTransferencia() ? 'Excluir esta transferência? As duas contas voltam ao que eram. Essa ação não pode ser desfeita.' : 'Excluir esta transação? Essa ação não pode ser desfeita.' }}')">
+                  data-confirmar="{{ $transaction->isTransferencia() ? 'Excluir esta transferência? As duas contas voltam ao que eram. Essa ação não pode ser desfeita.' : 'Excluir esta transação? Essa ação não pode ser desfeita.' }}">
                 @csrf
                 @method('DELETE')
                 <button class="btn-danger" type="submit">

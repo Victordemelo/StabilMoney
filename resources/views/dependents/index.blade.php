@@ -113,8 +113,12 @@
                                 <button class="dp-edit" type="button" data-edit="{{ $dep->id }}" aria-label="Editar dependente">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg>
                                 </button>
+                                {{-- "Tem certeza?" pelo sm/confirmar.js. O `onsubmit` inline de
+                                     antes era bloqueado pela CSP (removia sem perguntar) e ainda
+                                     punha o nome dentro de uma string JS: um apóstrofo no nome a
+                                     quebrava. Aqui o nome é só texto de atributo. --}}
                                 <form method="POST" action="{{ route('dependentes.destroy', $dep) }}"
-                                      onsubmit="return confirm('Remover {{ $dep->name }}? O acesso dele será excluído (os lançamentos da família permanecem).')">
+                                      data-confirmar="Remover {{ $dep->name }}? O acesso dele será excluído (os lançamentos da família permanecem).">
                                     @csrf
                                     @method('DELETE')
                                     <button class="dp-rm" type="submit" aria-label="Remover dependente">

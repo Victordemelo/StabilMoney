@@ -92,6 +92,18 @@
         </main>
     </div>
 
+{{-- "← Voltar" (`a[data-voltar]`): volta para onde a pessoa estava — em geral o cadastro, com o
+     que ela já tinha digitado — e cai no `href` quando não há de onde voltar (aba nova). Era um
+     `onclick` inline, que a CSP com nonce bloqueia: o link sempre levava à página inicial. --}}
+<script nonce="{{ Vite::cspNonce() }}">
+    document.addEventListener('click', function (e) {
+        var link = e.target.closest ? e.target.closest('a[data-voltar]') : null;
+        if (!link || window.history.length <= 1) return;
+        e.preventDefault();
+        window.history.back();
+    });
+</script>
+
 @include('partials.cookie-consent')
 </body>
 </html>

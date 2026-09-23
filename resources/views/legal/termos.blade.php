@@ -248,5 +248,5 @@
         termos.
     </div>
 
-    <a class="legal-back" href="{{ url('/') }}" onclick="if (history.length > 1) { history.back(); return false; }">← Voltar</a>
+    <a class="legal-back" href="{{ url('/') }}" data-voltar>← Voltar</a>
 @endsection

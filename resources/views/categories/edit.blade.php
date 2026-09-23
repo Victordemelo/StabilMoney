@@ -7,8 +7,10 @@
         <h2>Editar categoria</h2>
         <span class="sub">Atualize os dados de "{{ $category->name }}"</span>
         <div class="head-actions">
+            {{-- "Tem certeza?" pelo sm/confirmar.js: o `onsubmit` inline de antes era
+                 bloqueado pela CSP, e excluía sem perguntar. --}}
             <form method="POST" action="{{ route('categories.destroy', $category) }}"
-                  onsubmit="return confirm('Excluir esta categoria? As transações dela ficarão sem categoria.')">
+                  data-confirmar="Excluir a categoria {{ $category->name }}? As transações dela ficarão sem categoria.">
                 @csrf
                 @method('DELETE')
                 <button class="btn-danger" type="submit">
