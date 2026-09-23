@@ -7,6 +7,7 @@ use App\Notifications\RedefinicaoDeSenha;
 use App\Notifications\VerificacaoDeEmail;
 use App\Support\BrowserSessions;
 use App\Support\ImageMetadata;
+use App\Support\Notificador;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -322,10 +323,28 @@ class User extends Authenticatable implements MustVerifyEmail
         $this->notify(new VerificacaoDeEmail);
     }
 
-    /** O link de "Esqueci a senha", no layout do app (mesmo achado E-2). Chamado pelo PasswordBroker. */
+    /**
+     * O link de "Esqueci a senha", no layout do app (mesmo achado E-2). Chamado pelo
+     * PasswordBroker — e ENVIADO DEPOIS da resposta, pelo Notificador (achado da rodada de
+     * 22-23/09/2026). Antes o envio acontecia dentro da requisição, e isso tinha dois custos:
+     *
+     * - o tempo de resposta revelava quem tem conta: o broker garante 200 ms mínimos para
+     *   todo pedido (`auth.timebox_duration`), mas o envio (~1 s) estourava esse mínimo só
+     *   para e-mail CADASTRADO — um script media e montava a lista de clientes;
+     * - SMTP recusando o endereço ("550") era HTTP 500, na tela de quem está tentando
+     *   recuperar a conta.
+     *
+     * Com `defer()`, a resposta sai igual para todo mundo e o e-mail vai logo depois; a falha
+     * fica no log, sem 500. A resposta não muda quando o envio falha — dizer "falhou" só para
+     * quem tem conta seria a mesma sonda por outro caminho.
+     */
     public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
     {
-        $this->notify(new RedefinicaoDeSenha($token));
+        defer(fn () => Notificador::tentarEnviar(
+            $this,
+            'link de redefinição de senha',
+            fn () => $this->notify(new RedefinicaoDeSenha($token)),
+        ));
     }
 
     public function accounts(): HasMany

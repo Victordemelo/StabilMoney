@@ -50,8 +50,11 @@ class PasswordResetLinkController extends Controller
         // Resposta SEMPRE igual quando o e-mail não existe (INVALID_USER): dizer
         // "não existe nenhum usuário com esse e-mail" entregava a um script a lista
         // de quem tem conta aqui — insumo para phishing dirigido e credential
-        // stuffing. Só erros operacionais (ex.: THROTTLED) aparecem para o usuário.
-        if ($status === Password::RESET_LINK_SENT || $status === Password::INVALID_USER) {
+        // stuffing. E igual também no pedido REPETIDO (THROTTLED, dentro de 60 s): o
+        // "aguarde para tentar de novo" só aparecia para e-mail cadastrado — pedir duas
+        // vezes bastava para descobrir quem tem conta (rodada de 22-23/09/2026). Quem
+        // pediu há pouco já recebeu o link.
+        if (in_array($status, [Password::RESET_LINK_SENT, Password::INVALID_USER, Password::RESET_THROTTLED], true)) {
             return back()->with('status', __(Password::RESET_LINK_SENT));
         }
 

@@ -123,4 +123,21 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Tempo mínimo das respostas de autenticação (timebox), em microssegundos
+    |--------------------------------------------------------------------------
+    |
+    | O login (`validate()`) e o "esqueci a senha" (`sendResetLink`) respondem em
+    | pelo menos este tempo, exista a conta ou não — é o que impede um script de
+    | descobrir quem tem conta medindo a resposta. O padrão do framework são 200 ms,
+    | e o argon2id deste app (64 MiB, t=4) leva ~134 ms no container de dev: numa
+    | VPS mais lenta ele passaria dos 200 ms só para e-mail CADASTRADO, e a
+    | diferença voltaria. 500 ms dão folga de sobra e não pesam para quem digita.
+    | Login CERTO não espera: o framework devolve na hora (`returnEarly`).
+    |
+    */
+
+    'timebox_duration' => (int) env('AUTH_TIMEBOX_DURATION', 500000),
+
 ];

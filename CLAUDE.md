@@ -1145,7 +1145,14 @@ Corrigido nesta rodada — **não regredir**:
   `throttle:senha`** — sem limite é oráculo de força bruta e amplificação de DoS (cada tentativa
   custa um argon2id de 64 MiB).
 - **Enumeração de usuário:** `PasswordResetLinkController` responde igual para e-mail
-  inexistente (`INVALID_USER` → mensagem de sucesso).
+  inexistente (`INVALID_USER` → mensagem de sucesso) e para o pedido REPETIDO
+  (`RESET_THROTTLED`, que respondia "aguarde" só para e-mail cadastrado). E o link sai DEPOIS
+  da resposta (`defer()` + `Notificador::tentarEnviar` em `User::sendPasswordResetNotification`,
+  23/09/2026 — `EsqueciASenhaNaoRevelaQuemTemContaTest`): enviado dentro da requisição, o
+  SMTP (~1 s) estourava o tempo mínimo só para e-mail cadastrado — medindo a resposta, um
+  script montava a lista de clientes —, e o SMTP recusando era HTTP 500. **`auth.timebox_duration`
+  = 500 ms** (o framework usa 200; o argon2id do token leva ~134 ms e numa VPS lenta passaria):
+  vale para o "esqueci a senha" e para o `validate()` do login, e login CERTO não espera.
 - **Trocar senha derruba as outras sessões** (`PasswordController` → `logoutOtherDevices` +
   `BrowserSessions::purgeForUser`). `AuthenticateSession` NÃO está habilitado, então é a purga
   das linhas de `sessions` que efetivamente desconecta.
