@@ -253,6 +253,6 @@ class FixedBillTest extends TestCase
         $this->actingAs($this->user)
             ->post(route('contas-fixas.pagar', [$bill, '2026-07']), [
                 'account_id' => $this->conta->id, 'amount' => '100,00',
-            ])->assertForbidden();
+            ])->assertNotFound();
     }
 }

@@ -265,13 +265,14 @@ class ContaEmModalTest extends TestCase
             'type' => 'checking', 'name' => 'Conta do Vizinho', 'initial_balance' => 0,
         ]);
 
-        // Payload perfeitamente válido: quem barra aqui é a Policy, não a validação.
+        // Payload perfeitamente válido: quem barra aqui é o binding, não a validação — a
+        // conta alheia não existe para quem pede (o 404 de um id que não existe).
         $this->actingAs($this->user)->putJson(route('accounts.update', $alheia), [
             'name' => 'Tomada',
             'type' => 'checking',
             'bank' => 'nubank',
             'initial_balance' => '0,00',
-        ])->assertForbidden();
+        ])->assertNotFound();
 
         $this->assertSame('Conta do Vizinho', $alheia->fresh()->name);
 

@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\EscopoDaFamiliaNaRota;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Transaction extends Model
 {
-    use HasFactory;
+    // Na URL, lançamento de outra família responde como lançamento que não existe (ver o trait).
+    use EscopoDaFamiliaNaRota, HasFactory;
 
     protected $fillable = [
         'client_uuid',

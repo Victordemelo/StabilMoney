@@ -423,9 +423,8 @@ class ExcluirPeloHistoricoPodeEncerrarARecorrenciaTest extends TestCase
 
         $resposta = $this->excluir($setembro, encerrar: true, quem: $intruso);
 
-        // 403 hoje; a troca para 404 (recurso alheio igual a inexistente) está em
-        // andamento no app inteiro. O que importa aqui é que nada muda.
-        $this->assertContains($resposta->status(), [403, 404]);
+        // 404, como um id que não existe (IdAlheioNaRotaIgualAIdInexistenteTest) — e nada muda.
+        $resposta->assertNotFound();
         $this->assertDatabaseHas('transactions', ['id' => $setembro->id]);
         $this->assertSame(0, EndedRecurrence::count());
     }

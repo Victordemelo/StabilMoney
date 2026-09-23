@@ -112,7 +112,8 @@ class RemoverDependenteETudoOuNadaTest extends TestCase
     {
         $outro = User::factory()->create(['is_admin' => true]);
 
-        $this->actingAs($outro)->delete(route('dependentes.destroy', $this->dependente))->assertForbidden();
+        // Titular de OUTRA família: o dependente nem existe para ele (o 404 de um id que não existe).
+        $this->actingAs($outro)->delete(route('dependentes.destroy', $this->dependente))->assertNotFound();
 
         $this->assertModelExists($this->dependente);
     }

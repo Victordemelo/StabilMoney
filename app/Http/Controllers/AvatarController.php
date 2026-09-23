@@ -35,31 +35,34 @@ class AvatarController extends Controller
      */
     private const SEM_CACHE = 'private, no-cache';
 
-    public function show(Request $request, User $user): StreamedResponse
+    public function show(Request $request, User $membro): StreamedResponse
     {
-        // Só a própria família vê a foto. Titular e dependentes compartilham o ownerId,
-        // então a comparação cobre os dois sentidos (titular vendo dependente e vice-versa).
-        // Vem ANTES de olhar a versão: a resposta a quem não é da família não pode variar
-        // com o estado da foto de ninguém.
+        // Só a própria família vê a foto. Quem garante isso primeiro é o binding do
+        // `{membro}` (User::daFamiliaNaRota): pessoa de outra família nem chega aqui — recebe
+        // o mesmo 404 de um id que não existe, sem revelar que a pessoa existe. Esta checagem
+        // fica como SEGUNDA linha, para o dia em que o binding mudar. Titular e dependentes
+        // compartilham o ownerId, então ela cobre os dois sentidos (titular vendo dependente e
+        // vice-versa). Vem ANTES de olhar a versão: a resposta a quem não é da família não
+        // pode variar com o estado da foto de ninguém.
         abort_unless(
-            $user->ownerId() === $request->user()->ownerId(),
+            $membro->ownerId() === $request->user()->ownerId(),
             403,
             'Esta foto não é da sua família.',
         );
 
-        abort_if($user->avatar_path === null, 404);
+        abort_if($membro->avatar_path === null, 404);
 
         $disco = Storage::disk(User::AVATAR_DISK);
 
-        abort_unless($disco->exists($user->avatar_path), 404);
+        abort_unless($disco->exists($membro->avatar_path), 404);
 
         // `is_string` antes de comparar: `?v[]=x` chega como array, e convertê-lo em texto
         // viraria erro 500 numa URL que qualquer um consegue digitar.
         $versao = $request->query('v');
-        $versaoAtual = is_string($versao) && $versao === $user->versaoDaFoto();
+        $versaoAtual = is_string($versao) && $versao === $membro->versaoDaFoto();
 
         return $disco->response(
-            $user->avatar_path,
+            $membro->avatar_path,
             null,
             ['Cache-Control' => $versaoAtual ? self::CACHE : self::SEM_CACHE],
         );

@@ -136,12 +136,15 @@ class FotoTrocadaApareceNaHoraTest extends TestCase
             ->assertHeader('Cache-Control', 'no-cache, private');
     }
 
-    /** A versão certa não abre a porta: foto de outra família continua 403. */
+    /**
+     * A versão certa não abre a porta: foto de outra família continua fechada — com o 404
+     * de uma pessoa que não existe, que não conta nem que a pessoa existe.
+     */
     public function test_a_versao_nao_muda_quem_pode_ver_a_foto(): void
     {
         $dono = $this->trocarFoto(User::factory()->create(), 'foto do dono');
         $estranho = User::factory()->create();
 
-        $this->actingAs($estranho)->get($dono->avatarUrl())->assertForbidden();
+        $this->actingAs($estranho)->get($dono->avatarUrl())->assertNotFound();
     }
 }

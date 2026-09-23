@@ -11,6 +11,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\DesligaEscopoDaFamiliaNaRota;
 use Tests\TestCase;
 
 /**
@@ -29,7 +30,7 @@ use Tests\TestCase;
  */
 class ContaComGuardadoZeradoPodeSerExcluidaTest extends TestCase
 {
-    use RefreshDatabase;
+    use DesligaEscopoDaFamiliaNaRota, RefreshDatabase;
 
     private User $user;
 
@@ -184,12 +185,23 @@ class ContaComGuardadoZeradoPodeSerExcluidaTest extends TestCase
         $this->assertStringContainsString('possui transações', session('errors')->first('account'));
     }
 
-    /** A mensagem nunca cita o cofrinho de outra família (nome escopado na família da conta). */
-    public function test_conta_de_outra_familia_continua_recebendo_403(): void
+    /**
+     * A mensagem nunca cita o cofrinho de outra família (nome escopado na família da conta).
+     *
+     * Desde 23/09/2026 a conta alheia recebe o 404 de um id que não existe, no binding. A
+     * policy ANTES das checagens do `destroy` ficou como linha de trás — e continua provada,
+     * com o escopo do binding desligado.
+     */
+    public function test_conta_de_outra_familia_nao_chega_as_checagens_da_exclusao(): void
     {
         $intruso = User::factory()->create();
 
-        $this->actingAs($intruso)->delete(route('accounts.destroy', $this->conta))->assertForbidden();
+        $this->actingAs($intruso)->delete(route('accounts.destroy', $this->conta))
+            ->assertNotFound()->assertSessionHasNoErrors();
+
+        $this->desligarEscopoDaFamiliaNaRota('account', Account::class);
+        $this->actingAs($intruso)->delete(route('accounts.destroy', $this->conta))
+            ->assertForbidden()->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('accounts', ['id' => $this->conta->id]);
     }

@@ -10,6 +10,7 @@ use App\Services\FixedBillService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Tests\Concerns\DesligaEscopoDaFamiliaNaRota;
 use Tests\TestCase;
 
 /**
@@ -34,7 +35,7 @@ use Tests\TestCase;
  */
 class ContasFixasEndsOnTest extends TestCase
 {
-    use RefreshDatabase;
+    use DesligaEscopoDaFamiliaNaRota, RefreshDatabase;
 
     private User $user;
 
@@ -246,7 +247,13 @@ class ContasFixasEndsOnTest extends TestCase
         $this->assertSame(8200.0, $this->conta->fresh()->balance);
     }
 
-    /** Conta fixa de outra família continua dando 403, não erro de validação. */
+    /**
+     * Conta fixa de outra família nunca vira erro de validação (que citaria o nome dela).
+     *
+     * Desde 23/09/2026 ela recebe o 404 de um id que não existe, no binding, antes de a
+     * validação existir. O 403 do `authorize()` do PayFixedBillRequest ficou como linha de
+     * trás — e continua provado aqui, com o escopo do binding desligado.
+     */
     public function test_conta_encerrada_de_outra_familia_nao_vaza_o_nome_na_mensagem(): void
     {
         $estranho = User::factory()->create();
@@ -260,7 +267,10 @@ class ContasFixasEndsOnTest extends TestCase
             'active' => true,
         ]);
 
-        $this->pagar($bill, '2026-08')->assertForbidden();
+        $this->pagar($bill, '2026-08')->assertNotFound()->assertSessionHasNoErrors();
+
+        $this->desligarEscopoDaFamiliaNaRota('conta', FixedBill::class);
+        $this->pagar($bill, '2026-08')->assertForbidden()->assertSessionHasNoErrors();
 
         $this->assertDatabaseCount('transactions', 0);
     }

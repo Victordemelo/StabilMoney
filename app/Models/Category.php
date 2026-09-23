@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\EscopoDaFamiliaNaRota;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,7 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Category extends Model
 {
-    use HasFactory;
+    // Na URL, categoria de outra família responde como categoria que não existe (ver o trait).
+    use EscopoDaFamiliaNaRota, HasFactory;
 
     protected $fillable = [
         'user_id',

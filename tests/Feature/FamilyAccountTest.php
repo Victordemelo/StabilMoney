@@ -275,10 +275,13 @@ class FamilyAccountTest extends TestCase
         $titularB = User::factory()->create();
         $depDeB = User::factory()->create(['account_owner_id' => $titularB->id]);
 
+        // O 404 de um id que não existe: dependente de outra família não existe para quem pede.
         $this->actingAs($titularA)->patch("/dependentes/{$depDeB->id}", [
             '_form' => 'edit-'.$depDeB->id,
             'name' => 'Invadido', 'email' => 'invadido@x.test',
-        ])->assertForbidden();
+        ])->assertNotFound();
+
+        $this->assertSame($depDeB->name, $depDeB->fresh()->name);
     }
 
     public function test_dependent_cannot_update_dependent(): void

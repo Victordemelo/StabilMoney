@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -61,6 +62,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->configurarLimitesDeTaxa();
         $this->configurarPoliticaDeSenha();
+        $this->configurarPessoasDaFamiliaNaRota();
 
         // @brl($valor) — dinheiro no padrão brasileiro, com o sinal ANTES do
         // símbolo ("−R$ 1.234,56"). number_format sozinho produzia "R$ -1.234,56".
@@ -97,6 +99,25 @@ class AppServiceProvider extends ServiceProvider
                 'lmFamily' => $ownerId ? User::familyOf($ownerId)->get() : collect(),
             ]);
         });
+    }
+
+    /**
+     * Pessoas nomeadas na URL do app: `{dependent}` (editar/remover dependente) e `{membro}`
+     * (a foto de perfil). Pessoa de OUTRA família responde como id que não existe — a regra
+     * e o porquê estão em `User::daFamiliaNaRota()`.
+     *
+     * Os models do dinheiro não precisam de nada aqui: o escopo deles vem do próprio model
+     * (`Concerns\EscopoDaFamiliaNaRota`). Pessoa precisa, porque o `{user}` do painel
+     * administrativo não pode ganhar escopo de família.
+     *
+     * ⚠️ Fica AQUI, e não em routes/web.php: com `route:cache` (deploy) os arquivos de rota
+     * nem são lidos, e um `Route::bind` escrito neles sumiria em produção sem erro nenhum —
+     * o binding voltaria a ser o implícito, sem família. O provider roda sempre.
+     */
+    protected function configurarPessoasDaFamiliaNaRota(): void
+    {
+        Route::bind('dependent', fn (string $valor) => User::daFamiliaNaRota($valor, soDependentes: true));
+        Route::bind('membro', fn (string $valor) => User::daFamiliaNaRota($valor));
     }
 
     /**

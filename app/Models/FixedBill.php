@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\EscopoDaFamiliaNaRota;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -21,7 +22,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class FixedBill extends Model
 {
-    use HasFactory;
+    // Na URL, conta fixa de outra família responde como conta fixa que não existe (ver o trait).
+    use EscopoDaFamiliaNaRota, HasFactory;
 
     /**
      * `amount_history` fica FORA de propósito: só `definirValorPrevisto()` escreve

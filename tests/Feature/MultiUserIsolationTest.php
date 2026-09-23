@@ -12,6 +12,10 @@ use Tests\TestCase;
 /**
  * Isolamento multiusuário: o usuário A nunca vê, edita, atualiza, exclui
  * ou referencia (em transações novas) os dados do usuário B.
+ *
+ * Recurso de B na URL responde a A o 404 de um id que não existe — não 403, que
+ * contaria que o recurso existe (23/09/2026; a regra, em toda rota, é do
+ * IdAlheioNaRotaIgualAIdInexistenteTest).
  */
 class MultiUserIsolationTest extends TestCase
 {
@@ -96,30 +100,30 @@ class MultiUserIsolationTest extends TestCase
         $response->assertSee('"hasData":false', false);
     }
 
-    // ----- GET edit de recurso alheio => 403 -----
+    // ----- GET edit de recurso alheio => 404, o mesmo de um id que não existe -----
 
     public function test_user_cannot_view_edit_form_of_others_transaction(): void
     {
         $this->actingAs($this->userA)
             ->get("/transactions/{$this->transactionB->id}/edit")
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     public function test_user_cannot_view_edit_form_of_others_account(): void
     {
         $this->actingAs($this->userA)
             ->get("/accounts/{$this->accountB->id}/edit")
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     public function test_user_cannot_view_edit_form_of_others_category(): void
     {
         $this->actingAs($this->userA)
             ->get("/categories/{$this->categoryB->id}/edit")
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
-    // ----- PUT em recurso alheio => 403 (payload válido para passar da validação) -----
+    // ----- PUT em recurso alheio => 404 (payload válido: nem chega à validação) -----
 
     public function test_user_cannot_update_others_transaction(): void
     {
@@ -132,7 +136,7 @@ class MultiUserIsolationTest extends TestCase
             'date' => now()->toDateString(),
         ]);
 
-        $response->assertForbidden();
+        $response->assertNotFound();
         $this->assertSame('Compra secreta do B', $this->transactionB->fresh()->description);
     }
 
@@ -145,7 +149,7 @@ class MultiUserIsolationTest extends TestCase
             'initial_balance' => '0,00',
         ]);
 
-        $response->assertForbidden();
+        $response->assertNotFound();
         $this->assertSame('Conta Secreta do B', $this->accountB->fresh()->name);
     }
 
@@ -156,13 +160,13 @@ class MultiUserIsolationTest extends TestCase
             'type' => 'expense',
         ]);
 
-        $response->assertForbidden();
+        $response->assertNotFound();
         $this->assertSame('Categoria Secreta do B', $this->categoryB->fresh()->name);
     }
 
     public function test_user_cannot_move_others_category_via_json_patch(): void
     {
-        // Mesmo fluxo do drag & drop (PATCH JSON trocando o type): 403 + nada muda
+        // Mesmo fluxo do drag & drop (PATCH JSON trocando o type): 404 + nada muda
         $response = $this->actingAs($this->userA)->patchJson("/categories/{$this->categoryB->id}", [
             'name' => $this->categoryB->name,
             'type' => 'income',
@@ -170,17 +174,17 @@ class MultiUserIsolationTest extends TestCase
             'icon' => $this->categoryB->icon,
         ]);
 
-        $response->assertForbidden();
+        $response->assertNotFound();
         $this->assertSame('expense', $this->categoryB->fresh()->type);
     }
 
-    // ----- DELETE em recurso alheio => 403 -----
+    // ----- DELETE em recurso alheio => 404 -----
 
     public function test_user_cannot_delete_others_transaction(): void
     {
         $this->actingAs($this->userA)
             ->delete("/transactions/{$this->transactionB->id}")
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertDatabaseHas('transactions', ['id' => $this->transactionB->id]);
     }
@@ -189,7 +193,7 @@ class MultiUserIsolationTest extends TestCase
     {
         $this->actingAs($this->userA)
             ->delete("/accounts/{$this->accountB->id}")
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertDatabaseHas('accounts', ['id' => $this->accountB->id]);
     }
@@ -198,7 +202,7 @@ class MultiUserIsolationTest extends TestCase
     {
         $this->actingAs($this->userA)
             ->delete("/categories/{$this->categoryB->id}")
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertDatabaseHas('categories', ['id' => $this->categoryB->id]);
     }

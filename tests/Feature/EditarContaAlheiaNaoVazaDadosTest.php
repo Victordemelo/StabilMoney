@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\DesligaEscopoDaFamiliaNaRota;
 use Tests\TestCase;
 
 /**
@@ -17,10 +18,17 @@ use Tests\TestCase;
  * outra classe recebia de volta, antes do 403, o NOME da conta, o TIPO dela e a
  * confirmação de que ela tem dinheiro ("já tem saldo, lançamentos ou dinheiro
  * guardado") — uma sonda para varrer ids.
+ *
+ * Desde 23/09/2026 a conta alheia nem chega ao Form Request: o binding só encontra conta da
+ * família de quem pede e responde o 404 de um id que não existe
+ * (`IdAlheioNaRotaIgualAIdInexistenteTest`). O `authorize()` do request (e, atrás dele, a
+ * guarda da trava de classe) ficou como linha de TRÁS — e é dele que este teste cuida, com o
+ * escopo do binding desligado no setUp. Com o escopo ligado, a conta alheia pararia no 404
+ * do binding e o `authorize()` não seria visto.
  */
 class EditarContaAlheiaNaoVazaDadosTest extends TestCase
 {
-    use RefreshDatabase;
+    use DesligaEscopoDaFamiliaNaRota, RefreshDatabase;
 
     private const NOME_ALHEIO = 'Reserva Secreta do Vizinho';
 
@@ -33,6 +41,9 @@ class EditarContaAlheiaNaoVazaDadosTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // A conta alheia precisa CHEGAR ao Form Request (ver o docblock).
+        $this->desligarEscopoDaFamiliaNaRota('account', Account::class);
 
         $this->vizinho = User::factory()->create(['is_admin' => true, 'account_owner_id' => null]);
         // Saldo inicial > 0 basta para `hasMoneyHistory()`: é a conta em que a trava

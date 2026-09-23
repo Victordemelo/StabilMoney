@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\DesligaEscopoDaFamiliaNaRota;
 use Tests\TestCase;
 
 /**
@@ -23,7 +24,7 @@ use Tests\TestCase;
  */
 class SaldoInicialRespeitaOPisoTest extends TestCase
 {
-    use RefreshDatabase;
+    use DesligaEscopoDaFamiliaNaRota, RefreshDatabase;
 
     private User $user;
 
@@ -218,8 +219,12 @@ class SaldoInicialRespeitaOPisoTest extends TestCase
     /**
      * A regra roda na validação, ANTES da policy do controller. Sem a guarda de
      * posse, o texto do erro entregava o saldo de conta alheia ("ficaria em
-     * −R$ 123,45") a quem chutasse um id — uma sonda. Conta de outra família
-     * recebe o 403 de sempre, sem número nenhum.
+     * −R$ 123,45") a quem chutasse um id — uma sonda.
+     *
+     * Desde 23/09/2026 a conta alheia nem chega à validação: o binding só encontra conta
+     * da família e responde o 404 de um id que não existe. A guarda de posse da regra
+     * (com o `authorize()` do request) ficou como linha de trás — e continua provada aqui,
+     * com o escopo do binding desligado: o 403 de sempre, sem número nenhum.
      */
     public function test_conta_de_outra_familia_nao_vira_sonda_de_saldo(): void
     {
@@ -231,9 +236,15 @@ class SaldoInicialRespeitaOPisoTest extends TestCase
             'account_id' => $alheia->id, 'type' => 'aporte', 'amount' => 800, 'date' => now()->toDateString(),
         ]);
 
+        // A porta da frente: a conta alheia não existe para quem pede.
+        $this->editar($alheia, ['initial_balance' => '0,00'])->assertNotFound();
+
+        // A linha de trás, sozinha.
+        $this->desligarEscopoDaFamiliaNaRota('account', Account::class);
         $r = $this->editar($alheia, ['initial_balance' => '0,00']);
 
         $r->assertForbidden();
+        $this->assertStringNotContainsString('R$', $r->getContent());
         $this->assertSame(1000.0, (float) $alheia->fresh()->initial_balance);
     }
 }

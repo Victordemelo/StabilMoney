@@ -8,6 +8,7 @@ use App\Models\FixedBill;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\DesligaEscopoDaFamiliaNaRota;
 use Tests\TestCase;
 
 /**
@@ -27,7 +28,7 @@ use Tests\TestCase;
  */
 class CategoriaEmUsoNaoTrocaDeTipoTest extends TestCase
 {
-    use RefreshDatabase;
+    use DesligaEscopoDaFamiliaNaRota, RefreshDatabase;
 
     private User $user;
 
@@ -230,14 +231,24 @@ class CategoriaEmUsoNaoTrocaDeTipoTest extends TestCase
         $this->assertSame('expense', $despesa->fresh()->type);
     }
 
-    /** A recusa diz o que há dentro da categoria — só depois de saber que ela é da família. */
-    public function test_categoria_de_outra_familia_continua_403(): void
+    /**
+     * A recusa diz o que há dentro da categoria — só depois de saber que ela é da família.
+     *
+     * Desde 23/09/2026 a categoria alheia recebe o 404 de um id que não existe, no binding,
+     * sem chegar ao controller. A ordem do controller (policy ANTES da recusa) ficou como
+     * linha de trás — e continua provada aqui, com o escopo do binding desligado: 403, sem
+     * a contagem de lançamentos.
+     */
+    public function test_categoria_de_outra_familia_nao_recebe_a_recusa_com_o_que_ha_dentro(): void
     {
         $outro = User::factory()->create();
         $alheia = Category::factory()->expense()->for($outro)->create(['name' => 'Alheia']);
         Transaction::factory()->for($outro)->expense()->create(['category_id' => $alheia->id]);
 
-        $this->arrastar($alheia, 'income')->assertForbidden();
+        $this->arrastar($alheia, 'income')->assertNotFound()->assertJsonMissingValidationErrors();
+
+        $this->desligarEscopoDaFamiliaNaRota('category', Category::class);
+        $this->arrastar($alheia, 'income')->assertForbidden()->assertJsonMissingValidationErrors();
 
         $this->assertSame('expense', $alheia->fresh()->type);
     }

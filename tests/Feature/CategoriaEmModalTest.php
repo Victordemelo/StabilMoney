@@ -301,11 +301,12 @@ class CategoriaEmModalTest extends TestCase
         $estranho = User::factory()->create();
         $alheia = Category::factory()->expense()->for($estranho)->create(['name' => 'Sigilosa']);
 
+        // O 404 de um id que não existe: a categoria alheia não existe para quem pede.
         $this->actingAs($this->user)->post(route('categories.update', $alheia), [
             '_method' => 'PUT',
             'name' => 'Invadida',
             'type' => 'expense',
-        ], $this->comoModal())->assertForbidden();
+        ], $this->comoModal())->assertNotFound();
 
         $this->assertSame('Sigilosa', $alheia->fresh()->name);
     }

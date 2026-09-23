@@ -389,14 +389,15 @@ class EstornoEIdempotenciaTest extends TestCase
         $this->assertDatabaseHas('transactions', ['id' => $comum->id]);
     }
 
-    public function test_estorno_de_outra_familia_da_403(): void
+    /** A quitação alheia responde como uma que não existe (404 do binding, não 403). */
+    public function test_estorno_de_outra_familia_da_404(): void
     {
         [, $quitacao] = $this->faturaPaga();
         $intruso = User::factory()->create();
 
         $this->actingAs($intruso)
             ->delete(route('faturas.fatura.estornar', $quitacao))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertDatabaseHas('transactions', ['id' => $quitacao->id]);
     }

@@ -10,6 +10,7 @@ use App\Models\InvestmentContribution;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Concerns\DesligaEscopoDaFamiliaNaRota;
 use Tests\TestCase;
 
 /**
@@ -20,7 +21,7 @@ use Tests\TestCase;
  */
 class AuditoriaMetasInvestimentosTest extends TestCase
 {
-    use RefreshDatabase;
+    use DesligaEscopoDaFamiliaNaRota, RefreshDatabase;
 
     private User $titular;
 
@@ -257,9 +258,13 @@ class AuditoriaMetasInvestimentosTest extends TestCase
     /**
      * M-2: um estranho postava um resgate absurdo numa meta alheia e a
      * validação (que roda ANTES da policy) respondia "…maior que o valor
-     * guardado na meta (R$ 87.345,67)". Agora o 403 vem antes da validação.
+     * guardado na meta (R$ 87.345,67)". A correção pôs o 403 antes da validação.
+     *
+     * Desde 23/09/2026 há uma porta antes dele: o binding só encontra meta da família
+     * de quem pede, e a alheia recebe o 404 de um id que não existe. O 403 do
+     * `authorize()` virou linha de trás — e continua provado, com o escopo desligado.
      */
-    public function test_resgate_em_meta_de_outra_familia_da_403_sem_vazar_saldo(): void
+    public function test_resgate_em_meta_de_outra_familia_nao_vaza_saldo(): void
     {
         $meta = Goal::factory()->for($this->titular)->create();
         GoalContribution::factory()->for($meta)->for($this->contaA)->aporte()->create(['amount' => 873.45]);
@@ -267,17 +272,25 @@ class AuditoriaMetasInvestimentosTest extends TestCase
         $estranho = User::factory()->create();
         $contaDele = Account::factory()->for($estranho)->create(['type' => 'checking', 'initial_balance' => 10]);
 
-        $resposta = $this->actingAs($estranho)->post(route('metas.resgates.store', $meta), [
+        $resgatar = fn () => $this->actingAs($estranho)->post(route('metas.resgates.store', $meta), [
             'amount' => '999.999,00', 'account_id' => $contaDele->id,
         ]);
 
-        $resposta->assertForbidden();
-        $resposta->assertSessionHasNoErrors();
-        $this->assertStringNotContainsString('873,45', $resposta->getContent());
+        $naPortaDaFrente = $resgatar();
+        $naPortaDaFrente->assertNotFound();
+        $naPortaDaFrente->assertSessionHasNoErrors();
+        $this->assertStringNotContainsString('873,45', $naPortaDaFrente->getContent());
+
+        $this->desligarEscopoDaFamiliaNaRota('meta', Goal::class);
+
+        $naLinhaDeTras = $resgatar();
+        $naLinhaDeTras->assertForbidden();
+        $naLinhaDeTras->assertSessionHasNoErrors();
+        $this->assertStringNotContainsString('873,45', $naLinhaDeTras->getContent());
     }
 
     /** M-2 (investimento): mesmo caso, no cofrinho de investimento. */
-    public function test_resgate_em_investimento_de_outra_familia_da_403_sem_vazar_saldo(): void
+    public function test_resgate_em_investimento_de_outra_familia_nao_vaza_saldo(): void
     {
         $inv = Investment::factory()->for($this->titular)->create();
         InvestmentContribution::factory()->for($inv)->for($this->contaA)->aporte()->create(['amount' => 873.45]);
@@ -285,13 +298,21 @@ class AuditoriaMetasInvestimentosTest extends TestCase
         $estranho = User::factory()->create();
         $contaDele = Account::factory()->for($estranho)->create(['type' => 'checking', 'initial_balance' => 10]);
 
-        $resposta = $this->actingAs($estranho)->post(route('investimentos.resgates.store', $inv), [
+        $resgatar = fn () => $this->actingAs($estranho)->post(route('investimentos.resgates.store', $inv), [
             'amount' => '999.999,00', 'account_id' => $contaDele->id,
         ]);
 
-        $resposta->assertForbidden();
-        $resposta->assertSessionHasNoErrors();
-        $this->assertStringNotContainsString('873,45', $resposta->getContent());
+        $naPortaDaFrente = $resgatar();
+        $naPortaDaFrente->assertNotFound();
+        $naPortaDaFrente->assertSessionHasNoErrors();
+        $this->assertStringNotContainsString('873,45', $naPortaDaFrente->getContent());
+
+        $this->desligarEscopoDaFamiliaNaRota('investimento', Investment::class);
+
+        $naLinhaDeTras = $resgatar();
+        $naLinhaDeTras->assertForbidden();
+        $naLinhaDeTras->assertSessionHasNoErrors();
+        $this->assertStringNotContainsString('873,45', $naLinhaDeTras->getContent());
     }
 
     /** M-2: o dependente da própria família continua podendo resgatar (visão compartilhada). */

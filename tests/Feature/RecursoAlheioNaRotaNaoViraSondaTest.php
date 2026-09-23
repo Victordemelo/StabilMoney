@@ -11,6 +11,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\DesligaEscopoDaFamiliaNaRota;
 use Tests\TestCase;
 
 /**
@@ -30,10 +31,19 @@ use Tests\TestCase;
  * O último teste cobre os requests que deixam a posse para o controller: sem regra
  * sobre a rota, a validação do recurso alheio tem de ser a mesma do próprio.
  * (O caso das METAS, que vazava de verdade, está em `EditarMetaAlheiaNaoVazaPrazoTest`.)
+ *
+ * **Estas são as linhas de TRÁS desde 23/09/2026.** A primeira porta passou a ser o route
+ * model binding: recurso de outra família nem é encontrado e recebe o mesmo 404 de um id
+ * que não existe, antes de o Form Request existir (`IdAlheioNaRotaIgualAIdInexistenteTest`,
+ * em toda rota). Aqui o escopo do binding é DESLIGADO no setUp, para que o recurso alheio
+ * chegue ao Form Request como chegava antes — é a única forma de o teste continuar olhando
+ * para o `authorize()` e para as guardas das regras, que seguem no código como defesa em
+ * profundidade. Com o escopo ligado, o recurso alheio pararia no 404 do binding e nenhuma
+ * dessas linhas seria vista.
  */
 class RecursoAlheioNaRotaNaoViraSondaTest extends TestCase
 {
-    use RefreshDatabase;
+    use DesligaEscopoDaFamiliaNaRota, RefreshDatabase;
 
     private User $vizinho;
 
@@ -49,6 +59,19 @@ class RecursoAlheioNaRotaNaoViraSondaTest extends TestCase
         // depuração: com o debug ligado, o JSON do 403 traz a pilha, e a pilha cita a
         // linha do teste de onde saiu cada requisição.
         config(['app.debug' => false]);
+
+        // A porta da frente (o binding com escopo de família) fica desligada: ver o docblock.
+        foreach ([
+            'account' => Account::class,
+            'category' => Category::class,
+            'conta' => FixedBill::class,
+            'dependent' => User::class,
+            'investimento' => Investment::class,
+            'meta' => Goal::class,
+            'transaction' => Transaction::class,
+        ] as $parametro => $classe) {
+            $this->desligarEscopoDaFamiliaNaRota($parametro, $classe);
+        }
 
         $this->vizinho = User::factory()->create(['is_admin' => true, 'account_owner_id' => null]);
         $this->intruso = User::factory()->create(['is_admin' => true, 'account_owner_id' => null]);

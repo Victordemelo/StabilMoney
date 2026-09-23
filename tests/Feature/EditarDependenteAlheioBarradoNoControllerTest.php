@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Tests\Concerns\DesligaEscopoDaFamiliaNaRota;
 use Tests\TestCase;
 
 /**
@@ -23,16 +24,25 @@ use Tests\TestCase;
  * O arquivo do Form Request não é tocado. O último teste confere que a subclasse deixa o
  * caminho legítimo passar: sem isso, um 403 aqui poderia vir da própria troca, e não da
  * checagem do controller.
+ *
+ * Desde 23/09/2026 há uma porta ANTES das duas: o `{dependent}` só encontra dependente da
+ * família de quem pede (User::daFamiliaNaRota), e o de outra família recebe o 404 de um id
+ * que não existe — coberto pelo IdAlheioNaRotaIgualAIdInexistenteTest. Aqui essa porta
+ * também é desligada: senão o dependente alheio pararia no 404 do binding, sem chegar à
+ * checagem do controller que este teste existe para provar.
  */
 class EditarDependenteAlheioBarradoNoControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use DesligaEscopoDaFamiliaNaRota, RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         Mail::fake();
+
+        // O binding como era antes do escopo de família: acha o dependente de QUALQUER família.
+        $this->desligarEscopoDaFamiliaNaRota('dependent', User::class);
 
         // O Form Request como ele ficaria se alguém apagasse o `authorize()`: regras de
         // validação iguais, barreira de posse nenhuma.

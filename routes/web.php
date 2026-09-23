@@ -110,7 +110,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Foto de perfil — servida pelo app, não pelo symlink de storage/. Fica atrás de
     // `auth` e só entrega a foto de quem é da MESMA família (ver AvatarController).
-    Route::get('/avatar/{user}', [AvatarController::class, 'show'])->name('avatar.show');
+    //
+    // `{membro}`, e não `{user}`: o nome tem binding próprio, com escopo de família
+    // (AppServiceProvider::configurarPessoasDaFamiliaNaRota) — pessoa de outra família
+    // responde como pessoa que não existe. Um binding para `{user}` seria global e pegaria
+    // também o painel administrativo e a confirmação de troca de e-mail.
+    Route::get('/avatar/{membro}', [AvatarController::class, 'show'])->name('avatar.show');
 
     // Meu perfil (dados pessoais: nome, e-mail, telefone, foto)
     Route::get('/meu-perfil', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -171,7 +176,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('throttle:senha')
         ->name('settings.2fa.desativar');
 
-    // Dependentes (conta-família) — só o titular gerencia
+    // Dependentes (conta-família) — só o titular gerencia. O `{dependent}` tem binding
+    // próprio (AppServiceProvider::configurarPessoasDaFamiliaNaRota): só acha DEPENDENTE da
+    // família de quem pede, e o de outra família responde como id que não existe.
     Route::get('/dependentes', [DependentController::class, 'index'])->name('dependentes');
     Route::post('/dependentes', [DependentController::class, 'store'])->name('dependentes.store');
     Route::patch('/dependentes/{dependent}', [DependentController::class, 'update'])->name('dependentes.update');

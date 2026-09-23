@@ -12,15 +12,17 @@ use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
- * 403 entre famílias nas rotas de fatura e conta fixa.
+ * Isolamento entre famílias nas rotas de fatura e conta fixa.
  *
  * A auditoria apontou que essas rotas ESTAVAM protegidas (todas chamam `authorize()` ou
  * `abort_unless`), mas sem teste travando — ou seja, uma refatoração poderia removê-las
  * sem nada acusar. São as rotas que movimentam dinheiro, então o buraco de cobertura
  * incomoda mais aqui do que em qualquer outro lugar.
  *
- * Cada teste verifica DUAS coisas: o status 403/404 e, o que importa de verdade, que
- * NADA mudou no dinheiro da vítima.
+ * Cada teste verifica DUAS coisas: o status e, o que importa de verdade, que NADA mudou
+ * no dinheiro da vítima. O status é 404 desde 23/09/2026: o recurso de outra família nem
+ * é encontrado pelo binding e responde como um id que não existe (o 403 de antes contava
+ * que ele existia) — ver IdAlheioNaRotaIgualAIdInexistenteTest.
  */
 class IsolamentoFaturasEContasFixasTest extends TestCase
 {
@@ -107,7 +109,7 @@ class IsolamentoFaturasEContasFixasTest extends TestCase
             ->post(route('faturas.fatura.pagar', $this->cartaoDoDono), [
                 'pay_account_id' => $correnteDoEstranho->id,
             ])
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertSame($saldoAntes, $this->saldoDoDono(), 'O saldo do dono mudou.');
         $this->assertSame(
@@ -133,7 +135,7 @@ class IsolamentoFaturasEContasFixasTest extends TestCase
 
         $this->actingAs($this->estranho)
             ->post(route('faturas.recorrente.pagar', $recorrente))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertNull($recorrente->fresh()->paid_at, 'A recorrência do dono foi marcada como paga.');
         $this->assertSame(
@@ -149,7 +151,7 @@ class IsolamentoFaturasEContasFixasTest extends TestCase
 
         $this->actingAs($this->estranho)
             ->delete(route('faturas.compra.destroy', $compra))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertTrue(Transaction::whereKey($compra->id)->exists(), 'A compra do dono foi apagada.');
     }
@@ -176,7 +178,7 @@ class IsolamentoFaturasEContasFixasTest extends TestCase
 
         $this->actingAs($this->estranho)
             ->delete(route('faturas.fatura.estornar', $quitacao))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertSame($saldoAntes, $this->saldoDoDono(), 'O estorno alheio mexeu no saldo do dono.');
         $this->assertTrue(
@@ -200,7 +202,7 @@ class IsolamentoFaturasEContasFixasTest extends TestCase
                 'category_id' => $this->categoriaDoDono->id,
                 'starts_on' => now()->subMonth()->startOfMonth()->toDateString(),
             ])
-            ->assertForbidden();
+            ->assertNotFound();
 
         $conta->refresh();
         $this->assertSame('Aluguel do vizinho', $conta->name, 'A conta fixa do dono foi renomeada.');
@@ -213,7 +215,7 @@ class IsolamentoFaturasEContasFixasTest extends TestCase
 
         $this->actingAs($this->estranho)
             ->delete(route('contas-fixas.destroy', $conta))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $conta->refresh();
         $this->assertTrue($conta->exists, 'A conta fixa do dono foi apagada.');
@@ -231,7 +233,7 @@ class IsolamentoFaturasEContasFixasTest extends TestCase
                 'account_id' => $this->correnteDoDono->id,
                 'amount' => '1.800,00',
             ])
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertSame($saldoAntes, $this->saldoDoDono(), 'O saldo do dono foi debitado por um estranho.');
         $this->assertSame(

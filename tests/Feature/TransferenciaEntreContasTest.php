@@ -279,7 +279,8 @@ class TransferenciaEntreContasTest extends TestCase
         $this->assertSame(1300.0, $this->poupanca->fresh()->available);
     }
 
-    public function test_dependente_transfere_na_familia_e_outra_familia_recebe_403(): void
+    /** Outra família recebe o 404 de um id que não existe — não um 403 que confirmaria a transferência. */
+    public function test_dependente_transfere_na_familia_e_outra_familia_recebe_404(): void
     {
         $dependente = User::factory()->create(['is_admin' => false, 'account_owner_id' => $this->titular->id]);
 
@@ -289,8 +290,8 @@ class TransferenciaEntreContasTest extends TestCase
         $this->assertSame($dependente->id, $saida->made_by_user_id);
 
         $intruso = User::factory()->create(['is_admin' => true]);
-        $this->actingAs($intruso)->get(route('transactions.edit', $saida))->assertForbidden();
-        $this->actingAs($intruso)->delete(route('transactions.destroy', $saida))->assertForbidden();
+        $this->actingAs($intruso)->get(route('transactions.edit', $saida))->assertNotFound();
+        $this->actingAs($intruso)->delete(route('transactions.destroy', $saida))->assertNotFound();
         $this->assertSame(2, Transaction::count());
     }
 

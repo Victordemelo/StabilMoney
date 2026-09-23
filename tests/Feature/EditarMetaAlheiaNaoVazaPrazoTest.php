@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route;
 use Illuminate\Testing\TestResponse;
+use Tests\Concerns\DesligaEscopoDaFamiliaNaRota;
 use Tests\TestCase;
 
 /**
@@ -27,10 +28,18 @@ use Tests\TestCase;
  * pessoa logada descobria o prazo de toda meta vencida de outra família — e que
  * ela está vencida. A mensagem nunca citava a data; quem contava era a DIFERENÇA
  * entre as duas respostas.
+ *
+ * Desde 23/09/2026 a meta alheia nem chega ao Form Request: o binding só encontra meta
+ * da família de quem pede e responde o 404 de um id que não existe
+ * (`IdAlheioNaRotaIgualAIdInexistenteTest`). O `authorize()` e a guarda do perdão do
+ * prazo ficaram como linhas de TRÁS, e é delas que este arquivo cuida: o `authorize()`
+ * pelos testes HTTP, com o escopo do binding desligado no setUp (ligado, a meta alheia
+ * pararia no 404 do binding e o `authorize()` não seria visto); a guarda, montando as
+ * regras direto, no último teste.
  */
 class EditarMetaAlheiaNaoVazaPrazoTest extends TestCase
 {
-    use RefreshDatabase;
+    use DesligaEscopoDaFamiliaNaRota, RefreshDatabase;
 
     private const NOME_ALHEIO = 'Cirurgia Secreta do Vizinho';
 
@@ -43,6 +52,9 @@ class EditarMetaAlheiaNaoVazaPrazoTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // A meta alheia precisa CHEGAR ao Form Request (ver o docblock).
+        $this->desligarEscopoDaFamiliaNaRota('meta', Goal::class);
 
         $this->vizinho = User::factory()->create(['is_admin' => true, 'account_owner_id' => null]);
 

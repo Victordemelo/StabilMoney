@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\EscopoDaFamiliaNaRota;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,7 +15,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Goal extends Model
 {
-    use HasFactory;
+    // Na URL, meta de outra família responde como meta que não existe (ver o trait).
+    use EscopoDaFamiliaNaRota, HasFactory;
 
     protected $fillable = [
         'user_id',

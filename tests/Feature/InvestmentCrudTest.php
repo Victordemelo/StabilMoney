@@ -379,7 +379,7 @@ class InvestmentCrudTest extends TestCase
         $this->actingAs($this->user)->patch("/investimentos/{$investment->id}", [
             'name' => 'Invasão',
             'classe' => 'cripto',
-        ])->assertForbidden();
+        ])->assertNotFound();
 
         $this->assertDatabaseMissing('investments', ['name' => 'Invasão']);
     }
@@ -389,7 +389,7 @@ class InvestmentCrudTest extends TestCase
         $other = User::factory()->create();
         $investment = Investment::factory()->for($other)->create();
 
-        $this->actingAs($this->user)->delete("/investimentos/{$investment->id}")->assertForbidden();
+        $this->actingAs($this->user)->delete("/investimentos/{$investment->id}")->assertNotFound();
 
         $this->assertDatabaseHas('investments', ['id' => $investment->id]);
     }
@@ -402,7 +402,7 @@ class InvestmentCrudTest extends TestCase
         $this->actingAs($this->user)->post("/investimentos/{$investment->id}/aportes", [
             'amount' => '10,00',
             'account_id' => $this->account->id,
-        ])->assertForbidden();
+        ])->assertNotFound();
 
         $this->assertDatabaseCount('investment_contributions', 0);
     }

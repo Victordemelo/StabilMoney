@@ -312,7 +312,7 @@ class GoalCrudTest extends TestCase
             'target_amount' => '10,00',
             'emoji' => '🎯',
             'color' => '#1FA06E',
-        ])->assertForbidden();
+        ])->assertNotFound();
 
         $this->assertDatabaseMissing('goals', ['name' => 'Invasão']);
     }
@@ -322,7 +322,7 @@ class GoalCrudTest extends TestCase
         $other = User::factory()->create();
         $goal = Goal::factory()->for($other)->create();
 
-        $this->actingAs($this->user)->delete("/metas/{$goal->id}")->assertForbidden();
+        $this->actingAs($this->user)->delete("/metas/{$goal->id}")->assertNotFound();
 
         $this->assertDatabaseHas('goals', ['id' => $goal->id]);
     }
@@ -335,7 +335,7 @@ class GoalCrudTest extends TestCase
         $this->actingAs($this->user)->post("/metas/{$goal->id}/aportes", [
             'amount' => '10,00',
             'account_id' => $this->account->id,
-        ])->assertForbidden();
+        ])->assertNotFound();
 
         $this->assertDatabaseCount('goal_contributions', 0);
     }

@@ -47,7 +47,7 @@ class AvatarPrivadoTest extends TestCase
 
         // Com a versão da foto na query (ver FotoTrocadaApareceNaHoraTest).
         $this->assertSame(
-            route('avatar.show', ['user' => $user, 'v' => $user->versaoDaFoto()]),
+            route('avatar.show', ['membro' => $user, 'v' => $user->versaoDaFoto()]),
             $user->avatarUrl(),
         );
         $this->assertStringNotContainsString(
@@ -87,6 +87,10 @@ class AvatarPrivadoTest extends TestCase
         $this->actingAs($titular)->get(route('avatar.show', $dependente))->assertOk();
     }
 
+    /**
+     * O estranho recebe o 404 de uma pessoa que não existe — o 403 de antes confirmava que o
+     * id era de alguém, e varrer `/avatar/{id}` contava os usuários do app.
+     */
     public function test_estranho_nao_ve_a_foto_de_outra_familia(): void
     {
         Storage::fake(User::AVATAR_DISK);
@@ -96,7 +100,7 @@ class AvatarPrivadoTest extends TestCase
 
         $this->actingAs($estranho)
             ->get(route('avatar.show', $dono))
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     public function test_visitante_sem_sessao_nao_ve_foto_nenhuma(): void

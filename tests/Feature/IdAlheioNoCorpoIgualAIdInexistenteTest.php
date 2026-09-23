@@ -30,6 +30,9 @@ use Tests\TestCase;
  * Cada caso manda um corpo VÁLIDO exceto pelo campo em teste — a resposta do id
  * inexistente precisa ter erro só nele (ou no par que ele alimenta, no Pix). Assim o
  * teste não passa "de graça" com um corpo que já seria recusado por outro motivo.
+ *
+ * O mesmo vale para o id na URL (`/accounts/{account}`, `/metas/{meta}`...) desde
+ * 23/09/2026 — esse lado é do `IdAlheioNaRotaIgualAIdInexistenteTest`.
  */
 class IdAlheioNoCorpoIgualAIdInexistenteTest extends TestCase
 {

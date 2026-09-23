@@ -343,7 +343,8 @@ class FaturaCrudTest extends TestCase
         $strangerCard = Account::factory()->for($stranger)->creditCard()->create();
         $tx = Transaction::factory()->for($stranger)->for($strangerCard)->expense()->create();
 
-        $this->actingAs($this->user)->delete("/faturas/compra/{$tx->id}")->assertForbidden();
+        // O 404 de um id que não existe: a compra alheia não existe para quem pede.
+        $this->actingAs($this->user)->delete("/faturas/compra/{$tx->id}")->assertNotFound();
 
         $this->assertDatabaseHas('transactions', ['id' => $tx->id]);
     }

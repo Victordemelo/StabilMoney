@@ -10,12 +10,15 @@ use App\Support\ImageMetadata;
 use App\Support\Notificador;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
@@ -422,6 +425,51 @@ class User extends Authenticatable implements MustVerifyEmail
         })->orderBy('name');
     }
 
+    /**
+     * Resolve a PESSOA nomeada na URL — `{dependent}` e `{membro}` — dentro da família de
+     * quem pede. É o binding explícito desses dois parâmetros (ver
+     * `AppServiceProvider::configurarPessoasDaFamiliaNaRota`).
+     *
+     * A regra dos models do dinheiro (`Concerns\EscopoDaFamiliaNaRota`), agora para pessoas:
+     * quem é de OUTRA família responde exatamente como um id que não existe. Antes,
+     * `/avatar/{id}` e `/dependentes/{id}` davam 403 para qualquer usuário existente e 404
+     * para o resto — o bastante para varrer os ids e saber quantas pessoas usam o app.
+     *
+     *  - `$soDependentes` (`{dependent}`): só DEPENDENTE da família — o titular não é
+     *    dependente de ninguém. Dependente mexendo em outro dependente da mesma família
+     *    continua barrado pelo PAPEL, no controller: esse 403 é legítimo, a pessoa é da
+     *    família e o id não é segredo para quem pede.
+     *  - sem ele (`{membro}`, a foto): titular ou dependente da família.
+     *
+     * Por que binding explícito, e não um `resolveRouteBinding` no User: esse valeria para
+     * TODA rota com um User — inclusive o `{user}` do painel administrativo, que não tem
+     * família (o admin modera todo mundo), e o `{user}` da confirmação de troca de e-mail,
+     * que tem regra própria (A-12). Pelo mesmo motivo os parâmetros têm nome próprio: um
+     * `Route::bind('user')` é global e pegaria os dois.
+     *
+     * Lança a MESMA exceção, com o mesmo texto, que o binding implícito lança para um id que
+     * não existe ("No query results for model [App\Models\User] 42"), no mesmo ponto da fila
+     * (o `SubstituteBindings`) — o porquê de cada detalhe está no docblock do trait.
+     *
+     * @throws ModelNotFoundException<self>
+     */
+    public static function daFamiliaNaRota(string $valor, bool $soDependentes = false): self
+    {
+        // Guard `web` explícito: a família é de quem usa o APP, e o guard padrão não é
+        // garantia disso para sempre. Sem usuário do app, ninguém é encontrado — nem quem existe.
+        $quemPede = Auth::guard('web')->user();
+        $familia = $quemPede instanceof self ? $quemPede->ownerId() : null;
+
+        $pessoa = $familia === null ? null : static::query()
+            ->whereKey($valor)
+            ->where(fn (Builder $pessoas) => $soDependentes
+                ? $pessoas->where('account_owner_id', $familia)
+                : $pessoas->whereKey($familia)->orWhere('account_owner_id', $familia))
+            ->first();
+
+        return $pessoa ?? throw (new ModelNotFoundException)->setModel(self::class, [$valor]);
+    }
+
     public function titular(): BelongsTo
     {
         return $this->belongsTo(User::class, 'account_owner_id');
@@ -520,8 +568,9 @@ class User extends Authenticatable implements MustVerifyEmail
      * URL da foto de perfil (ou null se não houver — a view cai nas iniciais).
      *
      * Aponta para uma ROTA AUTENTICADA, não para o arquivo: quem não estiver logado na
-     * mesma família recebe 403. Continua sendo um `<img src>` normal do ponto de vista
-     * da view — o navegador manda o cookie de sessão junto.
+     * mesma família recebe o 404 de uma pessoa que não existe (ver `daFamiliaNaRota`).
+     * Continua sendo um `<img src>` normal do ponto de vista da view — o navegador manda
+     * o cookie de sessão junto.
      *
      * Leva a VERSÃO da foto (`?v=`), que muda a cada foto nova. Sem ela a URL era sempre
      * a mesma, o `AvatarController` manda guardar em cache por 1 hora, e o navegador
@@ -531,7 +580,7 @@ class User extends Authenticatable implements MustVerifyEmail
     public function avatarUrl(): ?string
     {
         return $this->avatar_path
-            ? route('avatar.show', ['user' => $this, 'v' => $this->versaoDaFoto()])
+            ? route('avatar.show', ['membro' => $this, 'v' => $this->versaoDaFoto()])
             : null;
     }
 
