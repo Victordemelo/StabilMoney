@@ -28,6 +28,11 @@
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
+        <!-- Sem isto a suíte escreve no storage/logs/laravel.log de desenvolvimento: cada
+             erro esperado, cada aviso dos testes de falha de SMTP, a cada rodada (o
+             arquivo passou de 40 MB). Quem precisa conferir o que foi logado escuta o
+             evento (Log::listen) - ele dispara com o canal null também. -->
+        <env name="LOG_CHANNEL" value="null"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
