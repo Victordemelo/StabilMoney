@@ -6,6 +6,7 @@ use Illuminate\Contracts\Config\Repository;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\ConfigurationUrlParser;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Request as RequisicaoDoSymfony;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -54,6 +55,19 @@ abstract class TestCase extends BaseTestCase
         // Os testes não dependem do build do Vite (public/build/manifest.json):
         // sem isso, qualquer página que renderiza @vite falharia no CI/local.
         $this->withoutVite();
+    }
+
+    protected function tearDown(): void
+    {
+        // O `TrustHosts` (bootstrap/app.php) guarda os hosts aceitos numa propriedade
+        // ESTÁTICA do Request do Symfony, e ela atravessa os testes do mesmo processo. Um
+        // teste que simule produção deixaria a lista de lá armada, e todos os seguintes (em
+        // "testing", com http://localhost) levariam 400 — foram 292 de uma vez, em
+        // 23/09/2026. Aqui, e não no teste que liga produção: o próximo que ligar vai
+        // esquecer de desligar.
+        RequisicaoDoSymfony::setTrustedHosts([]);
+
+        parent::tearDown();
     }
 
     /**

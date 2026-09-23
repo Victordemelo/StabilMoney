@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\User;
 use App\Services\FaturaService;
 use App\Services\SidebarService;
+use App\Support\EnderecoPublico;
 use App\Support\VerificadorDeSenhaVazada;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
@@ -56,6 +57,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Em produção, todo link gerado sai com a raiz do APP_URL, em https — nunca com o
+        // Host da requisição (o link do "esqueci a senha" já foi um alvo disso). Fora de
+        // produção os links seguem o endereço aberto (localhost ou o IP no Wi-Fi).
+        EnderecoPublico::fixarEmProducao($this->app);
+
         // Datas traduzidas em todo o app (ex.: "terça-feira, 9 de junho"
         // via translatedFormat). O locale vem do .env (APP_LOCALE=pt_BR).
         Carbon::setLocale(config('app.locale'));

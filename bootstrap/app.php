@@ -4,6 +4,7 @@ use App\Http\Controllers\SaudeController;
 use App\Http\Middleware\BloqueiaUsuarioBanido;
 use App\Http\Middleware\PainelAdminLigado;
 use App\Http\Middleware\SecurityHeaders;
+use App\Support\EnderecoPublico;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -28,6 +29,26 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Atrás do nginx do host (e da Cloudflare): QUEM é proxy confiável vem de
+        // config/trustedproxy.php (TRUSTED_PROXIES) — o TrustProxies do framework, global
+        // por padrão, lê de lá. Aqui fica QUAIS cabeçalhos esse proxy pode ditar: o IP do
+        // visitante, o host, a porta e o protocolo.
+        //
+        // O X-Forwarded-Prefix, que o padrão do framework também aceita, fica DE FORA: nada
+        // aqui roda sob prefixo, e aceitá-lo deixaria quem manda o cabeçalho escolher o
+        // caminho-base de todos os links gerados. O nginx também o apaga — duas travas
+        // para a mesma porta, e esta vale mesmo se a outra for esquecida.
+        $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR
+            | Request::HEADER_X_FORWARDED_HOST
+            | Request::HEADER_X_FORWARDED_PORT
+            | Request::HEADER_X_FORWARDED_PROTO);
+
+        // Host aceito: em produção, só o do APP_URL — Host forjado recebe 400 antes de
+        // qualquer rota (o "esqueci a senha" montava o link com o Host da requisição). O
+        // TrustHosts não age em `local` nem nos testes: em dev o app é aberto também pelo
+        // IP da máquina no Wi-Fi. Ver App\Support\EnderecoPublico.
+        $middleware->trustHosts(at: EnderecoPublico::padroesDeHostConfiavel(...), subdomains: false);
+
         // O /up responde ELE MESMO em manutenção — 503 em texto, que é o que o monitor
         // lê (ver SaudeController). Sem esta exceção o middleware de manutenção
         // responderia antes, com a página HTML de erro. Não é middleware novo: o

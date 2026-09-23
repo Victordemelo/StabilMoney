@@ -38,9 +38,18 @@ class SeoDasPaginasPublicasTest extends TestCase
         config(['app.url' => self::APP_URL]);
     }
 
+    /**
+     * Em produção o app só aceita o Host do APP_URL (TrustHosts): as requisições destes testes
+     * vão para o endereço verdadeiro — `endereco()` —, como o nginx entregaria.
+     */
     private function emProducao(): void
     {
         $this->app->detectEnvironment(fn () => 'production');
+    }
+
+    private function endereco(string $caminho): string
+    {
+        return self::APP_URL.$caminho;
     }
 
     private function documento(TestResponse $resposta): HTMLDocument
@@ -59,7 +68,7 @@ class SeoDasPaginasPublicasTest extends TestCase
     {
         $this->emProducao();
 
-        $resposta = $this->get('/robots.txt')
+        $resposta = $this->get($this->endereco('/robots.txt'))
             ->assertOk()
             ->assertHeader('Content-Type', 'text/plain; charset=UTF-8')
             ->assertHeaderMissing('X-Robots-Tag');
@@ -94,7 +103,7 @@ class SeoDasPaginasPublicasTest extends TestCase
     {
         $this->emProducao();
 
-        $resposta = $this->get('/sitemap.xml')
+        $resposta = $this->get($this->endereco('/sitemap.xml'))
             ->assertOk()
             ->assertHeader('Content-Type', 'application/xml; charset=UTF-8');
 
@@ -112,7 +121,7 @@ class SeoDasPaginasPublicasTest extends TestCase
 
         // Cada endereço listado abre de verdade para quem não entrou.
         foreach ($enderecos as $endereco) {
-            $this->get(substr($endereco, strlen(self::APP_URL)))->assertOk();
+            $this->get($endereco)->assertOk();
         }
     }
 
@@ -130,18 +139,18 @@ class SeoDasPaginasPublicasTest extends TestCase
         $this->emProducao();
 
         foreach (['/login', '/register', '/termos', '/privacidade'] as $publica) {
-            $this->get($publica)->assertOk()->assertHeaderMissing('X-Robots-Tag');
+            $this->get($this->endereco($publica))->assertOk()->assertHeaderMissing('X-Robots-Tag');
         }
 
         // Telas secundárias de auth, a página offline e erro: fora.
         foreach (['/forgot-password', '/offline', '/nao_existe'] as $fora) {
-            $this->get($fora)->assertHeader('X-Robots-Tag', Seo::NOINDEX);
+            $this->get($this->endereco($fora))->assertHeader('X-Robots-Tag', Seo::NOINDEX);
         }
 
         // As telas do app, e o login de quem já entrou (que só redireciona).
         $user = User::factory()->create();
         foreach (['/', '/faturas', '/meu-perfil', '/login'] as $privada) {
-            $this->actingAs($user)->get($privada)->assertHeader('X-Robots-Tag', Seo::NOINDEX);
+            $this->actingAs($user)->get($this->endereco($privada))->assertHeader('X-Robots-Tag', Seo::NOINDEX);
         }
     }
 
@@ -150,7 +159,7 @@ class SeoDasPaginasPublicasTest extends TestCase
         $this->emProducao();
         config(['admin.enabled' => true]);
 
-        $this->get(route('painel.login'))->assertOk()->assertHeader('X-Robots-Tag', Seo::NOINDEX);
+        $this->get($this->endereco('/'.config('admin.path')))->assertOk()->assertHeader('X-Robots-Tag', Seo::NOINDEX);
     }
 
     public function test_fora_de_producao_nenhuma_pagina_e_indexavel(): void
