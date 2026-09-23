@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.315 testes PHP / 6.368 asserções** + **126 testes JS** (Vitest) verdes |
+| Suíte de testes | ✅ **1.445 testes PHP / 7.502 asserções** + **131 testes JS** (Vitest) + **83 checagens dos scripts de backup** verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -59,8 +59,9 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 seeder vem das variáveis `SEED_USER_*` no `.env` (e-mail `victor.rosa.system@gmail.com`;
 a senha está **só no `.env`**, nunca no código/git).
 
-**Repositório:** `github.com/Victordemelo/StabilMoney` — **privado**. O `gh` CLI está
-instalado e autenticado na máquina do Victor (conta `Victordemelo`).
+**Repositório:** `github.com/Victordemelo/StabilMoney` — **privado** (conta `Victordemelo`).
+⚠️ O `gh` CLI **não** está instalado nesta máquina (conferido em 22/09/2026 — nem no PATH, nem em
+`/opt/homebrew/bin` ou `/usr/local/bin`): o resultado do CI se vê na aba **Actions** do GitHub.
 
 ---
 
@@ -209,7 +210,10 @@ tests/js/                   # Vitest + jsdom (`npm run test:js`, roda no HOST): 
                             # CSP derruba 6+ testes, trocar a vírgula decimal derruba 34.
                             # Rodam no CI (job `javascript`: `npm ci` + `npm run test:js`, Node 24),
                             # verificado em container Linux x64 a partir de clone limpo em 16/09.
-tests/Feature/              # 1.315 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/restauração de VERDADE
+                            # contra um `docker` falso (docker-falso.sh) — sem Docker nem MySQL; job
+                            # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`
+tests/Feature/              # 1.445 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1761,7 +1765,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (1.315 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (1.445 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
