@@ -87,6 +87,10 @@ class ModeracaoController extends Controller
      *
      * A confirmação por digitação do e-mail existe porque esta é a única ação do painel
      * sem volta: um clique errado numa lista apaga a vida financeira de uma família.
+     *
+     * Os dependentes vão junto, e hoje ninguém os avisa por aqui (ao contrário da exclusão
+     * feita pelo próprio titular, em ProfileController::destroy). Avisar ou não numa
+     * exclusão por moderação é decisão pendente (moderação/LGPD), não esquecimento.
      */
     public function excluir(Request $request, User $user)
     {
@@ -109,18 +113,28 @@ class ModeracaoController extends Controller
         // o E-MAIL embora — e este é o único registro que sobra de uma exclusão sem volta.
         // Lá o nome encolhe e o e-mail fica inteiro.
         $descricao = AdminAudit::descreverAlvo($user);
-        $alvoId = $user->id;
 
-        $user->delete();
+        // O delete e a linha do histórico numa transação só: os dois ou nenhum. O histórico
+        // é a única prova de uma exclusão sem volta — antes, uma falha ao gravá-lo deixava
+        // a família apagada SEM registro; e uma falha no meio do delete (o 2º dependente,
+        // por exemplo) deixava a família pela metade. O que não volta atrás fica para
+        // depois do commit: a foto do disco (hook do User) e o e-mail do AdminAudit.
+        //
+        // Sem `attempts`: repetir o closure reusaria models que a tentativa desfeita já
+        // marcou como apagados, e o `delete()` deles viraria no-op.
+        DB::transaction(function () use ($user, $admin, $request, $descricao) {
+            $user->delete();
 
-        AdminAudit::registrar(
-            AdminAuditLog::EXCLUIU,
-            $admin,
-            $request,
-            null,
-            null,
-            $descricao,
-        )->forceFill(['target_user_id' => $alvoId])->save();
+            // O model ainda carrega o id depois do delete: é ele que vai em
+            // `target_user_id` (sem FK, para a linha sobreviver ao alvo).
+            AdminAudit::registrar(
+                AdminAuditLog::EXCLUIU,
+                $admin,
+                $request,
+                $user,
+                alvoDescricao: $descricao,
+            );
+        });
 
         return redirect()->route('painel.pessoas')
             ->with('status', 'Conta de '.$descricao.' excluída definitivamente.');

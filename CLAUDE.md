@@ -456,6 +456,16 @@ Saldo total = atual de todas as contas, independe do período.
   `account_owner_id` roda no banco e **não dispara eventos**, então as fotos deles ficariam órfãs
   (e servidas pelo symlink de `storage/`). Coberto por `AccountDeletionPurgeTest`. **Regra geral:
   ao excluir algo que tenha arquivo em disco, o cascade da FK não basta.**
+  🚨 **Excluir usuário é tudo ou nada** (22/09/2026 — `ExclusaoDeContaNaoFicaPelaMetadeTest`):
+  quem chama embrulha o `delete()` numa `DB::transaction` (perfil e painel), e o que não volta
+  atrás fica para DEPOIS do commit — a foto sai no evento `deleted` + `DB::afterCommit` (não mais
+  no `deleting`), e os e-mails são montados antes e enviados depois. Antes, uma falha no meio (o
+  2º dependente) deixava a família pela metade, e o "sua conta foi excluída" já tinha saído. Sem
+  `attempts`: repetir reusaria models já marcados como apagados. ⚠️ Depois do delete use
+  `Auth::logoutCurrentDevice()`, **nunca `logout()`**: ele recicla o remember token com `save()`,
+  e `save()` num model apagado é um INSERT que traz a conta de volta. No painel, a linha de
+  auditoria fica na MESMA transação do delete, e o `AdminAudit::registrar` manda o e-mail em
+  `afterCommit` (fora de transação roda na hora — banir/desbanir não mudam).
 - **accounts** — `user_id`, `name`, `type` (`Account::TYPES`: `checking`=Conta Corrente,
   `savings`=Conta Poupança, `debit_card`=Cartão de Débito, `credit_card`=Cartão de Crédito,
   **`pix`**=Pix),
@@ -1286,7 +1296,8 @@ o único canal que o invasor não controla.**
 | Redefinir senha pelo link | `senhaRedefinida` |
 | Ativar / desativar 2FA | `doisFatoresAtivado` / `doisFatoresDesativado` |
 | Encerrar outras sessões | `sessoesEncerradas` (com quantos aparelhos caíram) |
-| Excluir conta | `contaExcluida` — enviado **antes** do delete |
+| Excluir conta | `contaExcluida` — montado antes do delete, enviado **depois do commit** (22/09/2026; antes saía antes do delete e anunciava exclusões que uma falha desfazia) |
+| Titular exclui a conta | `ContaDaFamiliaExcluida` para **cada dependente**, depois do commit. O modal nomeia quem perde o acesso e exige o aceite `confirmo_dependentes` (regra única em `ProfileController::dependentesQuePerdemOAcesso`, usada pela view e pelo `destroy`); sem mailer, o modal não promete e-mail. A exclusão pelo painel NÃO avisa os dependentes — decisão pendente de moderação/LGPD (`ExcluirTitularAvisaOsDependentesTest`) |
 | Criar dependente | `BemVindoDependente` (para o dependente) |
 | Titular troca a senha do dependente | `senhaAlteradaPeloTitular` — para o e-mail que o dependente tinha ANTES da edição; também derruba as sessões dele e troca `remember_token` e `password_changed_at` (A-6) |
 | Titular troca SÓ o e-mail do dependente | `emailAlteradoPeloTitular` — para o e-mail ANTIGO do dependente, com o novo mascarado. Era o caminho de tomada silenciosa do login dele (troca o e-mail, "Esqueci a senha" no endereço novo). Com a senha junto sai só o `senhaAlteradaPeloTitular(emailNovo:)`: um aviso por clique (`EmailDoDependenteTrocadoPeloTitularTest`, 22/09/2026) |

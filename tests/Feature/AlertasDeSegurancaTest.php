@@ -141,7 +141,7 @@ class AlertasDeSegurancaTest extends TestCase
         $this->assertAlertouPara($user, 'aparelhos foram desconectados');
     }
 
-    public function test_excluir_a_conta_avisa_antes_de_apagar(): void
+    public function test_excluir_a_conta_avisa_o_endereco_que_ela_tinha(): void
     {
         Mail::fake();
         $user = User::factory()->create();
@@ -152,8 +152,10 @@ class AlertasDeSegurancaTest extends TestCase
         // A conta sumiu...
         $this->assertNull(User::find($user->id));
 
-        // ...mas o aviso saiu ANTES, para o endereço que existia. Enviar depois do
-        // delete não teria nome nem endereço para quem escrever.
+        // ...e o aviso foi para o endereço que ela tinha. Ele é MONTADO antes do delete
+        // (depois não há linha de onde tirar nome e endereço), mas só SAI depois do commit:
+        // se a exclusão falhasse no meio, "sua conta foi excluída" seria mentira. A ordem é
+        // coberta por ExclusaoDeContaNaoFicaPelaMetadeTest.
         Mail::assertSent(AlertaDeSeguranca::class, fn (AlertaDeSeguranca $mail) => $mail->hasTo($email));
     }
 

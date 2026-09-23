@@ -7,6 +7,7 @@ use App\Models\Admin;
 use App\Models\AdminAuditLog;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -56,7 +57,12 @@ final class AdminAudit
         ]);
 
         if (in_array($acao, self::AVISAM, true)) {
-            self::avisar($acao, $admin, $request, $descricao, $motivo);
+            // O e-mail só sai DEPOIS do commit. A exclusão registra dentro da mesma
+            // transação do delete (ModeracaoController::excluir): se ela for desfeita, o
+            // log some junto — e um "conta excluída" já enviado anunciaria uma exclusão que
+            // não aconteceu. Fora de transação (banir, desbanir, login, código errado) o
+            // `afterCommit` roda na hora: para eles nada muda.
+            DB::afterCommit(fn () => self::avisar($acao, $admin, $request, $descricao, $motivo));
         }
 
         return $log;

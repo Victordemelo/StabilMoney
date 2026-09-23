@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -188,6 +189,17 @@ class User extends Authenticatable implements MustVerifyEmail
      * Os dependentes são apagados aqui, um a um, DE PROPÓSITO: o cascade da FK
      * `account_owner_id` roda no banco e não dispara eventos do Eloquent, então as
      * fotos e sessões deles passariam batido.
+     *
+     * 🚨 Excluir alguém são VÁRIAS escritas (cada dependente, as sessões, a própria
+     * linha), e quem chama embrulha o `delete()` numa `DB::transaction` — é o que faz
+     * uma falha no meio (erro de banco no 2º dependente) desfazer tudo, em vez de deixar
+     * a família pela metade. Ver ProfileController::destroy e ModeracaoController::excluir.
+     *
+     * O ARQUIVO da foto não tem rollback, então ele fica de fora da transação: sai no
+     * `afterCommit`, só depois que o banco confirmou a exclusão. Antes ele era apagado já
+     * no `deleting` — e um rollback devolvia a linha apontando para uma foto que não
+     * existia mais. Fora de transação o `afterCommit` roda na hora, logo depois de a linha
+     * sumir (o `deleted`, e não o `deleting`, garante que o DELETE deu certo).
      */
     protected static function booted(): void
     {
@@ -196,9 +208,20 @@ class User extends Authenticatable implements MustVerifyEmail
                 $dependent->delete();
             }
 
-            $user->purgeStoredAvatar();
-
             BrowserSessions::purgeForUser($user->getKey());
+        });
+
+        static::deleted(function (User $user) {
+            DB::afterCommit(function () use ($user) {
+                // Depois do commit não há o que desfazer: uma exceção aqui só faria a
+                // exclusão, que JÁ aconteceu, parecer ter falhado para quem a pediu. Um
+                // arquivo que ficou para trás vira problema de operação, registrado no log.
+                try {
+                    $user->purgeStoredAvatar();
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            });
         });
     }
 

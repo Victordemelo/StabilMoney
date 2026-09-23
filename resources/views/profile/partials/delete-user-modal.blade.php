@@ -22,6 +22,10 @@
     // que exige o aceite quando `tem` é true) — aqui é só a exibição.
     $pendencias = \App\Http\Controllers\ProfileController::pendenciasDe($dono);
 
+    // Quem perde o acesso junto (só existe para o titular). Mesma fonte do servidor,
+    // que exige o aceite `confirmo_dependentes` quando a lista não está vazia.
+    $dependentes = \App\Http\Controllers\ProfileController::dependentesQuePerdemOAcesso($dono);
+
     // Com 2FA ligado a senha não basta (ver ProfileController::destroy).
     $comDoisFatores = $dono->temDoisFatores();
 @endphp
@@ -53,6 +57,16 @@
             <div class="modal-body">
             @csrf
             @method('delete')
+
+            {{-- A exclusão falhou no servidor (erro de banco no meio do caminho). A
+                 transação desfez tudo, então a mensagem pode prometer que nada foi
+                 apagado — ver ProfileController::destroy. --}}
+            @error('exclusao', 'userDeletion')
+                <div class="flash-error" style="margin-bottom: 0;" role="alert">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                    <div>{{ $message }}</div>
+                </div>
+            @enderror
 
             {{-- Pendências financeiras: aparecem ANTES da senha, porque é o que
                  pode fazer a pessoa desistir. Não bloqueiam a exclusão (ver o
@@ -89,6 +103,50 @@
                     <span>Entendi que apagar minha conta não quita nada disso.</span>
                 </label>
                 @error('confirmo_pendencias', 'userDeletion')
+                    <p class="field-error" style="margin-top: -10px;">{{ $message }}</p>
+                @enderror
+            @endif
+
+            {{-- Dependentes: excluir o titular apaga o login de cada um (hook `deleting`
+                 do User). Antes o modal não dizia isso, e a família inteira perdia o
+                 acesso sem o titular ver um nome sequer. Nomes e e-mails são do usuário:
+                 sempre {{ }}, escapados. O aviso por e-mail só é prometido quando o app
+                 consegue enviar — sem mailer, a tela diz a verdade e passa a tarefa. --}}
+            @if ($dependentes->isNotEmpty())
+                <div class="flash-error" style="margin-bottom: 0;" role="alert">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M17 6.2a3.2 3.2 0 0 1 0 6M18.5 20a6.4 6.4 0 0 0-2-4.6"/></svg>
+                    <div>
+                        <strong>
+                            {{ $dependentes->count() === 1
+                                ? 'Esta pessoa perde o acesso junto com a sua conta:'
+                                : 'Estas '.$dependentes->count().' pessoas perdem o acesso junto com a sua conta:' }}
+                        </strong>
+                        <ul style="margin-top: 6px;">
+                            @foreach ($dependentes as $dependente)
+                                <li>{{ $dependente->name }} ({{ $dependente->email }})</li>
+                            @endforeach
+                        </ul>
+                        <p style="margin-top: 8px; font-weight: 500;">
+                            O login, a foto e os dados pessoais de cada dependente são apagados, sem volta.
+                            @if (\App\Support\Mailer::entrega())
+                                Vamos avisar cada um por e-mail.
+                            @else
+                                O app não está enviando e-mails agora: avise cada um você mesmo.
+                            @endif
+                        </p>
+                    </div>
+                </div>
+
+                <label class="check" style="align-items: flex-start;">
+                    <input type="checkbox" id="confirmo_dependentes" name="confirmo_dependentes" value="1" required />
+                    <span class="box" style="margin-top: 1px;"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
+                    <span>
+                        {{ $dependentes->count() === 1
+                            ? 'Entendi que esse dependente perde o acesso e os dados junto com a minha conta.'
+                            : 'Entendi que esses dependentes perdem o acesso e os dados junto com a minha conta.' }}
+                    </span>
+                </label>
+                @error('confirmo_dependentes', 'userDeletion')
                     <p class="field-error" style="margin-top: -10px;">{{ $message }}</p>
                 @enderror
             @endif

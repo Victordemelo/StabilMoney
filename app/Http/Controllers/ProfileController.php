@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Mail\AlertaDeSeguranca;
+use App\Mail\ContaDaFamiliaExcluida;
 use App\Models\Account;
 use App\Models\User;
 use App\Services\FixedBillService;
@@ -12,9 +13,11 @@ use App\Support\ContextoDeSeguranca;
 use App\Support\Mailer;
 use App\Support\Notificador;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -260,11 +263,20 @@ class ProfileController extends Controller
      * fator para DESLIGAR a proteção (que é reversível) e dispensá-lo para
      * apagar tudo de uma vez, que é o atalho equivalente. Quem sequestrasse uma
      * sessão faria exatamente isso.
+     *
+     * **Sendo titular, os dependentes vão junto** (hook `deleting` do User) — o login de
+     * cada um some. Por isso o modal os nomeia, a exclusão exige um aceite explícito
+     * disso e cada dependente recebe um e-mail depois (item 11 da rodada de 22/09/2026:
+     * antes ninguém era avisado, e o dependente descobria ao tentar entrar).
+     *
+     * **Nada pela metade** (item 12): toda a parte de banco roda numa transação só, e o
+     * que não volta atrás — a foto no disco, os e-mails — fica para depois do commit.
      */
     public function destroy(Request $request, TwoFactorService $twoFactor): RedirectResponse
     {
         $user = $request->user();
         $pendencias = self::pendenciasDe($user);
+        $dependentes = self::dependentesQuePerdemOAcesso($user);
         $comDoisFatores = $user->temDoisFatores();
 
         $regras = ['password' => ['required', 'current_password']];
@@ -273,6 +285,11 @@ class ProfileController extends Controller
         // seria atrito puro para quem não deve nada.
         if ($pendencias['tem']) {
             $regras['confirmo_pendencias'] = ['accepted'];
+        }
+
+        // Mesmo padrão: só existe quando há quem perca o acesso junto.
+        if ($dependentes->isNotEmpty()) {
+            $regras['confirmo_dependentes'] = ['accepted'];
         }
 
         if ($comDoisFatores) {
@@ -285,6 +302,10 @@ class ProfileController extends Controller
         // celular.
         $request->validateWithBag('userDeletion', $regras, [
             'confirmo_pendencias.accepted' => 'Confirme que você entendeu que apagar a conta não quita nenhuma das pendências acima.',
+            'confirmo_dependentes.accepted' => 'Confirme que você entendeu que '
+                .$dependentes->pluck('name')->join(', ', ' e ')
+                .($dependentes->count() === 1 ? ' perde' : ' perdem')
+                .' o acesso junto com a sua conta.',
             'codigo.required' => 'Digite o código do seu aplicativo autenticador para confirmar.',
         ]);
 
@@ -308,20 +329,50 @@ class ProfileController extends Controller
             }
         }
 
-        // ANTES do delete, e não depois: em seguida não existe mais nome nem endereço
-        // para quem escrever. É também o último aviso que a pessoa recebe — se a exclusão
-        // não partiu dela, é a única chance de descobrir.
-        Notificador::avisar($user, AlertaDeSeguranca::contaExcluida(
-            $user,
-            ContextoDeSeguranca::doRequest($request),
-        ));
+        // Os avisos são MONTADOS antes do delete — depois dele não há mais linha de onde
+        // tirar nome e endereço —, mas só SAEM depois do commit. Antes o do titular saía
+        // antes do delete: uma falha no meio mandava "sua conta foi excluída" para quem
+        // continuava com a conta de pé.
+        $contexto = ContextoDeSeguranca::doRequest($request);
 
-        Auth::logout();
+        $avisos = [[$user, AlertaDeSeguranca::contaExcluida($user, $contexto)]];
 
-        $user->delete();
+        foreach ($dependentes as $dependente) {
+            $avisos[] = [$dependente, new ContaDaFamiliaExcluida($dependente->name, $user->name, $contexto->quando)];
+        }
+
+        // O hook `deleting` do User apaga os dependentes um a um e as linhas de `sessions`:
+        // são várias escritas, e antes uma falha no meio (erro de banco no 2º dependente)
+        // deixava a família pela metade. Numa transação, ou tudo sai, ou nada sai.
+        //
+        // Sem `attempts`: repetir o closure reusaria models que a tentativa desfeita já
+        // marcou como apagados (`exists = false`), e o `delete()` deles viraria no-op.
+        try {
+            DB::transaction(fn () => $user->delete());
+        } catch (\Throwable $e) {
+            report($e);
+
+            // A pessoa continua logada (o logout só vem depois do commit) e a mensagem pode
+            // dizer "nada foi apagado" porque é verdade: o banco desfez tudo, e o que não
+            // volta atrás nem chegou a acontecer.
+            throw ValidationException::withMessages([
+                'exclusao' => 'Não conseguimos excluir a sua conta agora, e nada foi apagado. Tente de novo em instantes.',
+            ])->errorBag('userDeletion');
+        }
+
+        // `logoutCurrentDevice`, e não `logout`: o `logout()` recicla o remember token com
+        // um `save()` — e `save()` num model apagado é um INSERT, que traria a conta de
+        // volta. Aqui não há token a reciclar: a linha que o guardava já não existe.
+        Auth::logoutCurrentDevice();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        // É o último aviso que o titular recebe — se a exclusão não partiu dele, é a única
+        // chance de descobrir. E cada dependente fica sabendo por que o login dele sumiu.
+        foreach ($avisos as [$destinatario, $email]) {
+            Notificador::avisar($destinatario, $email);
+        }
 
         return Redirect::to('/');
     }
@@ -342,7 +393,7 @@ class ProfileController extends Controller
      * apaga esse dinheiro.
      *
      * Vive aqui, e não num Service, porque é a MESMA regra usada para exibir no
-     * modal (`profile/partials/delete-user-form`) e para validar o aceite no
+     * modal (`profile/partials/delete-user-modal`) e para validar o aceite no
      * `destroy` — uma fonte só. Se um dia crescer, é candidata natural a
      * Service.
      *
@@ -400,5 +451,28 @@ class ProfileController extends Controller
             'faturas' => $faturas,
             'contasFixas' => $contasFixas,
         ];
+    }
+
+    /**
+     * Quem perde o acesso junto quando ESTA conta é excluída.
+     *
+     * Excluir o titular apaga cada dependente (hook `deleting` do User): o login, a foto e
+     * as sessões. Antes o modal só listava as pendências financeiras, então o titular
+     * apagava o acesso da família sem ver nomes — e os dependentes só descobriam ao tentar
+     * entrar.
+     *
+     * Mesma lógica de `pendenciasDe`: UMA fonte para o modal (que nomeia as pessoas e
+     * mostra o aceite) e para o `destroy` (que exige o aceite e avisa cada um). Dependente
+     * apagando o próprio login não leva ninguém junto: lista vazia, e nada muda para ele.
+     *
+     * @return EloquentCollection<int, User>
+     */
+    public static function dependentesQuePerdemOAcesso(User $user): EloquentCollection
+    {
+        if (! $user->isTitular()) {
+            return new EloquentCollection;
+        }
+
+        return $user->dependents()->orderBy('name')->get();
     }
 }
