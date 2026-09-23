@@ -1282,6 +1282,7 @@ o único canal que o invasor não controla.**
 | Excluir conta | `contaExcluida` — enviado **antes** do delete |
 | Criar dependente | `BemVindoDependente` (para o dependente) |
 | Titular troca a senha do dependente | `senhaAlteradaPeloTitular` — para o e-mail que o dependente tinha ANTES da edição; também derruba as sessões dele e troca `remember_token` e `password_changed_at` (A-6) |
+| Titular troca SÓ o e-mail do dependente | `emailAlteradoPeloTitular` — para o e-mail ANTIGO do dependente, com o novo mascarado. Era o caminho de tomada silenciosa do login dele (troca o e-mail, "Esqueci a senha" no endereço novo). Com a senha junto sai só o `senhaAlteradaPeloTitular(emailNovo:)`: um aviso por clique (`EmailDoDependenteTrocadoPeloTitularTest`, 22/09/2026) |
 | Pedir troca de e-mail | `emailTrocaPedida` — para o endereço ATUAL, com o novo mascarado (A-7) |
 | Troca de e-mail que vale | `emailAlterado` — para o endereço ANTIGO, depois de gravar (A-7) |
 

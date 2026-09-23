@@ -212,6 +212,54 @@ class AlertaDeSeguranca extends Mailable
         );
     }
 
+    /**
+     * O TITULAR trocou o e-mail com que o dependente entra — aviso ao endereço ANTIGO dele.
+     *
+     * Era o caminho de tomada silenciosa do login do dependente: troca-se o e-mail para um
+     * endereço que se controla e pede-se "Esqueci a senha" nele. Nada disso passa pelo
+     * dependente, e ninguém lhe contava nada. Quem chama endereça ao antigo
+     * (DependentController::update): a esta altura `$dependente->email` já é o novo, e o
+     * antigo é o único canal que quem fez a troca não controla.
+     *
+     * Só para a troca de e-mail SOZINHA. Quando a mesma edição troca também a senha, o aviso
+     * é o `senhaAlteradaPeloTitular(emailNovo:)`, que cobre as duas mudanças num e-mail só.
+     *
+     * Mesmo formato daquele: quem agiu foi o titular, então não há "não foi você", e não vão
+     * IP nem aparelho (seriam dados do titular). O endereço novo sai mascarado, como em todo
+     * aviso de troca de e-mail (ver `mascararEmail`).
+     */
+    public static function emailAlteradoPeloTitular(
+        User $dependente,
+        User $titular,
+        string $emailNovo,
+        ContextoDeSeguranca $contexto,
+    ): self {
+        $nomeTitular = e($titular->name);
+
+        return new self(
+            user: $dependente,
+            assunto: $titular->name.' trocou o e-mail da sua conta no Stabil Money',
+            titulo: 'O e-mail da sua conta foi trocado',
+            preheader: $titular->name.' trocou o e-mail com que você entra no app.',
+            paragrafos: [
+                '<strong>'.$nomeTitular.'</strong>, titular da sua conta-família, trocou o e-mail com que você entra no '
+                    .'Stabil Money para <strong>'.e(self::mascararEmail($emailNovo)).'</strong>.',
+                'A partir de agora, entrar no app e recuperar a senha passam pelo endereço novo, e os próximos avisos da '
+                    .'conta vão para lá. A sua senha não mudou.',
+            ],
+            detalhes: [
+                'Quando' => $contexto->quando,
+                'Alterado por' => $titular->name,
+            ],
+            // O "Esqueci a senha" não é saída aqui: com este endereço ele já não acha a conta,
+            // e é justamente pelo endereço novo que a senha pode ser trocada.
+            rodapeAviso: '<strong>Não combinou essa troca?</strong> Fale com '.$nomeTitular.' agora: quem controla o '
+                .'endereço novo consegue criar uma senha nova para a sua conta. Se ele(a) também não reconhecer a mudança, '
+                .'a conta dele(a) pode estar com outra pessoa: escreva o quanto antes para '
+                .e(config('legal.contact_email')).', a partir deste endereço.',
+        );
+    }
+
     // ───────────────────────────────────────────────────────────── 2FA
 
     public static function doisFatoresAtivado(User $user, ContextoDeSeguranca $contexto): self

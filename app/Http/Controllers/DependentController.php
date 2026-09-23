@@ -104,8 +104,8 @@ class DependentController extends Controller
 
         $data = $request->validated();
 
-        // O dependente como ele era ANTES desta edição. Serve só para endereçar o aviso de
-        // senha trocada (abaixo) — nunca é salvo.
+        // O dependente como ele era ANTES desta edição. Serve só para endereçar os avisos de
+        // senha ou e-mail trocados (abaixo) ao endereço que ele tinha — nunca é salvo.
         $antes = clone $dependent;
 
         $dependent->fill([
@@ -116,8 +116,8 @@ class DependentController extends Controller
 
         $trocouEmail = $dependent->isDirty('email');
 
-        // Senha só muda se preenchida. Em branco, a edição é de cadastro (nome, foto,
-        // parentesco) e não mexe em sessão nem avisa ninguém.
+        // Senha só muda se preenchida. Em branco, a edição é de cadastro (nome, e-mail, foto,
+        // parentesco) e não mexe em sessão; dela, só a troca de e-mail avisa alguém.
         $trocouSenha = ! empty($data['password']);
 
         if ($trocouSenha) {
@@ -140,6 +140,21 @@ class DependentController extends Controller
         $dependent->save();
 
         if (! $trocouSenha) {
+            // Trocou o e-mail de acesso SEM trocar a senha: é o caminho de tomada silenciosa
+            // do login do dependente — o e-mail passa a ser um endereço que quem editou
+            // controla, e o "Esqueci a senha" nele entrega uma senha nova. Nenhum dos dois
+            // passos passa pelo dependente, então o aviso vai para o endereço que ele tinha:
+            // o único que quem fez a troca não controla. Nome, foto e parentesco não avisam
+            // ninguém — alarme falso é o que ensina a ignorar o próximo.
+            if ($trocouEmail) {
+                Notificador::avisar($antes, AlertaDeSeguranca::emailAlteradoPeloTitular(
+                    $dependent,
+                    $titular,
+                    $dependent->email,
+                    ContextoDeSeguranca::doRequest($request),
+                ));
+            }
+
             return redirect()->route('dependentes')->with('status', 'Dependente atualizado.');
         }
 
@@ -154,7 +169,9 @@ class DependentController extends Controller
         // senha e e-mail de uma vez, o endereço novo foi o titular que digitou: mandar o aviso
         // para lá deixaria o dependente sem saber de nada justamente no caso mais grave — e
         // tornaria o aviso inútil contra quem tomou a conta do titular, que só precisaria
-        // trocar os dois campos no mesmo envio.
+        // trocar os dois campos no mesmo envio. É UM aviso para as duas mudanças: o de e-mail
+        // sozinho (acima) não sai junto — dois e-mails do mesmo clique confundem mais do que
+        // avisam.
         Notificador::avisar($antes, AlertaDeSeguranca::senhaAlteradaPeloTitular(
             $dependent,
             $titular,
