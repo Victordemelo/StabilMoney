@@ -218,7 +218,8 @@ class EdicaoNeutraPreservaResgateTest extends TestCase
      * estorno (o `delete` em `investment_contributions` é o marcador). Em sqlite
      * o `lockForUpdate` compila para nada (`SQLiteGrammar::compileLock` devolve
      * ''), então não dá para procurar "for update" no SQL — o que se assegura é
-     * a ORDEM das queries de lock, pelos bindings de `where "accounts"."id" = ?`.
+     * a ORDEM das queries de lock, pelos bindings de `where accounts.id = ?` (com as aspas
+     * da gramática do banco em uso).
      *
      * @return list<int> ids das contas na ordem em que foram travadas
      */
@@ -231,9 +232,15 @@ class EdicaoNeutraPreservaResgateTest extends TestCase
 
         $agir();
 
+        // Os marcadores escritos pela gramática do banco em uso: aspas no sqlite, crase no
+        // MySQL. Com as aspas do sqlite fixas, no MySQL o estorno nunca era achado (M-3).
+        $gramatica = DB::connection()->getQueryGrammar();
+        $marcadorDoEstorno = 'delete from '.$gramatica->wrapTable('investment_contributions');
+        $contaPorId = 'from '.$gramatica->wrapTable('accounts').' where '.$gramatica->wrap('accounts.id').' = ?';
+
         $estorno = null;
         foreach ($queries as $i => $q) {
-            if (str_starts_with($q['sql'], 'delete from "investment_contributions"')) {
+            if (str_starts_with($q['sql'], $marcadorDoEstorno)) {
                 $estorno = $i;
                 break;
             }
@@ -243,7 +250,7 @@ class EdicaoNeutraPreservaResgateTest extends TestCase
         // Do estorno para trás, colhe a sequência contígua de "conta por id".
         $ids = [];
         for ($i = $estorno - 1; $i >= 0; $i--) {
-            if (! str_contains($queries[$i]['sql'], 'from "accounts" where "accounts"."id" = ?')) {
+            if (! str_contains($queries[$i]['sql'], $contaPorId)) {
                 break;
             }
             array_unshift($ids, (int) $queries[$i]['bindings'][0]);

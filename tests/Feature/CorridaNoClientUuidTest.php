@@ -67,8 +67,13 @@ class CorridaNoClientUuidTest extends TestCase
     {
         $disparou = false;
 
-        DB::listen(function (QueryExecuted $q) use (&$disparou, $uuid, $linha) {
-            if ($disparou || ! str_starts_with($q->sql, 'select') || ! str_contains($q->sql, '"client_uuid"')) {
+        // A coluna escrita pela gramática do banco em uso: "client_uuid" no sqlite,
+        // `client_uuid` no MySQL. Com as aspas do sqlite fixas no teste, o listener nunca
+        // disparava no MySQL e a corrida simplesmente não acontecia (achado M-3).
+        $coluna = DB::connection()->getQueryGrammar()->wrap('client_uuid');
+
+        DB::listen(function (QueryExecuted $q) use (&$disparou, $uuid, $linha, $coluna) {
+            if ($disparou || ! str_starts_with($q->sql, 'select') || ! str_contains($q->sql, $coluna)) {
                 return;
             }
             // Flag ANTES do insert: o insert também passa pelo listener.
