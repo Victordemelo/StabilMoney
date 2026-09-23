@@ -132,8 +132,10 @@ class SmokeAllRoutesTest extends TestCase
 
             $uri = $rota->uri();
 
-            // Health check do framework e assets não são tela.
-            if (in_array($uri, ['up', 'storage/{path}'], true)) {
+            // Arquivo servido do disco não é tela. O `/up` ENTRA desde que é nosso
+            // (SaudeController): um 503 dele aqui, com banco e log de pé, é a checagem de
+            // saúde acusando falha que não existe — o monitor da VPS acordaria alguém à toa.
+            if ($uri === 'storage/{path}') {
                 continue;
             }
 
@@ -214,6 +216,22 @@ class SmokeAllRoutesTest extends TestCase
         }
 
         $this->assertSame([], $quebradas, "Rotas com erro 5xx para visitante:\n".implode("\n", $quebradas));
+    }
+
+    /**
+     * O `/up` saía da varredura como "health check do framework". Deixou de ser do
+     * framework (rodada 1: SaudeController, com banco e log conferidos de verdade), então
+     * passa a ser vigiado como qualquer rota — e é o visitante, sem sessão, que o monitor
+     * da VPS representa.
+     */
+    public function test_a_checagem_de_saude_entra_na_varredura(): void
+    {
+        $rotas = $this->rotasVisitaveis($this->cenario()['params']);
+
+        $this->assertArrayHasKey('saude', $rotas, 'O /up saiu da varredura do smoke.');
+        $this->assertSame('/up', $rotas['saude']);
+
+        $this->get($rotas['saude'])->assertOk();
     }
 
     /**
