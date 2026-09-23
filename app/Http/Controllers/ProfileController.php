@@ -205,10 +205,11 @@ class ProfileController extends Controller
         }
 
         if (! $user->temEmailPendente() || ! hash_equals(sha1($user->pending_email), (string) $request->query('hash'))) {
-            return Redirect::route('profile.edit')->with(
-                'status',
-                'Este link de confirmação não vale mais: a troca já foi confirmada ou um pedido mais novo tomou o lugar dele.',
-            );
+            // Como erro, no mesmo aviso do caso acima: no `status` ele saía no verde de
+            // sucesso, com o ✓, dizendo que o link não funcionou.
+            return Redirect::route('profile.edit')->withErrors([
+                'confirmacao_email' => 'Este link de confirmação não vale mais: a troca já foi confirmada ou um pedido mais novo tomou o lugar dele.',
+            ]);
         }
 
         // Alguém pode ter cadastrado esse endereço no intervalo entre o pedido e o clique.

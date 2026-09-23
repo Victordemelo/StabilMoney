@@ -212,8 +212,9 @@ class DependentController extends Controller
             report($e);
 
             // O banco desfez tudo, então a tela pode dizer que nada foi apagado: é verdade.
+            // Em `erro`, não em `status`: o `status` é o aviso VERDE, com o ✓ de sucesso.
             return redirect()->route('dependentes')->with(
-                'status',
+                'erro',
                 'Não conseguimos remover '.$dependent->name.' agora, e nada foi apagado. Tente de novo em instantes.',
             );
         }

@@ -81,7 +81,7 @@ class RemoverDependenteETudoOuNadaTest extends TestCase
 
         $this->remover()
             ->assertRedirect(route('dependentes'))
-            ->assertSessionHas('status', 'Não conseguimos remover Bruno Dependente agora, e nada foi apagado. Tente de novo em instantes.');
+            ->assertSessionHas('erro', 'Não conseguimos remover Bruno Dependente agora, e nada foi apagado. Tente de novo em instantes.');
 
         // Nada saiu: a linha, as sessões, o token e a foto.
         $this->assertModelExists($this->dependente);
