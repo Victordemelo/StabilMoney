@@ -180,6 +180,14 @@ class UpdateAccountRequest extends StoreAccountRequest
      * Trocar "Conta Corrente" por "Conta Poupança" com o cheque especial em uso
      * cai aqui também — e deve mesmo: o `prepareForValidation` zera o limite
      * nesse caso, e poupança não tem cheque especial no Brasil.
+     *
+     * O uso comparado é o PROJETADO com o saldo inicial NOVO, não o de agora (R2-6
+     * da auditoria de 02/09/2026, rodada 2). A regra irmã do piso já projetava e
+     * esta não: quem corrigia o saldo inicial para cima e baixava o limite na mesma
+     * edição — o banco reduziu o cheque especial, e o saldo de abertura estava
+     * errado — era recusado pelo uso de ANTES da correção, mesmo com o resultado
+     * cabendo no limite novo. As duas regras agora medem a mesma coisa: o
+     * disponível que valerá depois da edição contra o limite que valerá depois dela.
      */
     private function regraDoChequeEspecialEmUso(): \Closure
     {
@@ -194,19 +202,31 @@ class UpdateAccountRequest extends StoreAccountRequest
                 return;
             }
 
-            // `overdraftUsed` = max(0, −disponível): quanto o saldo já furou o zero.
-            $usado = $conta->overdraftUsed;
+            // `available` = inicial + receitas − despesas − reservado: trocar o
+            // saldo inicial desloca o disponível exatamente pela diferença (a mesma
+            // conta da `regraDoPisoDoSaldoInicial`). Sem saldo inicial válido no
+            // envio, vale o de hoje — a regra do próprio campo aponta o erro dele.
+            $inicialAtual = round((float) $conta->initial_balance, 2);
+            $inicialNovo = is_numeric($this->input('initial_balance'))
+                ? round((float) $this->input('initial_balance'), 2)
+                : $inicialAtual;
+            $mudouInicial = abs($inicialNovo - $inicialAtual) > 0.001;
+
+            // Quanto o saldo furaria o zero DEPOIS da edição: max(0, −disponível projetado).
+            $usado = round(max(0.0, -($conta->available - $inicialAtual + $inicialNovo)), 2);
             $atual = round((float) $conta->overdraft_limit, 2);
             $novo = round((float) $value, 2);
 
-            // Conta positiva, ou o usuário não está reduzindo: nada a barrar.
+            // Conta que fica positiva, ou o usuário não está reduzindo: nada a barrar.
             if ($usado <= 0.001 || $novo >= $atual) {
                 return;
             }
 
             if ($novo + 0.001 < $usado) {
                 $fail(
-                    'Esta conta está usando '.Brl::format($usado).' do cheque especial agora, '
+                    ($mudouInicial
+                        ? 'Com o saldo inicial novo, esta conta ficaria usando '.Brl::format($usado).' do cheque especial, '
+                        : 'Esta conta está usando '.Brl::format($usado).' do cheque especial agora, ')
                     .'então o limite não pode cair para '.Brl::format($novo).'. '
                     .'Deixe pelo menos '.Brl::format($usado)
                     .' ou lance um recebimento para cobrir o saldo negativo antes de reduzir o limite.'
