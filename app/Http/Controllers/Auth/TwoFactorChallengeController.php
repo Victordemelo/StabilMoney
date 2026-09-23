@@ -158,8 +158,8 @@ class TwoFactorChallengeController extends Controller
 
     /**
      * A conta que está no meio do login — ou o caminho de volta para a senha, se não há
-     * pendência, se ela expirou, se o 2FA foi desligado (de outro aparelho) ou se a senha
-     * da conta mudou enquanto esta tela estava aberta.
+     * pendência, se ela expirou, se o 2FA foi desligado (de outro aparelho), se a senha
+     * da conta mudou enquanto esta tela estava aberta ou se a conta está suspensa.
      */
     private function pendente(Request $request): User|RedirectResponse
     {
@@ -204,6 +204,17 @@ class TwoFactorChallengeController extends Controller
             $this->limpar($request);
 
             return $this->senhaMudou();
+        }
+
+        // Banido para aqui, ANTES de gastar código (observação da auditoria de 05/09/2026).
+        // Barrado só depois, pelo `BloqueiaUsuarioBanido` na requisição seguinte ao login,
+        // ele queimava o passo do TOTP — ou um código de recuperação, que não volta e faria
+        // falta se o banimento fosse desfeito. A senha já foi conferida (a impressão acima),
+        // então ele descobre o banimento no mesmo ponto de quem entra sem 2FA.
+        if ($user->estaBanido()) {
+            $this->limpar($request);
+
+            return $this->suspensa();
         }
 
         return $user;
@@ -251,6 +262,19 @@ class TwoFactorChallengeController extends Controller
         return redirect()->route('login')->withErrors([
             'email' => 'A verificação foi cancelada: a senha desta conta foi alterada ou os outros acessos '
                 .'foram encerrados. Entre de novo com o e-mail e a senha atual.',
+        ]);
+    }
+
+    /**
+     * O recado do `BloqueiaUsuarioBanido`, palavra por palavra: quem tem 2FA não pode
+     * receber um texto diferente de quem não tem. Sem o motivo — o texto da moderação não
+     * é para virar tela pública. O BanidoNaoGastaCodigoDoDoisFatoresTest compara os dois.
+     */
+    private function suspensa(): RedirectResponse
+    {
+        return redirect()->route('login')->withErrors([
+            'email' => 'Esta conta está suspensa. Fale com o suporte em '
+                .config('legal.contact_email').'.',
         ]);
     }
 }
