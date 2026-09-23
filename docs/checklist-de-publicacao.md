@@ -251,6 +251,32 @@ idempotente e cobre o caso de alguém ter mexido no servidor entre um deploy e o
 > Sintoma para reconhecer sem investigar: o HTML servido tem `src="http://127.0.0.1:5173/..."`
 > ou `/@vite/client`. Confira com `curl -s https://app.stabilmoney.com.br | grep 5173`.
 
+### 10.2. Monitor no `/up` e manutenção durante o deploy
+
+Aponte o monitor de disponibilidade (UptimeRobot, Better Stack, o que for) para:
+
+```text
+GET https://app.stabilmoney.com.br/up   → espera 200 com o corpo "ok"
+```
+
+**Por quê:** o `/up` é do app (`SaudeController`, 22/09/2026), não o do framework. Ele confere o
+banco (`select 1`) e se a pasta do log aceita escrita, e responde em texto: `ok` (200),
+`manutencao` (503) ou `indisponivel` (503) — o motivo da falha vai para o log, nunca para a
+resposta. O do framework respondia 200 com o banco fora do ar, e carregava um script de CDN de
+terceiro no domínio do app. Fica fora do grupo `web`: cada batida do monitor não abre sessão.
+
+Durante o deploy, ponha o app em manutenção com prazo de volta:
+
+```bash
+php artisan down --retry=60   # a página 503 diz "Tente de novo em 1 minuto"
+# ... migrate, caches, build (item 10) ...
+php artisan up
+```
+
+> ⚠️ `--render=errors::503` sai **sem os cabeçalhos de segurança**: quem serve essa página é o
+> `public/index.php`, antes de o framework subir. Use só se o próprio deploy puder quebrar o
+> framework no meio; no caso comum, o `down` simples já mostra a página de manutenção do app.
+
 ### 11. Backup do banco — automático, testado e fora da VPS
 
 Existem dois scripts prontos no repositório (feitos em 02/08/2026, depois do incidente de

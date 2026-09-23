@@ -28,6 +28,20 @@ class SecurityHeaders
      */
     public const HEADER_NONCE = 'X-Csp-Nonce';
 
+    /**
+     * CSP das respostas que NUNCA executam script: as de erro e o /up (ver
+     * `completarRespostaSemScript`).
+     *
+     * Sem nonce, de propósito: nonce sorteado mudaria o header a cada requisição, e o
+     * 404 do prefixo do painel desligado tem de ser idêntico, header a header, ao de
+     * uma URL que não existe (`PainelAdminDesligadoNaoSeRevelaTest`). Página de erro
+     * não tem `<script>` nenhum, então não há nonce a carimbar: `default-src 'none'`
+     * bloqueia tudo, e só o que a página usa é liberado — o `<style>` embutido e a
+     * logo/favicon servidos pela própria origem.
+     */
+    public const CSP_SEM_SCRIPT = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; "
+        ."base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+
     public function handle(Request $request, Closure $next): Response
     {
         // ANTES do $next: o nonce precisa existir enquanto a view renderiza.
@@ -44,23 +58,74 @@ class SecurityHeaders
             return $response;
         }
 
+        // `set` SUBSTITUI: uma resposta de erro que já veio do handler com a CSP sem
+        // nonce (ver `completarRespostaSemScript`) sai daqui com UMA CSP só, esta.
         $response->headers->set('Content-Security-Policy', $this->csp(
             $nonce,
             paraServiceWorker: $request->routeIs('pwa.sw'),
         ));
         $response->headers->set(self::HEADER_NONCE, $nonce);
-        $response->headers->set('X-Content-Type-Options', 'nosniff');
-        $response->headers->set('X-Frame-Options', 'DENY');
-        $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
-        $response->headers->set('Permissions-Policy', 'geolocation=(), camera=(), microphone=(), payment=()');
+
+        foreach (self::cabecalhosBasicos($request) as $nome => $valor) {
+            $response->headers->set($nome, $valor);
+        }
+
+        return $response;
+    }
+
+    /**
+     * Cabeçalhos de segurança para a resposta que NÃO passa por este middleware — ou
+     * ainda não passou quando nasce.
+     *
+     * São as respostas de ERRO, montadas pelo handler de exceções
+     * (`$exceptions->respond(...)` no `bootstrap/app.php`), e o /up. Este middleware é
+     * do grupo `web`, e muito erro nasce fora do alcance dele:
+     *  - fora do grupo, antes de qualquer rota: 404 e 405 do roteador, 503 da
+     *    manutenção, 413 do POST grande demais;
+     *  - dentro do grupo, mas ANTES dele na fila: 419 do CSRF, 429 do limite de
+     *    tentativas, 404 do route model binding. A resposta volta pelas camadas de
+     *    fora e nunca atravessa esta.
+     * Sem isto, todos esses saíam sem CSP, sem `nosniff` e sem anti-clickjacking.
+     *
+     * Só entra o que FALTA. O erro que nasce DENTRO do alcance deste middleware (um
+     * `abort(403)` no controller) ainda passa pelo `handle()` na volta, e ali a CSP com
+     * nonce substitui esta — uma CSP por resposta, nunca duas.
+     */
+    public static function completarRespostaSemScript(Response $response, Request $request): Response
+    {
+        $cabecalhos = ['Content-Security-Policy' => self::CSP_SEM_SCRIPT] + self::cabecalhosBasicos($request);
+
+        foreach ($cabecalhos as $nome => $valor) {
+            if (! $response->headers->has($nome)) {
+                $response->headers->set($nome, $valor);
+            }
+        }
+
+        return $response;
+    }
+
+    /**
+     * Os cabeçalhos que não dependem do conteúdo da resposta — iguais para página,
+     * JSON, erro e /up.
+     *
+     * @return array<string, string>
+     */
+    private static function cabecalhosBasicos(Request $request): array
+    {
+        $cabecalhos = [
+            'X-Content-Type-Options' => 'nosniff',
+            'X-Frame-Options' => 'DENY',
+            'Referrer-Policy' => 'strict-origin-when-cross-origin',
+            'Permissions-Policy' => 'geolocation=(), camera=(), microphone=(), payment=()',
+        ];
 
         // HSTS só faz sentido (e só é honrado) sobre HTTPS. Enviar em http é inócuo,
         // mas em dev poderia travar o navegador no https de localhost.
         if ($request->secure()) {
-            $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+            $cabecalhos['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
         }
 
-        return $response;
+        return $cabecalhos;
     }
 
     /**

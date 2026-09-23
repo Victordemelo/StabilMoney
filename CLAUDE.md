@@ -291,6 +291,7 @@ tests/Feature/              # 1.315 testes (PHP): auth, dashboard, CRUD, valida�
 | `/faturas` (**"Pagar despesas"**: `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy` + **`faturas.fatura.pagar`** + **`faturas.fatura.estornar`** + `faturas.recorrente.pagar`) | `faturas/index` | **Pagar despesas (implementado).** Três blocos: **contas fixas do mês** (topo — competências projetadas, badge de vencida, botão Pagar e "+ Nova conta fixa"), faturas por cartão (parcelas/recorrência, ciclo, limite) e despesas avulsas. **Marcar fatura como paga** usa `PayInvoiceRequest` (com **data do pagamento** informável) e passa pelo `FundingService` — respeita saldo e pergunta a fonte. `Account::openInvoiceDue` = fatura do ciclo aberto; **`closedInvoiceDue`/`overdueInvoice`** = a do ciclo fechado e vencida. A recorrência de cartão agora tem **botão "Pagar"** (a rota existia sem UI, então nunca avançava de mês). |
 | `/contas-fixas` (`FixedBillController` store/update/destroy + **`contas-fixas.pagar/{competencia}`**) | bloco em `faturas/index` | **Contas fixas mensais (implementado).** Condomínio, aluguel, parcela do carro. **Sem rota de listagem** — aparecem em `/faturas`. `due_day` aceita **1..31**. Pagar recebe o valor REAL (editável, vem preenchido com o previsto) e a data; idempotente pelo `unique(fixed_bill_id, competence)`. |
 | `routes/auth.php` | `auth/*` | Breeze: login, registro, esqueci/redefinir senha, confirmar senha, verificar e-mail. |
+| `GET /up` (`saude`) → `SaudeController` | — (texto) | **Checagem de saúde para o monitor** (22/09/2026 — `ChecagemDeSaudeEnxergaOAppTest`): responde `ok` (200), `manutencao` (503) ou `indisponivel` (503) em texto, com `no-store` e cabeçalhos de segurança; confere o banco (`select 1`) e se a pasta do log aceita escrita, e o motivo da falha vai só para o log. Registrada no `then:` do `bootstrap/app.php`, **fora do grupo `web`** (sem sessão nem cookie a cada batida) e excluída do middleware de manutenção (`preventRequestsDuringMaintenance(except: ['up'])`) para responder ela mesma. Substituiu o `health: '/up'` do framework, que servia HTML com script de CDN de terceiro e respondia 200 com o banco fora do ar — não volte a ele. |
 
 **Menu da sidebar (v2):** grupo **Menu** = Visão geral → `dashboard`, **Histórico** →
 `transactions.index`, Pagar despesas → `faturas`, Metas → `metas`, Investimentos →
@@ -1124,6 +1125,18 @@ dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypt
   busca e exige cada um no `connect-src` dele. ⚠️ **Mudar só o header não atualiza SW instalado**:
   o navegador compara os BYTES do script — mudança de CSP para o SW vem com mudança no
   `pwa/service-worker.blade.php`.
+- **Páginas de erro do app + cabeçalhos em TODA resposta de erro** (22/09/2026 —
+  `PaginasDeErroDoAppTest`). `resources/views/errors/minimal.blade.php` é a moldura de todas
+  (403, 404, 405, 413, 419, 429, 500, 503, 4xx, 5xx e as padrão do framework). Regras duras,
+  porque a página de erro aparece justamente com o app quebrado: **sem `@vite`, sem banco, sem
+  sessão/auth, sem partials do shell, zero `<script>`**, CSS inline com os tokens copiados como
+  valores literais; **nada que varie por caminho ou por usuário** (o 404 do painel desligado tem de
+  ser idêntico ao de `/nao_existe`); nunca a mensagem da exceção; 429/503 dizem quanto esperar pelo
+  `Retry-After`; JSON continua JSON. Muito erro nasce fora do alcance do `SecurityHeaders` (404/405
+  do roteador, 503 da manutenção, 413; e 419/429/404 do model binding, que nascem dentro do grupo
+  mas antes dele na fila) e saía sem cabeçalho nenhum: `$exceptions->respond()` chama
+  `SecurityHeaders::completarRespostaSemScript`, que só acrescenta o que falta (CSP estática
+  `CSP_SEM_SCRIPT`); o erro que ainda atravessa o `SecurityHeaders` fica com a CSP com nonce dele.
 - **Trocar e-mail exige a senha atual** (`ProfileUpdateRequest` → `current_password` requerido
   **só quando o e-mail muda**). O e-mail é o que recupera a conta: sem isso, sessão sequestrada
   → troca e-mail → "esqueci a senha" → conta tomada. Nome/telefone/foto seguem sem atrito.
