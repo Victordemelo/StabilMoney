@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\RespondsToAjax;
 use App\Http\Requests\StoreCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
+use App\Models\FixedBill;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -174,6 +175,12 @@ class CategoryController extends Controller
             ]);
         }
 
+        // Depois do `authorize` de propósito: a recusa conta lançamentos e cita conta fixa,
+        // e isso não pode responder por categoria de outra família.
+        if ($data['type'] !== $category->type) {
+            $this->recusarTrocaDeTipoEmUso($category, $data['type']);
+        }
+
         $category->update($data);
 
         // O drag & drop da página de categorias envia PATCH via fetch (JSON)
@@ -184,6 +191,66 @@ class CategoryController extends Controller
 
         return redirect()->route('categories.index')
             ->with('status', 'Categoria atualizada.');
+    }
+
+    /**
+     * Recusa trocar o tipo de uma categoria em uso por algo que não casaria com o tipo novo.
+     *
+     * Lançamento e conta fixa guardam só o `category_id` — o tipo é o da categoria. Trocá-lo
+     * por baixo (arrastar entre as colunas, o toggle do modal e a página cheia caem todos
+     * aqui) deixava os lançamentos presos a uma categoria do tipo oposto: editar a despesa
+     * sem mudar nada passava a dar 422 ("a categoria precisa casar com o tipo"), o donut do
+     * dashboard mostrava categoria de receita entre as despesas, e pagar a conta fixa
+     * gravava despesa numa categoria de receita.
+     *
+     * 🚨 Nunca "consertar" trocando o tipo dos lançamentos junto: o `type` é o sinal do
+     * dinheiro (receita soma, despesa subtrai), e mudá-lo reescreveria saldos de meses atrás.
+     *
+     * Confere o INVARIANTE — todo lançamento casa com o tipo da categoria —, e não "tem
+     * lançamento": uma categoria que ficou do tipo errado por um arraste de antes desta trava
+     * pode ser arrastada de volta, que é justamente o que a conserta.
+     *
+     * @throws ValidationException no campo `type` (422 no AJAX, erro no formulário)
+     */
+    private function recusarTrocaDeTipoEmUso(Category $category, string $novoTipo): void
+    {
+        $vira = $novoTipo === 'income' ? 'receita' : 'despesa';
+        // A saída é a mesma nos dois casos: a categoria que a pessoa quer do outro lado
+        // nasce nova, e esta segue servindo aos lançamentos que já tem.
+        $saida = 'Para lançar '.$vira.'s, crie uma categoria nova em '.($novoTipo === 'income' ? 'Receitas' : 'Despesas').'.';
+        $nome = '"'.$category->name.'"';
+
+        $lancamentos = $category->transactions()->where('type', '!=', $novoTipo)->count();
+
+        if ($lancamentos > 0) {
+            $deTipo = $novoTipo === 'income' ? 'despesa' : 'receita';
+            $quantos = $lancamentos === 1
+                ? 'tem 1 lançamento de '.$deTipo.', e ele ficaria'
+                : 'tem '.$lancamentos.' lançamentos de '.$deTipo.', e eles ficariam';
+
+            throw ValidationException::withMessages([
+                'type' => $nome.' não pode virar '.$vira.': '.$quantos.' numa categoria do tipo errado. '.$saida,
+            ]);
+        }
+
+        // Conta fixa é sempre despesa (StoreFixedBillRequest só aceita categoria de despesa,
+        // e o pagamento grava `type = expense` com a categoria dela). Mesmo sem nenhum
+        // pagamento ainda, virar receita quebraria o próximo — e a edição da conta fixa.
+        if ($novoTipo === 'expense') {
+            return;
+        }
+
+        $contasFixas = FixedBill::where('category_id', $category->id)->orderBy('name')->pluck('name');
+
+        if ($contasFixas->isNotEmpty()) {
+            $quais = $contasFixas->count() === 1
+                ? 'é a categoria da conta fixa "'.$contasFixas->first().'"'
+                : 'é a categoria de '.$contasFixas->count().' contas fixas (entre elas, "'.$contasFixas->first().'")';
+
+            throw ValidationException::withMessages([
+                'type' => $nome.' não pode virar '.$vira.': '.$quais.', e conta fixa é sempre despesa. '.$saida,
+            ]);
+        }
     }
 
     public function destroy(Category $category)

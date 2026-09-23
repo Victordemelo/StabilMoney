@@ -8,7 +8,8 @@
 //         UpdateCategoryRequest exige) e, em seguida, grava a posição no
 //         destino.
 //     Tudo otimista: o chip se move na hora e, se o servidor recusar, a tela
-//     volta ao estado anterior (rollback).
+//     volta ao estado anterior (rollback) e o aviso mostra o porquê que o
+//     servidor deu — categoria com lançamentos, por exemplo, não muda de tipo.
 //
 //  2) Criar/editar em MODAL, na própria tela (`initCategoryModal`), em vez de
 //     navegar para as páginas cheias — que continuam existindo e valendo como
@@ -24,6 +25,29 @@ const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
  * (data-cat-type) e esse valor tem precedência: ali o usuário já escolheu.
  */
 const TIPO_PADRAO = 'income';
+
+const MSG_SEM_CONEXAO = 'Sem conexão com o servidor. Tente de novo em instantes.';
+
+/**
+ * Texto a mostrar quando o CategoryController recusa um envio (o do modal ou o do
+ * arraste entre colunas).
+ *
+ * Nas recusas que importam (422) o servidor explica o PORQUÊ: categoria fixa, categoria
+ * com lançamentos que não pode mudar de tipo... Um "não foi possível" genérico no lugar
+ * deixava a pessoa repetindo algo que nunca vai passar, sem saber a saída.
+ */
+async function mensagemDeErro(resp, padrao) {
+    if (resp.status === 419) return 'Sua sessão expirou. Atualize a página e tente de novo.';
+    if (resp.status === 403 || resp.status === 404) return 'Esta categoria não está mais disponível.';
+
+    if (resp.status === 422) {
+        const data = await resp.json().catch(() => ({}));
+        const errs = data?.errors || {};
+        return Object.values(errs)[0]?.[0] || data?.message || padrao;
+    }
+
+    return padrao;
+}
 
 export function initCategories() {
     const cols = document.getElementById('catCols');
@@ -132,10 +156,17 @@ export function initCategories() {
         });
     });
 
-    /** PATCH categories.update — é ele que troca o TIPO da categoria. */
+    /**
+     * PATCH categories.update — é ele que troca o TIPO da categoria.
+     *
+     * Devolve `null` se o servidor aceitou; senão, o texto a mostrar. A recusa mais comum
+     * aqui é de propósito (categoria com lançamentos não muda de tipo), e só o servidor
+     * sabe dizer por quê e o que fazer — por isso a mensagem vem dele.
+     */
     async function salvarTipo(chip, tipo) {
+        let res;
         try {
-            const res = await fetch(chip.dataset.updateUrl, {
+            res = await fetch(chip.dataset.updateUrl, {
                 method: 'PATCH',
                 headers: cabecalhosJson(),
                 body: JSON.stringify({
@@ -145,10 +176,11 @@ export function initCategories() {
                     icon: chip.dataset.icon || null,
                 }),
             });
-            return res.ok;
         } catch {
-            return false;
+            return MSG_SEM_CONEXAO;
         }
+
+        return res.ok ? null : mensagemDeErro(res, 'Não foi possível mover a categoria. Tente novamente.');
     }
 
     /** PATCH categories.ordenar — manda os ids da coluna na ordem final. */
@@ -186,10 +218,15 @@ export function initCategories() {
         chip.dataset.type = drop.dataset.type;
         updateCounts();
 
-        if (trocouDeColuna && !(await salvarTipo(chip, drop.dataset.type))) {
-            restaurar(estado);
-            window.alert('Não foi possível mover a categoria. Tente novamente.');
-            return;
+        if (trocouDeColuna) {
+            const erro = await salvarTipo(chip, drop.dataset.type);
+            if (erro) {
+                restaurar(estado);
+                // Dado do usuário (o nome da categoria) pode vir na mensagem: alert()
+                // mostra texto puro, nunca interpreta HTML.
+                window.alert(erro);
+                return;
+            }
         }
 
         if (await salvarOrdem(drop)) return;
@@ -411,7 +448,7 @@ function initCategoryModal() {
             });
         } catch (_) {
             setSaving(false);
-            showError('Sem conexão com o servidor. Tente de novo em instantes.');
+            showError(MSG_SEM_CONEXAO);
             return;
         }
 
@@ -426,22 +463,8 @@ function initCategoryModal() {
         }
 
         setSaving(false);
-
-        if (resp.status === 419) {
-            showError('Sua sessão expirou. Atualize a página e tente de novo.');
-            return;
-        }
-        if (resp.status === 403 || resp.status === 404) {
-            showError('Esta categoria não está mais disponível.');
-            return;
-        }
-
-        let msg = 'Não foi possível salvar. Confira os campos e tente de novo.';
-        if (resp.status === 422) {
-            const data = await resp.json().catch(() => ({}));
-            const errs = data?.errors || {};
-            msg = Object.values(errs)[0]?.[0] || data?.message || msg;
-        }
-        showError(msg);
+        // Inclui a recusa de trocar o tipo de categoria com lançamentos, que chega como
+        // erro do campo `type` (o toggle de tipo do modal cai na mesma trava do arraste).
+        showError(await mensagemDeErro(resp, 'Não foi possível salvar. Confira os campos e tente de novo.'));
     });
 }
