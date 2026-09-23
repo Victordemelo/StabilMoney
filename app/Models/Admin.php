@@ -7,6 +7,7 @@ use App\Support\Totp;
 use Database\Factories\AdminFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 /**
@@ -78,13 +79,31 @@ class Admin extends Authenticatable
      */
     public function confirmarDoisFatores(string $codigo): ?array
     {
-        if (! $this->two_factor_secret || ! $this->verificarTotp($codigo)) {
-            return null;
-        }
+        return DB::transaction(function () use ($codigo): ?array {
+            $travado = $this->travado();
 
-        $this->forceFill(['two_factor_confirmed_at' => now()])->save();
+            // Quem já confirmou não "confirma" de novo: por aqui, a senha e UM código do
+            // autenticador devolveriam a lista inteira de códigos de recuperação. O
+            // controller também barra; a regra mora aqui para não depender dele.
+            if ($travado === null || $travado->two_factor_confirmed_at !== null) {
+                return null;
+            }
 
-        return $this->two_factor_recovery_codes ?? [];
+            $passo = $travado->passoValido($codigo);
+
+            if ($passo === null) {
+                return null;
+            }
+
+            $travado->forceFill([
+                'two_factor_last_step' => $passo,
+                'two_factor_confirmed_at' => now(),
+            ])->save();
+
+            $this->acompanhar($travado, ['two_factor_last_step', 'two_factor_confirmed_at']);
+
+            return $travado->two_factor_recovery_codes ?? [];
+        });
     }
 
     /**
@@ -95,33 +114,74 @@ class Admin extends Authenticatable
      */
     public function verificarTotp(string $codigo): bool
     {
-        if (! $this->two_factor_secret) {
-            return false;
-        }
+        return DB::transaction(function () use ($codigo): bool {
+            $travado = $this->travado();
+            $passo = $travado?->passoValido($codigo);
 
-        $passo = Totp::verificar($this->two_factor_secret, $codigo, (int) $this->two_factor_last_step);
+            if ($passo === null) {
+                return false;
+            }
 
-        if ($passo === null) {
-            return false;
-        }
+            $travado->forceFill(['two_factor_last_step' => $passo])->save();
+            $this->acompanhar($travado, ['two_factor_last_step']);
 
-        $this->forceFill(['two_factor_last_step' => $passo])->save();
-
-        return true;
+            return true;
+        });
     }
 
     /** Consome um código de recuperação (uso único). */
     public function consumirCodigoDeRecuperacao(string $codigo): bool
     {
-        $restantes = RecoveryCodes::consumir($this->two_factor_recovery_codes ?? [], $codigo);
+        return DB::transaction(function () use ($codigo): bool {
+            $travado = $this->travado();
+            $restantes = RecoveryCodes::consumir($travado?->two_factor_recovery_codes ?? [], $codigo);
 
-        if ($restantes === null) {
-            return false;
+            if ($travado === null || $restantes === null) {
+                return false;
+            }
+
+            $travado->forceFill(['two_factor_recovery_codes' => $restantes])->save();
+            $this->acompanhar($travado, ['two_factor_recovery_codes']);
+
+            return true;
+        });
+    }
+
+    /**
+     * A linha do admin relida do banco SOB TRAVA — a mesma regra do app
+     * (`TwoFactorService::verificarCodigo`). O `$this` é o model que o guard carregou no
+     * começo da requisição: conferir o código nele e só depois gravar deixava uma janela em
+     * que dois envios simultâneos do MESMO código liam o mesmo último passo (ou a mesma
+     * lista de códigos de recuperação) e passavam os dois — uso único que valia duas vezes.
+     * Com a trava, o segundo espera o primeiro gravar e lê o passo já queimado.
+     */
+    private function travado(): ?self
+    {
+        return static::whereKey($this->getKey())->lockForUpdate()->first();
+    }
+
+    /** O passo do código, se ele vale agora e ainda não foi gasto; senão null. */
+    private function passoValido(string $codigo): ?int
+    {
+        if (! $this->two_factor_secret) {
+            return null;
         }
 
-        $this->forceFill(['two_factor_recovery_codes' => $restantes])->save();
+        return Totp::verificar($this->two_factor_secret, $codigo, (int) $this->two_factor_last_step);
+    }
 
-        return true;
+    /**
+     * Traz para `$this` o que acabou de ser gravado pela cópia travada, sem marcar como
+     * alteração: o resto da requisição (ex.: `registrarLogin`) segue com o estado real.
+     *
+     * @param  list<string>  $atributos
+     */
+    private function acompanhar(self $travado, array $atributos): void
+    {
+        foreach ($atributos as $atributo) {
+            $this->setAttribute($atributo, $travado->getAttribute($atributo));
+            $this->syncOriginalAttribute($atributo);
+        }
     }
 
     /** URI `otpauth://` do QR do setup. */

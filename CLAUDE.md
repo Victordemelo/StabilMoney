@@ -1649,6 +1649,11 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   mostra "2FA ligado desde …": só `two_factor_confirmed_at` entra em `COLUNAS`, e o
   `PainelAdminNaoVeValoresTest` barra `select *` nas 7 tabelas de dinheiro. Falha ao excluir vira
   `report()` + recado "nada foi apagado" (só se a pessoa ainda existe), não mais HTTP 500.
+  **O código do 2FA do admin (TOTP e recuperação) é conferido e gasto SOB TRAVA** (23/09/2026 —
+  `PainelAdminCodigoDeUsoUnicoSobTravaTest`): `Admin::travado()` relê a linha com
+  `lockForUpdate`, como o `TwoFactorService` do app. Antes o código era conferido no model que o
+  guard carregou no começo da requisição, e dois envios simultâneos do mesmo código passavam os
+  dois. `confirmarDoisFatores` também recusa, no próprio model, admin já confirmado.
 - **Camadas, na ordem:** `PainelAdminLigado` → throttle (`painel-login` 3/min + 10/h por IP,
   `painel-totp` idem, `painel-acao` 5/min + 30/h por admin) → `auth:admin` →
   `ExigeDoisFatoresDoAdmin`. Limites bem mais apertados que os do app porque há UM usuário
