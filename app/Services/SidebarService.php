@@ -92,14 +92,20 @@ class SidebarService
         }
 
         // Cheque especial da família: limite total das contas correntes e quanto
-        // dele já está sendo usado (uma conta por vez, só as que têm limite).
-        $chequeLimite = round((float) Account::where('user_id', $userId)
-            ->where('type', 'checking')
-            ->sum('overdraft_limit'), 2);
+        // dele já está sendo usado (uma conta por vez). As correntes vêm numa query só,
+        // que serve às duas contas.
+        $correntes = Account::where('user_id', $userId)->where('type', 'checking')->get();
+        $chequeLimite = round((float) $correntes->sum(fn (Account $conta) => (float) $conta->overdraft_limit), 2);
 
         $chequeUsado = 0.0;
         if ($chequeLimite > 0) {
-            foreach (Account::where('user_id', $userId)->where('type', 'checking')->get() as $conta) {
+            // O dinheiro das correntes em 4 queries agregadas, não 6 POR conta: sem isto,
+            // cada `overdraftUsed` disparava 2 SUMs sobre o histórico da conta e 4 sobre
+            // metas e investimentos — e esta sidebar está em 100% das páginas (V-1 da
+            // auditoria de volume de 06/09/2026). A fórmula continua a do accessor.
+            Account::preloadMoney($correntes);
+
+            foreach ($correntes as $conta) {
                 $chequeUsado += $conta->overdraftUsed;
             }
             $chequeUsado = round($chequeUsado, 2);

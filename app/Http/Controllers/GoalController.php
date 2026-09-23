@@ -32,6 +32,11 @@ class GoalController extends Controller
             ->orderBy('name')
             ->get();
 
+        // Os selects de aporte e resgate mostram o DISPONÍVEL de cada conta: sem isto
+        // eram 6 queries POR conta, cada SUM varrendo o histórico dela (V-5 da auditoria
+        // de volume). Com o pré-carregamento, 4 no total.
+        Account::preloadMoney($accounts);
+
         // Stats agregados dos cards do topo.
         $totalGuardado = round($goals->sum(fn (Goal $g) => $g->saved), 2);
         $totalAlvo = round((float) $goals->sum('target_amount'), 2);

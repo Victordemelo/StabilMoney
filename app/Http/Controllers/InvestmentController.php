@@ -38,6 +38,11 @@ class InvestmentController extends Controller
             ->orderBy('name')
             ->get();
 
+        // Os selects de aporte, resgate e do novo investimento mostram o DISPONÍVEL de
+        // cada conta: sem isto eram 6 queries POR conta, cada SUM varrendo o histórico
+        // dela (V-5 da auditoria de volume). Com o pré-carregamento, 4 no total.
+        Account::preloadMoney($accounts);
+
         // Stats agregados dos cards do topo.
         $totalInvestido = round($investments->sum(fn (Investment $i) => $i->aplicado), 2);
         // Rentabilidade média = média do grossRate ponderada pelo aplicado.

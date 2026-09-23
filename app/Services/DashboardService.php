@@ -305,14 +305,23 @@ class DashboardService
 
         $aPagar = $this->obrigacoesEmAberto($userId, $cards);
 
+        // Guardado por meta e aplicado por investimento numa query agregada CADA. Os
+        // accessors `saved`/`aplicado` fazem 2 SUMs por item, e o dashboard lia todos eles
+        // para somar e ordenar: com 5 metas e 4 investimentos eram 18 queries (V-3 da
+        // auditoria de volume). Os números são os mesmos — ver `somaDasContribuicoes()`.
+        $guardado = $this->somaDasContribuicoes(GoalContribution::class, 'goal_id', $goals);
+        $aplicado = $this->somaDasContribuicoes(InvestmentContribution::class, 'investment_id', $investments);
+        $saved = fn (Goal $g) => $guardado[$g->id] ?? 0.0;
+        $aplicadoDe = fn (Investment $i) => $aplicado[$i->id] ?? 0.0;
+
         return [
             'metasResumo' => [
-                'total' => round((float) $goals->sum(fn (Goal $g) => $g->saved), 2),
+                'total' => round((float) $goals->sum($saved), 2),
                 'count' => $goals->count(),
-                'top' => $goals->sortByDesc(fn (Goal $g) => $g->saved)->take(3)->map(fn (Goal $g) => [
+                'top' => $goals->sortByDesc($saved)->take(3)->map(fn (Goal $g) => [
                     'name' => $g->name,
-                    'saved' => $g->saved,
-                    'progress' => $g->progress,
+                    'saved' => $saved($g),
+                    'progress' => $this->progressoDaMeta($saved($g), $g),
                 ])->values()->all(),
             ],
             'faturasResumo' => [
@@ -323,15 +332,64 @@ class DashboardService
                 'top' => $aPagar->sortByDesc('invoice')->take(3)->values()->all(),
             ],
             'investimentosResumo' => [
-                'total' => round((float) $investments->sum(fn (Investment $i) => $i->aplicado), 2),
+                'total' => round((float) $investments->sum($aplicadoDe), 2),
                 'count' => $investments->count(),
-                'top' => $investments->sortByDesc(fn (Investment $i) => $i->aplicado)->take(3)->map(fn (Investment $i) => [
+                'top' => $investments->sortByDesc($aplicadoDe)->take(3)->map(fn (Investment $i) => [
                     'name' => $i->name,
-                    'aplicado' => $i->aplicado,
+                    'aplicado' => $aplicadoDe($i),
                     'classe' => Investment::CLASSES[$i->classe] ?? $i->classe,
                 ])->values()->all(),
             ],
         ];
+    }
+
+    /**
+     * Σ aportes − Σ resgates de cada meta (ou investimento) da lista, numa query só.
+     *
+     * É a MESMA conta dos accessors `Goal::saved` e `Investment::aplicado` — aportes e
+     * resgates somados em separado, subtraídos e arredondados em PHP; tipo que não seja
+     * nenhum dos dois não entra —, só que agrupada. Os accessors não têm como receber o
+     * valor pronto (o cache deles é privado), então o dashboard usa o daqui; o
+     * `ResumosDoDashboardSemNMaisUmTest` confere, item a item, que os dois concordam.
+     *
+     * @param  class-string<GoalContribution|InvestmentContribution>  $modelo
+     * @param  Collection<int, Goal|Investment>  $pais
+     * @return array<int, float> [id da meta ou do investimento => valor]; sem contribuição fica de fora
+     */
+    private function somaDasContribuicoes(string $modelo, string $chave, Collection $pais): array
+    {
+        if ($pais->isEmpty()) {
+            return [];
+        }
+
+        $linhas = $modelo::query()
+            ->whereIn($chave, $pais->pluck('id')->all())
+            ->groupBy($chave)
+            ->selectRaw("{$chave} AS pai")
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'aporte' THEN amount ELSE 0 END), 0) AS aportes")
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'resgate' THEN amount ELSE 0 END), 0) AS resgates")
+            ->get();
+
+        $total = [];
+        foreach ($linhas as $linha) {
+            $total[(int) $linha->pai] = round((float) $linha->aportes - (float) $linha->resgates, 2);
+        }
+
+        return $total;
+    }
+
+    /**
+     * Progresso da meta em % (0..100) a partir do guardado já somado — a regra de
+     * `Goal::progress`, que só sabe calcular com o próprio SUM. Alvo zerado dá 0.
+     */
+    private function progressoDaMeta(float $guardado, Goal $meta): int
+    {
+        $alvo = (float) $meta->target_amount;
+        if ($alvo <= 0) {
+            return 0;
+        }
+
+        return (int) min(100, round($guardado / $alvo * 100));
     }
 
     /** Monta um período do contrato (sub, labels, séries, stats e trends). */
