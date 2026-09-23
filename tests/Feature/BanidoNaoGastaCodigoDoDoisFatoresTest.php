@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\BloqueiaUsuarioBanido;
 use App\Models\User;
 use App\Support\RecoveryCodes;
 use App\Support\Totp;
@@ -19,6 +20,11 @@ use Tests\TestCase;
  *
  * O comportamento certo: o banimento é conferido junto com a pendência, depois da senha e
  * antes do código, e a pessoa recebe o mesmo recado de quem entra sem 2FA — sem o motivo.
+ *
+ * Desde 23/09/2026 o banimento também é conferido na PRIMEIRA etapa (`LoginRequest`, ver
+ * BanidoNaoRecebeSessaoNoLoginTest): quem já está banido nem chega ao desafio. Por isso os
+ * testes daqui banem a conta com o login JÁ PENDENTE — a senha conferida, o código ainda
+ * não —, que é o caso que só o `pendente()` do desafio alcança.
  */
 class BanidoNaoGastaCodigoDoDoisFatoresTest extends TestCase
 {
@@ -51,11 +57,17 @@ class BanidoNaoGastaCodigoDoDoisFatoresTest extends TestCase
         return session('errors')?->first('email');
     }
 
-    /** Senha certa, e o código mandado direto — sem passar pela tela, como faria um script. */
-    private function entrarComCodigo(User $user, array $dados): TestResponse
+    /**
+     * Senha certa (conta ainda sem banimento), o banimento chega com o login pendente, e o
+     * código é mandado direto — sem passar pela tela, como faria um script. `$quemBanir` é a
+     * conta cujo banimento alcança `$user` (ela mesma, ou o titular de um dependente).
+     */
+    private function entrarComCodigo(User $user, array $dados, ?User $quemBanir = null): TestResponse
     {
         $this->post('/login', ['email' => $user->email, 'password' => self::SENHA])
             ->assertRedirect(route('two-factor.login'));
+
+        $this->banir($quemBanir ?? $user);
 
         return $this->post(route('two-factor.login'), $dados);
     }
@@ -63,7 +75,6 @@ class BanidoNaoGastaCodigoDoDoisFatoresTest extends TestCase
     public function test_banido_para_antes_do_codigo_e_o_passo_do_totp_nao_e_gasto(): void
     {
         $user = $this->comDoisFatores();
-        $this->banir($user);
 
         $this->entrarComCodigo($user, ['codigo' => Totp::codigo($user->two_factor_secret, Totp::passoAtual())])
             ->assertRedirect(route('login'));
@@ -77,7 +88,6 @@ class BanidoNaoGastaCodigoDoDoisFatoresTest extends TestCase
     {
         $user = $this->comDoisFatores();
         $codigos = $user->two_factor_recovery_codes;
-        $this->banir($user);
 
         $this->entrarComCodigo($user, ['codigo' => $codigos[0], 'recuperacao' => 1])
             ->assertRedirect(route('login'));
@@ -87,12 +97,13 @@ class BanidoNaoGastaCodigoDoDoisFatoresTest extends TestCase
     }
 
     /** Nem a tela do código aparece: a pendência some, e voltar a ela pede a senha de novo. */
-    public function test_banido_nao_chega_a_ver_a_tela_do_codigo(): void
+    public function test_banido_no_meio_do_login_nao_chega_a_ver_a_tela_do_codigo(): void
     {
         $user = $this->comDoisFatores();
-        $this->banir($user);
 
-        $this->post('/login', ['email' => $user->email, 'password' => self::SENHA]);
+        $this->post('/login', ['email' => $user->email, 'password' => self::SENHA])
+            ->assertRedirect(route('two-factor.login'));
+        $this->banir($user);
 
         $this->get(route('two-factor.login'))->assertRedirect(route('login'));
         $this->assertStringContainsString('suspensa', (string) $this->erroDoLogin());
@@ -102,31 +113,35 @@ class BanidoNaoGastaCodigoDoDoisFatoresTest extends TestCase
     }
 
     /**
-     * O mesmo recado, palavra por palavra, com e sem 2FA — e nenhum dos dois com o motivo.
-     * O de quem entra sem 2FA vem do `BloqueiaUsuarioBanido`; os dois textos vivem em
-     * lugares diferentes, e é este teste que os mantém iguais.
+     * O mesmo recado, palavra por palavra, em toda porta — e nenhuma com o motivo: banido
+     * antes da senha (barrado no login, com ou sem 2FA) e banido com o login pendente
+     * (barrado no desafio). A fonte é uma só, `BloqueiaUsuarioBanido::mensagem()`.
      */
-    public function test_com_e_sem_2fa_o_banido_recebe_a_mesma_mensagem_sem_o_motivo(): void
+    public function test_o_banido_recebe_o_mesmo_recado_sem_o_motivo_em_toda_porta(): void
     {
         $semDoisFatores = User::factory()->create();
         $this->banir($semDoisFatores);
-
         $this->post('/login', ['email' => $semDoisFatores->email, 'password' => self::SENHA]);
-        $this->get(route('dashboard'))->assertRedirect(route('login'));
-        $recadoSem2fa = $this->erroDoLogin();
-
+        $noLoginSem2fa = $this->erroDoLogin();
         $this->flushSession();
 
         $comDoisFatores = $this->comDoisFatores();
         $this->banir($comDoisFatores);
-
         $this->post('/login', ['email' => $comDoisFatores->email, 'password' => self::SENHA]);
-        $this->get(route('two-factor.login'))->assertRedirect(route('login'));
-        $recadoCom2fa = $this->erroDoLogin();
+        $noLoginCom2fa = $this->erroDoLogin();
+        $this->flushSession();
 
-        $this->assertNotNull($recadoSem2fa);
-        $this->assertSame($recadoSem2fa, $recadoCom2fa);
-        $this->assertStringNotContainsString(self::MOTIVO, $recadoCom2fa);
+        $pendente = $this->comDoisFatores();
+        $this->post('/login', ['email' => $pendente->email, 'password' => self::SENHA])
+            ->assertRedirect(route('two-factor.login'));
+        $this->banir($pendente);
+        $this->get(route('two-factor.login'))->assertRedirect(route('login'));
+        $noDesafio = $this->erroDoLogin();
+
+        foreach ([$noLoginSem2fa, $noLoginCom2fa, $noDesafio] as $recado) {
+            $this->assertSame(BloqueiaUsuarioBanido::mensagem(), $recado);
+            $this->assertStringNotContainsString(self::MOTIVO, (string) $recado);
+        }
     }
 
     /** Banir o titular alcança o dependente — no desafio também. */
@@ -134,9 +149,8 @@ class BanidoNaoGastaCodigoDoDoisFatoresTest extends TestCase
     {
         $titular = User::factory()->create(['is_admin' => true]);
         $dependente = $this->comDoisFatores(['account_owner_id' => $titular->id, 'is_admin' => false]);
-        $this->banir($titular);
 
-        $this->entrarComCodigo($dependente, ['codigo' => Totp::codigo($dependente->two_factor_secret, Totp::passoAtual())])
+        $this->entrarComCodigo($dependente, ['codigo' => Totp::codigo($dependente->two_factor_secret, Totp::passoAtual())], $titular)
             ->assertRedirect(route('login'));
 
         $this->assertGuest();

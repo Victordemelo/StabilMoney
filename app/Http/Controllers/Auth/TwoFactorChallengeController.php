@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\BloqueiaUsuarioBanido;
 use App\Models\User;
 use App\Services\TwoFactorService;
 use Illuminate\Contracts\Session\Session;
@@ -266,15 +267,12 @@ class TwoFactorChallengeController extends Controller
     }
 
     /**
-     * O recado do `BloqueiaUsuarioBanido`, palavra por palavra: quem tem 2FA não pode
-     * receber um texto diferente de quem não tem. Sem o motivo — o texto da moderação não
-     * é para virar tela pública. O BanidoNaoGastaCodigoDoDoisFatoresTest compara os dois.
+     * O recado do `BloqueiaUsuarioBanido` — da mesma fonte: quem tem 2FA não pode receber
+     * um texto diferente de quem não tem. Sem o motivo — o texto da moderação não é para
+     * virar tela pública.
      */
     private function suspensa(): RedirectResponse
     {
-        return redirect()->route('login')->withErrors([
-            'email' => 'Esta conta está suspensa. Fale com o suporte em '
-                .config('legal.contact_email').'.',
-        ]);
+        return redirect()->route('login')->withErrors(['email' => BloqueiaUsuarioBanido::mensagem()]);
     }
 }

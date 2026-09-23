@@ -1531,8 +1531,9 @@ ainda não existem e "Encerrar outras sessões". Pendência sem `login.senha` n�
 recebe o MESMO model cuja senha foi conferida — recarregar do banco reabre a janela.
 **Banido é barrado no `pendente()`**, depois da senha e ANTES do código (23/09/2026 —
 `BanidoNaoGastaCodigoDoDoisFatoresTest`): antes gastava um passo TOTP ou um código de
-recuperação. A mensagem é a mesma do `BloqueiaUsuarioBanido` (o texto está duplicado; um teste
-compara os dois).
+recuperação. A mensagem vem de `BloqueiaUsuarioBanido::mensagem()`, a mesma de toda porta. Desde
+23/09 o banido também é barrado na PRIMEIRA etapa (`LoginRequest`); o `pendente()` cobre quem é
+banido com o login já pendente.
 
 **O login por AJAX (`sm/auth.js`) não precisou de uma linha nova**: ele já navega para o
 `redirect` que vier no JSON, e o desafio é só outro destino.
@@ -1669,7 +1670,11 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   dependente afeta só ele. `BloqueiaUsuarioBanido` roda no grupo `web` em **toda** requisição
   — checar só no login não basta, o cookie de "lembrar de mim" re-autentica quem acabou de
   ser banido. Ele lê `$request->user('web')` com guard explícito: numa requisição do painel o
-  guard padrão é `admin`.
+  guard padrão é `admin`. E o `LoginRequest` barra o banido logo depois da senha e ANTES do
+  `login()` (23/09/2026 — `BanidoNaoRecebeSessaoNoLoginTest`): antes a conta entrava — sessão e,
+  com "lembrar de mim", remember token e cookie — e só caía na requisição seguinte. Depois da
+  senha para a mensagem não virar sonda (senha errada = resposta de sempre), e a tentativa conta
+  no limite como falha. O texto vem de `BloqueiaUsuarioBanido::mensagem()` em toda porta.
 - **Auditoria** em `admin_audit_logs` (`AdminAudit::registrar`): `admin_id` `nullOnDelete`,
   `target_user_id` **sem FK** (excluir a pessoa é uma das ações registradas — cascade apagaria
   a prova), `alvo_descricao` guarda nome/e-mail no momento da ação — montada por

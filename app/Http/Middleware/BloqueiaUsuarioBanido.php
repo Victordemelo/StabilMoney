@@ -21,6 +21,19 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class BloqueiaUsuarioBanido
 {
+    /**
+     * O que o banido lê — em qualquer porta: aqui, no login (`LoginRequest`) e no desafio
+     * do 2FA (`TwoFactorChallengeController`). Uma fonte só: o texto já esteve copiado em
+     * dois lugares, e cópia de mensagem diverge no primeiro ajuste.
+     *
+     * Sem detalhe do motivo: quem precisa saber o porquê fala com o suporte, e o texto da
+     * moderação não é para virar tela pública.
+     */
+    public static function mensagem(): string
+    {
+        return 'Esta conta está suspensa. Fale com o suporte em '.config('legal.contact_email').'.';
+    }
+
     public function handle(Request $request, Closure $next): Response
     {
         // Guard EXPLÍCITO: `$request->user()` devolve o guard padrão, que numa
@@ -36,12 +49,7 @@ class BloqueiaUsuarioBanido
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            // Mensagem sem detalhe do motivo: quem precisa saber o porquê fala com o
-            // suporte, e o texto da moderação não é para virar tela pública.
-            return redirect()->route('login')->withErrors([
-                'email' => 'Esta conta está suspensa. Fale com o suporte em '
-                    .config('legal.contact_email').'.',
-            ]);
+            return redirect()->route('login')->withErrors(['email' => self::mensagem()]);
         }
 
         return $next($request);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Http\Middleware\BloqueiaUsuarioBanido;
 use App\Models\User;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -65,9 +66,26 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        $usuario = $guard->getLastAttempted();
+
+        // Banido é barrado AQUI, com a senha já conferida e ANTES do `login()`. Antes a
+        // conta entrava — sessão aberta e, com "lembrar de mim" (marcado por padrão), um
+        // remember token gravado e o cookie emitido — e só o `BloqueiaUsuarioBanido`, na
+        // requisição seguinte, a derrubava. Depois da senha, e não antes, para a mensagem
+        // de suspensão não servir de sonda: com a senha errada, a resposta é a de sempre.
+        // Conta como tentativa falha: sem isso, quem sabe a senha de uma conta banida
+        // repetiria o login à vontade, cada tentativa custando um argon2id no servidor.
+        if ($usuario instanceof User && $usuario->estaBanido()) {
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'email' => BloqueiaUsuarioBanido::mensagem(),
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
 
-        $this->usuario = $guard->getLastAttempted();
+        $this->usuario = $usuario;
 
         // Sem 2FA (o caso da imensa maioria — o recurso é opcional): entra direto,
         // exatamente como antes.
