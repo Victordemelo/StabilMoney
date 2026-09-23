@@ -87,7 +87,8 @@ final class Totp
      * passo usado e recusar o mesmo código uma segunda vez: sem isso, quem espia a tela
      * ou intercepta o POST tem 30 segundos para reusar o mesmo número.
      *
-     * @param  int|null  $depoisDoPasso  recusa passos <= este (proteção de replay)
+     * @param  int|null  $depoisDoPasso  recusa passos <= este (proteção de replay) — a
+     *                                   menos que ele seja impossível, ver o corpo
      * @param  int|null  $agora  timestamp de referência (só os testes passam)
      */
     public static function verificar(
@@ -103,6 +104,21 @@ final class Totp
         }
 
         $atual = self::passoAtual($agora);
+
+        // Passo gravado além de agora + janela não existe com um relógio que só anda para a
+        // frente: o maior passo que alguém consegue gastar é o `atual + JANELA` do momento em
+        // que gastou, e o `atual` só cresce. Se aparece, o relógio do servidor VOLTOU — estava
+        // adiantado quando a pessoa entrou e foi corrigido depois. Respeitá-lo recusaria todo
+        // código até o relógio alcançar aquele passo (o tamanho do salto: horas, dias),
+        // trancando a pessoa fora sem nada que ela possa fazer. Ignorado, vale a janela de
+        // agora, e quem chama grava por cima o passo aceito, que volta a ser plausível.
+        //
+        // No caso normal isto nunca dispara, e o replay segue barrado como sempre. O que se
+        // aceita perder é só o que o salto já tinha estragado: um código visto DURANTE o
+        // salto volta a valer quando o relógio de verdade chegar ao passo dele.
+        if ($depoisDoPasso !== null && $depoisDoPasso > $atual + self::JANELA) {
+            $depoisDoPasso = null;
+        }
 
         for ($delta = -self::JANELA; $delta <= self::JANELA; $delta++) {
             $passo = $atual + $delta;

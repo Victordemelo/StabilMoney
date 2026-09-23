@@ -112,6 +112,59 @@ class TotpTest extends TestCase
         $this->assertNull(Totp::verificar(self::SEMENTE_RFC, $codigo, depoisDoPasso: $passo, agora: $agora));
     }
 
+    /**
+     * Relógio que voltou não tranca ninguém (cobertura de auditoria de 07/09/2026).
+     *
+     * O passo gasto não tinha teto: se o relógio do servidor pulasse para a frente e alguém
+     * entrasse nesse intervalo, o passo gravado ficava no futuro — e, com o relógio corrigido,
+     * todo código da pessoa virava "anterior ao último usado" até o relógio alcançá-lo. Uma
+     * hora de salto, uma hora trancado; um ano, um ano.
+     */
+    public function test_passo_gravado_alem_de_agora_mais_a_janela_nao_tranca_ninguem(): void
+    {
+        $agora = 1_800_000_000;
+        $passo = Totp::passoAtual($agora);
+
+        // Gasto com o relógio uma hora adiantado: 120 passos de 30 s à frente de agora.
+        $gastoNoSalto = $passo + 120;
+
+        $this->assertSame($passo, Totp::verificar(
+            self::SEMENTE_RFC,
+            Totp::codigo(self::SEMENTE_RFC, $passo),
+            depoisDoPasso: $gastoNoSalto,
+            agora: $agora,
+        ));
+    }
+
+    /**
+     * A fronteira exata, dos dois lados. `agora + JANELA` é o maior passo que um relógio que
+     * só anda para a frente deixa gastar: gravado, ele segue barrando a janela inteira — é o
+     * replay de sempre, e afrouxar aqui o reabriria. Um passo além é o primeiro impossível.
+     */
+    public function test_a_fronteira_do_passo_impossivel_e_agora_mais_a_janela(): void
+    {
+        $agora = 1_800_000_000;
+        $passo = Totp::passoAtual($agora);
+
+        // Plausível: acabou de ser gasto o código do passo seguinte (celular 30 s adiantado).
+        foreach ([-1, 0, 1] as $delta) {
+            $this->assertNull(Totp::verificar(
+                self::SEMENTE_RFC,
+                Totp::codigo(self::SEMENTE_RFC, $passo + $delta),
+                depoisDoPasso: $passo + Totp::JANELA,
+                agora: $agora,
+            ), "Com o passo gravado plausível, o código do passo {$delta} passou: seria replay.");
+        }
+
+        // Impossível: um além. A janela de agora volta a valer.
+        $this->assertSame($passo, Totp::verificar(
+            self::SEMENTE_RFC,
+            Totp::codigo(self::SEMENTE_RFC, $passo),
+            depoisDoPasso: $passo + Totp::JANELA + 1,
+            agora: $agora,
+        ));
+    }
+
     /** O autenticador mostra "123 456"; copiar com o espaço não pode reprovar. */
     public function test_ignora_espacos_e_recusa_o_que_nao_tem_seis_digitos(): void
     {
