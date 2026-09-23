@@ -318,6 +318,11 @@ de cheque especial usado.
 (`$usuario->avatarUrl()`); as iniciais são o FALLBACK, não o padrão. `.avatar-initials` ganhou
 `overflow: hidden` + `img { object-fit: cover }`, então tamanho e recorte redondo valem nos dois
 estados. Era o único lugar do app que continuava exibindo as letras depois do upload.
+**A URL da foto é versionada** (22/09/2026 — `FotoTrocadaApareceNaHoraTest`): `avatarUrl()` leva
+`?v=` (hash curto do `avatar_path`, que muda a cada upload porque o `storeAvatar` sorteia o nome —
+não troque isso por nome fixo). Com a versão atual, `Cache-Control` de 1 hora; sem versão ou com
+versão velha, `no-cache`. Antes a URL era sempre a mesma e a foto trocada aparecia velha por até
+1 hora no perfil, na sidebar, no popover e nos cards de dependentes.
 
 **Cadastro de categoria e de método de pagamento abre em MODAL** (06/08/2026), na própria tela,
 com a página cheia (`create`/`edit`) mantida como fallback sem JS — o `href` continua no gatilho.

@@ -246,6 +246,10 @@ class User extends Authenticatable implements MustVerifyEmail
      * aleatório e a extensão vem do MIME real (nunca do nome enviado pelo cliente),
      * então não há path traversal nem `.php` disfarçado.
      *
+     * ⚠️ O nome NOVO a cada upload é também o que versiona a URL da foto (ver
+     * `avatarUrl`). Trocar isto por um nome fixo (ex.: `avatars/{id}.jpg`) faria a foto
+     * trocada voltar a aparecer velha por até 1 hora.
+     *
      * Não persiste: quem chama decide quando dar `save()`.
      */
     public function storeAvatar(UploadedFile $arquivo): void
@@ -422,9 +426,27 @@ class User extends Authenticatable implements MustVerifyEmail
      * Aponta para uma ROTA AUTENTICADA, não para o arquivo: quem não estiver logado na
      * mesma família recebe 403. Continua sendo um `<img src>` normal do ponto de vista
      * da view — o navegador manda o cookie de sessão junto.
+     *
+     * Leva a VERSÃO da foto (`?v=`), que muda a cada foto nova. Sem ela a URL era sempre
+     * a mesma, o `AvatarController` manda guardar em cache por 1 hora, e o navegador
+     * seguia mostrando a foto antiga no perfil, na sidebar, no popover e nos cards de
+     * dependentes — a troca parecia não ter funcionado.
      */
     public function avatarUrl(): ?string
     {
-        return $this->avatar_path ? route('avatar.show', $this) : null;
+        return $this->avatar_path
+            ? route('avatar.show', ['user' => $this, 'v' => $this->versaoDaFoto()])
+            : null;
+    }
+
+    /**
+     * Identifica a foto ATUAL: um trecho do hash do caminho do arquivo.
+     *
+     * Muda a cada upload porque o `storeAvatar` sorteia um nome novo para cada foto. Hash,
+     * e não o nome do arquivo, para a URL não expor como o disco está organizado.
+     */
+    public function versaoDaFoto(): ?string
+    {
+        return $this->avatar_path ? substr(sha1($this->avatar_path), 0, 12) : null;
     }
 }

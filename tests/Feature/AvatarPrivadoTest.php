@@ -45,7 +45,11 @@ class AvatarPrivadoTest extends TestCase
 
         $user = $this->comFoto(User::factory()->create());
 
-        $this->assertSame(route('avatar.show', $user), $user->avatarUrl());
+        // Com a versão da foto na query (ver FotoTrocadaApareceNaHoraTest).
+        $this->assertSame(
+            route('avatar.show', ['user' => $user, 'v' => $user->versaoDaFoto()]),
+            $user->avatarUrl(),
+        );
         $this->assertStringNotContainsString(
             '/storage/',
             (string) $user->avatarUrl(),
@@ -59,8 +63,10 @@ class AvatarPrivadoTest extends TestCase
 
         $user = $this->comFoto(User::factory()->create());
 
+        // A URL que as telas usam (com a versão) pode ficar 1 hora no cache do navegador:
+        // quando a foto muda, a versão muda e a URL também.
         $this->actingAs($user)
-            ->get(route('avatar.show', $user))
+            ->get($user->avatarUrl())
             ->assertOk()
             ->assertHeader('Cache-Control', 'max-age=3600, private');
     }

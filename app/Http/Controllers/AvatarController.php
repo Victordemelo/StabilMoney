@@ -20,13 +20,27 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class AvatarController extends Controller
 {
-    /** Cache privado: o navegador guarda, proxies e CDNs não. */
+    /**
+     * URL com a versão da foto ATUAL (`?v=`, ver User::avatarUrl): pode ficar em cache.
+     * Privado: o navegador guarda, proxies e CDNs não. Quando a foto muda, a versão muda
+     * junto e a página passa a pedir outra URL — o cache nunca serve a foto velha.
+     */
     private const CACHE = 'private, max-age=3600';
+
+    /**
+     * URL sem versão, ou com a versão de uma foto que já foi trocada: responde a foto atual
+     * e não deixa o navegador guardá-la sob essa chave. Guardar a foto nova numa URL que
+     * não muda (ou na de uma foto antiga) era exatamente o defeito — a troca de foto só
+     * aparecia depois de 1 hora.
+     */
+    private const SEM_CACHE = 'private, no-cache';
 
     public function show(Request $request, User $user): StreamedResponse
     {
         // Só a própria família vê a foto. Titular e dependentes compartilham o ownerId,
         // então a comparação cobre os dois sentidos (titular vendo dependente e vice-versa).
+        // Vem ANTES de olhar a versão: a resposta a quem não é da família não pode variar
+        // com o estado da foto de ninguém.
         abort_unless(
             $user->ownerId() === $request->user()->ownerId(),
             403,
@@ -39,10 +53,15 @@ class AvatarController extends Controller
 
         abort_unless($disco->exists($user->avatar_path), 404);
 
+        // `is_string` antes de comparar: `?v[]=x` chega como array, e convertê-lo em texto
+        // viraria erro 500 numa URL que qualquer um consegue digitar.
+        $versao = $request->query('v');
+        $versaoAtual = is_string($versao) && $versao === $user->versaoDaFoto();
+
         return $disco->response(
             $user->avatar_path,
             null,
-            ['Cache-Control' => self::CACHE],
+            ['Cache-Control' => $versaoAtual ? self::CACHE : self::SEM_CACHE],
         );
     }
 }
