@@ -418,7 +418,13 @@ class TransactionController extends Controller
         }
 
         $data = $request->validated();
-        $data['made_by_user_id'] = $data['made_by_user_id'] ?? $request->user()->id;
+        // Autor: o informado no form, ou o GRAVADO — nunca quem está editando (A-11
+        // da auditoria de 05/09/2026). Com `?? $request->user()->id`, qualquer
+        // edição sem o campo (família de uma pessoa só, onde o seletor nem aparece;
+        // replay; "Não informado" no seletor) passava a compra do dependente para o
+        // titular que corrigiu a descrição. Autor nulo (dependente excluído,
+        // lançamento antigo) continua nulo.
+        $data['made_by_user_id'] = $data['made_by_user_id'] ?? $transaction->made_by_user_id;
 
         // PONTA DE TRANSFERÊNCIA: só a edição NEUTRA passa (descrição, data, autor),
         // e ela vale para as DUAS pontas — o par é uma coisa só. Mudar valor, conta

@@ -176,12 +176,26 @@
             {{-- Quem fez a compra (só quando a família tem mais de uma pessoa) --}}
             @isset($familyMembers)
                 @if ($familyMembers->count() > 1)
+                    @php
+                        // Autor que o formulário mostra: o do reenvio (old), senão o
+                        // GRAVADO na edição, senão o `?autor=` / quem está logado.
+                        $autorAtual = old('made_by_user_id', $editando ? $transaction->made_by_user_id : request('autor', auth()->id()));
+                        $autorAtual = is_numeric($autorAtual) ? (int) $autorAtual : null;
+                        // Na EDIÇÃO, um autor que não está na lista (nulo: dependente
+                        // excluído, lançamento antigo) ganha uma opção própria. Sem ela
+                        // nenhuma opção casava, o navegador marcava a PRIMEIRA pessoa da
+                        // lista e salvar gravava essa pessoa como autora — trocando o
+                        // autor em silêncio (A-11). Valor vazio: o servidor mantém o gravado.
+                        $semAutorNaLista = $editando && ($autorAtual === null || ! $familyMembers->contains('id', $autorAtual));
+                    @endphp
                     <div class="field">
                         <label for="made_by_user_id">Quem fez a compra</label>
                         <select class="input" id="made_by_user_id" name="made_by_user_id">
+                            @if ($semAutorNaLista)
+                                <option value="" selected>Não informado</option>
+                            @endif
                             @foreach ($familyMembers as $membro)
-                                <option value="{{ $membro->id }}"
-                                    @selected((int) old('made_by_user_id', $editando ? $transaction->made_by_user_id : request('autor', auth()->id())) === $membro->id)>
+                                <option value="{{ $membro->id }}" @selected($autorAtual === $membro->id)>
                                     {{ $membro->name }}{{ $membro->isTitular() ? ' (titular)' : '' }}
                                 </option>
                             @endforeach
