@@ -58,13 +58,14 @@ class IdAlheioNaRotaIgualAIdInexistenteTest extends TestCase
     /**
      * Rotas fora da varredura, cada uma com o motivo. Só entra aqui rota com regra PRÓPRIA e
      * deliberada — nunca uma rota só porque ficou vermelha.
+     *
+     * Vazia desde 23/09/2026: a única que havia, `profile.email.confirm`, perdeu o model
+     * binding — a pessoa só é procurada depois de a assinatura conferir, e sem assinatura
+     * todo id recebe o mesmo 403 (`ConfirmarEmailNaoRevelaQuemExisteTest`).
+     *
+     * @var array<string, string>
      */
-    private const FORA = [
-        'profile.email.confirm' => 'Regra própria (A-12): o {user} é a conta dona de um link ASSINADO e '
-            .'pode ser de outra família de propósito — aberto na sessão errada, o link mostra o recado '
-            .'de "outra conta". Pendência conhecida: o `signed` roda DEPOIS do binding, então, sem '
-            .'assinatura, um id existente dá 403 e um inexistente dá 404.',
-    ];
+    private const FORA = [];
 
     /**
      * As rotas que precisam aparecer na varredura. Não é a lista do que é varrido (isso vem

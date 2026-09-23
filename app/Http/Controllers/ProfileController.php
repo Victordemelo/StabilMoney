@@ -190,14 +190,24 @@ class ProfileController extends Controller
      *
      * Quem abre deslogado cai no login (`auth`) e, ao entrar, volta para o link pelo
      * `url.intended`: entrando com a conta certa, confirma; com outra, recebe o recado.
+     *
+     * **Sem model binding no `{user}`, de propósito** (23/09/2026 —
+     * `ConfirmarEmailNaoRevelaQuemExisteTest`). O binding roda ANTES do `signed`: sem
+     * assinatura, um id que existe dava 403 e um que não existe, 404 — qualquer conta
+     * logada contava os usuários do app. Aqui a pessoa só é procurada depois de a
+     * assinatura conferir; sem ela, todo id recebe o mesmo 403.
      */
-    public function confirmEmail(Request $request, User $user): RedirectResponse
+    public function confirmEmail(Request $request, string $id): RedirectResponse
     {
         abort_unless($request->hasValidSignature(), 403, 'Este link expirou ou foi alterado.');
 
+        // Assinatura válida = o id veio de um link que NÓS geramos. Se a conta não existe
+        // mais, o link é de outra conta tanto quanto o de uma conta viva.
+        $user = User::find($id);
+
         // ANTES de olhar a pendência: a resposta a quem não é o dono não pode variar com o
         // estado da conta dele (tem troca pendente? o link é o mais novo?).
-        if (! $request->user()->is($user)) {
+        if (! $user || ! $request->user()->is($user)) {
             // Nada é gravado em A, nem a pendência é descartada: o dono ainda pode abrir o
             // mesmo link na sessão certa enquanto ele não expira.
             return Redirect::route('profile.edit')->withErrors([

@@ -135,7 +135,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware(['throttle:senha', 'throttle:dois-fatores'])
         ->name('profile.destroy');
 
-    // Confirmação do e-mail NOVO (link assinado enviado ao próprio endereço novo).
+    // Confirmação do e-mail NOVO (link assinado enviado ao próprio endereço novo). O `{user}`
+    // NÃO tem model binding: ele rodaria antes do `signed` e revelaria quais ids existem
+    // (ver ProfileController::confirmEmail).
     Route::get('/meu-perfil/confirmar-email/{user}', [ProfileController::class, 'confirmEmail'])
         ->middleware('signed')
         ->name('profile.email.confirm');
