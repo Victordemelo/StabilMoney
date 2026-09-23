@@ -15,12 +15,20 @@
                      resolve isso para TODAS as contas numa query só (`withExists`
                      no controller); perguntar `hasMoneyHistory()` dentro do laço
                      dos cards seriam 3 consultas por conta.
+      $espelhosPorConta — [id da conta => débitos/Pix que tiram dinheiro dela]. A
+                     lista monta com as contas que já carregou; sem ele (página
+                     cheia de edição), o formulário pergunta ao banco — uma conta só.
 --}}
 @php
     $modal = $modal ?? false;
     $editando = $account !== null;
     $tipoAtual = old('type', $account->type ?? 'checking');
-    $bancoAtual = old('bank', $account->bank ?? 'nubank');
+    // Banco: NENHUM pré-selecionado no cadastro. Com "Nubank" de padrão, quem não
+    // mexia no select cadastrava tudo como Nubank, com a logo errada no card. Sem
+    // banco, o select abre em "Selecione o banco" e o `required` (e a validação do
+    // servidor, "Escolha o banco.") pedem a escolha.
+    $bancoAtual = old('bank', $account->bank ?? null);
+    $bancoAtual = is_string($bancoAtual) && isset($banks[$bancoAtual]) ? $bancoAtual : null;
     $limiteAtual = old('credit_limit', $account && $account->credit_limit !== null
         ? number_format((float) $account->credit_limit, 2, ',', '.') : '');
     $fechamentoAtual = old('closing_day', $account->closing_day ?? '');
@@ -35,7 +43,13 @@
     // Conta que já tem dinheiro (saldo, lançamentos ou aportes) não troca de
     // tipo: a fórmula do saldo mudaria e o dinheiro sumiria (ou contaria duas
     // vezes). O servidor recusa; aqui o campo já aparece travado.
-    $tipoTravado = $tipoTravado ?? ($editando && $account->hasMoneyHistory());
+    $travadoPorHistorico = $tipoTravado ?? ($editando && $account->hasMoneyHistory());
+    // Conta que um cartão de débito ou um Pix espelha também não troca de tipo,
+    // mesmo zerada: o método passaria a lançar no lugar errado (ex.: num cartão de
+    // crédito). Mesma recusa do servidor (`Account::travaDeEspelho`).
+    $espelhos = ! $editando ? collect()
+        : (isset($espelhosPorConta) ? collect($espelhosPorConta[$account->id] ?? []) : $account->metodosQueEspelham());
+    $tipoTravado = $travadoPorHistorico || $espelhos->isNotEmpty();
     // Sufixo único dos `id`: a lista repete este formulário uma vez por conta (um
     // modal cada). Com id repetido, o `<label for>` passa a focar o campo do
     // vizinho e o script de campos condicionais acha o formulário errado.
@@ -75,9 +89,10 @@
         <div class="modal-body">
     @endif
 
-    {{-- Preview do cartão do banco escolhido --}}
-    <div class="bank-preview">
-        <img data-bank-preview src="{{ asset('assets/banks/' . $bancoAtual . '.png') }}" alt="Cartão do banco">
+    {{-- Preview do cartão do banco escolhido. Sem banco ainda, fica escondido — um
+         `src` montado com banco vazio seria uma imagem quebrada no topo do form. --}}
+    <div class="bank-preview" data-bank-preview-box @if (! $bancoAtual) hidden @endif>
+        <img data-bank-preview @if ($bancoAtual) src="{{ asset('assets/banks/' . $bancoAtual . '.png') }}" @endif alt="Cartão do banco">
     </div>
 
     {{-- Nome --}}
@@ -102,7 +117,11 @@
             @if ($tipoTravado)
                 {{-- Select desabilitado não envia valor: o tipo atual vai no hidden. --}}
                 <input type="hidden" name="type" value="{{ $account->type }}">
-                <p class="form-hint">O tipo não pode mudar: esta conta já tem saldo, lançamentos ou dinheiro guardado. Para mudar, crie um novo método de pagamento.</p>
+                @if ($travadoPorHistorico)
+                    <p class="form-hint">O tipo não pode mudar: esta conta já tem saldo, lançamentos ou dinheiro guardado. Para mudar, crie um novo método de pagamento.</p>
+                @else
+                    <p class="form-hint" data-type-locked-by-mirror>O tipo não pode mudar: {{ \App\Models\Account::descreverEspelhos($espelhos) }} {{ $espelhos->count() === 1 ? 'tira' : 'tiram' }} dinheiro desta conta. Para mudar, vincule {{ $espelhos->count() === 1 ? 'esse método' : 'esses métodos' }} a outra conta primeiro.</p>
+                @endif
             @endif
             @error('type')<div class="field-error">{{ $message }}</div>@enderror
         </div>
@@ -111,6 +130,9 @@
         <div class="field">
             <label for="bank-{{ $uid }}">Banco</label>
             <select class="input @error('bank') input-error @enderror" id="bank-{{ $uid }}" name="bank" data-bank required>
+                {{-- Placeholder de valor vazio como 1ª opção: com o `required`, o
+                     navegador não deixa enviar sem escolher um banco de verdade. --}}
+                <option value="" @selected(! $bancoAtual)>Selecione o banco</option>
                 @foreach ($banks as $valor => $rotulo)
                     <option value="{{ $valor }}" @selected($bancoAtual === $valor)>{{ $rotulo }}</option>
                 @endforeach
@@ -261,6 +283,7 @@
         var tipo = form.querySelector('[data-type]');
         var banco = form.querySelector('[data-bank]');
         var preview = form.querySelector('[data-bank-preview]');
+        var caixaPreview = form.querySelector('[data-bank-preview-box]');
         var grupos = {
             account: form.querySelector('[data-fields-account]'),
             overdraft: form.querySelector('[data-fields-overdraft]'),
@@ -278,8 +301,12 @@
             if (grupos.debit) grupos.debit.hidden = t !== 'debit_card';
             if (grupos.pix) grupos.pix.hidden = t !== 'pix';
         }
+        // Sem banco escolhido (o placeholder), o preview some em vez de virar uma
+        // imagem quebrada apontando para ".png".
         function aplicarBanco() {
-            if (preview && banco) preview.src = "{{ asset('assets/banks') }}/" + banco.value + '.png';
+            if (!preview || !banco) return;
+            if (banco.value) preview.src = "{{ asset('assets/banks') }}/" + banco.value + '.png';
+            if (caixaPreview) caixaPreview.hidden = !banco.value;
         }
 
         tipo.addEventListener('change', aplicarTipo);

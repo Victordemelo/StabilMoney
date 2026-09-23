@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Fluent;
 
@@ -152,6 +153,119 @@ class Account extends Model
             .'lançamentos ou dinheiro guardado, e a troca faria esse dinheiro desaparecer '
             .'(ou ser contado duas vezes). Crie um novo método de pagamento e mova o histórico, '
             .'se for o caso.';
+    }
+
+    /**
+     * Todas as travas da troca de tipo, na ordem em que o usuário consegue
+     * resolvê-las: primeiro a de CLASSE (o dinheiro que já existe não tem como ser
+     * desfeito — a saída é outro método de pagamento), depois a de ESPELHO (basta
+     * desvincular o débito/Pix). Mostrar a de espelho primeiro mandaria a pessoa
+     * desvincular o cartão para, na volta, esbarrar na outra.
+     *
+     * @param  Collection<int, Account>|null  $espelhos  ver `travaDeEspelho()`
+     */
+    public function travaDeTipo(?string $novoTipo, ?Collection $espelhos = null): ?string
+    {
+        return $this->travaDeClasse($novoTipo) ?? $this->travaDeEspelho($novoTipo, $espelhos);
+    }
+
+    /**
+     * Métodos ESPELHO (cartão de débito e Pix) que tiram dinheiro DESTA conta — os
+     * que apontam para ela em `checking_account_id` ou `savings_account_id`.
+     *
+     * Só débito e Pix entram: são os únicos que o cálculo de dinheiro segue pelo
+     * vínculo (`paymentOptions`, `espelhaConta`). Escopado na família da conta, para
+     * uma mensagem de erro nunca citar o nome de um método de outra pessoa.
+     *
+     * @return Collection<int, Account>
+     */
+    public function metodosQueEspelham(): Collection
+    {
+        if (! $this->exists) {
+            return collect();
+        }
+
+        return self::where('user_id', $this->user_id)
+            ->whereIn('type', ['debit_card', 'pix'])
+            ->where(fn ($q) => $q
+                ->where('checking_account_id', $this->id)
+                ->orWhere('savings_account_id', $this->id))
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * Mensagem PT-BR quando a troca de tipo deixaria um cartão de débito ou um Pix
+     * apontando para o lugar errado, ou null quando pode (A-4 da auditoria de
+     * 05/09/2026).
+     *
+     * A `travaDeClasse` só olha o histórico da PRÓPRIA conta. Uma corrente zerada,
+     * sem lançamento nenhum, mas vinculada a um cartão de débito, passava por ela e
+     * podia virar cartão de crédito — e aí o débito, que manda o id da conta
+     * vinculada em todo lançamento (`paymentOptions`), passava a lançar NUM CARTÃO:
+     * a compra no débito virava fatura, consumia limite e não saía do caixa. Na
+     * variante corrente → poupança, o débito ficava com `checking_account_id`
+     * apontando para uma poupança (o card dele mostrava a poupança como "corrente",
+     * e editar o próprio débito desfazia o vínculo em silêncio).
+     *
+     * Recusa QUALQUER troca de tipo, não só a de classe. Remapear o vínculo em vez
+     * de recusar não é seguro: para cartão de crédito não há para onde remapear; na
+     * troca corrente → poupança, um débito que já saca de uma poupança teria duas; e
+     * em todos os casos seria editar em silêncio um método que a pessoa nem abriu.
+     * Recusando, a mensagem diz qual método depende da conta e o caminho fica
+     * explícito: desvincular primeiro, trocar depois.
+     *
+     * @param  Collection<int, Account>|null  $espelhos  quem já tem a lista em mãos
+     *                                                   (a tela de contas monta a de
+     *                                                   todas numa passada, sem query)
+     *                                                   passa aqui; null consulta o banco
+     */
+    public function travaDeEspelho(?string $novoTipo, ?Collection $espelhos = null): ?string
+    {
+        if ($novoTipo === null || $novoTipo === $this->type) {
+            return null;
+        }
+
+        $espelhos ??= $this->metodosQueEspelham();
+
+        if ($espelhos->isEmpty()) {
+            return null;
+        }
+
+        $um = $espelhos->count() === 1;
+        $novoRotulo = self::TYPES[$novoTipo] ?? $novoTipo;
+        $feminino = fn (string $rotulo) => str_starts_with($rotulo, 'Conta');
+
+        // O que a troca faria com o método espelho — dito no caso concreto, para
+        // a pessoa entender por que um cadastro "vazio" não pode mudar.
+        $consequencia = $novoTipo === 'credit_card'
+            ? ($um ? 'passaria' : 'passariam').' a lançar num cartão de crédito — o que for pago por '
+                .($um ? 'ele' : 'eles').' viraria fatura em vez de sair do saldo'
+            : ($um ? 'ficaria vinculado' : 'ficariam vinculados').' a '
+                .($feminino($novoRotulo) ? 'uma ' : 'um ').$novoRotulo
+                .' no lugar '.($feminino($this->typeLabel()) ? 'da ' : 'do ').$this->typeLabel()
+                .' que '.($um ? 'ele espera' : 'eles esperam');
+
+        return 'Não dá para mudar o tipo de "'.$this->name.'" de '.$this->typeLabel()
+            .' para '.$novoRotulo.': '.self::descreverEspelhos($espelhos).' '
+            .($um ? 'tira' : 'tiram').' dinheiro desta conta e '.$consequencia.'. '
+            .($um ? 'Vincule esse método a outra conta (ou exclua-o)' : 'Vincule esses métodos a outra conta (ou exclua-os)')
+            .' antes de mudar o tipo.';
+    }
+
+    /**
+     * 'o Cartão de Débito "Débito Nubank" e o Pix "Pix CPF"' — a mesma frase no
+     * erro do servidor e no aviso do formulário, para os dois nunca divergirem.
+     *
+     * @param  Collection<int, Account>  $espelhos
+     */
+    public static function descreverEspelhos(Collection $espelhos): string
+    {
+        return Arr::join(
+            $espelhos->map(fn (Account $metodo) => 'o '.$metodo->typeLabel().' "'.$metodo->name.'"')->values()->all(),
+            ', ',
+            ' e ',
+        );
     }
 
     /**

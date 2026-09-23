@@ -95,6 +95,9 @@ test('smoke: todas as telas renderizam sem erro', async ({ page }) => {
     // mesmo formulário uma vez por conta (um modal cada).
     await page.goto('/accounts/create');
     await page.fill('#name-novo', 'Conta Smoke');
+    // Sem banco pré-selecionado desde 23/09/2026: o select é obrigatório, e sem esta
+    // escolha o navegador segura o envio (`required`) antes de chegar ao servidor.
+    await page.selectOption('#bank-novo', 'nubank');
     // Saldo inicial: sem ele a despesa abaixo estoura o disponível e o servidor devolve 409
     // ("de onde sai esse dinheiro?") em vez de gravar — a tela ficaria no formulário.
     await page.fill('#initial_balance-novo', '1000,00');

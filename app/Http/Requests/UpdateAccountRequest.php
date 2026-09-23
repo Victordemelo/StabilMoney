@@ -19,7 +19,9 @@ use App\Support\Brl;
  *    saldo desaparecer (corrente com histórico virando cartão de débito zerava o
  *    `initial_balance` e deixava as transações órfãs) ou contar em dobro (cartão
  *    de crédito virando corrente fazia as despesas dele descontarem do
- *    patrimônio, incluindo fatura já paga).
+ *    patrimônio, incluindo fatura já paga). E não muda NADA numa conta que um
+ *    cartão de débito ou um Pix espelha, mesmo zerada: o método passaria a
+ *    lançar no lugar errado (ver `Account::travaDeEspelho()`).
  *
  * 2. O LIMITE DO CHEQUE ESPECIAL não pode ser reduzido abaixo do que já está em
  *    uso — ver `regraDoChequeEspecialEmUso()`.
@@ -71,7 +73,8 @@ class UpdateAccountRequest extends StoreAccountRequest
                 return;
             }
 
-            if ($erro = $account->travaDeClasse(is_string($value) ? $value : null)) {
+            // Classe (dinheiro que já existe) e espelho (débito/Pix vinculado a ela).
+            if ($erro = $account->travaDeTipo(is_string($value) ? $value : null)) {
                 $fail($erro);
             }
         };

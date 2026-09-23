@@ -93,6 +93,9 @@ test('lançamento offline entra na fila e sincroniza sem duplicar', async ({ pag
     // o `<label for>` focar o campo do vizinho.
     await page.goto('/accounts/create');
     await page.fill('#name-novo', 'Carteira E2E');
+    // Sem banco pré-selecionado desde 23/09/2026: o select é obrigatório, e sem esta
+    // escolha o navegador segura o envio (`required`) antes de chegar ao servidor.
+    await page.selectOption('#bank-novo', 'nubank');
     // O saldo inicial não é enfeite: a conta nasceria com R$ 0,00 e QUALQUER despesa cairia
     // no 409 "de onde sai esse dinheiro?" — e desde 06/08/2026 a fila offline NÃO escolhe a
     // fonte sozinha, ela retém o item e pede a decisão do usuário. Sem saldo, o que este

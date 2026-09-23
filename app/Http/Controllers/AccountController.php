@@ -5,8 +5,16 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreAccountRequest;
 use App\Http\Requests\UpdateAccountRequest;
 use App\Models\Account;
+use App\Models\Goal;
+use App\Models\GoalContribution;
+use App\Models\Investment;
+use App\Models\InvestmentContribution;
+use App\Support\Brl;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class AccountController extends Controller
 {
@@ -43,7 +51,39 @@ class AccountController extends Controller
                 ->filter(fn (Account $conta) => $this->temHistorico($conta))
                 ->pluck('id')
                 ->all(),
+            // Quem espelha cada conta (débito/Pix): com algum, o tipo dela também
+            // fica travado no modal, e o aviso diz qual método depende dela.
+            'espelhosPorConta' => $this->espelhosPorConta($accounts),
         ]);
+    }
+
+    /**
+     * [id da conta => métodos espelho que tiram dinheiro dela], montado com as
+     * contas que a listagem JÁ carregou. O vínculo só aponta para conta da mesma
+     * família (`StoreAccountRequest::linkRule`), então todas estão na lista — e
+     * perguntar `metodosQueEspelham()` card a card seria uma query por conta.
+     *
+     * @param  Collection<int, Account>  $accounts
+     * @return array<int, Collection<int, Account>>
+     */
+    private function espelhosPorConta(Collection $accounts): array
+    {
+        $porConta = [];
+
+        foreach ($accounts as $metodo) {
+            if (! $metodo->espelhaConta()) {
+                continue;
+            }
+
+            $alvos = array_unique(array_filter([$metodo->checking_account_id, $metodo->savings_account_id]));
+
+            foreach ($alvos as $alvo) {
+                $porConta[(int) $alvo] ??= collect();
+                $porConta[(int) $alvo]->push($metodo);
+            }
+        }
+
+        return $porConta;
     }
 
     /**
@@ -118,8 +158,9 @@ class AccountController extends Controller
 
         // Segunda linha de defesa (a 1ª é o UpdateAccountRequest): trocar a
         // CLASSE do tipo — caixa ↔ cartão — numa conta que já tem dinheiro faz
-        // saldo desaparecer ou contar em dobro. Mesma trava do `destroy`.
-        if ($erro = $account->travaDeClasse($dados['type'] ?? null)) {
+        // saldo desaparecer ou contar em dobro; trocar QUALQUER tipo de uma conta
+        // que um débito/Pix espelha deixa o método lançando no lugar errado.
+        if ($erro = $account->travaDeTipo($dados['type'] ?? null)) {
             if ($request->expectsJson()) {
                 // Mesmo formato do 422 do Form Request: quem envia pelo modal lê
                 // `errors` sem precisar saber de onde a recusa veio.
