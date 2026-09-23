@@ -15,12 +15,25 @@ import { initFunding } from './sm/funding';
 import { initNav } from './sm/nav';
 import { initPwa } from './sm/pwa';
 import { initOfflineQueue } from './sm/offline-queue';
+import { initDialogos, liberarDialogosOrfaos } from './sm/dialogo';
 import { initConfirmar } from './sm/confirmar';
+
+// Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
+// ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
+// módulo, e não dentro do init(): os scripts inline que reabrem um modal com erro de
+// validação esperam o DOMContentLoaded, e o módulo roda antes dele — assim a ponte
+// sempre existe quando eles a procuram.
+initDialogos();
 
 // Módulos que agem sobre o CONTEÚDO (#content). Rodam na 1ª carga E de novo a
 // cada troca por pjax (navegação sem reload). Cada um checa o próprio root no DOM,
 // então re-rodar num conteúdo novo é seguro (não duplica binds nos elementos antigos).
 function initContent() {
+    // Primeiro de tudo: um modal do #content que estava aberto saiu junto com a tela
+    // velha, e a página que ele deixou inerte (topbar, sidebar, barra de baixo) tem de
+    // voltar a responder antes de qualquer outra coisa. O Lançar, que vive no shell e
+    // sobrevive à troca, continua aberto e continua dono da página.
+    liberarDialogosOrfaos();
     initDashboard();
     initCategories();
     initMetas();

@@ -10,13 +10,17 @@
     $lmContasCaixa = $lmAccounts->whereIn('type', ['checking', 'savings'])->values();
     $lmPodeTransferir = $lmContasCaixa->count() >= 2;
 @endphp
+{{-- O PAINEL é o diálogo (role/aria-modal/nome do título), e o véu é só o fundo: é o
+     que o leitor de tela anuncia ao abrir. Foco, Tab preso, Esc e a página inerte
+     vêm do sm/dialogo.js. --}}
 <div class="modal-scrim" id="launchModal" data-close>
-    <div class="modal modal-wide" data-type="income">
+    <div class="modal modal-wide" data-type="income"
+         role="dialog" aria-modal="true" aria-labelledby="launchModal-titulo" aria-describedby="launchModal-descricao">
         <div class="modal-head">
-            <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span>
+            <span class="modal-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span>
             <div>
-                <h3>Nova transação</h3>
-                <p data-lm-subtitle>Registre uma receita ou despesa</p>
+                <h3 id="launchModal-titulo">Nova transação</h3>
+                <p id="launchModal-descricao" data-lm-subtitle>Registre uma receita ou despesa</p>
             </div>
             <button class="modal-x" type="button" data-close-btn aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -50,10 +54,11 @@
                   data-store-action="{{ route('transactions.store') }}" data-transfer-action="{{ route('transactions.transfer') }}">
                 @csrf
                 <div class="modal-body">
-                    {{-- Tipo --}}
+                    {{-- Tipo — grupo de radios com nome: sem o `radiogroup`, o leitor de
+                         tela lia "Receita, botão de opção" sem dizer do que é a escolha. --}}
                     <div class="field">
-                        <label>Tipo</label>
-                        <div class="type-toggle {{ $lmPodeTransferir ? 'tt-3' : '' }}">
+                        <label id="lm-tipo-rotulo">Tipo</label>
+                        <div class="type-toggle {{ $lmPodeTransferir ? 'tt-3' : '' }}" role="radiogroup" aria-labelledby="lm-tipo-rotulo">
                             <span class="tt-pill" aria-hidden="true"></span>
                             <input type="radio" id="lm-tt-income" name="type" value="income" checked>
                             <label class="tt-income" for="lm-tt-income">

@@ -230,7 +230,10 @@
     @endif
 </section>
 
-{{-- ============================ MODAIS ============================ --}}
+{{-- ============================ MODAIS ============================
+     Cada `.modal` é um DIÁLOGO (role, aria-modal e o nome vindo do título — ids com o
+     id do ativo, porque há um modal por ativo). Foco, Tab preso, Esc e o resto da
+     página inerte vêm do sm/dialogo.js, pelo investimentos.js. --}}
 
 {{-- Modal: Novo investimento (criar) — com preview de rentabilidade líquida/12m via JS --}}
 @php $reabreCreate = $errors->any() && old('_form') === 'create'; @endphp
@@ -241,12 +244,13 @@
           prévia no cliente e qualquer cálculo no servidor NUNCA divirjam — esta tela já
           teve o problema de o card mostrar um número e a prévia outro. --}}
      data-tributos='@json(\App\Support\TributosRendaFixa::tabelasParaOFront())'>
-    <div class="modal modal-lg">
+    <div class="modal modal-lg" role="dialog" aria-modal="true"
+         aria-labelledby="invCreateModal-titulo" aria-describedby="invCreateModal-descricao">
         <div class="modal-head">
-            <span class="modal-ico ico-in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7"/></svg></span>
+            <span class="modal-ico ico-in" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7"/></svg></span>
             <div>
-                <h3>Novo investimento</h3>
-                <p>Defina a classe, o indexador e o aporte inicial.</p>
+                <h3 id="invCreateModal-titulo">Novo investimento</h3>
+                <p id="invCreateModal-descricao">Defina a classe, o indexador e o aporte inicial.</p>
             </div>
             <button class="modal-x" type="button" data-inv-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -371,12 +375,15 @@
         $taxaEdit = $inv->taxa !== null ? number_format((float) $inv->taxa, 2, ',', '.') : '';
     @endphp
     <div class="modal-scrim" id="invEditModal-{{ $inv->id }}" data-inv-modal data-reopen="{{ $reabreEdit ? '1' : '' }}">
-        <div class="modal modal-lg">
+        <div class="modal modal-lg" role="dialog" aria-modal="true"
+             aria-labelledby="invEditModal-{{ $inv->id }}-titulo" aria-describedby="invEditModal-{{ $inv->id }}-descricao">
             <div class="modal-head">
-                <span class="modal-ico ico-in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg></span>
+                <span class="modal-ico ico-in" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg></span>
                 <div>
-                    <h3>Editar investimento</h3>
-                    <p>Ajuste o nome, a classe ou o indexador.</p>
+                    {{-- O nome do ativo vai no título: com um modal por ativo, "Editar
+                         investimento" sozinho não diz ao leitor de tela QUAL. --}}
+                    <h3 id="invEditModal-{{ $inv->id }}-titulo">Editar investimento <span class="sr-only">{{ $inv->name }}</span></h3>
+                    <p id="invEditModal-{{ $inv->id }}-descricao">Ajuste o nome, a classe ou o indexador.</p>
                 </div>
                 <button class="modal-x" type="button" data-inv-close aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -438,12 +445,13 @@
 {{-- Modal: Excluir investimento (um por ativo, confirmação) --}}
 @foreach ($investments as $inv)
     <div class="modal-scrim" id="invDeleteModal-{{ $inv->id }}" data-inv-modal>
-        <div class="modal">
+        <div class="modal" role="dialog" aria-modal="true"
+             aria-labelledby="invDeleteModal-{{ $inv->id }}-titulo" aria-describedby="invDeleteModal-{{ $inv->id }}-descricao">
             <div class="modal-head">
-                <span class="modal-ico ico-out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg></span>
+                <span class="modal-ico ico-out" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg></span>
                 <div>
-                    <h3>Excluir investimento</h3>
-                    <p>Tem certeza que deseja excluir “{{ $inv->name }}”? Esta ação não pode ser desfeita.</p>
+                    <h3 id="invDeleteModal-{{ $inv->id }}-titulo">Excluir investimento</h3>
+                    <p id="invDeleteModal-{{ $inv->id }}-descricao">Tem certeza que deseja excluir “{{ $inv->name }}”? Esta ação não pode ser desfeita.</p>
                 </div>
                 <button class="modal-x" type="button" data-inv-close aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -468,12 +476,13 @@
      data-action-base="{{ route('investimentos.aportes.store', '__ID__') }}"
      data-reopen="{{ $reabreAporte ? '1' : '' }}"
      data-reopen-action="{{ old('_action') }}">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true"
+         aria-labelledby="invAporteModal-titulo" aria-describedby="invAporteModal-descricao">
         <div class="modal-head">
-            <span class="modal-ico ico-in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span>
+            <span class="modal-ico ico-in" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span>
             <div>
-                <h3>Aportar <span data-aporte-name></span></h3>
-                <p>Adicione um valor à posição.</p>
+                <h3 id="invAporteModal-titulo">Aportar <span data-aporte-name></span></h3>
+                <p id="invAporteModal-descricao">Adicione um valor à posição.</p>
             </div>
             <button class="modal-x" type="button" data-inv-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -545,12 +554,13 @@
      data-action-base="{{ route('investimentos.resgates.store', '__ID__') }}"
      data-reopen="{{ $reabreResgate ? '1' : '' }}"
      data-reopen-action="{{ old('_action') }}">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true"
+         aria-labelledby="invResgateModal-titulo" aria-describedby="invResgateModal-descricao">
         <div class="modal-head">
-            <span class="modal-ico ico-out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M5 12l7 7 7-7"/></svg></span>
+            <span class="modal-ico ico-out" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M5 12l7 7 7-7"/></svg></span>
             <div>
-                <h3>Resgatar <span data-resgate-name></span></h3>
-                <p>Devolva parte da posição para uma conta.</p>
+                <h3 id="invResgateModal-titulo">Resgatar <span data-resgate-name></span></h3>
+                <p id="invResgateModal-descricao">Devolva parte da posição para uma conta.</p>
             </div>
             <button class="modal-x" type="button" data-inv-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>

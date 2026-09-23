@@ -11,6 +11,7 @@
 
 import { pedirFonte } from './funding';
 import { enfileirarLancamento, refreshCsrfToken } from './offline-queue';
+import { abrirDialogo, fecharDialogo } from './dialogo';
 
 // FormData → objeto simples, que é o formato que a fila reenvia (JSON).
 // `_token`/`_method` ficam de fora: são controle do Laravel, não do lançamento —
@@ -69,18 +70,22 @@ export function initLaunch() {
         applyType();
     };
 
-    const open = () => {
+    /**
+     * Abre como DIÁLOGO (sm/dialogo.js): o foco vai direto para o Valor, o resto da
+     * página fica inerte e o Tab não escapa; ao fechar, o foco volta para quem abriu —
+     * o botão da topbar, o FAB ou o "Nova transação" do Histórico. `gatilho` vai
+     * explícito porque o Safari não dá foco a botão clicado com o mouse.
+     */
+    const open = (gatilho = null) => {
         hideError();
         setSaving(false);
         // Reabrir NUNCA herda o que sobrou da vez anterior: valor digitado e não
         // salvo, tipo trocado, categoria escolhida. Quem abre o modal está começando
         // um lançamento novo.
         zerar();
-        modal.classList.add('open');
-        const amount = modal.querySelector('#lm-amount');
-        if (amount) setTimeout(() => amount.focus(), 80);
+        abrirDialogo(modal, { foco: modal.querySelector('#lm-amount'), retorno: gatilho });
     };
-    const close = () => modal.classList.remove('open');
+    const close = () => fecharDialogo(modal);
 
     // Abrir: botão "Lançar" (topbar), FAB (bottom-nav) e "Nova transação" (Histórico).
     // O href de cada um fica como fallback sem JS.
@@ -93,15 +98,14 @@ export function initLaunch() {
         const gatilho = e.target.closest?.('[data-launch-open]');
         if (!gatilho) return;
         e.preventDefault();
-        open();
+        open(gatilho);
     });
 
-    // Fechar: clique no fundo, botões de fechar, Esc — tudo com transição do scrim.
+    // Fechar: clique no fundo e botões de fechar, com a transição do scrim. O Esc é do
+    // utilitário de diálogo, que fecha só o do TOPO: com o "De onde sai esse dinheiro?"
+    // aberto por cima, o primeiro Esc fecha só ele e o lançamento digitado fica.
     modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
     modal.querySelectorAll('[data-close-btn]').forEach((b) => b.addEventListener('click', close));
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('open')) close();
-    });
     if (card) {
         card.addEventListener('animationend', (e) => {
             if (e.animationName === 'sm-shake') card.classList.remove('shake');
@@ -319,7 +323,9 @@ export function initLaunch() {
         if (resp.status === 409) {
             setSaving(false);
             const dados = await resp.json().catch(() => ({}));
-            const escolha = await pedirFonte(dados.fonte);
+            // Fechando o de fonte, o foco volta ao "Salvar" — quem desistiu da fonte
+            // continua no lançamento, pronto para ajustar o valor ou tentar de novo.
+            const escolha = await pedirFonte(dados.fonte, { retorno: saveBtn });
             if (!escolha) return; // cancelou
 
             Object.entries(escolha).forEach(([k, v]) => payload.set(k, v));

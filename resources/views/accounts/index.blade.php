@@ -170,15 +170,19 @@
          o formulário não.
          ===================================================================== --}}
 
+    {{-- Cada `.modal` é um DIÁLOGO, com o nome vindo do título. Os ids levam o sufixo do
+         modal (`novo` ou o id da conta): há um modal por conta, e dois `aria-labelledby`
+         apontando para o mesmo id dariam a todos o nome do primeiro. --}}
     <div class="modal-scrim" id="acctModal-novo" data-acct-modal data-close>
-        <div class="modal modal-lg">
+        <div class="modal modal-lg" role="dialog" aria-modal="true"
+             aria-labelledby="acctModal-novo-titulo" aria-describedby="acctModal-novo-descricao">
             <div class="modal-head">
-                <span class="modal-ico">
+                <span class="modal-ico" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg>
                 </span>
                 <div>
-                    <h3>Novo método de pagamento</h3>
-                    <p>Conta, cartão ou chave Pix</p>
+                    <h3 id="acctModal-novo-titulo">Novo método de pagamento</h3>
+                    <p id="acctModal-novo-descricao">Conta, cartão ou chave Pix</p>
                 </div>
                 <button class="modal-x" type="button" data-close-btn aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -197,14 +201,15 @@
 
     @foreach ($accounts as $conta)
         <div class="modal-scrim" id="acctModal-{{ $conta->id }}" data-acct-modal data-close>
-            <div class="modal modal-lg">
+            <div class="modal modal-lg" role="dialog" aria-modal="true"
+                 aria-labelledby="acctModal-{{ $conta->id }}-titulo" aria-describedby="acctModal-{{ $conta->id }}-descricao">
                 <div class="modal-head">
-                    <span class="modal-ico">
+                    <span class="modal-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg>
                     </span>
                     <div>
-                        <h3>Editar {{ $conta->name }}</h3>
-                        <p>{{ $conta->typeLabel() }}{{ $conta->bankLabel() ? ' · ' . $conta->bankLabel() : '' }}</p>
+                        <h3 id="acctModal-{{ $conta->id }}-titulo">Editar {{ $conta->name }}</h3>
+                        <p id="acctModal-{{ $conta->id }}-descricao">{{ $conta->typeLabel() }}{{ $conta->bankLabel() ? ' · ' . $conta->bankLabel() : '' }}</p>
                     </div>
                     <button class="modal-x" type="button" data-close-btn aria-label="Fechar">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -229,8 +234,13 @@
         // Abre/fecha os modais de método de pagamento e envia por AJAX.
         //
         // Este script vive dentro do #content, então o pjax o re-executa a cada
-        // navegação — e cada execução liga os elementos NOVOS. Só o atalho do Esc é
-        // global (marcado no window) para não empilhar um listener por navegação.
+        // navegação — e cada execução liga os elementos NOVOS.
+        //
+        // Abrir e fechar passam pelo utilitário de diálogo (sm/dialogo.js, pela ponte
+        // `window.smDialogo`): foco dentro, Tab preso, Esc, resto da página inerte e o
+        // foco de volta ao botão. A ponte é lida na HORA do clique — no primeiro
+        // carregamento este script roda antes do módulo; sem ela (módulo que não
+        // carregou), o modal ainda abre e fecha pela classe, como antes.
         (function () {
             var modais = Array.prototype.slice.call(document.querySelectorAll('[data-acct-modal]'));
             if (!modais.length) return;
@@ -283,15 +293,23 @@
                 btn.disabled = on;
             }
 
-            function abrir(modal) {
+            function abrir(modal, gatilho) {
                 if (!modal) return;
                 limparErros(modal);
                 salvando(modal, false);
-                modal.classList.add('open');
                 var primeiro = modal.querySelector('.modal-body input:not([type="hidden"])');
+                if (window.smDialogo) {
+                    window.smDialogo.abrir(modal, { foco: primeiro, retorno: gatilho || null });
+                    return;
+                }
+                modal.classList.add('open');
                 if (primeiro) setTimeout(function () { primeiro.focus(); }, 80);
             }
-            function fechar(modal) { if (modal) modal.classList.remove('open'); }
+            function fechar(modal) {
+                if (!modal) return;
+                if (window.smDialogo) window.smDialogo.fechar(modal);
+                else modal.classList.remove('open');
+            }
 
             // Gatilhos: "Nova conta", card pontilhado, estado vazio e "Editar" de cada
             // card. Sem o modal correspondente o clique não é interceptado e o href
@@ -302,7 +320,7 @@
                     if (!alvo) return;
                     if (e.metaKey || e.ctrlKey || e.shiftKey) return; // abrir em nova aba
                     e.preventDefault();
-                    abrir(alvo);
+                    abrir(alvo, gatilho);
                 });
             });
 
@@ -373,15 +391,8 @@
                 });
             });
 
-            if (!window.smAcctEscOn) {
-                window.smAcctEscOn = true;
-                document.addEventListener('keydown', function (e) {
-                    if (e.key !== 'Escape') return;
-                    document.querySelectorAll('[data-acct-modal].open').forEach(function (m) {
-                        m.classList.remove('open');
-                    });
-                });
-            }
+            // O Esc é do utilitário de diálogo. O atalho antigo, preso ao documento,
+            // fechava TODOS os modais por fora dele — e o foco caía no <body>.
         })();
     </script>
 @endsection

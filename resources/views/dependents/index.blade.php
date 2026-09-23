@@ -187,14 +187,19 @@
 {{-- Modais ficam FORA da section/.card: o .card tem overflow:hidden + animação
      com transform, que prendia/recortava o position:fixed dos modais. --}}
 
+{{-- Cada `.modal` é um DIÁLOGO, com o nome vindo do título (ids com o id do dependente,
+     porque há um modal por pessoa). Foco, Tab preso, Esc e o resto da página inerte vêm
+     do sm/dialogo.js, pelo script no fim desta view. --}}
+
 {{-- Modal: adicionar dependente --}}
 <div class="modal-scrim" id="depModal" data-close>
-    <div class="modal modal-lg">
+    <div class="modal modal-lg" role="dialog" aria-modal="true"
+         aria-labelledby="depModal-titulo" aria-describedby="depModal-descricao">
         <div class="modal-head">
-            <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 2.9-5.6 6.5-5.6 1 0 2 .2 2.8.5M17 8.5v6M14 11.5h6"/></svg></span>
+            <span class="modal-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 2.9-5.6 6.5-5.6 1 0 2 .2 2.8.5M17 8.5v6M14 11.5h6"/></svg></span>
             <div>
-                <h3>Adicionar dependente</h3>
-                <p>Crie o acesso de alguém da família. Você define a senha e pode passá-la depois.</p>
+                <h3 id="depModal-titulo">Adicionar dependente</h3>
+                <p id="depModal-descricao">Crie o acesso de alguém da família. Você define a senha e pode passá-la depois.</p>
             </div>
             <button class="modal-x" type="button" data-close-btn aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -212,15 +217,19 @@
             @csrf
             <input type="hidden" name="_form" value="store">
             <div class="modal-body">
+                {{-- O campo de arquivo é o PRIMEIRO filho e fica só escondido da vista
+                     (`sr-only`), não `hidden`: com `hidden` ele saía da ordem do Tab, e
+                     quem usa teclado não tinha como escolher a foto. O foco nele acende
+                     o anel na bolinha (acessibilidade.css), que é o que se vê. --}}
                 <label class="avatar-pick" for="dep-avatar">
-                    <span class="avatar-pick-img">
+                    <input type="file" id="dep-avatar" name="avatar" accept="image/*" data-avatar-input class="sr-only">
+                    <span class="avatar-pick-img" aria-hidden="true">
                         <span data-avatar-preview>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:30px;height:30px"><circle cx="12" cy="9" r="3.4"/><path d="M5 20c0-3.4 3-5.6 7-5.6s7 2.2 7 5.6"/></svg>
                         </span>
                         <span class="avatar-pick-cam"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h3l1.5-2h7L18 7h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
                     </span>
                     <span class="avatar-pick-hint">Clique para adicionar uma foto</span>
-                    <input type="file" id="dep-avatar" name="avatar" accept="image/*" data-avatar-input hidden>
                     <span class="hint">Opcional · JPG ou PNG até 2 MB</span>
                 </label>
                 <div class="field">
@@ -256,12 +265,13 @@
 {{-- Modais: editar cada dependente (um por pessoa) --}}
 @foreach ($dependents as $dep)
     <div class="modal-scrim" id="depEditModal-{{ $dep->id }}" data-close>
-        <div class="modal modal-lg">
+        <div class="modal modal-lg" role="dialog" aria-modal="true"
+             aria-labelledby="depEditModal-{{ $dep->id }}-titulo" aria-describedby="depEditModal-{{ $dep->id }}-descricao">
             <div class="modal-head">
-                <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg></span>
+                <span class="modal-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg></span>
                 <div>
-                    <h3>Editar {{ $dep->name }}</h3>
-                    <p>Atualize os dados, o parentesco e a foto.</p>
+                    <h3 id="depEditModal-{{ $dep->id }}-titulo">Editar {{ $dep->name }}</h3>
+                    <p id="depEditModal-{{ $dep->id }}-descricao">Atualize os dados, o parentesco e a foto.</p>
                 </div>
                 <button class="modal-x" type="button" data-close-btn aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -280,8 +290,10 @@
                 @method('PATCH')
                 <input type="hidden" name="_form" value="edit-{{ $dep->id }}">
                 <div class="modal-body">
+                    {{-- Campo de arquivo focável pelo teclado — ver o modal de adicionar. --}}
                     <label class="avatar-pick" for="dep-edit-avatar-{{ $dep->id }}">
-                        <span class="avatar-pick-img">
+                        <input type="file" id="dep-edit-avatar-{{ $dep->id }}" name="avatar" accept="image/*" data-avatar-input class="sr-only">
+                        <span class="avatar-pick-img" aria-hidden="true">
                             <span data-avatar-preview>
                                 @if ($dep->avatarUrl())
                                     <img src="{{ $dep->avatarUrl() }}" alt="{{ $dep->name }}">
@@ -292,7 +304,6 @@
                             <span class="avatar-pick-cam"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h3l1.5-2h7L18 7h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
                         </span>
                         <span class="avatar-pick-hint">Clique para trocar a foto</span>
-                        <input type="file" id="dep-edit-avatar-{{ $dep->id }}" name="avatar" accept="image/*" data-avatar-input hidden>
                         <span class="hint">JPG ou PNG até 2 MB</span>
                     </label>
                     <div class="field">
@@ -328,32 +339,55 @@
 
 <script nonce="{{ Vite::cspNonce() }}">
     (function () {
-        var abrir = function (modal) { if (modal) modal.classList.add('open'); };
-        var fechar = function (modal) { if (modal) modal.classList.remove('open'); };
+        // Abrir e fechar passam pelo utilitário de diálogo (sm/dialogo.js, pela ponte
+        // `window.smDialogo`): foco dentro, Tab preso, Esc, resto da página inerte e o
+        // foco de volta ao botão. A ponte é lida na HORA — no primeiro carregamento
+        // este script roda antes do módulo; sem ela (módulo que não carregou), o modal
+        // ainda abre e fecha pela classe, como antes.
+        // O foco começa no Nome: a foto é o primeiro controle do corpo, mas é opcional —
+        // quem usa teclado passa por ela com um Shift+Tab, se quiser.
+        var abrir = function (modal, gatilho) {
+            if (!modal) return;
+            var nome = modal.querySelector('input[name="name"]');
+            if (window.smDialogo) window.smDialogo.abrir(modal, { foco: nome, retorno: gatilho || null });
+            else modal.classList.add('open');
+        };
+        var fechar = function (modal) {
+            if (!modal) return;
+            if (window.smDialogo) window.smDialogo.fechar(modal);
+            else modal.classList.remove('open');
+        };
+        // O que roda no CARREGAMENTO (reabrir após erro) espera o módulo existir: ele
+        // é avaliado antes do DOMContentLoaded.
+        var quandoPronto = function (fn) {
+            if (window.smDialogo || document.readyState !== 'loading') fn();
+            else document.addEventListener('DOMContentLoaded', fn, { once: true });
+        };
 
         // Abrir: adicionar
         var addModal = document.getElementById('depModal');
         ['depAddBtn', 'depAddCard'].forEach(function (id) {
             var el = document.getElementById(id);
-            if (el) el.addEventListener('click', function () { abrir(addModal); });
+            if (el) el.addEventListener('click', function () { abrir(addModal, el); });
         });
 
         // Abrir: editar (um modal por dependente)
         document.querySelectorAll('[data-edit]').forEach(function (btn) {
             btn.addEventListener('click', function () {
-                abrir(document.getElementById('depEditModal-' + btn.getAttribute('data-edit')));
+                abrir(document.getElementById('depEditModal-' + btn.getAttribute('data-edit')), btn);
             });
         });
 
-        // Fechar: clique no fundo, botões de fechar, Esc
-        document.querySelectorAll('.modal-scrim[data-close]').forEach(function (modal) {
+        // Fechar: clique no fundo e botões de fechar — só nos modais DESTA tela. O
+        // seletor antigo (`.modal-scrim[data-close]`) pegava também o Lançar e o de
+        // fonte, do shell, e somava ouvintes neles a cada visita pelo pjax. O Esc é do
+        // utilitário de diálogo; o atalho antigo fechava TODO modal aberto, inclusive o
+        // de fonte sem responder a quem esperava a escolha.
+        document.querySelectorAll('#depModal, [id^="depEditModal-"]').forEach(function (modal) {
             modal.addEventListener('click', function (e) { if (e.target === modal) fechar(modal); });
             modal.querySelectorAll('[data-close-btn]').forEach(function (b) {
                 b.addEventListener('click', function () { fechar(modal); });
             });
-        });
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') document.querySelectorAll('.modal-scrim.open').forEach(fechar);
         });
 
         // Pré-visualização da foto escolhida (em qualquer modal)
@@ -366,13 +400,25 @@
             });
         });
 
-        // Reabre o modal certo quando a validação volta com erro
+        // Reabre o modal certo quando a validação volta com erro — como diálogo, e com o
+        // botão que o teria aberto recebendo o foco de volta ao fechar. O id vem de
+        // `old('_form')`, que é dado do cliente: vai pela diretiva de JSON do Blade
+        // (escapa aspas e sinais de tag), nunca cru.
         @if ($formComErro && $errors->any())
-            @if ($formComErro === 'store')
-                abrir(addModal);
-            @else
-                abrir(document.getElementById('depEditModal-{{ \Illuminate\Support\Str::after($formComErro, 'edit-') }}'));
-            @endif
+            quandoPronto(function () {
+                @if ($formComErro === 'store')
+                    abrir(addModal, document.getElementById('depAddBtn'));
+                @else
+                    var idComErro = String(@json(\Illuminate\Support\Str::after($formComErro, 'edit-')));
+                    // Comparação de texto, não seletor CSS: o valor não passa por
+                    // escape nenhum para chegar até aqui.
+                    var botaoDoErro = Array.prototype.find.call(
+                        document.querySelectorAll('[data-edit]'),
+                        function (b) { return b.getAttribute('data-edit') === idComErro; }
+                    ) || null;
+                    abrir(document.getElementById('depEditModal-' + idComErro), botaoDoErro);
+                @endif
+            });
         @endif
     })();
 </script>

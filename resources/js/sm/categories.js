@@ -15,7 +15,14 @@
 //     navegar para as páginas cheias — que continuam existindo e valendo como
 //     fallback sem JS.
 //
+//  3) Reordenar SEM arrastar (achado A-4 da auditoria de acessibilidade): os botões
+//     "mover para cima/baixo" de cada chip gravam no MESMO PATCH categories.ordenar e
+//     anunciam a posição nova para o leitor de tela. Arrastar era o único jeito — quem
+//     usa teclado, leitor de tela ou um dedo que não segura o arraste não reordenava.
+//
 // Só roda na página de categorias (guard pelo #catCols).
+
+import { abrirDialogo, fecharDialogo } from './dialogo';
 
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
@@ -69,13 +76,59 @@ export function initCategories() {
     let origem = null;  // { chip, drop, next, type } — de onde ele saiu (rollback)
     let soltou = false; // houve um `drop` válido? Se não, o dragend desfaz
 
-    // Mantém os badges de contagem (.cch-count) em dia com as colunas
+    // Ids na ordem da tela — o corpo do PATCH categories.ordenar.
+    const idsDe = (drop) => $$('.cat-chip', drop)
+        .map((c) => Number(c.dataset.id))
+        .filter((id) => Number.isFinite(id));
+
+    // A última ordem que o SERVIDOR confirmou, por coluna: é para ela que a tela volta
+    // quando uma gravação feita pelos botões falha.
+    const ordemSalva = new Map($$('.cat-drop', cols).map((drop) => [drop, idsDe(drop)]));
+
+    // Região `role="status"` da view: o leitor de tela lê o que entra aqui sem tirar o
+    // foco de onde está. Texto sempre por textContent — o nome é dado do usuário.
+    const anuncio = document.getElementById('catAnuncio');
+    const anunciar = (texto) => { if (anuncio) anuncio.textContent = texto; };
+
+    const nomeDaColuna = (drop) =>
+        drop.closest('.cat-col')?.querySelector('.cat-col-head h3')?.textContent.trim() || '';
+
+    /** "Mercado: posição 2 de 5 em Despesas." — o que a pessoa ouve depois de mover. */
+    const anunciarPosicao = (chip) => {
+        const drop = chip.closest('.cat-drop');
+        if (!drop) return;
+        const chips = $$('.cat-chip', drop);
+        anunciar(`${chip.dataset.name || 'Categoria'}: posição ${chips.indexOf(chip) + 1} de ${chips.length} em ${nomeDaColuna(drop)}.`);
+    };
+
+    /**
+     * O primeiro chip não sobe e o último não desce: `aria-disabled`, e não `disabled`,
+     * para o botão continuar FOCÁVEL — quem acabou de levar a categoria ao topo segue com
+     * o foco nele, em vez de o foco sumir para o <body>.
+     */
+    const atualizarBotoesDeMover = () => {
+        $$('.cat-drop', cols).forEach((drop) => {
+            const chips = $$('.cat-chip', drop);
+            chips.forEach((chip, i) => {
+                const limites = { '-1': i === 0, 1: i === chips.length - 1 };
+                $$('[data-cat-mover]', chip).forEach((botao) => {
+                    if (limites[botao.dataset.catMover]) botao.setAttribute('aria-disabled', 'true');
+                    else botao.removeAttribute('aria-disabled');
+                });
+            });
+        });
+    };
+
+    // Mantém os badges de contagem (.cch-count) em dia com as colunas — e, com eles,
+    // quais botões de mover estão nas pontas (toda mudança de coluna passa por aqui).
     const updateCounts = () => {
         $$('.cat-drop', cols).forEach((drop) => {
             const badge = cols.querySelector(`.cch-count[data-count-for="${drop.dataset.type}"]`);
             if (badge) badge.textContent = $$('.cat-chip', drop).length;
         });
+        atualizarBotoesDeMover();
     };
+    atualizarBotoesDeMover();
 
     // Fim da lista de chips: os avisos (.cat-drop-empty / .cat-drop-hint) ficam
     // sempre DEPOIS deles, para o CSS esconder o "vazio" assim que a coluna
@@ -183,13 +236,14 @@ export function initCategories() {
         return res.ok ? null : mensagemDeErro(res, 'Não foi possível mover a categoria. Tente novamente.');
     }
 
-    /** PATCH categories.ordenar — manda os ids da coluna na ordem final. */
+    /**
+     * PATCH categories.ordenar — manda os ids da coluna na ordem em que estão AGORA.
+     * Aceito, essa passa a ser a ordem confirmada da coluna (`ordemSalva`).
+     */
     async function salvarOrdem(drop) {
         if (!ordenarUrl) return false;
 
-        const ids = $$('.cat-chip', drop)
-            .map((c) => Number(c.dataset.id))
-            .filter((id) => Number.isFinite(id));
+        const ids = idsDe(drop);
 
         try {
             const res = await fetch(ordenarUrl, {
@@ -197,6 +251,7 @@ export function initCategories() {
                 headers: cabecalhosJson(),
                 body: JSON.stringify({ ids }),
             });
+            if (res.ok) ordemSalva.set(drop, ids);
             return res.ok;
         } catch {
             return false;
@@ -229,7 +284,12 @@ export function initCategories() {
             }
         }
 
-        if (await salvarOrdem(drop)) return;
+        if (await salvarOrdem(drop)) {
+            // O arraste também conta onde a categoria foi parar — soltar em silêncio
+            // deixava quem usa leitor de tela sem saber se deu certo.
+            anunciarPosicao(chip);
+            return;
+        }
 
         if (trocouDeColuna) {
             // O tipo JÁ mudou no servidor: desfazer o visual seria mentira.
@@ -243,6 +303,84 @@ export function initCategories() {
         restaurar(estado);
         window.alert('Não foi possível salvar a nova ordem. Tente novamente.');
     }
+
+    /* ---- Reordenar pelos botões "mover para cima/baixo" (sem arrastar) ---- */
+
+    /**
+     * Troca o chip de lugar com o vizinho de cima (`-1`) ou de baixo (`1`).
+     *
+     * Quem se move é o VIZINHO, não o chip: tirar e recolocar o elemento que contém o
+     * botão focado joga o foco no <body>, e quem usa teclado teria de caçar de novo o
+     * botão a cada passo. O resultado na tela é o mesmo.
+     */
+    const trocarComVizinho = (chip, direcao) => {
+        const drop = chip.parentElement;
+        const chips = $$('.cat-chip', drop);
+        const vizinho = chips[chips.indexOf(chip) + direcao];
+        if (!vizinho) return false;
+
+        if (direcao < 0) drop.insertBefore(vizinho, chip.nextElementSibling);
+        else drop.insertBefore(vizinho, chip);
+        return true;
+    };
+
+    /** Devolve a coluna à ordem `ids` (a última confirmada pelo servidor). */
+    const restaurarOrdem = (drop, ids) => {
+        // Aqui os chips SAEM do lugar (não há vizinho a mover): o foco é guardado e
+        // devolvido, senão cairia no <body> junto com o aviso de erro.
+        const focado = document.activeElement;
+        const marcador = marcadorFinal(drop);
+        ids.forEach((id) => {
+            const chip = drop.querySelector(`.cat-chip[data-id="${id}"]`);
+            if (chip) drop.insertBefore(chip, marcador);
+        });
+        updateCounts();
+        if (focado && drop.contains(focado) && document.activeElement !== focado) focado.focus();
+    };
+
+    // Um PATCH por vez, na ordem dos cliques: cada um lê a ordem da tela na hora de
+    // sair, então o último a chegar ao servidor é sempre o mais recente — sem a fila,
+    // dois cliques rápidos podiam gravar a ordem do primeiro por cima da do segundo.
+    let filaDeOrdem = Promise.resolve();
+
+    const gravarOrdemEmFila = (drop) => {
+        filaDeOrdem = filaDeOrdem.then(async () => {
+            if (await salvarOrdem(drop)) return;
+            // Recusou ou sem rede: a tela volta ao que está gravado, e a pessoa fica
+            // sabendo — mesma mensagem da reordenação por arraste.
+            restaurarOrdem(drop, ordemSalva.get(drop) || []);
+            window.alert('Não foi possível salvar a nova ordem. Tente novamente.');
+        });
+        return filaDeOrdem;
+    };
+
+    // Delegado no #catCols: um ouvinte só para todos os chips, e o pjax troca o
+    // #catCols inteiro junto com a tela, então não há como empilhar ouvintes.
+    cols.addEventListener('click', (e) => {
+        const botao = e.target.closest('[data-cat-mover]');
+        if (!botao || !cols.contains(botao)) return;
+        e.preventDefault();
+
+        const chip = botao.closest('.cat-chip');
+        const drop = chip?.closest('.cat-drop');
+        if (!chip || !drop) return;
+
+        const direcao = Number(botao.dataset.catMover) < 0 ? -1 : 1;
+        const tinhaFoco = document.activeElement === botao;
+
+        // Na ponta: nada a mover, mas quem aperta ouve por quê.
+        if (botao.getAttribute('aria-disabled') === 'true' || !trocarComVizinho(chip, direcao)) {
+            anunciar(`${chip.dataset.name || 'Categoria'} já está ${direcao < 0 ? 'no topo' : 'no fim'} de ${nomeDaColuna(drop)}.`);
+            return;
+        }
+
+        updateCounts();
+        anunciarPosicao(chip);
+        // O foco continua no botão apertado (o chip não saiu do lugar no DOM); isto é
+        // só a garantia para o navegador que o tirar mesmo assim.
+        if (tinhaFoco && document.activeElement !== botao) botao.focus();
+        gravarOrdemEmFila(drop);
+    });
 }
 
 /* ============ Modal de criar/editar categoria ============ */
@@ -348,20 +486,31 @@ function initCategoryModal() {
             label.textContent = valor; // dado do usuário: textContent, nunca innerHTML
         } else if (/^#[0-9A-Fa-f]{6}$/.test(valor)) {
             label.style.background = valor;
-            label.title = valor;
+            // A bolinha não tem texto: sem este nome o leitor de tela anunciaria só
+            // "botão de opção" (as da paleta levam o nome da cor, vindo do Blade).
+            label.title = 'Cor atual da categoria';
+            let nomeDaCor = label.querySelector('.sr-only');
+            if (!nomeDaCor) {
+                nomeDaCor = document.createElement('span');
+                nomeDaCor.className = 'sr-only';
+                label.append(nomeDaCor);
+            }
+            nomeDaCor.textContent = 'Cor atual da categoria';
         }
         input.checked = true;
     };
 
-    const open = () => {
+    // Abre como DIÁLOGO (sm/dialogo.js): foco no Nome, resto da página inerte, Tab
+    // preso e Esc; ao fechar, o foco volta para quem abriu (o "Nova categoria", o
+    // "Criar agora" da coluna vazia ou o lápis do chip).
+    const open = (gatilho = null) => {
         hideError();
         setSaving(false);
-        modal.classList.add('open');
-        if (nome) setTimeout(() => nome.focus(), 80);
+        abrirDialogo(modal, { foco: nome, retorno: gatilho });
     };
-    const close = () => modal.classList.remove('open');
+    const close = () => fecharDialogo(modal);
 
-    const abrirCriacao = (tipo) => {
+    const abrirCriacao = (tipo, gatilho = null) => {
         editandoUrl = null;
         form.setAttribute('action', storeUrl);
         if (titulo) titulo.textContent = 'Nova categoria';
@@ -371,10 +520,10 @@ function initCategoryModal() {
         marcarTipo(tipo);
         marcarOpcao(iconPicker, 'icon', '✨');
         marcarOpcao(colorPicker, 'color', '');
-        open();
+        open(gatilho);
     };
 
-    const abrirEdicao = (chip) => {
+    const abrirEdicao = (chip, gatilho = null) => {
         editandoUrl = chip.dataset.updateUrl;
         form.setAttribute('action', editandoUrl);
         if (titulo) titulo.textContent = 'Editar categoria';
@@ -385,7 +534,7 @@ function initCategoryModal() {
         marcarTipo(chip.dataset.type);
         marcarOpcao(iconPicker, 'icon', chip.dataset.icon || '✨');
         marcarOpcao(colorPicker, 'color', chip.dataset.color || '');
-        open();
+        open(gatilho);
     };
 
     // ---- Gatilhos: "Nova categoria", "Criar agora" (coluna vazia) e o lápis de cada chip.
@@ -398,29 +547,20 @@ function initCategoryModal() {
             e.preventDefault();
             if (gatilho.dataset.catOpen === 'edit') {
                 const chip = gatilho.closest('.cat-chip');
-                if (chip) abrirEdicao(chip);
+                if (chip) abrirEdicao(chip, gatilho);
                 return;
             }
-            abrirCriacao(gatilho.dataset.catType);
+            abrirCriacao(gatilho.dataset.catType, gatilho);
         });
     });
 
-    // ---- Fechar: véu, X e "Cancelar".
+    // ---- Fechar: véu, X e "Cancelar". O Esc é do utilitário de diálogo — o ouvinte
+    // antigo, preso ao documento, fechava por fora dele e o foco caía no <body>.
     modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
     $$('[data-cat-close]', modal).forEach((b) => b.addEventListener('click', close));
     if (card) {
         card.addEventListener('animationend', (e) => {
             if (e.animationName === 'sm-shake') card.classList.remove('shake');
-        });
-    }
-    // Esc: o listener é do documento, que SOBREVIVE ao pjax — a flag evita
-    // empilhar um handler novo a cada re-init do conteúdo.
-    if (!document.__smCatEscBound) {
-        document.__smCatEscBound = true;
-        document.addEventListener('keydown', (e) => {
-            if (e.key !== 'Escape') return;
-            const aberto = document.getElementById('catModal');
-            if (aberto) aberto.classList.remove('open');
         });
     }
 

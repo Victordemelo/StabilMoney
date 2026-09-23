@@ -30,19 +30,21 @@
     $comDoisFatores = $dono->temDoisFatores();
 @endphp
 
-{{-- O próprio scrim é o véu e o clique-fora: não há div extra. --}}
+{{-- O próprio scrim é o véu e o clique-fora: não há div extra. O DIÁLOGO é o painel
+     (`.modal`), como em todos os modais do app — o papel estava no véu, e o leitor de
+     tela anunciava a tela inteira como a caixa do diálogo. --}}
 <div id="confirm-user-deletion"
-     class="modal-scrim {{ $errors->userDeletion->isNotEmpty() ? 'open' : '' }}"
-     role="dialog" aria-modal="true" aria-labelledby="confirm-user-deletion-title">
+     class="modal-scrim {{ $errors->userDeletion->isNotEmpty() ? 'open' : '' }}">
 
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true"
+         aria-labelledby="confirm-user-deletion-title" aria-describedby="confirm-user-deletion-desc">
         <div class="modal-head">
-            <div class="modal-ico perigo">
+            <div class="modal-ico perigo" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 9v4.5M12 17h.01"/><path d="M10.3 3.9 2.4 17.1A2 2 0 0 0 4.1 20h15.8a2 2 0 0 0 1.7-2.9L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
             </div>
             <div>
                 <h3 id="confirm-user-deletion-title">Excluir sua conta?</h3>
-                <p>
+                <p id="confirm-user-deletion-desc">
                     Isto não pode ser desfeito. Digite sua senha
                     @if ($comDoisFatores) e o código do seu aplicativo @endif
                     para confirmar.
@@ -203,20 +205,33 @@
     </div>
 </div>
 
-{{-- JS vanilla mínimo do modal (abre, fecha por botão/véu/Esc e foca a senha) --}}
+{{-- JS vanilla mínimo do modal: abre (foco na senha), fecha por botão/véu. Abrir e
+     fechar passam pelo utilitário de diálogo (sm/dialogo.js, pela ponte
+     `window.smDialogo`): Tab preso, Esc, resto da página inerte e o foco de volta ao
+     botão "Excluir minha conta". --}}
 <script nonce="{{ Vite::cspNonce() }}">
     (function () {
         var modal = document.getElementById('confirm-user-deletion');
         var openBtn = document.getElementById('open-user-deletion');
         if (!modal || !openBtn) return;
 
+        var senha = function () { return document.getElementById('delete_confirm_password'); };
+
+        // A ponte é lida na HORA: no primeiro carregamento este script roda antes do
+        // módulo. Sem ela (módulo que não carregou), abre e fecha pela classe, como antes.
         function abrir() {
+            if (window.smDialogo) {
+                window.smDialogo.abrir(modal, { foco: senha(), retorno: openBtn });
+                return;
+            }
             modal.classList.add('open');
-            var senha = document.getElementById('delete_confirm_password');
-            if (senha) senha.focus();
+            if (senha()) senha().focus();
         }
 
-        function fechar() { modal.classList.remove('open'); }
+        function fechar() {
+            if (window.smDialogo) window.smDialogo.fechar(modal);
+            else modal.classList.remove('open');
+        }
 
         openBtn.addEventListener('click', abrir);
         // Clique no próprio scrim (fora do .modal) fecha, como nos demais modais.
@@ -224,14 +239,12 @@
         modal.querySelectorAll('[data-close-deletion]').forEach(function (el) {
             el.addEventListener('click', fechar);
         });
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && modal.classList.contains('open')) fechar();
-        });
 
-        // Já veio aberto porque a validação falhou: leva o foco para a senha.
+        // Já veio aberto porque a validação falhou: vira diálogo (foco na senha) assim
+        // que o módulo existir — ele é avaliado antes do DOMContentLoaded.
         if (modal.classList.contains('open')) {
-            var senha = document.getElementById('delete_confirm_password');
-            if (senha) senha.focus();
+            if (window.smDialogo || document.readyState !== 'loading') abrir();
+            else document.addEventListener('DOMContentLoaded', abrir, { once: true });
         }
     })();
 </script>

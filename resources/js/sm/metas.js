@@ -2,13 +2,16 @@
 //
 // O app é server-routed — os formulários (criar/editar/excluir/aportar/resgatar)
 // são <form> Laravel reais. Este módulo cuida só da camada de UI:
-//   • abrir/fechar os modais (.modal-scrim → classe .open), com Esc e clique no véu;
+//   • abrir/fechar os modais como DIÁLOGOS (sm/dialogo.js: foco dentro, Tab preso,
+//     Esc, resto da página inerte e o foco de volta a quem abriu), com clique no véu;
 //   • no "Aportar"/"Resgatar" (modais COMPARTILHADOS), setar o `action` do form e
 //     preencher nome/guardado/faltam a partir dos data-* do botão clicado;
 //   • reabrir o modal certo quando a validação do servidor volta com erro
 //     (cada .modal-scrim com data-reopen="1" reabre sozinho).
 //
 // Só roda na tela de metas (guard pelo container da view + presença de modais).
+
+import { abrirDialogo, fecharDialogo } from './dialogo';
 
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
@@ -134,29 +137,29 @@ export function initMetas() {
 
     const todosModais = $$('.modal-scrim[data-meta-modal]');
 
-    const abrir = (modal) => {
+    /**
+     * Abre como diálogo, com o foco no primeiro campo editável (os pickers de radio
+     * ficam de fora; num "Excluir?" sem campo, o utilitário cai no Cancelar).
+     * `gatilho` recebe o foco de volta ao fechar.
+     */
+    const abrir = (modal, gatilho = null) => {
         if (!modal) return;
-        modal.classList.add('open');
-        // Foca o primeiro campo editável (ignora os pickers de radio).
         const campo = modal.querySelector('input[type="text"], input[type="month"], input[type="date"], select');
-        if (campo) setTimeout(() => campo.focus(), 120);
+        abrirDialogo(modal, { foco: campo, retorno: gatilho });
     };
 
-    const fecharTodos = () => todosModais.forEach((m) => m.classList.remove('open'));
+    const fechar = (modal) => fecharDialogo(modal);
 
-    // Fechar: clique no véu, no X ou nos botões "Cancelar" ([data-meta-close]).
+    // Fechar: clique no véu, no X ou nos botões "Cancelar" ([data-meta-close]). O Esc
+    // é do utilitário de diálogo, que fecha só o de cima — o ouvinte antigo, preso ao
+    // documento, somava um a cada visita pelo pjax e fechava os modais por fora dele.
     todosModais.forEach((modal) => {
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.classList.remove('open');
+            if (e.target === modal) fechar(modal);
         });
         $$('[data-meta-close]', modal).forEach((btn) =>
-            btn.addEventListener('click', () => modal.classList.remove('open'))
+            btn.addEventListener('click', () => fechar(modal))
         );
-    });
-
-    // Esc fecha qualquer modal aberto.
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') fecharTodos();
     });
 
     // ---- "Quanto guardar por mês" nos formulários de criar/editar ----
@@ -168,15 +171,15 @@ export function initMetas() {
     // ---- Abrir "Nova meta" (botão do topo, botão do estado vazio e card tracejado) ----
     ['metaNovaBtn', 'metaNovaBtnVazio', 'metaAddCard'].forEach((id) => {
         const el = document.getElementById(id);
-        if (el) el.addEventListener('click', () => abrir(createModal));
+        if (el) el.addEventListener('click', () => abrir(createModal, el));
     });
 
     // ---- Editar / Excluir (modais por meta, abertos pelo id no data-id) ----
     $$('[data-meta-edit]').forEach((btn) => {
-        btn.addEventListener('click', () => abrir(document.getElementById(`metaEditModal-${btn.dataset.id}`)));
+        btn.addEventListener('click', () => abrir(document.getElementById(`metaEditModal-${btn.dataset.id}`), btn));
     });
     $$('[data-meta-del]').forEach((btn) => {
-        btn.addEventListener('click', () => abrir(document.getElementById(`metaDeleteModal-${btn.dataset.id}`)));
+        btn.addEventListener('click', () => abrir(document.getElementById(`metaDeleteModal-${btn.dataset.id}`), btn));
     });
 
     // ---- Aportar (modal compartilhado) ----
@@ -200,7 +203,7 @@ export function initMetas() {
                 const amount = aporteModal.querySelector('[name="amount"]');
                 if (amount) amount.value = '';
                 renovarUuid(form);
-                abrir(aporteModal);
+                abrir(aporteModal, btn);
             });
         });
     }
@@ -223,7 +226,7 @@ export function initMetas() {
                 const amount = resgateModal.querySelector('[name="amount"]');
                 if (amount) amount.value = '';
                 renovarUuid(form);
-                abrir(resgateModal);
+                abrir(resgateModal, btn);
             });
         });
     }
@@ -246,6 +249,30 @@ export function initMetas() {
                 if (actionField) actionField.value = acao;
             }
         }
-        abrir(modal);
+        abrir(modal, gatilhoDaReabertura(modal, acao));
     });
+}
+
+/**
+ * Quem "abriu" um modal que a tela reabriu sozinha (erro de validação): o botão que o
+ * teria aberto. Sem ele, fechar o modal jogaria o foco no <body>, e quem usa teclado
+ * recomeçaria da primeira linha da página.
+ */
+function gatilhoDaReabertura(modal, acao) {
+    const id = modal.id;
+    if (id === 'metaCreateModal') {
+        return ['metaNovaBtn', 'metaNovaBtnVazio', 'metaAddCard']
+            .map((x) => document.getElementById(x))
+            .find(Boolean) || null;
+    }
+
+    const porMeta = /^metaEditModal-(\d+)$/.exec(id);
+    if (porMeta) return document.querySelector(`[data-meta-edit][data-id="${porMeta[1]}"]`);
+
+    // Aportar/resgatar: o botão cuja URL montada é a que o servidor devolveu.
+    const seletor = { metaAporteModal: '[data-meta-aporte]', metaResgateModal: '[data-meta-resgatar]' }[id];
+    if (seletor && acao && modal.dataset.actionBase) {
+        return $$(seletor).find((btn) => modal.dataset.actionBase.replace('__ID__', btn.dataset.id) === acao) || null;
+    }
+    return null;
 }

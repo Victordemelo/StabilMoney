@@ -3,7 +3,8 @@
 //
 // O app é server-routed — os formulários (criar/editar/excluir/aportar/resgatar)
 // são <form> Laravel reais. Este módulo cuida só da camada de UI:
-//   • abrir/fechar os modais (.modal-scrim → classe .open), com Esc e clique no véu;
+//   • abrir/fechar os modais como DIÁLOGOS (sm/dialogo.js: foco dentro, Tab preso,
+//     Esc, resto da página inerte e o foco de volta a quem abriu), com clique no véu;
 //   • no "Aportar"/"Resgatar" (modais COMPARTILHADOS), setar o `action` do form e
 //     preencher nome/posição a partir dos data-* do botão clicado;
 //   • a PREVIEW de rentabilidade do "Novo investimento": recalcula bruto/líquido
@@ -12,6 +13,8 @@
 //   • reabrir o modal certo quando a validação do servidor volta com erro.
 //
 // Só roda na tela de investimentos (guard pelo modal de criação da view).
+
+import { abrirDialogo, fecharDialogo } from './dialogo';
 
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
@@ -153,29 +156,28 @@ export function initInvestimentos() {
 
     const todosModais = $$('.modal-scrim[data-inv-modal]');
 
-    const abrir = (modal) => {
+    /**
+     * Abre como diálogo, com o foco no primeiro campo editável (num "Excluir?" sem
+     * campo, o utilitário cai no Cancelar). `gatilho` recebe o foco de volta ao fechar.
+     */
+    const abrir = (modal, gatilho = null) => {
         if (!modal) return;
-        modal.classList.add('open');
-        // Foca o primeiro campo editável (ignora os pickers de radio).
         const campo = modal.querySelector('input[type="text"], input[type="date"], select');
-        if (campo) setTimeout(() => campo.focus(), 120);
+        abrirDialogo(modal, { foco: campo, retorno: gatilho });
     };
 
-    const fecharTodos = () => todosModais.forEach((m) => m.classList.remove('open'));
+    const fechar = (modal) => fecharDialogo(modal);
 
-    // Fechar: clique no véu, no X ou nos botões "Cancelar" ([data-inv-close]).
+    // Fechar: clique no véu, no X ou nos botões "Cancelar" ([data-inv-close]). O Esc
+    // é do utilitário de diálogo, que fecha só o de cima — o ouvinte antigo, preso ao
+    // documento, somava um a cada visita pelo pjax e fechava os modais por fora dele.
     todosModais.forEach((modal) => {
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.classList.remove('open');
+            if (e.target === modal) fechar(modal);
         });
         $$('[data-inv-close]', modal).forEach((btn) =>
-            btn.addEventListener('click', () => modal.classList.remove('open'))
+            btn.addEventListener('click', () => fechar(modal))
         );
-    });
-
-    // Esc fecha qualquer modal aberto.
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') fecharTodos();
     });
 
     // ---- Abrir "Novo investimento" (botão do topo, estado vazio e "Novo aporte" inline) ----
@@ -184,16 +186,16 @@ export function initInvestimentos() {
         const el = document.getElementById(id);
         if (el) el.addEventListener('click', () => {
             renovarUuid(createModal.querySelector('form'));
-            abrir(createModal);
+            abrir(createModal, el);
         });
     });
 
     // ---- Editar / Excluir (modais por ativo, abertos pelo id no data-id) ----
     $$('[data-inv-edit]').forEach((btn) => {
-        btn.addEventListener('click', () => abrir(document.getElementById(`invEditModal-${btn.dataset.id}`)));
+        btn.addEventListener('click', () => abrir(document.getElementById(`invEditModal-${btn.dataset.id}`), btn));
     });
     $$('[data-inv-del]').forEach((btn) => {
-        btn.addEventListener('click', () => abrir(document.getElementById(`invDeleteModal-${btn.dataset.id}`)));
+        btn.addEventListener('click', () => abrir(document.getElementById(`invDeleteModal-${btn.dataset.id}`), btn));
     });
 
     // ---- Aportar (modal compartilhado) ----
@@ -214,7 +216,7 @@ export function initInvestimentos() {
                 const amount = aporteModal.querySelector('[name="amount"]');
                 if (amount) amount.value = '';
                 renovarUuid(form);
-                abrir(aporteModal);
+                abrir(aporteModal, btn);
             });
         });
     }
@@ -236,7 +238,7 @@ export function initInvestimentos() {
                 const amount = resgateModal.querySelector('[name="amount"]');
                 if (amount) amount.value = '';
                 renovarUuid(form);
-                abrir(resgateModal);
+                abrir(resgateModal, btn);
             });
         });
     }
@@ -358,6 +360,30 @@ export function initInvestimentos() {
                 if (actionField) actionField.value = acao;
             }
         }
-        abrir(modal);
+        abrir(modal, gatilhoDaReabertura(modal, acao));
     });
+}
+
+/**
+ * Quem "abriu" um modal que a tela reabriu sozinha (erro de validação): o botão que o
+ * teria aberto. Sem ele, fechar o modal jogaria o foco no <body>, e quem usa teclado
+ * recomeçaria da primeira linha da página.
+ */
+function gatilhoDaReabertura(modal, acao) {
+    const id = modal.id;
+    if (id === 'invCreateModal') {
+        return ['invNovoBtn', 'invNovoBtnVazio', 'invAddInline']
+            .map((x) => document.getElementById(x))
+            .find(Boolean) || null;
+    }
+
+    const porAtivo = /^invEditModal-(\d+)$/.exec(id);
+    if (porAtivo) return document.querySelector(`[data-inv-edit][data-id="${porAtivo[1]}"]`);
+
+    // Aportar/resgatar: o botão cuja URL montada é a que o servidor devolveu.
+    const seletor = { invAporteModal: '[data-inv-aporte]', invResgateModal: '[data-inv-resgatar]' }[id];
+    if (seletor && acao && modal.dataset.actionBase) {
+        return $$(seletor).find((btn) => modal.dataset.actionBase.replace('__ID__', btn.dataset.id) === acao) || null;
+    }
+    return null;
 }

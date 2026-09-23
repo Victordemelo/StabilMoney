@@ -305,7 +305,9 @@ describe('409 — de onde sai esse dinheiro', () => {
         abrirComDespesa();
         await salvar();
 
-        expect(mocks.pedirFonte).toHaveBeenCalledWith(corpo409().fonte);
+        // O "Salvar" vai junto como `retorno`: fechando o de fonte, é nele que o foco volta
+        // (o Chrome tira o foco do botão enquanto ele está desabilitado no envio).
+        expect(mocks.pedirFonte).toHaveBeenCalledWith(corpo409().fonte, { retorno: botaoSalvar() });
         // O invariante do modelo v3: o app nunca decide cheque especial por conta
         // própria. Cancelou, nada acontece — nem POST, nem fila.
         expect(chamadas.posts).toHaveLength(1);
@@ -424,5 +426,53 @@ describe('sem rede', () => {
         expect(erroVisivel()).toBe(true);
         expect(mensagemDeErro()).toMatch(/Não deu para guardar/);
         expect(document.getElementById('lm-amount').value).toBe('150,00');
+    });
+});
+
+describe('é um diálogo (achado A-2 da auditoria de acessibilidade)', () => {
+    const gatilho = () => document.querySelector('[data-launch-open]');
+    const tecla = (key) => document.activeElement.dispatchEvent(
+        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+    );
+
+    it('abre com o foco no Valor e o resto da página inerte', () => {
+        gatilho().click();
+
+        expect(modal().classList.contains('open')).toBe(true);
+        expect(document.activeElement).toBe(document.getElementById('lm-amount'));
+        // O botão da topbar (irmão do modal, como no shell) sai do alcance do Tab.
+        expect(gatilho().hasAttribute('inert')).toBe(true);
+        expect(modal().hasAttribute('inert')).toBe(false);
+    });
+
+    it('Esc fecha e devolve o foco ao botão que abriu, sem nada inerte', () => {
+        gatilho().click();
+
+        tecla('Escape');
+
+        expect(modal().classList.contains('open')).toBe(false);
+        expect(document.activeElement).toBe(gatilho());
+        expect(document.querySelectorAll('[inert]')).toHaveLength(0);
+    });
+
+    it('Tab no "Salvar" volta ao primeiro controle, em vez de sair do modal', () => {
+        gatilho().click();
+        botaoSalvar().focus();
+
+        tecla('Tab');
+
+        // Não há X neste DOM de teste: o primeiro controle é o tipo (Receita marcada).
+        expect(document.activeElement).toBe(document.getElementById('lm-tt-income'));
+    });
+
+    it('depois de salvar, fecha e o foco volta ao gatilho', async () => {
+        respostasDoPost = [resposta(201)];
+        abrirComDespesa();
+
+        await salvar();
+
+        expect(modal().classList.contains('open')).toBe(false);
+        expect(document.activeElement).toBe(gatilho());
+        expect(document.querySelectorAll('[inert]')).toHaveLength(0);
     });
 });

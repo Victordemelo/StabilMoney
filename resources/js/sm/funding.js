@@ -9,7 +9,13 @@
  * Não conhece formulário nenhum: quem chama passa o payload e recebe uma
  * Promise com a escolha (ou null se o usuário cancelar). Isso deixa o mesmo
  * modal servir o modal global "Lançar", o formulário cheio e a tela de faturas.
+ *
+ * É um DIÁLOGO de verdade (sm/dialogo.js), e muitas vezes EMPILHADO: abre por
+ * cima do Lançar ou do "Pagar fatura". O Esc fecha só ele — resolvendo com
+ * "cancelou" —, e o foco volta ao botão que disparou o envio.
  */
+
+import { abrirDialogo, fecharDialogo } from './dialogo';
 
 let scrim = null;
 let resolver = null;
@@ -34,7 +40,9 @@ function brl(valor) {
 
 function fechar(escolha) {
     if (!scrim) return;
-    scrim.classList.remove('open');
+    // Devolve a página e o foco ANTES de resolver: quem chamou retoma o envio com o
+    // foco já de volta no botão dele.
+    fecharDialogo(scrim);
     const pendente = resolver;
     resolver = null;
     if (pendente) pendente(escolha);
@@ -75,6 +83,9 @@ function montarOpcao(fonte, faltante) {
         select.className = 'input';
         select.dataset.fundingInvestimento = '1';
         select.disabled = !fonte.cobre;
+        // O <label> em volta nomeia o RADIO (o primeiro controle dele), não este
+        // select — sem nome próprio o leitor de tela anunciaria só "caixa de seleção".
+        select.setAttribute('aria-label', 'Investimento a resgatar');
 
         fonte.itens.forEach((item) => {
             const opt = document.createElement('option');
@@ -105,8 +116,12 @@ function montarOpcao(fonte, faltante) {
 /**
  * Abre o modal com as opções do 409 e resolve com
  * `{ funding_source, funding_investment_id }` ou `null` se cancelar.
+ *
+ * `retorno` = onde o foco volta quando o modal fecha — o botão que disparou o envio.
+ * Precisa vir de quem chama: o botão fica desabilitado durante o envio, e o Chrome tira o
+ * foco de botão desabilitado; na hora de abrir, o foco já está no <body>.
  */
-export function pedirFonte(payload) {
+export function pedirFonte(payload, { retorno = null } = {}) {
     scrim = document.getElementById('fundingModal');
     if (!scrim || !payload) return Promise.resolve(null);
 
@@ -147,11 +162,15 @@ export function pedirFonte(payload) {
     }
     if (confirmar) confirmar.disabled = !alguemCobre;
 
-    scrim.classList.add('open');
-    
-    return new Promise((resolve) => {
+    const escolha = new Promise((resolve) => {
         resolver = resolve;
     });
+
+    // O foco entra na primeira opção viável (a já marcada); o título e o resumo vêm
+    // junto pelo aria-labelledby/aria-describedby do painel. Esc = "cancelou".
+    abrirDialogo(scrim, { aoPedirFechar: () => fechar(null), retorno });
+
+    return escolha;
 }
 
 /**
@@ -165,10 +184,13 @@ export function pedirFonte(payload) {
  * queremos que o fetch baixe a página inteira — pior, seguir o redirect
  * CONSUMIRIA o flash de sucesso, e a mensagem sumiria do recarregamento.
  *
+ * `retorno` é repassado ao `pedirFonte`: o botão de enviar, que recebe o foco de volta
+ * quando o modal de fonte fecha.
+ *
  * @returns {Promise<Response|null>} a resposta final, ou null se o usuário
  *          cancelou a escolha da fonte.
  */
-export async function enviarComFonte(url, formData) {
+export async function enviarComFonte(url, formData, { retorno = null } = {}) {
     const enviar = () => fetch(url, {
         method: 'POST',
         headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -180,7 +202,7 @@ export async function enviarComFonte(url, formData) {
 
     if (resp.status === 409) {
         const dados = await resp.json().catch(() => ({}));
-        const escolha = await pedirFonte(dados.fonte);
+        const escolha = await pedirFonte(dados.fonte, { retorno });
         if (!escolha) return null; // cancelou: nada foi pago
 
         Object.entries(escolha).forEach(([k, v]) => formData.set(k, v));
@@ -197,17 +219,15 @@ export function respostaOk(resp) {
 
 /** Liga os botões do modal (chamado uma vez por página, via initContent). */
 export function initFunding() {
-    // Fallback sem JS renderizado pelo Blade (session('fonteNecessaria')):
-    // com JS presente, dá para fechar no véu/Esc como qualquer outro modal —
-    // o "Cancelar" continua sendo um link, que funciona sem JS nenhum.
+    // Fallback sem JS renderizado pelo Blade (session('fonteNecessaria')): com JS
+    // presente ele vira diálogo de verdade — nasce aberto pelo servidor, então é
+    // ADOTADO aqui (foco dentro, Tab preso, Esc) — e fecha no véu como qualquer outro
+    // modal. O "Cancelar" continua sendo um link, que funciona sem JS nenhum.
     const semJs = document.getElementById('fundingModalSemJs');
     if (semJs && !semJs.dataset.fallbackBound) {
         semJs.dataset.fallbackBound = '1';
-        const fecharFallback = () => semJs.classList.remove('open');
-        semJs.addEventListener('click', (e) => { if (e.target === semJs) fecharFallback(); });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && semJs.classList.contains('open')) fecharFallback();
-        });
+        semJs.addEventListener('click', (e) => { if (e.target === semJs) fecharDialogo(semJs); });
+        if (semJs.classList.contains('open')) abrirDialogo(semJs);
     }
 
     const el = document.getElementById('fundingModal');
@@ -218,12 +238,10 @@ export function initFunding() {
     el.querySelectorAll('[data-funding-close]').forEach((b) => {
         b.addEventListener('click', () => fechar(null));
     });
-    // Clique no fundo fecha (mesmo comportamento dos outros modais do app).
+    // Clique no fundo fecha (mesmo comportamento dos outros modais do app). O Esc é
+    // do utilitário de diálogo, que chama o `aoPedirFechar` dado em `pedirFonte`.
     el.addEventListener('click', (e) => {
         if (e.target === el) fechar(null);
-    });
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && el.classList.contains('open')) fechar(null);
     });
 
     const confirmar = el.querySelector('[data-funding-confirm]');

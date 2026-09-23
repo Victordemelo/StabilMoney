@@ -16,8 +16,12 @@ import { initCategories } from '../../resources/js/sm/categories.js';
  * saber por quê. Aqui o `fetch` é mockado e o que se observa é o aviso, o rollback do chip
  * e quais requisições saíram.
  *
- * O DOM imita o `categories/index.blade.php`: duas colunas (`.cat-drop`), chips com os
- * `data-*` que o módulo lê e o modal compartilhado de criar/editar.
+ * Também cobre a reordenação SEM arrastar (botões ▲▼, achado A-4 da auditoria de
+ * acessibilidade) e o modal como diálogo (A-2) — ver os dois últimos `describe`.
+ *
+ * O DOM imita o `categories/index.blade.php`: duas colunas (`.cat-drop`) com o cabeçalho
+ * de onde sai o nome da coluna, chips com os `data-*` e os botões de mover que o módulo
+ * lê, a região de anúncio (`#catAnuncio`) e o modal compartilhado de criar/editar.
  */
 
 const MSG_DO_SERVIDOR =
@@ -40,13 +44,20 @@ function chip(id, nome, tipo) {
              data-icon="🛒" data-type="${tipo}" data-locked="0" data-update-url="/categories/${id}">
             <span class="cc-name">${nome}</span>
             <a class="cc-act" href="/categories/${id}/edit" data-cat-open="edit">Editar</a>
+            <span class="cc-mover">
+                <button type="button" class="cc-mv" data-cat-mover="-1" aria-label="Mover ${nome} para cima">▲</button>
+                <button type="button" class="cc-mv" data-cat-mover="1" aria-label="Mover ${nome} para baixo">▼</button>
+            </span>
         </div>`;
 }
 
 function coluna(tipo, chips) {
     return `
         <div class="cat-col">
-            <span class="cch-count" data-count-for="${tipo}">${chips.length}</span>
+            <div class="cat-col-head">
+                <h3>${tipo === 'income' ? 'Receitas' : 'Despesas'}</h3>
+                <span class="cch-count" data-count-for="${tipo}">${chips.length}</span>
+            </div>
             <div class="cat-drop" data-type="${tipo}">
                 ${chips.join('')}
                 <div class="cat-drop-empty">Nenhuma categoria ainda.</div>
@@ -55,27 +66,33 @@ function coluna(tipo, chips) {
         </div>`;
 }
 
-function montarPagina() {
+const DESPESAS_PADRAO = [[2, 'Mercado'], [3, 'Lazer']];
+
+function montarPagina(despesas = DESPESAS_PADRAO) {
     document.head.innerHTML = '<meta name="csrf-token" content="token-da-sessao">';
     document.body.innerHTML = `
+        <button type="button" id="foraDoModal">Algo da página</button>
+        <p class="sr-only" id="catAnuncio" role="status"></p>
         <div class="cat-cols" id="catCols" data-ordenar-url="/categories/ordenar">
             ${coluna('income', [chip(1, 'Salário', 'income')])}
-            ${coluna('expense', [chip(2, 'Mercado', 'expense'), chip(3, 'Lazer', 'expense')])}
+            ${coluna('expense', despesas.map(([id, nome]) => chip(id, nome, 'expense')))}
         </div>
         <div class="modal-scrim" id="catModal">
-            <div class="modal modal-lg" data-type="income">
-                <h3 data-cat-title>Nova categoria</h3>
+            <div class="modal modal-lg" data-type="income" role="dialog" aria-modal="true" aria-labelledby="catModal-titulo">
+                <h3 id="catModal-titulo" data-cat-title>Nova categoria</h3>
                 <p data-cat-sub></p>
                 <button class="modal-x" type="button" data-cat-close>Fechar</button>
                 <div class="flash-error" data-cat-error role="alert" hidden><span data-cat-error-msg></span></div>
                 <form method="POST" action="/categories" data-cat-form data-type="income">
                     <input type="hidden" name="_token" value="token-da-sessao">
-                    <span class="hint" data-cat-locked-hint hidden></span>
-                    <input type="radio" id="cm-tt-income" name="type" value="income" checked>
-                    <input type="radio" id="cm-tt-expense" name="type" value="expense">
-                    <input class="input" type="text" id="cm-name" name="name">
-                    <div class="icon-picker" data-cat-icons><input type="radio" name="icon" value="✨" checked></div>
-                    <div class="color-picker" data-cat-colors><input type="radio" name="color" value="" checked></div>
+                    <div class="modal-body">
+                        <span class="hint" data-cat-locked-hint hidden></span>
+                        <input type="radio" id="cm-tt-income" name="type" value="income" checked>
+                        <input type="radio" id="cm-tt-expense" name="type" value="expense">
+                        <input class="input" type="text" id="cm-name" name="name">
+                        <div class="icon-picker" data-cat-icons><input type="radio" name="icon" value="✨" checked></div>
+                        <div class="color-picker" data-cat-colors><input type="radio" name="color" value="" checked></div>
+                    </div>
                     <button type="submit" data-cat-save>Salvar</button>
                 </form>
             </div>
@@ -208,5 +225,162 @@ describe('modal de editar', () => {
         expect(document.querySelector('[data-cat-error-msg]').textContent).toBe(MSG_DO_SERVIDOR);
         // Continua aberto: a pessoa lê o motivo e decide (fechar ou voltar o tipo).
         expect(document.getElementById('catModal').classList.contains('open')).toBe(true);
+    });
+});
+
+/**
+ * Reordenar SEM arrastar — achado A-4 da auditoria de acessibilidade: o chip era
+ * `draggable`, e arrastar era o ÚNICO jeito de mudar a ordem. Quem usa teclado, leitor de
+ * tela ou um dedo que não segura o arraste não reordenava nada. Os botões ▲▼ de cada chip
+ * gravam no MESMO PATCH categories.ordenar e anunciam a posição nova.
+ */
+describe('reordenar pelos botões ▲▼ (sem arrastar)', () => {
+    const botao = (id, direcao) => chipDe(id).querySelector(`[data-cat-mover="${direcao}"]`);
+    const ordem = (tipo) => Array.from(drop(tipo).querySelectorAll('.cat-chip')).map((c) => Number(c.dataset.id));
+    const anuncio = () => document.getElementById('catAnuncio').textContent;
+
+    it('as pontas nascem aria-disabled: o primeiro não sobe, o último não desce', () => {
+        expect(botao(2, -1).getAttribute('aria-disabled')).toBe('true');
+        expect(botao(2, 1).hasAttribute('aria-disabled')).toBe(false);
+        expect(botao(3, -1).hasAttribute('aria-disabled')).toBe(false);
+        expect(botao(3, 1).getAttribute('aria-disabled')).toBe('true');
+        // Chip sozinho na coluna: as duas pontas.
+        expect(botao(1, -1).getAttribute('aria-disabled')).toBe('true');
+        expect(botao(1, 1).getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('▼ troca com o de baixo, grava a ordem nova e anuncia a posição', async () => {
+        respostas = [resposta(200, { ok: true })];
+
+        botao(2, 1).click();
+        await flush();
+
+        expect(ordem('expense')).toEqual([3, 2]);
+        expect(chamadas).toHaveLength(1);
+        expect(chamadas[0]).toMatchObject({ url: '/categories/ordenar', method: 'PATCH' });
+        expect(JSON.parse(chamadas[0].body)).toEqual({ ids: [3, 2] });
+        expect(anuncio()).toBe('Mercado: posição 2 de 2 em Despesas.');
+        expect(window.alert).not.toHaveBeenCalled();
+    });
+
+    it('as pontas se recalculam depois de mover', async () => {
+        respostas = [resposta(200, { ok: true })];
+
+        botao(2, 1).click();
+        await flush();
+
+        expect(botao(3, -1).getAttribute('aria-disabled')).toBe('true');
+        expect(botao(2, 1).getAttribute('aria-disabled')).toBe('true');
+        expect(botao(2, -1).hasAttribute('aria-disabled')).toBe(false);
+    });
+
+    it('o foco fica no botão apertado: dá para apertar de novo sem caçar o botão', async () => {
+        respostas = [resposta(200, { ok: true })];
+        botao(3, -1).focus();
+
+        botao(3, -1).click();
+        await flush();
+
+        expect(ordem('expense')).toEqual([3, 2]);
+        expect(document.activeElement).toBe(botao(3, -1));
+    });
+
+    it('▲ no topo não chama o servidor, e quem apertou ouve por quê', async () => {
+        botao(2, -1).click();
+        await flush();
+
+        expect(ordem('expense')).toEqual([2, 3]);
+        expect(chamadas).toHaveLength(0);
+        expect(anuncio()).toBe('Mercado já está no topo de Despesas.');
+    });
+
+    it('recusado pelo servidor: a coluna volta à ordem gravada e avisa', async () => {
+        respostas = [resposta(500)];
+
+        botao(2, 1).click();
+        await flush();
+
+        expect(ordem('expense')).toEqual([2, 3]);
+        expect(window.alert).toHaveBeenCalledWith('Não foi possível salvar a nova ordem. Tente novamente.');
+        expect(botao(2, -1).getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('sem conexão: também volta e avisa', async () => {
+        respostas = [new TypeError('Failed to fetch')];
+
+        botao(3, -1).click();
+        await flush();
+
+        expect(ordem('expense')).toEqual([2, 3]);
+        expect(window.alert).toHaveBeenCalledTimes(1);
+    });
+
+    it('cliques rápidos: um PATCH por vez, e o seguinte leva a ordem MAIS NOVA', async () => {
+        montarPagina([[2, 'Mercado'], [3, 'Lazer'], [4, 'Transporte']]);
+
+        // O servidor só responde quando o teste mandar: é o que mostra se o segundo
+        // PATCH espera o primeiro ou sai por cima dele.
+        const pendentes = [];
+        global.fetch = vi.fn((url, init = {}) => {
+            chamadas.push({ url: String(url), method: init.method, body: init.body });
+            return new Promise((resolve) => pendentes.push(resolve));
+        });
+
+        botao(2, 1).click();
+        await flush();
+        expect(chamadas).toHaveLength(1);
+        expect(JSON.parse(chamadas[0].body)).toEqual({ ids: [3, 2, 4] });
+
+        botao(2, 1).click();
+        await flush();
+        // Com o primeiro ainda sem resposta, o segundo espera na fila.
+        expect(ordem('expense')).toEqual([3, 4, 2]);
+        expect(chamadas).toHaveLength(1);
+
+        pendentes[0](resposta(200, { ok: true }));
+        await flush();
+
+        expect(chamadas).toHaveLength(2);
+        expect(JSON.parse(chamadas[1].body)).toEqual({ ids: [3, 4, 2] });
+
+        pendentes[1](resposta(200, { ok: true }));
+        await flush();
+        expect(window.alert).not.toHaveBeenCalled();
+    });
+
+    it('arrastar também anuncia onde a categoria foi parar', async () => {
+        respostas = [resposta(200, { ok: true }), resposta(200, { ok: true })];
+
+        await arrastar(chipDe(2), drop('income'));
+
+        expect(anuncio()).toBe('Mercado: posição 2 de 2 em Receitas.');
+        // E a coluna de destino ganhou pontas novas.
+        expect(botao(1, 1).hasAttribute('aria-disabled')).toBe(false);
+        expect(botao(2, 1).getAttribute('aria-disabled')).toBe('true');
+    });
+});
+
+describe('o modal de categoria é um diálogo (A-2)', () => {
+    const tecla = (key) => document.activeElement.dispatchEvent(
+        new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+    );
+
+    it('o lápis abre com foco no Nome e o resto inerte; o Esc fecha e devolve o foco ao lápis', () => {
+        const lapis = chipDe(2).querySelector('[data-cat-open="edit"]');
+        lapis.focus();
+
+        lapis.click();
+
+        const modal = document.getElementById('catModal');
+        expect(modal.classList.contains('open')).toBe(true);
+        expect(document.activeElement).toBe(document.getElementById('cm-name'));
+        expect(document.getElementById('catCols').hasAttribute('inert')).toBe(true);
+        expect(document.getElementById('foraDoModal').hasAttribute('inert')).toBe(true);
+
+        tecla('Escape');
+
+        expect(modal.classList.contains('open')).toBe(false);
+        expect(document.activeElement).toBe(lapis);
+        expect(document.querySelectorAll('[inert]')).toHaveLength(0);
     });
 });

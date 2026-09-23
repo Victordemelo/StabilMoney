@@ -2,6 +2,7 @@
 @import './design-system.css';
 @import './forms.css';
 @import './auth.css';
+@import './acessibilidade.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';

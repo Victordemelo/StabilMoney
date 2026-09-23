@@ -31,10 +31,11 @@
                 @method('PUT')
             @endif
 
-            {{-- Tipo --}}
+            {{-- Tipo — os grupos de radio (Tipo, Ícone, Cor) levam `role="radiogroup"`
+                 com o nome do rótulo, como no modal da listagem. --}}
             <div class="field">
-                <label>Tipo</label>
-                <div class="type-toggle">
+                <label id="cat-tipo-rotulo">Tipo</label>
+                <div class="type-toggle" role="radiogroup" aria-labelledby="cat-tipo-rotulo">
                     <input type="radio" id="tt-income" name="type" value="income" @checked($tipoAtual === 'income')>
                     <label class="tt-income" for="tt-income">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17 17 7M17 7h-7M17 7v7"/></svg>
@@ -58,10 +59,10 @@
                 @error('name')<div class="field-error">{{ $message }}</div>@enderror
             </div>
 
-            {{-- Ícone --}}
+            {{-- Ícone (cada opção se chama pelo próprio emoji) --}}
             <div class="field">
-                <label>Ícone</label>
-                <div class="icon-picker">
+                <label id="cat-icone-rotulo">Ícone</label>
+                <div class="icon-picker" role="radiogroup" aria-labelledby="cat-icone-rotulo">
                     @foreach ($icones as $i => $emoji)
                         <input type="radio" id="ic-{{ $i }}" name="icon" value="{{ $emoji }}" @checked($iconeAtual === $emoji)>
                         <label for="ic-{{ $i }}">{{ $emoji }}</label>
@@ -70,15 +71,17 @@
                 @error('icon')<div class="field-error">{{ $message }}</div>@enderror
             </div>
 
-            {{-- Cor --}}
+            {{-- Cor — bolinha sem texto: o NOME da cor vai escondido para o leitor de
+                 tela e no title para o mouse (o hex de antes era soletrado). --}}
             <div class="field">
-                <label>Cor</label>
-                <div class="color-picker">
+                <label id="cat-cor-rotulo">Cor</label>
+                <div class="color-picker" role="radiogroup" aria-labelledby="cat-cor-rotulo">
                     <input type="radio" id="cor-default" name="color" value="" @checked($corAtual === '' || $corAtual === null)>
-                    <label for="cor-default" title="Sem cor (padrão)" style="background: linear-gradient(135deg, var(--surface-3), var(--line))"></label>
+                    <label for="cor-default" title="Sem cor (padrão)" style="background: linear-gradient(135deg, var(--surface-3), var(--line))"><span class="sr-only">Sem cor (padrão)</span></label>
                     @foreach ($cores as $i => $cor)
+                        @php $nomeCor = \App\Support\NomeDaCor::de($cor); @endphp
                         <input type="radio" id="cor-{{ $i }}" name="color" value="{{ $cor }}" @checked($corAtual === $cor)>
-                        <label for="cor-{{ $i }}" title="{{ $cor }}" style="background: {{ $cor }}"></label>
+                        <label for="cor-{{ $i }}" title="{{ $nomeCor }}" style="background: {{ $cor }}"><span class="sr-only">{{ $nomeCor }}</span></label>
                     @endforeach
                 </div>
                 @error('color')<div class="field-error">{{ $message }}</div>@enderror

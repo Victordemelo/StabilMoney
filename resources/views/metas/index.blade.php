@@ -160,17 +160,21 @@
     @endif
 </section>
 
-{{-- ============================ MODAIS ============================ --}}
+{{-- ============================ MODAIS ============================
+     Cada `.modal` é um DIÁLOGO (role, aria-modal e o nome vindo do título — ids com o
+     id da meta, porque há um modal por meta). Foco, Tab preso, Esc e o resto da
+     página inerte vêm do sm/dialogo.js, pelo metas.js. --}}
 
 {{-- Modal: Nova meta (criar) --}}
 @php $reabreCreate = $errors->any() && old('_form') === 'create'; @endphp
 <div class="modal-scrim" id="metaCreateModal" data-meta-modal data-reopen="{{ $reabreCreate ? '1' : '' }}">
-    <div class="modal modal-lg">
+    <div class="modal modal-lg" role="dialog" aria-modal="true"
+         aria-labelledby="metaCreateModal-titulo" aria-describedby="metaCreateModal-descricao">
         <div class="modal-head">
-            <span class="modal-ico ico-in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></svg></span>
+            <span class="modal-ico ico-in" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></svg></span>
             <div>
-                <h3>Nova meta</h3>
-                <p>Defina seu objetivo e acompanhe o progresso.</p>
+                <h3 id="metaCreateModal-titulo">Nova meta</h3>
+                <p id="metaCreateModal-descricao">Defina seu objetivo e acompanhe o progresso.</p>
             </div>
             <button class="modal-x" type="button" data-meta-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -206,10 +210,11 @@
                      alvo e do prazo (ver initMetas → planoDeAporte). --}}
                 <p class="meta-plan" data-meta-plan data-saved="0" hidden></p>
 
-                {{-- Emoji picker (radios nativos → acessível sem JS) --}}
+                {{-- Emoji picker (radios nativos → acessível sem JS). O `radiogroup` dá
+                     ao grupo o nome do rótulo; cada opção se chama pelo próprio emoji. --}}
                 <div class="field">
-                    <label>Ícone</label>
-                    <div class="icon-picker meta-emoji-picker">
+                    <label id="meta-c-icone-rotulo">Ícone</label>
+                    <div class="icon-picker meta-emoji-picker" role="radiogroup" aria-labelledby="meta-c-icone-rotulo">
                         @foreach ($metaEmojis as $i => $em)
                             <input type="radio" name="emoji" id="meta-c-emoji-{{ $i }}" value="{{ $em }}"
                                    @checked(($reabreCreate ? old('emoji') : null) === $em || ((!$reabreCreate || !old('emoji')) && $i === 0))>
@@ -218,14 +223,17 @@
                     </div>
                 </div>
 
-                {{-- Cor picker --}}
+                {{-- Cor picker — a bolinha não tem texto, então cada opção leva o NOME da
+                     cor escondido para o leitor de tela (e no title, para o mouse). Sem
+                     ele, os 10 radios eram "botão de opção" e nada mais. --}}
                 <div class="field">
-                    <label>Cor</label>
-                    <div class="color-picker">
+                    <label id="meta-c-cor-rotulo">Cor</label>
+                    <div class="color-picker" role="radiogroup" aria-labelledby="meta-c-cor-rotulo">
                         @foreach ($metaCores as $i => $cor)
+                            @php $nomeCor = \App\Support\NomeDaCor::de($cor); @endphp
                             <input type="radio" name="color" id="meta-c-color-{{ $i }}" value="{{ $cor }}"
                                    @checked(($reabreCreate ? old('color') : null) === $cor || ((!$reabreCreate || !old('color')) && $i === 0))>
-                            <label for="meta-c-color-{{ $i }}" style="background:{{ $cor }}"></label>
+                            <label for="meta-c-color-{{ $i }}" style="background:{{ $cor }}" title="{{ $nomeCor }}"><span class="sr-only">{{ $nomeCor }}</span></label>
                         @endforeach
                     </div>
                 </div>
@@ -246,12 +254,15 @@
         $reabreEdit = $errors->any() && old('_form') === 'edit-' . $goal->id;
     @endphp
     <div class="modal-scrim" id="metaEditModal-{{ $goal->id }}" data-meta-modal data-reopen="{{ $reabreEdit ? '1' : '' }}">
-        <div class="modal modal-lg">
+        <div class="modal modal-lg" role="dialog" aria-modal="true"
+             aria-labelledby="metaEditModal-{{ $goal->id }}-titulo" aria-describedby="metaEditModal-{{ $goal->id }}-descricao">
             <div class="modal-head">
-                <span class="modal-ico ico-in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg></span>
+                <span class="modal-ico ico-in" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg></span>
                 <div>
-                    <h3>Editar meta</h3>
-                    <p>Ajuste o nome, valor alvo ou prazo.</p>
+                    {{-- O nome da meta vai no título: com um modal por meta, "Editar meta"
+                         sozinho não diz ao leitor de tela QUAL está sendo editada. --}}
+                    <h3 id="metaEditModal-{{ $goal->id }}-titulo">Editar meta <span class="sr-only">{{ $goal->name }}</span></h3>
+                    <p id="metaEditModal-{{ $goal->id }}-descricao">Ajuste o nome, valor alvo ou prazo.</p>
                 </div>
                 <button class="modal-x" type="button" data-meta-close aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -291,8 +302,8 @@
                     <p class="meta-plan" data-meta-plan data-saved="{{ $goal->saved }}" hidden></p>
 
                     <div class="field">
-                        <label>Ícone</label>
-                        <div class="icon-picker meta-emoji-picker">
+                        <label id="meta-e-icone-rotulo-{{ $goal->id }}">Ícone</label>
+                        <div class="icon-picker meta-emoji-picker" role="radiogroup" aria-labelledby="meta-e-icone-rotulo-{{ $goal->id }}">
                             @foreach ($metaEmojis as $i => $em)
                                 @php $sel = $reabreEdit ? old('emoji') : $gEmoji; @endphp
                                 <input type="radio" name="emoji" id="meta-e-emoji-{{ $goal->id }}-{{ $i }}" value="{{ $em }}" @checked($sel === $em)>
@@ -308,17 +319,22 @@
                     </div>
 
                     <div class="field">
-                        <label>Cor</label>
-                        <div class="color-picker">
+                        <label id="meta-e-cor-rotulo-{{ $goal->id }}">Cor</label>
+                        <div class="color-picker" role="radiogroup" aria-labelledby="meta-e-cor-rotulo-{{ $goal->id }}">
                             @foreach ($metaCores as $i => $cor)
-                                @php $selC = $reabreEdit ? old('color') : $gCor; @endphp
+                                @php
+                                    $selC = $reabreEdit ? old('color') : $gCor;
+                                    $nomeCor = \App\Support\NomeDaCor::de($cor);
+                                @endphp
                                 <input type="radio" name="color" id="meta-e-color-{{ $goal->id }}-{{ $i }}" value="{{ $cor }}" @checked($selC === $cor)>
-                                <label for="meta-e-color-{{ $goal->id }}-{{ $i }}" style="background:{{ $cor }}"></label>
+                                <label for="meta-e-color-{{ $goal->id }}-{{ $i }}" style="background:{{ $cor }}" title="{{ $nomeCor }}"><span class="sr-only">{{ $nomeCor }}</span></label>
                             @endforeach
                             @php $corNaLista = in_array($reabreEdit ? old('color') : $gCor, $metaCores, true); @endphp
                             @unless ($corNaLista)
+                                {{-- Cor fora da paleta (meta antiga): nome pela aparência, nunca o hex. --}}
+                                @php $nomeCorAtual = \App\Support\NomeDaCor::de($reabreEdit ? old('color') : $gCor); @endphp
                                 <input type="radio" name="color" id="meta-e-color-{{ $goal->id }}-x" value="{{ $reabreEdit ? old('color') : $gCor }}" checked>
-                                <label for="meta-e-color-{{ $goal->id }}-x" style="background:{{ $reabreEdit ? old('color') : $gCor }}"></label>
+                                <label for="meta-e-color-{{ $goal->id }}-x" style="background:{{ $reabreEdit ? old('color') : $gCor }}" title="{{ $nomeCorAtual }}"><span class="sr-only">{{ $nomeCorAtual }}</span></label>
                             @endunless
                         </div>
                     </div>
@@ -335,12 +351,13 @@
 {{-- Modal: Excluir meta (um por meta, confirmação) --}}
 @foreach ($goals as $goal)
     <div class="modal-scrim" id="metaDeleteModal-{{ $goal->id }}" data-meta-modal>
-        <div class="modal">
+        <div class="modal" role="dialog" aria-modal="true"
+             aria-labelledby="metaDeleteModal-{{ $goal->id }}-titulo" aria-describedby="metaDeleteModal-{{ $goal->id }}-descricao">
             <div class="modal-head">
-                <span class="modal-ico ico-out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg></span>
+                <span class="modal-ico ico-out" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg></span>
                 <div>
-                    <h3>Excluir meta</h3>
-                    <p>Tem certeza que deseja excluir “{{ $goal->name }}”? Esta ação não pode ser desfeita.</p>
+                    <h3 id="metaDeleteModal-{{ $goal->id }}-titulo">Excluir meta</h3>
+                    <p id="metaDeleteModal-{{ $goal->id }}-descricao">Tem certeza que deseja excluir “{{ $goal->name }}”? Esta ação não pode ser desfeita.</p>
                 </div>
                 <button class="modal-x" type="button" data-meta-close aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -365,12 +382,13 @@
      data-action-base="{{ route('metas.aportes.store', '__ID__') }}"
      data-reopen="{{ $reabreAporte ? '1' : '' }}"
      data-reopen-action="{{ old('_action') }}">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true"
+         aria-labelledby="metaAporteModal-titulo" aria-describedby="metaAporteModal-descricao">
         <div class="modal-head">
-            <span class="modal-ico ico-in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span>
+            <span class="modal-ico ico-in" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span>
             <div>
-                <h3>Aportar <span data-aporte-name></span></h3>
-                <p>Guarde um valor para esta meta.</p>
+                <h3 id="metaAporteModal-titulo">Aportar <span data-aporte-name></span></h3>
+                <p id="metaAporteModal-descricao">Guarde um valor para esta meta.</p>
             </div>
             <button class="modal-x" type="button" data-meta-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -445,12 +463,13 @@
      data-action-base="{{ route('metas.resgates.store', '__ID__') }}"
      data-reopen="{{ $reabreResgate ? '1' : '' }}"
      data-reopen-action="{{ old('_action') }}">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true"
+         aria-labelledby="metaResgateModal-titulo" aria-describedby="metaResgateModal-descricao">
         <div class="modal-head">
-            <span class="modal-ico ico-out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M5 12l7 7 7-7"/></svg></span>
+            <span class="modal-ico ico-out" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M5 12l7 7 7-7"/></svg></span>
             <div>
-                <h3>Resgatar <span data-resgate-name></span></h3>
-                <p>Devolva parte do valor guardado para uma conta.</p>
+                <h3 id="metaResgateModal-titulo">Resgatar <span data-resgate-name></span></h3>
+                <p id="metaResgateModal-descricao">Devolva parte do valor guardado para uma conta.</p>
             </div>
             <button class="modal-x" type="button" data-meta-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>

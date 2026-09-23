@@ -1,0 +1,80 @@
+/* =====================================================================
+   StabilMoney — Acessibilidade (auditoria de 07/09/2026, achados A-2 e A-4)
+   ---------------------------------------------------------------------
+   Só o que o teclado e o leitor de tela precisavam e o design system ainda
+   não tinha. Tudo nos tokens (`var(--...)`), nos dois temas. Vem DEPOIS do
+   design-system.css e do forms.css no app.css, e não sobrescreve nada deles:
+   só acrescenta estados (foco, ponta da coluna) e o controle novo de mover.
+   ===================================================================== */
+
+/* ----- Foco visível nos pickers de ícone e de cor -----
+   Os radios desses pickers ficam invisíveis (opacity 0) e quem aparece é o
+   <label> ao lado. O forms.css estiliza o MARCADO, mas não o FOCADO: navegando
+   por Tab ou pelas setas, não havia sinal nenhum de onde o foco estava
+   (WCAG 2.4.7). O anel é na cor do texto, e não na da marca, para não se
+   confundir com o de "selecionado" (verde) — que costuma estar na mesma
+   bolinha, porque nos radios a seta move o foco E a seleção juntos. */
+.icon-picker input:focus-visible + label {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+/* Na cor, o anel de selecionado já ocupa até 5px fora da bolinha: o de foco
+   vem por fora dele (6px), e ainda cabe no vão de 10px entre as bolinhas. */
+.color-picker input:focus-visible + label {
+  outline: 2px solid var(--ink);
+  outline-offset: 6px;
+}
+
+/* ----- Foto do dependente: o anel acende na bolinha -----
+   O campo de arquivo deixou de ser `hidden` (que o tirava do Tab) e virou
+   `sr-only`: ele recebe o foco, mas quem se vê é a bolinha logo depois dele. */
+.avatar-pick input:focus-visible + .avatar-pick-img {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
+}
+
+/* ----- Categorias: mover para cima/baixo sem arrastar -----
+   Dois botões empilhados na coluna do chip, na mesma receita dos botões de
+   editar/excluir do chip (.cc-act/.cc-del no forms.css): cinza, sem fundo,
+   que aparecem ao passar o mouse, ao receber foco e sempre no toque.
+   18px de largura — a MESMA do grip, que some no celular para dar o lugar: com
+   24px, "Alimentação" e "Transporte" passavam a sair cortados em 360px (medido
+   no Chromium). 18×24 cumpre o WCAG 2.5.8 pela exceção de espaçamento: os
+   círculos de 24px centrados em cada botão só se tocam entre si e não alcançam
+   o excluir, 12px ao lado. A margem negativa deixa a pilha (48px) invadir o
+   respiro do chip sem mudar a altura dele (o conteúdo tem 38px). */
+.cat-chip .cc-mover {
+  display: flex; flex-direction: column; flex: none;
+  width: 18px; margin: -5px 0;
+}
+.cat-chip .cc-mv {
+  width: 18px; height: 24px; border-radius: 6px;
+  display: grid; place-items: center;
+  color: var(--ink-3); opacity: 0;
+  transition: opacity .15s var(--ease), background .15s var(--ease), color .15s var(--ease);
+}
+.cat-chip .cc-mv svg { width: 14px; height: 14px; stroke-width: 2.2; }
+.cat-chip:hover .cc-mv,
+.cat-chip .cc-mover:focus-within .cc-mv { opacity: 1; }
+.cat-chip .cc-mv:hover { background: var(--surface-3); color: var(--brand-600); }
+[data-theme="dark"] .cat-chip .cc-mv:hover { background: rgba(28,154,112,.14); color: var(--brand-300); }
+
+/* Ponta da coluna: o botão continua lá e continua focável (aria-disabled, não
+   disabled), só apagado — e sem o realce de clicável. */
+.cat-chip:hover .cc-mv[aria-disabled="true"],
+.cat-chip .cc-mover:focus-within .cc-mv[aria-disabled="true"] { opacity: .35; }
+.cat-chip .cc-mv[aria-disabled="true"] { cursor: default; }
+.cat-chip .cc-mv[aria-disabled="true"]:hover { background: none; color: var(--ink-3); }
+
+/* Toque não tem hover: os botões ficam sempre à vista (como editar/excluir). */
+@media (hover: none) {
+  .cat-chip .cc-mv { opacity: 1; }
+  .cat-chip .cc-mv[aria-disabled="true"] { opacity: .35; }
+}
+
+/* No celular o arraste quase não funciona, e o grip (decorativo) cede o lugar
+   aos botões: sem isto o nome da categoria perdia 30px num aparelho de 360px
+   e "Alimentação" saía cortado. Com a troca, o nome fica com a largura de antes. */
+@media (max-width: 640px) {
+  .cat-chip .cc-grip { display: none; }
+}

@@ -2,15 +2,18 @@
      disponível não cobre. O conteúdo é montado pelo JS (sm/funding.js) com o
      payload do 409, e NÃO por View Composer: assim o shell de toda página não
      precisa carregar saldos e investimentos que quase nunca serão usados. --}}
+{{-- O painel é o diálogo; o resumo que o JS preenche ("A conta X tem R$ …") é a
+     DESCRIÇÃO dele, lida junto com o título quando o foco entra. --}}
 <div class="modal-scrim" id="fundingModal" data-funding-scrim data-close>
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true"
+         aria-labelledby="fundingModal-titulo" aria-describedby="fundingModal-descricao">
         <div class="modal-head">
-            <span class="modal-ico ico-out">
+            <span class="modal-ico ico-out" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5h.01"/></svg>
             </span>
             <div>
-                <h3>De onde sai esse dinheiro?</h3>
-                <p data-funding-resumo>Seu saldo não cobre esta despesa.</p>
+                <h3 id="fundingModal-titulo">De onde sai esse dinheiro?</h3>
+                <p id="fundingModal-descricao" data-funding-resumo>Seu saldo não cobre esta despesa.</p>
             </div>
             <button class="modal-x" type="button" data-funding-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -18,8 +21,9 @@
         </div>
 
         <div class="modal-body">
-            {{-- Opções injetadas pelo JS: uma <label class="fonte-opt"> por fonte --}}
-            <div class="fonte-lista" data-funding-opcoes></div>
+            {{-- Opções injetadas pelo JS: uma <label class="fonte-opt"> por fonte. O grupo
+                 leva o nome do título, senão cada opção seria lida solta. --}}
+            <div class="fonte-lista" data-funding-opcoes role="radiogroup" aria-labelledby="fundingModal-titulo"></div>
 
             {{-- Quando nenhuma fonte cobre: explica a saída (lançar um recebimento) --}}
             <div class="flash-error" data-funding-sem-saida role="alert" hidden>
@@ -56,14 +60,15 @@
         $smResgate = $smFontes->firstWhere('id', 'resgate_investimento');
     @endphp
     <div class="modal-scrim open" id="fundingModalSemJs" data-funding-fallback>
-        <div class="modal">
+        <div class="modal" role="dialog" aria-modal="true"
+             aria-labelledby="fundingModalSemJs-titulo" aria-describedby="fundingModalSemJs-descricao">
             <div class="modal-head">
-                <span class="modal-ico ico-out">
+                <span class="modal-ico ico-out" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5h.01"/></svg>
                 </span>
                 <div>
-                    <h3>De onde sai esse dinheiro?</h3>
-                    <p>
+                    <h3 id="fundingModalSemJs-titulo">De onde sai esse dinheiro?</h3>
+                    <p id="fundingModalSemJs-descricao">
                         A conta {{ $smFonte['conta']['nome'] ?? '' }} tem @brl($smFonte['disponivel'] ?? 0)
                         disponíveis e este pagamento é de @brl($smFonte['valor'] ?? 0).
                         Faltam @brl($smFonte['faltante'] ?? 0).
@@ -92,7 +97,7 @@
                 @endif
 
                 <div class="modal-body">
-                    <div class="fonte-lista">
+                    <div class="fonte-lista" role="radiogroup" aria-labelledby="fundingModalSemJs-titulo">
                         @foreach ($smFontes as $smOpt)
                             <label class="fonte-opt {{ empty($smOpt['cobre']) ? 'disabled' : '' }}">
                                 <input type="radio" name="funding_source" value="{{ $smOpt['id'] }}"
@@ -116,7 +121,8 @@
                                             // marca o primeiro da lista, mesmo desabilitado.
                                             $smItemViavel = collect($smOpt['itens'])->firstWhere('cobre', true)['id'] ?? null;
                                         @endphp
-                                        <select class="input" name="funding_investment_id" @disabled(empty($smOpt['cobre']))>
+                                        {{-- Nome próprio: o <label> em volta nomeia o radio, não o select. --}}
+                                        <select class="input" name="funding_investment_id" aria-label="Investimento a resgatar" @disabled(empty($smOpt['cobre']))>
                                             @foreach ($smOpt['itens'] as $smItem)
                                                 <option value="{{ $smItem['id'] }}"
                                                         @selected($smItem['id'] === $smItemViavel)
