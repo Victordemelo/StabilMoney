@@ -17,14 +17,44 @@ use App\Http\Controllers\SecurityController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\TwoFactorController;
+use App\Http\Middleware\BloqueiaUsuarioBanido;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 // PWA — PÚBLICO de propósito (fora do 'auth'): o navegador lê o manifest
 // para oferecer "Instalar" (inclusive na tela de login) e registra o
 // service worker sem sessão. Nada aqui expõe dado do usuário.
-Route::get('/site.webmanifest', [PwaController::class, 'manifest'])->name('pwa.manifest');
-Route::get('/sw.js', [PwaController::class, 'serviceWorker'])->name('pwa.sw');
-Route::view('/offline', 'pwa.offline')->name('pwa.offline');
+//
+// E SEM SESSÃO nem cookie (22/09/2026). Ninguém clica nestes três: o navegador os
+// busca sozinho — o /sw.js a cada checagem de versão (inclusive a que o `sm/pwa.js`
+// dispara quando o app volta para a frente), o manifest quando ele avalia a instalação
+// do app e o /offline no precache do SW. No grupo `web` inteiro, cada busca abria
+// sessão: uma linha em `sessions` e um Set-Cookie por checagem, de um "visitante" que
+// nunca faz nada — e a tabela guarda IP e user-agent. Nenhum dos três lê sessão,
+// usuário, CSRF ou erro de validação, então saem só as peças que existem para isso.
+//
+// ⚠️ O `SecurityHeaders` FICA, e é por isso que estas rotas não foram para fora do grupo
+// (como o /up, no bootstrap/app.php): a CSP especial do /sw.js — `connect-src` com as
+// fontes do Google, ver FontesPeloServiceWorkerTest — e o nonce do script da página
+// offline saem dele. Coberto por RotasDoPwaSemSessaoTest.
+Route::withoutMiddleware([
+    EncryptCookies::class,
+    AddQueuedCookiesToResponse::class,
+    StartSession::class,
+    ShareErrorsFromSession::class,
+    ValidateCsrfToken::class,
+    // Lê o usuário da SESSÃO para barrar banido; sem sessão não há quem barrar, e ele
+    // chamaria `$request->session()`, que aqui não existe.
+    BloqueiaUsuarioBanido::class,
+])->group(function () {
+    Route::get('/site.webmanifest', [PwaController::class, 'manifest'])->name('pwa.manifest');
+    Route::get('/sw.js', [PwaController::class, 'serviceWorker'])->name('pwa.sw');
+    Route::view('/offline', 'pwa.offline')->name('pwa.offline');
+});
 
 // Páginas legais (Termos / Privacidade) — PÚBLICAS: o cadastro e o aviso de
 // cookies linkam para elas, e o aceite obrigatório no registro deixa de ser um
