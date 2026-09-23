@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\AutenticaNoPainel;
+use App\Models\Admin;
 use App\Models\AdminAuditLog;
 use App\Support\AdminAudit;
 use App\Support\Totp;
@@ -49,6 +51,15 @@ class TwoFactorController extends Controller
     {
         $admin = $request->user('admin');
 
+        // Quem já confirmou não "confirma" de novo — a tela (GET) já desviava, o POST não.
+        // Por aqui, a senha e UM código do autenticador, que no desafio só abrem a sessão,
+        // devolviam a lista inteira de códigos de recuperação (o `confirmarDoisFatores` a
+        // devolve): oito entradas futuras que não dependem do celular, e que o painel não
+        // tem como trocar.
+        if ($admin->temDoisFatores()) {
+            return redirect()->route('painel.home');
+        }
+
         $dados = $request->validate(
             ['codigo' => ['required', 'string']],
             [],
@@ -58,12 +69,22 @@ class TwoFactorController extends Controller
         $codigos = $admin->confirmarDoisFatores($dados['codigo']);
 
         if ($codigos === null) {
+            // Código errado na configuração também é tentativa com a senha certa: vai para
+            // o histórico e para o e-mail, como no desafio (achado A-2 da auditoria de
+            // 06/09/2026).
+            AdminAudit::registrar(
+                AdminAuditLog::TOTP_FALHOU,
+                $admin,
+                $request,
+                motivo: 'Na configuração do app autenticador (primeiro acesso).',
+            );
+
             throw ValidationException::withMessages([
                 'codigo' => 'Código inválido. Confira o app autenticador e tente de novo.',
             ]);
         }
 
-        $request->session()->put('admin_2fa_ok', true);
+        $this->entrar($request, $admin, motivo: 'Primeiro acesso, com a configuração do app autenticador.');
 
         // Os códigos de recuperação aparecem UMA vez. Vão pela sessão (flash), não pela
         // URL nem pelo banco em texto.
@@ -124,15 +145,34 @@ class TwoFactorController extends Controller
             ]);
         }
 
+        $this->entrar($request, $admin);
+
+        // O destino guardado pelo PAINEL, nunca o `url.intended` — aquele é do app, e ler
+        // dele mandava o admin para uma tela do app (achado A-14 da auditoria de 05/09/2026).
+        return redirect()->to(
+            $request->session()->pull(AutenticaNoPainel::CHAVE_DESTINO, route('painel.home')),
+        );
+    }
+
+    /**
+     * O que faz de um segundo fator aceito um LOGIN no painel, num lugar só.
+     *
+     * São duas portas: o desafio de toda sessão (`verificar`) e a configuração do primeiro
+     * acesso (`confirmar`). Enquanto isto morava só na primeira, o primeiro acesso de cada
+     * admin — justamente o que amarra um autenticador à conta — não entrava no histórico,
+     * não avisava ninguém e não gravava o último acesso (achado A-2 da auditoria de
+     * 06/09/2026). Quem descobrisse a senha de um admin que ainda não configurou o 2FA
+     * cadastraria o PRÓPRIO celular em silêncio.
+     */
+    private function entrar(Request $request, Admin $admin, ?string $motivo = null): void
+    {
         // Sessão nova a cada elevação de privilégio: o id de sessão que existia antes
         // do segundo fator não continua valendo depois dele.
         $request->session()->regenerate();
         $request->session()->put('admin_2fa_ok', true);
 
         $admin->registrarLogin($request->ip());
-        AdminAudit::registrar(AdminAuditLog::LOGIN, $admin, $request);
-
-        return redirect()->intended(route('painel.home'));
+        AdminAudit::registrar(AdminAuditLog::LOGIN, $admin, $request, motivo: $motivo);
     }
 
     /**
