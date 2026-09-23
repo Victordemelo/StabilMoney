@@ -5,6 +5,9 @@ use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
 use Monolog\Processor\PsrLogMessageProcessor;
 
+// Retenção do log diário, normalizada ANTES de virar config (ver o canal `daily`).
+$diasDeLog = (int) env('LOG_DAILY_DAYS', 180);
+
 return [
 
     /*
@@ -52,9 +55,14 @@ return [
 
     'channels' => [
 
+        // O padrão é o log DIÁRIO, não o `single` do Laravel. Com `single` tudo ia
+        // para um laravel.log que nunca gira: na VPS ele cresce até encher o disco, e
+        // guarda para sempre dados pessoais (id de usuário, e-mail citado no erro do
+        // SMTP) que a Política de Privacidade (seção 11) promete manter por até 6
+        // meses. Ver o canal `daily` logo abaixo.
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
+            'channels' => explode(',', (string) env('LOG_STACK', 'daily')),
             'ignore_exceptions' => false,
         ],
 
@@ -65,11 +73,18 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Um arquivo por dia (laravel-AAAA-MM-DD.log); ao virar o dia, o Monolog apaga
+        // os que passaram de `days`. 180 dias = os "até 6 meses" que a Política de
+        // Privacidade promete para os registros de acesso — mudou um, mude o outro
+        // (resources/views/legal/privacidade.blade.php). O padrão do Laravel eram 14.
+        //
+        // `LOG_DAILY_DAYS` vazio, zero ou negativo cai nos 180: para o Monolog, zero é
+        // "nunca apagar nada" — justamente o defeito que este canal existe para evitar.
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => env('LOG_DAILY_DAYS', 14),
+            'days' => $diasDeLog > 0 ? $diasDeLog : 180,
             'replace_placeholders' => true,
         ],
 

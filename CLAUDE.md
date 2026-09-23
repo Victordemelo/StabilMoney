@@ -1701,6 +1701,14 @@ npm run test:js  # testes de JavaScript (Vitest + jsdom); `test:js:watch` para m
   rede em `docker inspect`). **Fix:** `docker compose down; docker compose up -d` (recria os
   containers na mesma rede; o volume `db_data` é preservado, nada se perde).
 
+### Logs — diário, 180 dias
+O padrão de produção é `LOG_STACK=daily` com `LOG_DAILY_DAYS=180` (`config/logging.php` e
+`.env.example`, 22/09/2026 — `LogDiarioGuardaSeisMesesTest`): um arquivo por dia, e o Monolog
+apaga os que passaram do prazo. Com o `single` de antes, o `laravel.log` crescia para sempre até
+encher o disco da VPS. **180 dias são os "até 6 meses" da Política de Privacidade — mudou um, mude
+o outro.** Vazio ou 0 cai em 180 (para o Monolog, 0 é "nunca apagar"). O `.env` de dev continua
+com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
+
 ### Comandos úteis
 ```powershell
 docker compose exec app php artisan test                       # suíte PHP completa (1.315 testes)

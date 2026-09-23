@@ -277,6 +277,23 @@ php artisan up
 > `public/index.php`, antes de o framework subir. Use só se o próprio deploy puder quebrar o
 > framework no meio; no caso comum, o `down` simples já mostra a página de manutenção do app.
 
+### 10.3. Log diário, 180 dias
+
+```env
+LOG_STACK=daily
+LOG_DAILY_DAYS=180
+```
+
+**Por quê:** com `single` (o padrão antigo) o `laravel.log` nunca gira e cresce até encher o
+disco da VPS — e guarda para sempre dados pessoais que a Política de Privacidade promete manter
+por "até 6 meses". Com `daily`, nasce um arquivo por dia e os que passaram de 180 dias são
+apagados sozinhos. `storage/logs` precisa aceitar escrita do `www-data` (item 7): se não aceitar,
+o `/up` responde 503 (item 10.2).
+
+> ⚠️ Os logs do **Docker** (o de acesso do Apache vai para a saída do container) também não giram
+> no driver padrão `json-file`. Configure `max-size`/`max-file` no `docker-compose` da VPS ou no
+> `daemon.json` — senão o disco enche do mesmo jeito, por outro caminho.
+
 ### 11. Backup do banco — automático, testado e fora da VPS
 
 Existem dois scripts prontos no repositório (feitos em 02/08/2026, depois do incidente de
