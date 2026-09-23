@@ -81,7 +81,7 @@ class ProfileController extends Controller
         }
 
         if ($request->hasFile('avatar')) {
-            // Apaga a foto antiga e grava a nova sem metadados (EXIF/GPS).
+            // Grava a nova sem metadados (EXIF/GPS); a antiga só sai depois do save (hook `updated` do User).
             $user->storeAvatar($request->file('avatar'));
         }
 

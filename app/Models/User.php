@@ -237,39 +237,70 @@ class User extends Authenticatable implements MustVerifyEmail
                 }
             });
         });
+
+        // Foto TROCADA: a antiga só sai do disco depois que a linha deixou de apontar para ela
+        // e o banco confirmou. Antes o `storeAvatar` a apagava de saída, ANTES do `save()`: se
+        // o save falhasse (ou a transação em volta fosse desfeita), a linha seguia apontando
+        // para um arquivo que não existia mais, e a pessoa ficava sem foto.
+        //
+        // `updated`, e NÃO `saved`: o `saved` também dispara num save sem mudança nenhuma, e
+        // aí o `wasChanged` ainda responde pelo save ANTERIOR, enquanto o `getOriginal` já é a
+        // foto nova — seria a foto ATUAL indo para o lixo (ex.: o ProfileController salva de
+        // novo, sem mudança, quando o link da troca de e-mail não sai). O `updated` só roda
+        // quando o UPDATE aconteceu, com as duas informações frescas.
+        static::updated(function (User $user) {
+            $antiga = $user->getOriginal('avatar_path');
+
+            if (! $user->wasChanged('avatar_path') || ! $antiga) {
+                return;
+            }
+
+            DB::afterCommit(function () use ($antiga) {
+                // Mesmo raciocínio do `deleted`: a troca já valeu; um arquivo velho que
+                // sobrou é problema de operação, não motivo para a tela dizer que falhou.
+                try {
+                    self::apagarArquivoDaFoto($antiga);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            });
+        });
     }
 
     /** Apaga o arquivo da foto de perfil do disco (não mexe na coluna). */
     public function purgeStoredAvatar(): void
     {
-        if (! $this->avatar_path) {
-            return;
+        if ($this->avatar_path) {
+            self::apagarArquivoDaFoto($this->avatar_path);
         }
+    }
 
-        Storage::disk(self::AVATAR_DISK)->delete($this->avatar_path);
+    private static function apagarArquivoDaFoto(string $caminho): void
+    {
+        Storage::disk(self::AVATAR_DISK)->delete($caminho);
         // Também no disco antigo: contas criadas antes da mudança para o disco privado
         // têm o arquivo lá, e excluir a conta precisa levar os dois.
-        Storage::disk('public')->delete($this->avatar_path);
+        Storage::disk('public')->delete($caminho);
     }
 
     /**
-     * Guarda a foto de perfil: apaga a anterior, REMOVE OS METADADOS e grava.
+     * Guarda a foto de perfil nova, SEM METADADOS, e aponta a linha para ela.
      *
-     * A limpeza de metadados existe porque estes arquivos vão para o disco `public`,
-     * servidos sem autenticação — foto de celular costuma trazer GPS no EXIF. O nome é
-     * aleatório e a extensão vem do MIME real (nunca do nome enviado pelo cliente),
-     * então não há path traversal nem `.php` disfarçado.
+     * A limpeza de metadados existe porque foto de celular costuma trazer GPS no EXIF, e a
+     * foto é vista por toda a família, pelo painel administrativo e vai para os backups — a
+     * localização da casa não tem de ir junto. O nome é aleatório e a extensão vem do MIME
+     * real (nunca do nome enviado pelo cliente), então não há path traversal nem `.php`
+     * disfarçado.
      *
      * ⚠️ O nome NOVO a cada upload é também o que versiona a URL da foto (ver
      * `avatarUrl`). Trocar isto por um nome fixo (ex.: `avatars/{id}.jpg`) faria a foto
      * trocada voltar a aparecer velha por até 1 hora.
      *
-     * Não persiste: quem chama decide quando dar `save()`.
+     * Não persiste: quem chama decide quando dar `save()`. E não apaga a foto anterior — ela
+     * sai no hook `updated` (ver `booted`), depois que a linha já aponta para a nova.
      */
     public function storeAvatar(UploadedFile $arquivo): void
     {
-        $this->purgeStoredAvatar();
-
         $limpo = ImageMetadata::strip((string) file_get_contents($arquivo->getRealPath()));
         $caminho = 'avatars/'.Str::random(40).'.'.$arquivo->extension();
 
