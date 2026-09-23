@@ -3,6 +3,7 @@
 namespace App\Exceptions;
 
 use Exception;
+use Illuminate\Contracts\Debug\ShouldntReport;
 use Illuminate\Http\Request;
 
 /**
@@ -16,9 +17,20 @@ use Illuminate\Http\Request;
  * Três front-ends consomem a mesma exceção:
  *  - modal "Lançar" e formulário de transação (fetch → 409 + payload);
  *  - telas sem JS e a de faturas (redirect com `fonteNecessaria` na sessão);
- *  - fila offline (409 → reenvia uma vez com cheque especial).
+ *  - fila offline (409 → segura o item e pergunta na página; ela NUNCA escolhe
+ *    a fonte sozinha — ver CLAUDE.md, "A fila offline NUNCA escolhe a fonte").
+ *
+ * ## `ShouldntReport`: a pergunta não vai para o log
+ *
+ * Sem isto o handler registrava cada pergunta como ERROR, com stack trace inteiro
+ * — é o destino padrão de toda exceção que ninguém marcou. Só que ela é fluxo
+ * normal: acontece toda vez que alguém gasta mais do que o disponível e tem
+ * cheque especial ou investimento para cobrir. Em produção isso enchia o log de
+ * "erros" que não eram erro nenhum, e é justamente no meio desse ruído que o erro
+ * de verdade passa despercebido. A resposta (409 ou redirect) não muda: não
+ * reportar e renderizar são etapas separadas do handler.
  */
-class RequiresFundingChoice extends Exception
+class RequiresFundingChoice extends Exception implements ShouldntReport
 {
     public function __construct(public readonly array $payload)
     {

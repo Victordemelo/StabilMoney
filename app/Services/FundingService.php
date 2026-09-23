@@ -10,8 +10,11 @@ use App\Models\InvestmentContribution;
 use App\Models\Transaction;
 use App\Support\Brl;
 use App\Support\FundingSource;
+use Closure;
+use Illuminate\Database\DetectsConcurrencyErrors;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Grava uma despesa respeitando o piso do saldo — e, quando o disponível não
@@ -28,6 +31,14 @@ use Illuminate\Validation\ValidationException;
  */
 class FundingService
 {
+    use DetectsConcurrencyErrors;
+
+    /**
+     * Quantas vezes a gravação roda quando o banco acusa deadlock (MySQL 1213) ou
+     * espera de trava estourada — o mesmo número do `HandlesContributions`.
+     */
+    public const TENTATIVAS = 3;
+
     public function __construct(private SpendingGuard $guard) {}
 
     /**
@@ -38,6 +49,19 @@ class FundingService
      * nada a gravar (fatura quitada por outra requisição, ocorrência recorrente
      * que já existe). Sem isso o caminho de corrida estourava TypeError em vez
      * de sair em silêncio.
+     *
+     * ## Deadlock vira nova tentativa, não HTTP 500
+     *
+     * Sob concorrência o MySQL escolhe uma transação como vítima e a desfaz
+     * INTEIRA (erro 1213, SQLSTATE 40001). Antes isso subia direto como 500 —
+     * o usuário via erro num lançamento que, se repetido um instante depois,
+     * passaria. Agora a gravação é refeita do zero até `TENTATIVAS` vezes: relock
+     * da conta, guard e `$write`, com o saldo relido do banco.
+     *
+     * Por isso **`$write` pode rodar mais de uma vez**: nada fora do banco dentro
+     * dele (e-mail, arquivo, evento para fora, variável acumulada por referência).
+     * E a repetição para no instante em que `$write` DEVOLVE — ver
+     * `repetirNoDeadlock()` para o porquê.
      *
      * @param  callable(array): ?Transaction  $write  recebe os campos de auditoria
      *                                                (funding_source/funding_amount)
@@ -58,7 +82,18 @@ class FundingService
         bool $obrigacao = false,
         ?float $maxFonte = null,
     ): ?Transaction {
-        return DB::transaction(function () use ($account, $amount, $source, $investmentId, $write, $ignore, $madeByUserId, $date, $obrigacao, $maxFonte) {
+        // Marca o instante em que o `$write` do chamador terminou: dali em diante a
+        // gravação não se repete (ver `repetirNoDeadlock`).
+        $escreveu = false;
+        $doChamador = $write;
+        $write = function (array $auditoria) use ($doChamador, &$escreveu): ?Transaction {
+            $resultado = $doChamador($auditoria);
+            $escreveu = true;
+
+            return $resultado;
+        };
+
+        return $this->repetirNoDeadlock(function () use ($account, $amount, $source, $investmentId, $write, $ignore, $madeByUserId, $date, $obrigacao, $maxFonte) {
             // 1. Relock da conta (o saldo é derivado de SUM sobre transactions,
             //    então travamos a linha da conta como ponto de serialização).
             $conta = Account::whereKey($account->getKey())->lockForUpdate()->first() ?? $account;
@@ -159,7 +194,55 @@ class FundingService
             throw ValidationException::withMessages([
                 'funding_source' => 'Escolha de onde sai o dinheiro é inválida.',
             ]);
-        });
+        }, $escreveu);
+    }
+
+    /**
+     * Roda `$gravacao` numa `DB::transaction` e, se o banco acusar deadlock (ou
+     * espera de trava estourada), desfaz e roda de novo — até `TENTATIVAS` vezes.
+     *
+     * Não é o `attempts:` do `DB::transaction` de propósito: há DOIS casos em que
+     * repetir seria pior do que o 500 de antes, e o `attempts:` não distingue.
+     *
+     * 1. **Depois que o `$write` do chamador devolveu** (`$escreveu`). O rollback
+     *    desfaz o banco, mas não a memória do chamador. A edição do Histórico grava
+     *    com `$transaction->update(...)` num model que ela mesma segura: depois do
+     *    primeiro save o Eloquent dá os valores novos por gravados, e o `update()`
+     *    da repetição sai sem UPDATE nenhum — a linha voltava ao valor antigo
+     *    enquanto o resgate era gravado de novo. Dinheiro pela metade, em silêncio.
+     *    Depois do `$write` só resta gravar o resgate (`comResgate`) e o commit;
+     *    um deadlock ali é raríssimo, e sem repetição ele termina como antes:
+     *    tudo desfeito, nada pela metade. Um deadlock DENTRO do `$write` é seguro
+     *    repetir — o save que falhou não marca nada como gravado.
+     *
+     * 2. **Chamado dentro de outra transação** (nível > 0 ao entrar). No deadlock
+     *    o MySQL desfaz a transação de FORA inteira, não só este trecho; o Laravel
+     *    sabe disso e repassa o erro para cima (`DeadlockException`). Repetir só
+     *    este pedaço rodaria o resto sem transação nenhuma. Quem repete, nesse
+     *    caso, é a transação de fora — se ela tiver `attempts`.
+     *
+     * @param  Closure(): ?Transaction  $gravacao
+     */
+    private function repetirNoDeadlock(Closure $gravacao, bool &$escreveu): ?Transaction
+    {
+        $dentroDeOutraTransacao = DB::transactionLevel() > 0;
+
+        for ($tentativa = 1; ; $tentativa++) {
+            $escreveu = false;
+
+            try {
+                return DB::transaction($gravacao);
+            } catch (Throwable $e) {
+                $repete = ! $dentroDeOutraTransacao
+                    && ! $escreveu
+                    && $tentativa < self::TENTATIVAS
+                    && $this->causedByConcurrencyError($e);
+
+                if (! $repete) {
+                    throw $e;
+                }
+            }
+        }
     }
 
     /**

@@ -564,10 +564,24 @@ Nunca escreva uma despesa direto com `Transaction::create()`. Todo caminho de ga
 |---|---|
 | `App\Services\SpendingGuard` | **Calcula** os bolsos e devolve o veredito: `ok` / `precisa_fonte` / `estoura_limite`. Também monta o payload de opções e as mensagens PT-BR. |
 | `App\Services\FundingService::spend()` | **Grava**, dentro de UMA `DB::transaction` com `lockForUpdate`. É a palavra final (o Form Request é time-of-check; aqui é time-of-use). |
-| `App\Exceptions\RequiresFundingChoice` | Vira **HTTP 409** (não 422) com as opções, ou redirect com `session('fonteNecessaria')` sem JS. |
+| `App\Exceptions\RequiresFundingChoice` | Vira **HTTP 409** (não 422) com as opções, ou redirect com `session('fonteNecessaria')` sem JS. É `ShouldntReport`: a pergunta é fluxo normal e **não vai para o log** (antes era um ERROR com stack trace a cada pergunta — `EscolhaDeFonteNaoVaiParaOLogTest`). |
 
 **Ordem de lock: conta → pai (Goal/Investment), SEMPRE.** `HandlesContributions` usa a mesma
 ordem; inverter em um dos caminhos causa deadlock.
+
+**Deadlock no `spend()` vira nova tentativa, não HTTP 500** (22/09/2026 —
+`DeadlockNoGastoTentaDeNovoTest`): a gravação é refeita do zero até `FundingService::TENTATIVAS`
+(3) vezes — relock, guard e `$write`, com o saldo relido. 🚨 Por isso **o `$write` pode rodar mais
+de uma vez: nada fora do banco dentro dele** (e-mail, arquivo, evento para fora). E **NÃO troque
+por `attempts:` do `DB::transaction`**: há dois casos em que repetir é pior que o 500, e ele não os
+distingue — (1) depois que o `$write` DEVOLVEU: o rollback desfaz o banco, não a memória do
+chamador, e o `update()` da repetição num model que o Eloquent já dá por gravado não grava nada (a
+mutação provou: despesa em R$ 50, resgate de R$ 200 pendurado, "Transação atualizada"); (2) dentro
+de outra transação: o MySQL desfaz a de FORA inteira, e quem repete é ela.
+⚠️ **O mesmo defeito do caso (1) existe hoje** em `TransactionController::update`
+(`DB::transaction($gravar, attempts: 3)`, reconciliação da edição com resgate): a repetição de fora
+reusa o `$transaction` em memória. Correção pendente: `$transaction->refresh()` no início do
+`$gravar`.
 
 ### Gasto novo × obrigação vencida — regras DIFERENTES
 
