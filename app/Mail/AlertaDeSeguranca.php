@@ -353,24 +353,13 @@ class AlertaDeSeguranca extends Mailable
             ? ['Sua conta no Stabil Money foi <strong>excluída</strong>, junto com os lançamentos, contas, metas e a foto de perfil, como promete a nossa Política de Privacidade.']
             : [
                 'Sua conta no Stabil Money foi <strong>excluída</strong>: o seu login, a sua foto de perfil e os seus dados pessoais foram apagados, como promete a nossa Política de Privacidade.',
-                'O dinheiro da família — contas, lançamentos, metas e investimentos — não foi apagado: continua com <strong>'
-                    .e($user->titular?->name ?? 'o titular').'</strong>, que responde pela conta.',
+                self::dinheiroFicaComOTitular($user),
             ];
 
         $quantos = count($dependentes);
 
         if ($quantos > 0) {
-            $nomes = collect($dependentes)
-                ->map(fn (string $nome) => '<strong>'.e($nome).'</strong>')
-                ->join(', ', ' e ');
-
-            $paragrafos[] = $quantos === 1
-                ? 'Junto com ela foi apagado também o acesso de '.$nomes.', que era dependente da sua conta-família: '
-                    .'o login, a foto de perfil e os dados pessoais. Essa pessoa não consegue mais entrar no app, '
-                    .'e também recebe um aviso por e-mail.'
-                : 'Junto com ela foram apagados também os acessos de quem era dependente da sua conta-família: '
-                    .$nomes.'. O login, a foto de perfil e os dados pessoais de cada um foram apagados; ninguém '
-                    .'mais entra no app com eles, e cada um também recebe um aviso por e-mail.';
+            $paragrafos[] = self::quemPerdeuOAcessoJunto($dependentes);
         }
 
         $paragrafos[] = 'Este é o último e-mail que você recebe de nós. Obrigado por ter usado o app.';
@@ -390,6 +379,88 @@ class AlertaDeSeguranca extends Mailable
             rodapeAviso: 'Não foi você? A exclusão é definitiva e não temos como desfazê-la, '
                 .'mas queremos saber o que aconteceu: escreva para '.e(config('legal.contact_email')).'.',
         );
+    }
+
+    /**
+     * A conta foi excluída pelo PAINEL administrativo — o aviso a quem a perdeu (decisão de
+     * 23/09/2026; Admin\ModeracaoController::excluir).
+     *
+     * Mesmo formato do `contaExcluida`, com três diferenças que não são de estilo:
+     *  - diz que quem excluiu foi a administração, e NÃO diz por quê. O que a moderação anotou
+     *    (o motivo de um banimento, por exemplo) é registro interno; quem quiser saber escreve
+     *    para o contato do rodapé;
+     *  - só o QUANDO vai nos detalhes: o IP e o aparelho da requisição são os do
+     *    administrador — dado de outra pessoa (mesma regra do `senhaAlteradaPeloTitular`);
+     *  - não há "não foi você?": ninguém espera que tenha sido. O rodapé diz que é definitivo
+     *    e a quem escrever.
+     *
+     * @param  string  $quando  capturado antes do delete, como os nomes
+     * @param  list<string>  $dependentes  nomes de quem perdeu o acesso junto (ver
+     *                                     ProfileController::dependentesQuePerdemOAcesso)
+     */
+    public static function contaExcluidaPelaAdministracao(User $user, string $quando, array $dependentes = []): self
+    {
+        $paragrafos = $user->isTitular()
+            ? ['Sua conta no Stabil Money foi <strong>excluída pela administração do app</strong>, junto com os lançamentos, contas, metas e a foto de perfil.']
+            : [
+                'Sua conta no Stabil Money foi <strong>excluída pela administração do app</strong>: o seu login, a sua foto de perfil e os seus dados pessoais foram apagados.',
+                self::dinheiroFicaComOTitular($user),
+            ];
+
+        $quantos = count($dependentes);
+
+        if ($quantos > 0) {
+            $paragrafos[] = self::quemPerdeuOAcessoJunto($dependentes);
+        }
+
+        // Sem o "obrigado por ter usado o app" do `contaExcluida`: aqui a saída não foi escolha
+        // da pessoa.
+        $paragrafos[] = 'Este é o último e-mail que você recebe de nós.';
+
+        return new self(
+            user: $user,
+            assunto: 'Sua conta do Stabil Money foi excluída pela administração',
+            titulo: 'Conta excluída',
+            preheader: match (true) {
+                $quantos === 0 => 'A administração do Stabil Money excluiu a sua conta.',
+                $quantos === 1 => 'A administração do Stabil Money excluiu a sua conta e o acesso de 1 dependente.',
+                default => 'A administração do Stabil Money excluiu a sua conta e o acesso de '.$quantos.' dependentes.',
+            },
+            paragrafos: $paragrafos,
+            detalhes: [
+                'Quando' => $quando,
+                'Excluída por' => 'Administração do Stabil Money',
+            ],
+            rodapeAviso: 'A exclusão é definitiva e não temos como desfazê-la. Se tiver dúvidas sobre ela, escreva para '
+                .e(config('legal.contact_email')).'.',
+        );
+    }
+
+    /** Para o dependente que perdeu o login: o dinheiro da família não foi junto, e fica com quem. */
+    private static function dinheiroFicaComOTitular(User $dependente): string
+    {
+        return 'O dinheiro da família — contas, lançamentos, metas e investimentos — não foi apagado: continua com <strong>'
+            .e($dependente->titular?->name ?? 'o titular').'</strong>, que responde pela conta.';
+    }
+
+    /**
+     * Para o titular: quem perdeu o acesso junto com a conta dele, pelo nome.
+     *
+     * @param  non-empty-list<string>  $dependentes
+     */
+    private static function quemPerdeuOAcessoJunto(array $dependentes): string
+    {
+        $nomes = collect($dependentes)
+            ->map(fn (string $nome) => '<strong>'.e($nome).'</strong>')
+            ->join(', ', ' e ');
+
+        return count($dependentes) === 1
+            ? 'Junto com ela foi apagado também o acesso de '.$nomes.', que era dependente da sua conta-família: '
+                .'o login, a foto de perfil e os dados pessoais. Essa pessoa não consegue mais entrar no app, '
+                .'e também recebe um aviso por e-mail.'
+            : 'Junto com ela foram apagados também os acessos de quem era dependente da sua conta-família: '
+                .$nomes.'. O login, a foto de perfil e os dados pessoais de cada um foram apagados; ninguém '
+                .'mais entra no app com eles, e cada um também recebe um aviso por e-mail.';
     }
 
     // ───────────────────────────────────────────────────────────── montagem

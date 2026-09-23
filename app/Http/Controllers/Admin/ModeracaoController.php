@@ -3,11 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\ProfileController;
+use App\Mail\AlertaDeSeguranca;
+use App\Mail\ContaDaFamiliaExcluida;
 use App\Models\AdminAuditLog;
 use App\Models\User;
 use App\Support\AdminAudit;
 use App\Support\BrowserSessions;
+use App\Support\ContextoDeSeguranca;
+use App\Support\Notificador;
 use Illuminate\Http\Request;
+use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -88,9 +94,12 @@ class ModeracaoController extends Controller
      * A confirmação por digitação do e-mail existe porque esta é a única ação do painel
      * sem volta: um clique errado numa lista apaga a vida financeira de uma família.
      *
-     * Os dependentes vão junto, e hoje ninguém os avisa por aqui (ao contrário da exclusão
-     * feita pelo próprio titular, em ProfileController::destroy). Avisar ou não numa
-     * exclusão por moderação é decisão pendente (moderação/LGPD), não esquecimento.
+     * **Quem perde o acesso é avisado** (decisão de 23/09/2026 — antes ninguém era): a pessoa
+     * excluída e, se ela era titular, cada dependente que caiu junto. As mesmas regras da
+     * exclusão feita pelo próprio titular (ProfileController::destroy): os avisos são MONTADOS
+     * antes do delete e só SAEM depois que ele aconteceu, pelo `Notificador` (SMTP fora do ar
+     * não desfaz nada nem vira erro). O texto é próprio ("excluída pela administração") e não
+     * leva o motivo da moderação nem o IP/aparelho de quem agiu.
      */
     public function excluir(Request $request, User $user)
     {
@@ -113,6 +122,10 @@ class ModeracaoController extends Controller
         // o E-MAIL embora — e este é o único registro que sobra de uma exclusão sem volta.
         // Lá o nome encolhe e o e-mail fica inteiro.
         $descricao = AdminAudit::descreverAlvo($user);
+
+        // Os avisos, pelo mesmo motivo: depois do delete não há mais linha de onde tirar nome e
+        // endereço — nem a lista de dependentes, que o hook `deleting` apaga junto.
+        $avisos = $this->avisosDaExclusao($user);
 
         // O delete e a linha do histórico numa transação só: os dois ou nenhum. O histórico
         // é a única prova de uma exclusão sem volta — antes, uma falha ao gravá-lo deixava
@@ -152,8 +165,44 @@ class ModeracaoController extends Controller
             }
         }
 
+        // Daqui para baixo a exclusão ACONTECEU: ou a transação voltou sem erro, ou o erro veio
+        // depois do commit e a pessoa já não existe (conferido acima). Nos dois casos quem perdeu
+        // o acesso precisa saber — e só agora, nunca antes: um aviso enviado de dentro da
+        // transação anunciaria uma exclusão que um rollback desfaria.
+        foreach ($avisos as [$destinatario, $email]) {
+            Notificador::avisar($destinatario, $email);
+        }
+
         return redirect()->route('painel.pessoas')
             ->with('status', 'Conta de '.$descricao.' excluída definitivamente.');
+    }
+
+    /**
+     * O que cada pessoa que perde o acesso vai ler: a própria pessoa excluída e, se ela era
+     * titular, cada dependente — a lista de quem cai junto é a MESMA do modal de exclusão do
+     * perfil (`ProfileController::dependentesQuePerdemOAcesso`). Excluir um dependente não
+     * fala em "conta-família excluída": a família continua de pé.
+     *
+     * Só o QUANDO sai daqui para os e-mails: o IP e o aparelho desta requisição são os do
+     * administrador.
+     *
+     * @return list<array{0: User, 1: Mailable}>
+     */
+    private function avisosDaExclusao(User $user): array
+    {
+        $quando = ContextoDeSeguranca::agoraPorExtenso();
+        $dependentes = ProfileController::dependentesQuePerdemOAcesso($user);
+
+        $avisos = [[
+            $user,
+            AlertaDeSeguranca::contaExcluidaPelaAdministracao($user, $quando, $dependentes->pluck('name')->all()),
+        ]];
+
+        foreach ($dependentes as $dependente) {
+            $avisos[] = [$dependente, ContaDaFamiliaExcluida::pelaAdministracao($dependente->name, $user->name, $quando)];
+        }
+
+        return $avisos;
     }
 
     /**

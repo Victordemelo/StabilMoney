@@ -28,6 +28,10 @@ use Tests\TestCase;
  *  - cada dependente recebe um e-mail dizendo que a conta-família foi excluída pelo titular
  *    e que o acesso e os dados dele foram apagados;
  *  - dependente apagando o PRÓPRIO login: nada muda (não leva ninguém junto).
+ *
+ * A exclusão pelo PAINEL administrativo também avisa (decidido em 23/09/2026 — antes era
+ * "decisão pendente"), com texto próprio de "excluída pela administração" e sem o motivo da
+ * moderação: ver PainelAdminExclusaoAvisaQuemPerdeOAcessoTest.
  */
 class ExcluirTitularAvisaOsDependentesTest extends TestCase
 {

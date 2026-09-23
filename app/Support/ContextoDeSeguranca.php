@@ -27,12 +27,23 @@ final class ContextoDeSeguranca
     public static function doRequest(Request $request): self
     {
         return new self(
-            // "6 de agosto de 2026 às 00:42" — data por extenso porque o e-mail pode ser
-            // lido dias depois, quando "ontem às 3h" já não localiza ninguém.
-            quando: now()->translatedFormat('j \d\e F \d\e Y, \à\s H:i'),
+            quando: self::agoraPorExtenso(),
             ip: $request->ip(),
             dispositivo: BrowserSessions::descrever($request->userAgent()),
         );
+    }
+
+    /**
+     * "6 de agosto de 2026, às 00:42" — data por extenso porque o e-mail pode ser lido dias
+     * depois, quando "ontem às 3h" já não localiza ninguém.
+     *
+     * Pública para o aviso que só pode levar o QUANDO: numa exclusão feita pelo painel, o IP
+     * e o aparelho da requisição são os do administrador — dado de outra pessoa, que não vai
+     * para o e-mail de quem perdeu a conta (ver Admin\ModeracaoController::excluir).
+     */
+    public static function agoraPorExtenso(): string
+    {
+        return now()->translatedFormat('j \d\e F \d\e Y, \à\s H:i');
     }
 
     /**
