@@ -302,6 +302,7 @@ function enqueueOffline(payload, toastMsg, form) {
         requestBackgroundSync(); // acorda o SW p/ reenviar quando a net voltar
         showToast(toastMsg);
         if (form && typeof form.reset === 'function') form.reset();
+        if (form?.dataset) delete form.dataset.smClientUuid; // o próximo é outro lançamento
         refreshBadge();
         return true;
     }).catch(() => {
@@ -449,9 +450,15 @@ function enviarFormulario(e, form) {
     e.preventDefault();
 
     const payload = serializeForm(form);
-    payload.client_uuid = uuid();
-    // client_uuid também no envio ONLINE: se a resposta se perder e houver
-    // retry, o servidor deduplica por esse uuid em vez de duplicar.
+    // client_uuid também no envio ONLINE: se a resposta se perder e houver retry, o
+    // servidor deduplica por esse uuid em vez de duplicar. Por isso ele é UM POR
+    // LANÇAMENTO desta tela, e não um por clique em "Salvar" (24/09/2026): depois de um
+    // 504 do nginx em que o PHP gravou mesmo assim, o "Tente de novo" gerava chave nova
+    // e o lançamento entrava duas vezes. Fica no próprio formulário (um formulário novo,
+    // vindo do pjax, começa sem) e sai quando o lançamento vai para a fila — que zera o
+    // formulário para o próximo.
+    if (!form.dataset.smClientUuid) form.dataset.smClientUuid = uuid();
+    payload.client_uuid = form.dataset.smClientUuid;
 
     // ---- Caminho OFFLINE: comportamento original intacto. -------------
     if (!navigator.onLine) {

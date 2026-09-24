@@ -108,7 +108,15 @@ export function initLaunch() {
      * o botão da topbar, o FAB ou o "Nova transação" do Histórico. `gatilho` vai
      * explícito porque o Safari não dá foco a botão clicado com o mouse.
      */
+    // Quantas vezes o modal já abriu. Um envio guarda a abertura em que nasceu: se o
+    // modal foi FECHADO E REABERTO enquanto ele voava ("Cancelar" com o spinner girando,
+    // e a pessoa começou outro lançamento), a resposta dele não mexe mais no modal — nem
+    // fecha, nem zera, nem mostra erro, nem pergunta a fonte, nem enfileira. Antes ela
+    // chegava e fechava e apagava o lançamento novo que estava sendo digitado.
+    let abertura = 0;
+
     const open = (gatilho = null) => {
+        abertura++;
         hideError();
         setSaving(false);
         // Reabrir NUNCA herda o que sobrou da vez anterior: valor digitado e não
@@ -295,6 +303,15 @@ export function initLaunch() {
         const payload = new FormData(form);
         payload.set('client_uuid', clientUuid);
 
+        // Ver `abertura`: este envio deixou de ser o do modal que está na tela? Então a
+        // resposta dele só pode refletir o que o servidor GRAVOU (recarregar os dados da
+        // página, por baixo do modal), e nada mais.
+        const nasceuEm = abertura;
+        const obsoleto = () => nasceuEm !== abertura;
+        const encerrarObsoleto = (r) => {
+            if (r?.ok && typeof window.smPjaxReload === 'function') window.smPjaxReload();
+        };
+
         const enviar = () => fetch(form.action, {
             method: 'POST',
             headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -330,8 +347,15 @@ export function initLaunch() {
         try {
             resp = await enviar();
         } catch (_) {
+            // Cancelado e substituído por outro lançamento: a pessoa desistiu deste.
+            if (obsoleto()) return;
             // A rede caiu no meio do envio: mesmo destino, nada se perde.
             await enfileirar();
+            return;
+        }
+
+        if (obsoleto()) {
+            encerrarObsoleto(resp);
             return;
         }
 
@@ -348,6 +372,7 @@ export function initLaunch() {
         // escolha, ou caiu na fila).
         const resolverFonte = async (r) => {
             for (let perguntas = 0; r.status === 409 && perguntas < 3; perguntas++) {
+                if (obsoleto()) return null;
                 setSaving(false);
                 const dados = await r.json().catch(() => ({}));
                 // Fechando o de fonte, o foco volta ao "Salvar" — quem desistiu da fonte
@@ -363,6 +388,7 @@ export function initLaunch() {
                 try {
                     r = await enviar();
                 } catch (_) {
+                    if (obsoleto()) return null;
                     // Caiu a rede depois da escolha: enfileira JÁ COM a fonte escolhida
                     // (e o teto aprovado) — foi o próprio usuário quem escolheu. A fila
                     // nunca escolhe a fonte sozinha.
@@ -386,12 +412,14 @@ export function initLaunch() {
         // Mesmo tratamento do formulário cheio: busca um token fresco e refaz UMA vez.
         if (resp.status === 419) {
             const fresco = await refreshCsrfToken(form);
+            if (obsoleto()) return;
 
             if (fresco) {
                 payload.set('_token', fresco);
                 try {
                     resp = await enviar();
                 } catch (_) {
+                    if (obsoleto()) return;
                     await enfileirar();
                     return;
                 }
@@ -407,6 +435,11 @@ export function initLaunch() {
             // Com o token novo, o servidor pode perguntar a fonte.
             resp = await resolverFonte(resp);
             if (!resp) return;
+        }
+
+        if (obsoleto()) {
+            encerrarObsoleto(resp);
+            return;
         }
 
         if (resp.ok) {

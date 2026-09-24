@@ -284,6 +284,70 @@ describe('client_uuid — uma chave por ABERTURA do modal', () => {
     });
 });
 
+describe('envio cancelado com o modal reaberto (outro lançamento na tela)', () => {
+    /**
+     * "Cancelar" com o spinner girando fecha o modal, mas o POST segue. Se a pessoa reabre e
+     * começa OUTRO lançamento, a resposta do antigo não pode mexer no modal: antes ela chegava
+     * e fechava e zerava o lançamento novo que estava sendo digitado — ou mostrava o erro, ou
+     * perguntava a fonte, de um lançamento que não é o da tela.
+     */
+    async function cancelarEmVooEReabrir(respostaDoAntigo) {
+        let responder;
+        respostasDoPost = [new Promise((r) => { responder = r; })];
+
+        abrirComDespesa('1.500,00');
+        form().dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await flush();
+
+        document.querySelector('[data-close-btn]').click();
+        abrirComDespesa('150,00');
+
+        responder(respostaDoAntigo);
+        await flush();
+    }
+
+    it('gravado: a tela recarrega os dados, e o lançamento novo continua aberto e intacto', async () => {
+        await cancelarEmVooEReabrir(resposta(201));
+
+        expect(modal().classList.contains('open')).toBe(true);
+        expect(document.getElementById('lm-amount').value).toBe('150,00');
+        expect(botaoSalvar().disabled).toBe(false);
+        expect(window.smPjaxReload).toHaveBeenCalledTimes(1);
+    });
+
+    it('409: não pergunta a fonte de um lançamento que a pessoa cancelou', async () => {
+        await cancelarEmVooEReabrir(resposta(409, corpo409()));
+
+        expect(mocks.pedirFonte).not.toHaveBeenCalled();
+        expect(modal().classList.contains('open')).toBe(true);
+        expect(window.smPjaxReload).not.toHaveBeenCalled();
+    });
+
+    it('422: o erro do antigo não aparece no lançamento novo', async () => {
+        await cancelarEmVooEReabrir(resposta(422, { errors: { amount: ['Valor inválido.'] } }));
+
+        expect(erroVisivel()).toBe(false);
+        expect(document.getElementById('lm-amount').value).toBe('150,00');
+    });
+
+    it('rede caiu no antigo: não vai para a fila (a pessoa desistiu dele)', async () => {
+        let falhar;
+        respostasDoPost = [new Promise((_, rejeitar) => { falhar = rejeitar; })];
+
+        abrirComDespesa('1.500,00');
+        form().dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await flush();
+        document.querySelector('[data-close-btn]').click();
+        abrirComDespesa('150,00');
+
+        falhar(new TypeError('Failed to fetch'));
+        await flush();
+
+        expect(mocks.enfileirarLancamento).not.toHaveBeenCalled();
+        expect(modal().classList.contains('open')).toBe(true);
+    });
+});
+
 describe('419 — token CSRF morto', () => {
     it('com a sessão viva: busca token fresco, reescreve o _token e refaz UMA vez', async () => {
         respostasDoPost = [resposta(419), resposta(201)];
