@@ -82,7 +82,47 @@ class UpdateAccountRequest extends StoreAccountRequest
         $rules['overdraft_limit'][] = $this->regraDoChequeEspecialEmUso();
         $rules['initial_balance'][] = $this->regraDoPisoDoSaldoInicial();
 
+        // O Pix chega aqui já devolvido para uma dessas duas colunas (`prepareForValidation`).
+        $rules['checking_account_id'][] = $this->regraNaoEspelhaASiMesma();
+        $rules['savings_account_id'][] = $this->regraNaoEspelhaASiMesma();
+
         return $rules;
+    }
+
+    /**
+     * Um cartão de débito ou Pix não pode espelhar a PRÓPRIA conta.
+     *
+     * Só a edição chega a esse estado. A conta vinculada tem de ser corrente/poupança da
+     * família (`linkRule`), e a conta que está sendo editada AINDA É corrente/poupança
+     * enquanto a validação roda — então "Nubank" (corrente, zerada) virando Pix com a chave
+     * no próprio "Nubank" passava. O formulário até oferecia a opção: a lista de vínculo
+     * trazia a própria conta.
+     *
+     * O estrago não fica na conta. O saldo de um método espelho é o da conta vinculada
+     * (`Account::available`/`balance`), e passava a ser o dele mesmo: recursão sem fim. O
+     * `Account::paymentOptions` lê esse saldo no modal "Lançar", que está no shell de TODA
+     * tela do app — a família inteira passava a receber erro 500 em qualquer página, sem
+     * volta pela interface: a trava de espelho recusa trocar o tipo de volta e a de exclusão
+     * recusa excluir, porque a própria conta aparece como o método que depende dela.
+     *
+     * Compara como INTEIRO: "05", " 5" e o `true` de um corpo JSON passam no `exists` (o
+     * banco converte) e seriam gravados como o mesmo id.
+     */
+    private function regraNaoEspelhaASiMesma(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail): void {
+            $conta = $this->route('account');
+
+            if (! $conta instanceof Account || ! is_scalar($value) || (int) $value !== (int) $conta->getKey()) {
+                return;
+            }
+
+            $metodo = $this->input('type') === 'pix' ? 'Pix' : 'cartão de débito';
+
+            $fail('Um '.$metodo.' não tem saldo próprio: ele tira o dinheiro de OUTRA conta. '
+                .'Escolha a conta corrente ou poupança de onde o dinheiro sai — não dá para vinculá-lo '
+                .'à própria "'.$conta->name.'".');
+        };
     }
 
     /**

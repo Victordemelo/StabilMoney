@@ -22,6 +22,14 @@
 @php
     $modal = $modal ?? false;
     $editando = $account !== null;
+    // A própria conta não é opção de vínculo dela mesma: um débito/Pix tira o dinheiro de
+    // OUTRA conta, e o servidor recusa o vínculo consigo mesma
+    // (`UpdateAccountRequest::regraNaoEspelhaASiMesma`) — tela que oferece o que o servidor
+    // recusa é o mesmo defeito. Só aqui dentro: cada @include tem a própria cópia das listas.
+    if ($editando) {
+        $checkingAccounts = $checkingAccounts->reject(fn ($c) => $c->id === $account->id);
+        $savingsAccounts = $savingsAccounts->reject(fn ($c) => $c->id === $account->id);
+    }
     $tipoAtual = old('type', $account->type ?? 'checking');
     // Banco: NENHUM pré-selecionado no cadastro. Com "Nubank" de padrão, quem não
     // mexia no select cadastrava tudo como Nubank, com a logo errada no card. Sem
