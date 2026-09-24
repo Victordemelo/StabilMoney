@@ -18,6 +18,11 @@
         </include>
     </source>
     <php>
+        <!-- A suíte inteira passa de 128 MB (o PHPUnit guarda cada teste até o fim: ~125 MB
+             com 1.956 testes em 24/09/2026), e o php.ini de produção do container limita a
+             128M — `docker compose exec app php artisan test` morria no meio, com "Allowed
+             memory size exhausted". 512M é o mesmo do CI (ini-values no ci.yml). -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <!-- Testes de borda de data (ciclo de fatura, vencido) não podem depender
              do fuso da máquina nem do .env local. -->
