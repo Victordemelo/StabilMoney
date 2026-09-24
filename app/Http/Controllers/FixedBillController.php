@@ -130,6 +130,25 @@ class FixedBillController extends Controller
         // A rota já garante mês 01..12; o `!` reseta hora/minuto para não herdar "agora".
         $competence = CarbonImmutable::createFromFormat('!Y-m-d', $competencia.'-01')->startOfMonth();
 
+        // IDEMPOTÊNCIA ANTES DA TRAVA DE GASTO, como nos outros caminhos de despesa.
+        // O índice único (fixed_bill_id, competence) só age no INSERT, depois do guard:
+        // o reenvio (duplo clique, "voltar") passava pelo guard com o saldo que o
+        // primeiro pagamento já tinha consumido e respondia 409 "de onde sai esse
+        // dinheiro?" — ou 422 "Saldo insuficiente" — por uma competência JÁ PAGA
+        // (achado de 24/09/2026 — `ReenvioDoPagamentoDeContaFixaTest`). O catch do
+        // índice lá embaixo continua cobrindo a corrida entre dois POSTs simultâneos.
+        // Pelo intervalo do mês, como o `FixedBillService::occurrences` (não depende do
+        // formato gravado: o sqlite compara texto).
+        $jaPaga = Transaction::where('fixed_bill_id', $conta->id)
+            ->where('competence', '>=', $competence->toDateString())
+            ->where('competence', '<', $competence->addMonthNoOverflow()->toDateString())
+            ->exists();
+
+        if ($jaPaga) {
+            return redirect()->route('faturas.index')
+                ->with('status', 'Esta competência já estava paga.');
+        }
+
         // Conta DESATIVADA não se paga (M-11): o serviço só projeta contas
         // ativas, então o dinheiro saía do caixa e a competência paga não
         // aparecia em tela nenhuma — pagamento invisível é pagamento perdido.
