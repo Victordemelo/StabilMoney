@@ -238,12 +238,15 @@ class FaturaCobertaPeloEstornoTest extends TestCase
             ->assertDontSee('Fatura paga')
             ->assertDontSee('Quitar pelo crédito');
 
-        // O ciclo anda: a próxima compra é cobrada normalmente, e o piso é ela.
+        // O ciclo anda: a próxima compra é cobrada normalmente, e o piso é ela — ou
+        // hoje, se ela for datada no futuro (25/09 com hoje em 20/09): um piso depois de
+        // hoje, que é o teto da data do pagamento, deixava o campo sem data possível
+        // (PagarFaturaComParcelaDatadaNoFuturoTest, 24/09/2026).
         $this->compra('2026-09-25', 100, 'Farmácia');
         $card = $this->card();
         $this->assertSame('a_pagar', $card['estado']);
         $this->assertSame(100.0, $card['invoiceDue']);
-        $this->assertSame('2026-09-25', $card['payFloor']);
+        $this->assertSame('2026-09-20', $card['payFloor']);
     }
 
     /**

@@ -291,6 +291,10 @@ class FaturaService
      * é o piso que o `PayInvoiceRequest` aplica ao `paid_on`. Serve para o
      * `min` do input de data não oferecer o que o servidor vai recusar.
      *
+     * Limitado a HOJE, como no request: a mais antiga em aberto pode ser a próxima
+     * parcela, datada no futuro, e um `min` depois do `max` (hoje) deixava o campo
+     * sem data possível (`PagarFaturaComParcelaDatadaNoFuturoTest`).
+     *
      * @param  Collection<int, Account>  $cartoes
      * @return Collection<int, string>
      */
@@ -307,7 +311,7 @@ class FaturaService
             ->selectRaw('account_id')
             ->selectRaw('MIN(date) AS primeira')
             ->pluck('primeira', 'account_id')
-            ->map(fn ($data) => CarbonImmutable::parse($data)->toDateString());
+            ->map(fn ($data) => min(CarbonImmutable::parse($data)->toDateString(), CarbonImmutable::today()->toDateString()));
     }
 
     /**

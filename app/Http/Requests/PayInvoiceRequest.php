@@ -62,7 +62,7 @@ class PayInvoiceRequest extends FormRequest
                 // existir. Antes bastava ser >= 2000-01-01, então `paid_on=2001-03-04`
                 // era aceito numa compra de 2026: o saldo descontava hoje, mas a despesa
                 // sumia do fluxo de caixa e do "gasto do mês" (que olham a data).
-                'after_or_equal:'.$this->primeiraDespesaDoCartao(),
+                'after_or_equal:'.$this->pisoDaDataDoPagamento(),
                 // Pagamento é fato consumado: não se paga no futuro.
                 'before_or_equal:'.now()->toDateString(),
             ],
@@ -86,7 +86,24 @@ class PayInvoiceRequest extends FormRequest
     }
 
     /**
-     * Data da despesa mais antiga EM ABERTO do cartão — o piso do `paid_on`.
+     * Piso do `paid_on`: a despesa em aberto mais antiga do cartão — ou HOJE, se ela
+     * for datada no futuro (achado de 24/09/2026 — `PagarFaturaComParcelaDatadaNoFuturoTest`).
+     *
+     * O teto é hoje (pagamento é fato consumado). Com a fatura anterior já paga, a
+     * despesa mais antiga em aberto pode ser a PRÓXIMA PARCELA de uma compra parcelada,
+     * datada no mês que vem: piso no futuro e teto hoje, nenhuma data valia — a tela
+     * mostrava "Marcar como paga" e o servidor recusava qualquer uma, dizendo que o
+     * pagamento vinha "antes da compra" (a compra é do mês passado; só a parcela é
+     * datada adiante). Limitado a hoje, o piso continua fazendo o que existe para
+     * fazer: barrar o pagamento datado antes de uma compra que já aconteceu.
+     */
+    protected function pisoDaDataDoPagamento(): string
+    {
+        return min($this->primeiraDespesaDoCartao(), now()->toDateString());
+    }
+
+    /**
+     * Data da despesa mais antiga EM ABERTO do cartão.
      * Sem despesa em aberto, cai no piso genérico (não há o que pagar mesmo).
      */
     protected function primeiraDespesaDoCartao(): string
