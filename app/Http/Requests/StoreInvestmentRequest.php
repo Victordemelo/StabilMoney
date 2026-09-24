@@ -88,7 +88,7 @@ class StoreInvestmentRequest extends FormRequest
             'client_uuid' => ['nullable', 'uuid'],
             'date' => [
                 'nullable',
-                'date',
+                'date_format:Y-m-d',
                 'after_or_equal:2000-01-01',
                 // Data do APORTE INICIAL (o controller grava uma `investment_contribution`
                 // com ela quando `valor_inicial` > 0), então vale a mesma regra dos
@@ -133,7 +133,7 @@ class StoreInvestmentRequest extends FormRequest
             'valor_inicial.max' => 'O valor inicial informado é alto demais (o máximo é R$ 999.999.999.999,99).',
             'account_id.required' => 'Escolha a conta de origem do valor inicial.',
             'account_id.exists' => 'Escolha uma conta corrente ou poupança sua — cartões não guardam dinheiro.',
-            'date.date' => 'Data inválida.',
+            'date.date_format' => 'Data inválida.',
             'date.before_or_equal' => 'A data não pode ser no futuro — registre o aporte no dia em que ele acontecer.',
         ];
     }

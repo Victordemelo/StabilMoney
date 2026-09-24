@@ -102,7 +102,7 @@ class PayFixedBillRequest extends FormRequest
             'amount' => $this->regrasDeDinheiro(),
             'paid_on' => [
                 'nullable',
-                'date',
+                'date_format:Y-m-d',
                 // Piso RELATIVO à competência (M-6): pagar a conta de julho/2026
                 // com data de 2001 tirava a despesa do fluxo de caixa e do
                 // "gasto do mês", enquanto o saldo caía hoje.
@@ -298,6 +298,7 @@ class PayFixedBillRequest extends FormRequest
             'amount.decimal' => 'O valor deve ter no máximo duas casas decimais, ex.: 800,00.',
             'amount.min' => 'O valor mínimo é R$ 0,01.',
             'amount.max' => 'Esse valor é alto demais para uma conta fixa. Confira os centavos.',
+            'paid_on.date_format' => 'Data de pagamento inválida.',
             'paid_on.after_or_equal' => 'A data do pagamento é antiga demais para esta competência — use uma data a partir do mês anterior ao vencimento.',
             'paid_on.before_or_equal' => 'A data do pagamento não pode ser no futuro.',
             'funding_investment_id.required_if' => 'Escolha de qual investimento resgatar.',

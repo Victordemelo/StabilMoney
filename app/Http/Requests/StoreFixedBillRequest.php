@@ -55,8 +55,12 @@ class StoreFixedBillRequest extends FormRequest
                     ->where('user_id', $ownerId)
                     ->where('type', 'expense')),
             ],
-            'starts_on' => ['required', 'date', 'after_or_equal:2000-01-01'],
-            'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
+            // `date_format:Y-m-d`, e não `date`: ver o comentário da data no
+            // StoreTransactionRequest. Aqui o estrago era o maior — "20266-09-01" (um 6 a
+            // mais no ano) virava início em 01/09/2006, e a conta nascia com 13
+            // competências "vencidas" que ninguém deve.
+            'starts_on' => ['required', 'date_format:Y-m-d', 'after_or_equal:2000-01-01'],
+            'ends_on' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:starts_on'],
             'active' => ['nullable', 'boolean'],
         ];
     }
@@ -88,6 +92,8 @@ class StoreFixedBillRequest extends FormRequest
             'account_id.exists' => 'O método escolhido não existe ou não pertence a você.',
             'category_id.exists' => 'A categoria escolhida não existe, não é sua ou não é de despesa.',
             'starts_on.required' => 'Informe a partir de quando esta conta começa.',
+            'starts_on.date_format' => 'Data de início inválida.',
+            'ends_on.date_format' => 'Data de fim inválida.',
             'ends_on.after_or_equal' => 'O fim não pode ser antes do início.',
         ];
     }

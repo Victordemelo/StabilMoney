@@ -57,7 +57,7 @@ class PayInvoiceRequest extends FormRequest
             ],
             'paid_on' => [
                 'nullable',
-                'date',
+                'date_format:Y-m-d',
                 // Piso RELATIVO à dívida: não se paga uma fatura antes de a compra
                 // existir. Antes bastava ser >= 2000-01-01, então `paid_on=2001-03-04`
                 // era aceito numa compra de 2026: o saldo descontava hoje, mas a despesa
@@ -120,7 +120,7 @@ class PayInvoiceRequest extends FormRequest
         return [
             'pay_account_id.required' => 'Escolha a conta que vai pagar a fatura.',
             'pay_account_id.exists' => 'A conta de pagamento precisa ser uma conta corrente ou poupança sua.',
-            'paid_on.date' => 'Data de pagamento inválida.',
+            'paid_on.date_format' => 'Data de pagamento inválida.',
             'paid_on.before_or_equal' => 'A data do pagamento não pode ser no futuro.',
             'paid_on.after_or_equal' => 'A data do pagamento não pode ser anterior à compra mais antiga da fatura.',
             'ciclo.in' => 'Escolha qual fatura pagar: a do ciclo aberto ou a que já fechou.',

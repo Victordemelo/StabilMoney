@@ -58,7 +58,7 @@ class StoreFaturaLaunchRequest extends FormRequest
             'amount' => $this->regrasDeDinheiro(),
             'date' => [
                 'required',
-                'date',
+                'date_format:Y-m-d',
                 'after_or_equal:2000-01-01',
                 'before_or_equal:'.now()->addYears(10)->toDateString(),
             ],
@@ -180,7 +180,7 @@ class StoreFaturaLaunchRequest extends FormRequest
             'amount.min' => 'O valor mínimo é R$ 0,01.',
             'amount.max' => 'O valor informado é alto demais (o máximo é R$ 999.999.999.999,99).',
             'date.required' => 'Informe a data da despesa.',
-            'date.date' => 'Data inválida.',
+            'date.date_format' => 'Data inválida.',
             'date.after_or_equal' => 'A data deve ser a partir de 01/01/2000.',
             'date.before_or_equal' => 'A data está longe demais no futuro.',
             'account_id.required' => 'Escolha o método de pagamento.',

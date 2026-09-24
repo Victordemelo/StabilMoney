@@ -32,7 +32,7 @@ class ProfileUpdateRequest extends FormRequest
             // finanças não pede dado que não usa (minimização — LGPD art. 6º, III).
             'birth_date' => [
                 'nullable',
-                'date',
+                'date_format:Y-m-d',
                 // Nascer no futuro não existe; e o piso evita erro de digitação virar
                 // uma data absurda (ex.: ano 0210 ao errar o 2).
                 'before_or_equal:today',
@@ -78,7 +78,7 @@ class ProfileUpdateRequest extends FormRequest
             'email.lowercase' => 'O e-mail deve estar em letras minúsculas.',
             'email.max' => 'O e-mail não pode passar de :max caracteres.',
             'email.unique' => 'Este e-mail já está em uso por outra conta.',
-            'birth_date.date' => 'Data de nascimento inválida.',
+            'birth_date.date_format' => 'Data de nascimento inválida.',
             'birth_date.before_or_equal' => 'A data de nascimento não pode ser no futuro.',
             'birth_date.after_or_equal' => 'Confira o ano da data de nascimento.',
             'gender.in' => 'Escolha uma das opções de sexo.',

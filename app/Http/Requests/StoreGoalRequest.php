@@ -44,7 +44,7 @@ class StoreGoalRequest extends FormRequest
             'target_amount' => $this->regrasDeDinheiro(),
             'target_date' => [
                 'nullable',
-                'date',
+                'date_format:Y-m-d',
                 // "De hoje em diante" vale para prazo NOVO. Na edição, o prazo que já
                 // está gravado é aceito mesmo vencido — ver `prazoJaGravado()`.
                 ...($this->prazoJaGravado() ? [] : ['after_or_equal:'.now()->toDateString()]),
@@ -87,7 +87,7 @@ class StoreGoalRequest extends FormRequest
             'target_amount.decimal' => 'Use no máximo duas casas decimais, ex.: 1.500,00.',
             'target_amount.min' => 'O valor-alvo mínimo é R$ 0,01.',
             'target_amount.max' => 'O valor-alvo informado é alto demais (o máximo é R$ 999.999.999.999,99).',
-            'target_date.date' => 'Data-alvo inválida.',
+            'target_date.date_format' => 'Data-alvo inválida.',
             'target_date.after_or_equal' => 'A data-alvo deve ser de hoje em diante.',
             'target_date.before_or_equal' => 'A data-alvo está longe demais no futuro.',
             'emoji.required' => 'Escolha um emoji para a meta.',

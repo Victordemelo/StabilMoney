@@ -110,7 +110,15 @@ class StoreTransactionRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:255'],
             'date' => [
                 'required',
-                'date',
+                // `date_format:Y-m-d`, e NÃO `date` (24/09/2026), em toda data de formulário
+                // do app. O `date` confere com o parser do PHP, que lê um ano de 5 dígitos
+                // como HORA + data: "20266-09-24" vira 24/09/2006 20:26 — passa no piso de
+                // 2000 e no teto de +10 anos. Depois cada caminho grava uma coisa: aqui o
+                // texto cru (no MySQL, data inválida = HTTP 500; na fila offline, um
+                // lançamento preso para sempre), em Pagar despesas e nas contas fixas a data
+                // de 2006 (compra com 20 anos de atraso; 13 competências "vencidas" do
+                // nada). O `<input type="date">` deixa digitar ano de até 6 dígitos.
+                'date_format:Y-m-d',
                 'after_or_equal:2000-01-01',
                 'before_or_equal:'.now()->addYears(10)->toDateString(),
             ],
@@ -172,7 +180,7 @@ class StoreTransactionRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:255'],
             'date' => [
                 'required',
-                'date',
+                'date_format:Y-m-d',
                 'after_or_equal:2000-01-01',
                 'before_or_equal:'.now()->addYears(10)->toDateString(),
             ],
@@ -215,7 +223,7 @@ class StoreTransactionRequest extends FormRequest
             'funding_investment_id.required_if' => 'Escolha de qual investimento resgatar.',
             'funding_investment_id.exists' => 'O investimento escolhido não existe ou não é da sua família.',
             'date.required' => 'Informe a data da transação.',
-            'date.date' => 'Data inválida.',
+            'date.date_format' => 'Data inválida.',
             'date.after_or_equal' => 'A data deve ser a partir de 01/01/2000.',
             'date.before_or_equal' => 'A data está longe demais no futuro.',
         ];
