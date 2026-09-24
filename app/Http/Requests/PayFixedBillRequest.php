@@ -284,7 +284,7 @@ class PayFixedBillRequest extends FormRequest
             'account_id' => 'método de pagamento',
             'amount' => 'valor pago',
             'paid_on' => 'data do pagamento',
-            'funding_max_amount' => 'teto do resgate',
+            'funding_max_amount' => 'valor aprovado',
         ];
     }
 

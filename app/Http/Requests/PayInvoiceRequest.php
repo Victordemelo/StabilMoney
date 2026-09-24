@@ -111,7 +111,7 @@ class PayInvoiceRequest extends FormRequest
             'pay_account_id' => 'conta de pagamento',
             'paid_on' => 'data do pagamento',
             'ciclo' => 'fatura',
-            'funding_max_amount' => 'teto do resgate',
+            'funding_max_amount' => 'valor aprovado',
         ];
     }
 

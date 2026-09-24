@@ -151,6 +151,22 @@ class FundingService
             $doCheque = $this->guard->chequeNecessario($conta, $amount, $ignore);
 
             if ($source === FundingSource::CHEQUE_ESPECIAL) {
+                // 🚨 O cheque especial também não passa do que o usuário aprovou
+                // (24/09/2026 — TetoDoChequeEspecialAprovadoTest). O modal mostra
+                // "Sua conta fica em R$ X" com o disponível daquele momento; se ele
+                // caiu até a gravação (outra despesa da família, a escolha que dormiu
+                // na fila offline), esta despesa passaria a consumir MAIS cheque
+                // especial — juros de verdade — do que a pessoa viu. O teto é o
+                // `faltante` aprovado: com a conta no azul ele é exatamente o cheque
+                // que a despesa usa; com a conta já no vermelho a despesa não consome
+                // mais que o próprio valor, e o teto (maior) nunca dispara à toa.
+                // Estourou: 409 com as opções recalculadas, igual ao resgate.
+                if ($maxFonte !== null && $doCheque > $maxFonte + SpendingGuard::EPSILON) {
+                    throw new RequiresFundingChoice(
+                        $this->guard->opcoesDeFonte($conta, $amount, $ignore)
+                    );
+                }
+
                 // Numa obrigação, estourar o limite é permitido (a dívida é
                 // real); num gasto novo, não.
                 // Com `$ignore` (edição de despesa), o teto precisa refletir o cenário

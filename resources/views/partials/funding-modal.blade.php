@@ -88,10 +88,10 @@
                 @foreach ($smFonte['campos'] ?? [] as $smCampo => $smValor)
                     <input type="hidden" name="{{ $smCampo }}" value="{{ $smValor }}">
                 @endforeach
-                {{-- TETO do resgate: é este número que a tela promete logo abaixo
-                     ("Vamos resgatar X"). O servidor recalcula o faltante na hora de
-                     gravar, então sem este teto o valor aprovado aqui e o sacado lá
-                     podem divergir. --}}
+                {{-- TETO do que se aprova aqui, nas duas fontes: é o faltante que a tela
+                     mostra logo abaixo ("Vamos resgatar X"; no cheque especial, o saldo em
+                     que a conta fica). O servidor recalcula na hora de gravar, então sem
+                     este teto o valor aprovado aqui e o usado lá podem divergir. --}}
                 @if (($smFonte['faltante'] ?? 0) > 0)
                     <input type="hidden" name="funding_max_amount" value="{{ number_format((float) $smFonte['faltante'], 2, '.', '') }}">
                 @endif

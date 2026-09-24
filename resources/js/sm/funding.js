@@ -19,7 +19,7 @@ import { abrirDialogo, fecharDialogo } from './dialogo';
 
 let scrim = null;
 let resolver = null;
-// Faltante que a tela ATUAL prometeu resgatar. Vive no escopo do módulo porque o
+// Faltante que a tela ATUAL mostrou. Vive no escopo do módulo porque o
 // handler do "Confirmar" é ligado uma única vez (initFunding), enquanto o valor
 // muda a cada abertura. Vira o teto `funding_max_amount` do reenvio.
 let faltanteAprovado = 0;
@@ -259,13 +259,14 @@ export function initFunding() {
                 // seria recusado pelo servidor, e o modal fecharia à toa.
                 if (select.options[select.selectedIndex]?.disabled) return;
                 escolha.funding_investment_id = select.value;
-                // TETO: o número que esta tela prometeu ("Vamos resgatar R$ 100,00").
-                // O servidor recalcula o faltante na hora de gravar — se o disponível
-                // tiver caído desde agora (típico de lançamento que dormiu na fila
-                // offline), ele devolve 409 e pergunta de novo em vez de sacar mais
-                // do investimento do que foi aprovado aqui.
-                if (faltanteAprovado > 0) escolha.funding_max_amount = faltanteAprovado.toFixed(2);
             }
+
+            // TETO: o faltante que esta tela mostrou ("Vamos resgatar R$ 100,00", ou
+            // "Sua conta fica em R$ X" no cheque especial). O servidor recalcula na hora
+            // de gravar — se o disponível tiver caído desde agora (típico de lançamento
+            // que dormiu na fila offline), ele devolve 409 e pergunta de novo em vez de
+            // resgatar do investimento, ou usar de cheque especial, mais do que o aprovado.
+            if (faltanteAprovado > 0) escolha.funding_max_amount = faltanteAprovado.toFixed(2);
 
             fechar(escolha);
         });

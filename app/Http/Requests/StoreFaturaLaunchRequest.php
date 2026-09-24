@@ -165,7 +165,7 @@ class StoreFaturaLaunchRequest extends FormRequest
             'made_by_user_id' => 'responsável',
             'mode' => 'forma de pagamento',
             'installments' => 'parcelas',
-            'funding_max_amount' => 'teto do resgate',
+            'funding_max_amount' => 'valor aprovado',
         ];
     }
 
