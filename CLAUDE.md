@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.878 testes PHP / 10.968 asserções** — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **314 testes JS** (Vitest) + **197 checagens dos scripts** (backup 83, deploy 83, nginx 16, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **1.963 testes PHP / 11.618 asserções** — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **336 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -222,7 +222,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 1.878 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 1.963 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -249,10 +249,18 @@ tests/Feature/              # 1.878 testes (PHP): auth, dashboard, CRUD, valida�
   (não é instituição financeira / não movimenta dinheiro / não é aconselhamento financeiro /
   nunca pedimos senha de banco), conta-família, PWA offline, limitação de responsabilidade e
   foro do consumidor. Privacidade traz tabelas de transparência (dado → finalidade → base legal
-  da LGPD; cookies com os **nomes reais**: `stabilmoney_session`, `XSRF-TOKEN`, `sm-theme`,
-  `sm-collapsed`, `sm-cookie-consent`, `sm-form-user`, IndexedDB da fila offline), operadores
-  (hospedagem + Google Fonts como transferência internacional), retenção (logs 6 meses — Marco
-  Civil) e os direitos do art. 18. **Ao mexer no que o app coleta/compartilha, atualizar essas
+  da LGPD; cookies com os **nomes reais**: o de sessão sai de `config('session.cookie')` — em
+  produção `stabilmoney-session` —, `remember_web_…` ("Lembrar de mim", 400 dias), `XSRF-TOKEN`,
+  `sm-theme`, `sm-collapsed`, `sm-cookie-consent`, `sm-form-user`, IndexedDB da fila offline),
+  operadores (Oracle Cloud, Cloudflare, provedor de e-mail, Have I Been Pwned, Google Fonts — a
+  seção 13 lista as transferências internacionais com a base do art. 33), retenção (logs 6 meses —
+  Marco Civil; backups 14 dias; auditoria do painel sobrevive à exclusão) e os direitos do art. 18.
+  **Versão 3.0 (24/09/2026):** a 2.0 afirmava 2FA "ainda não disponível", "sem rotina de backup",
+  Google Fonts como "única transferência internacional" e servidor "no Brasil" (a região da VPS
+  não está confirmada — a Política não afirma o país). `PoliticaDescreveOCodigoRealTest` confere a
+  Política contra o código (nome dos cookies; todo host externo que o código contata tem de estar
+  nomeado) e `VersaoDosDocumentosLegaisTest` falha quando o texto visível muda sem subir a
+  `legal.version` (registre a impressão nova que a falha mostra). **Ao mexer no que o app coleta/compartilha, atualizar essas
   tabelas** — elas descrevem o código real, não texto genérico. Estilos `.legal-table`/`.legal-toc`/
   `h3` vivem no `<style>` do `layouts/legal.blade.php`. Ainda **falta revisão jurídica** antes do
   lançamento público amplo. Os fluxos de **redefinir senha** e **alterar senha no perfil**
@@ -1162,6 +1170,42 @@ Relatório: `docs/auditoria-completa-2026-07-28.md`. Testes: `AuditoriaCorrecoes
 
 ---
 
+### Varredura de 24/09/2026 — não regredir
+
+Seis revisões em paralelo (borda nova, dinheiro recente, invariantes, autenticação, isolamento,
+front-end), cada achado com teste que falha sem a correção. Além dos itens de 🔒/🔐/🚀:
+
+- **Cheque especial respeita o valor aprovado** (`TetoDoChequeEspecialAprovadoTest`): o
+  `funding_max_amount` vale também para `cheque_especial` — a despesa não usa mais cheque do que o
+  faltante que o modal mostrou; estourou, 409 recalculado. O `funding.js` manda o teto nas duas
+  escolhas. **E o 409 que volta depois da escolha é perguntado de novo** (no máximo 3 vezes) no modal
+  Lançar, no `enviarComFonte` e no formulário cheio, sem sobrar a escolha anterior no reenvio.
+- **Tirar dinheiro sem despesa nova respeita o piso** (`TirarDinheiroDaContaRespeitaOPisoTest`):
+  excluir/baixar/mudar de conta uma receita já gasta, excluir transferência já gasta no destino e
+  excluir despesa cujo resgate cobriu o vermelho de antes passam por
+  `FundingService::garantirPisoAoTirar` + `perdaAoApagar` (a escolha do F-4: só recusa ABAIXO do
+  piso). `estornarFatura` fica de fora de propósito (não prender a um pagamento errado).
+- **Card de Dependentes não soma a quitação de fatura** (`GastoDaFamiliaNaoContaPagamentoDeFaturaTest`)
+  — é o mesmo filtro `settles_account_id` de toda soma de despesa.
+- **Débito/Pix não espelha a própria conta** (`MetodoEspelhoNaoEspelhaAPropriaContaTest`): virava
+  recursão infinita no `paymentOptions` — erro 500 em TODA página da família, sem volta pela tela.
+- **Datas de formulário: `date_format:Y-m-d`, nunca `date`** (`DataComAnoDeCincoDigitosTest`): o
+  parser do PHP lê "20266-09-24" como hora + data de 2006.
+- **Transferência para a própria conta** é recusada pela conta ENCONTRADA, não pelo texto ("05")
+  (`TransferenciaParaAPropriaContaTest`).
+- **Modal Lançar:** chave `client_uuid` por ABERTURA (antes presa até um sucesso: um envio que
+  terminou sem sucesso mas foi gravado fazia o PRÓXIMO lançamento voltar como "já existia");
+  resposta de envio de uma abertura antiga (cancelado e reaberto) não mexe no modal da tela; sem
+  conta cadastrada o botão abre o aviso em vez de morrer num TypeError (`launch-sem-conta.test.js`).
+- **Formulário cheio:** submit delegado no document (o que chega pelo pjax passava longe da fila
+  offline) e chave por lançamento da tela, não por clique (o "Tente de novo" depois de um 504
+  duplicava).
+- **Painel:** o segredo pendente do setup do 2FA só vale na sessão que o gerou
+  (`PainelAdminSegredoDaConfiguracaoEDaSessaoTest`); `admin:criar` sobre admin existente derruba as
+  sessões abertas no painel (`PainelAdminSenhaTrocadaPeloTerminalEncerraAsSessoesTest`).
+- **Suíte:** o `phpunit.xml` pede `memory_limit` 512M (como o CI) — com ~1.970 testes o PHPUnit passa
+  de 128 MB, e o php.ini de produção do container é 128M.
+
 ## 🔎 SEO (23/09/2026) — `SeoDasPaginasPublicasTest`
 
 O app é quase todo privado. **Só login, cadastro, Termos e Privacidade vão para os buscadores**, e só
@@ -1212,7 +1256,13 @@ Corrigido nesta rodada — **não regredir**:
   `login-ip` (20/min por IP) somado ao throttle por e-mail+IP do `LoginRequest` (aquele protege
   uma conta, este barra *password spraying*). **`PATCH /meu-perfil` só ganhou o limite em 17/09/2026 (`PerfilComLimiteDeTentativasTest` — antes, 12 senhas erradas seguidas passavam sem 429). Ao criar rota que pede senha, aplique
   `throttle:senha`** — sem limite é oráculo de força bruta e amplificação de DoS (cada tentativa
-  custa um argon2id de 64 MiB).
+  custa um argon2id de 64 MiB). **"Por IP" é sempre `App\Support\ChaveDeIp::da($request)`**,
+  nunca `$request->ip()` cru (24/09/2026 — `TrocarDeEnderecoIpv6NaoRenovaOLimiteTest`): em IPv6 a
+  chave é a rede /64 — o visitante escolhe à vontade o endereço dentro dela, e cada endereço novo
+  era um limite novo. Onde o IP é REGISTRO (sessões, aceite, auditoria), segue o endereço inteiro.
+  `POST /dependentes` leva `throttle:credencial` (cria login e manda e-mail, como o `/register`).
+  Dois limites com o mesmo `by()` NÃO dividem contador: o `RateLimiter::limiter()` do Laravel 12
+  troca chaves repetidas pela `fallbackKey()` (`LimitesPorMinutoEPorHoraValemOsDoisTest`).
 - **Enumeração de usuário:** `PasswordResetLinkController` responde igual para e-mail
   inexistente (`INVALID_USER` → mensagem de sucesso) e para o pedido REPETIDO
   (`RESET_THROTTLED`, que respondia "aguarde" só para e-mail cadastrado). E o link sai DEPOIS
@@ -1222,6 +1272,11 @@ Corrigido nesta rodada — **não regredir**:
   script montava a lista de clientes —, e o SMTP recusando era HTTP 500. **`auth.timebox_duration`
   = 500 ms** (o framework usa 200; o argon2id do token leva ~134 ms e numa VPS lenta passaria):
   vale para o "esqueci a senha" e para o `validate()` do login, e login CERTO não espera.
+  ⚠️ **Em produção o `defer()` não esconde o tempo por inteiro** (medido na varredura de
+  24/09/2026): com Apache + mod_php não há `fastcgi_finish_request`, e a resposta só TERMINA
+  depois do trabalho adiado (primeiro byte em 0,03 s, fim em 2,03 s). Quem mede o tempo total
+  ainda distingue e-mail cadastrado. Aceito porque o cadastro já revela quem tem conta (decisão
+  abaixo, com o mesmo limite); a correção de verdade é uma fila com worker ou PHP-FPM.
   **O cadastro continua dizendo "Este e-mail já está em uso"** — decisão consciente do Victor em
   23/09/2026: esconder isso exigiria mandar e-mail até para quem erra o próprio endereço, e o
   `throttle:credencial` (5/min por IP) já encarece a varredura. Não "conserte" sem falar com ele.
@@ -1526,6 +1581,7 @@ o único canal que o invasor não controla.**
 | Trocar senha (Configurações) | `senhaAlterada` |
 | Redefinir senha pelo link | `senhaRedefinida` |
 | Ativar / desativar 2FA | `doisFatoresAtivado` / `doisFatoresDesativado`. O `doisFatoresAtivado` diz que os outros aparelhos foram desconectados e tem "Não foi você?" próprio: o "Esqueci a senha" troca a senha, mas não tira da conta o celular de outra pessoa (23/09/2026) |
+| Trocar os códigos de recuperação | `codigosDeRecuperacaoTrocados` (24/09/2026 — exige senha + código; se não foi o dono, alguém tem os dois) |
 | Encerrar outras sessões | `sessoesEncerradas` (com quantos aparelhos caíram) |
 | Excluir conta | `contaExcluida` — montado antes do delete, enviado **depois do commit** (22/09/2026; antes saía antes do delete e anunciava exclusões que uma falha desfazia). Nomeia os dependentes que perderam o acesso junto; ao dependente que apaga o próprio login, diz que o dinheiro fica com o titular (`AvisoDeContaExcluidaNomeiaOsDependentesTest`) |
 | Titular exclui a conta | `ContaDaFamiliaExcluida` para **cada dependente**, depois do commit. O modal nomeia quem perde o acesso e exige o aceite `confirmo_dependentes` (regra única em `ProfileController::dependentesQuePerdemOAcesso`, usada pela view e pelo `destroy`); sem mailer, o modal não promete e-mail. A exclusão pelo painel também avisa — ver a linha "Admin exclui pelo painel" |
@@ -1670,8 +1726,11 @@ dá id novo à sessão atual. Código errado não derruba nada.
 
 ### Limite de tentativas: minuto **e** hora
 
-Limitador `dois-fatores` (`AppServiceProvider`), chave = conta + IP: `Limit::perMinute(5)`
-**somado a** `Limit::perHour(20)`. São 6 dígitos e a janela aceita 3 códigos por vez, então
+Limitador `dois-fatores` (`AppServiceProvider`): `Limit::perMinute(5)` por conta + rede (a
+`ChaveDeIp`) **somado a** `Limit::perHour(20)` pela CONTA, venha de onde vier (24/09/2026 —
+`CodigoDoDoisFatoresTemTetoPorContaTest`): com conta + IP na hora, quem já tem a senha ganhava 20
+códigos novos por endereço. Preço aceito: quem tem a senha consegue atrasar o login do dono em
+até uma hora. O `painel-totp` tem o mesmo teto por admin. São 6 dígitos e a janela aceita 3 códigos por vez, então
 5/min sustentados dariam ~2% de chance por dia; o teto por hora derruba para ~0,1%. O contador
 **não é zerado no acerto**, de propósito — zerar daria ao atacante como renovar a cota.
 
@@ -1703,8 +1762,11 @@ impediria reexibi-los.
 
 ### Excluir a conta com 2FA ligado pede o segundo fator (06/08/2026)
 
-Teste: `ExclusaoDeContaComDoisFatoresTest`. Desligar o 2FA já exigia senha + 2FA, mas **apagar a
-conta inteira** — que desliga tudo de uma vez e é irreversível — pedia só a senha. Quem
+Teste: `ExclusaoDeContaComDoisFatoresTest`. **Apagar a conta inteira** — que desliga tudo de uma
+vez e é irreversível — pedia só a senha. **Desligar o 2FA e trocar os códigos de recuperação também
+pedem senha + código desde 24/09/2026** (`DesligarODoisFatoresPedeOSegundoFatorTest`): antes pediam
+só a senha, e o atalho "desliga o 2FA → exclui a conta" passava sem código nenhum; trocar os códigos
+manda o alerta `codigosDeRecuperacaoTrocados`. Mesma ordem (senha primeiro) e os dois limites. Quem
 sequestrasse uma sessão pegaria o caminho mais destrutivo justamente por ser o mais barato.
 
 - `ProfileController::destroy` valida a **senha primeiro** e só então o código. A ordem não é
@@ -2034,7 +2096,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (1.878 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (1.963 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
@@ -2157,18 +2219,25 @@ visitante → Cloudflare (proxy, SSL Full strict) → nginx do HOST (:443, Let's
   (`docker compose config`); backup → manutenção → pull → up → `composer install --no-dev` →
   permissões (www-data + grupo do deploy, 2770/660, `storage/backups` fora, `.env` 640) → migrate →
   caches → `view:cache` ANTES do build → apaga `public/hot` → sai da manutenção → confere o `/up` e
-  o tamanho do CSS. Falhou no meio? Fica em manutenção (o lado seguro); rodar de novo é seguro.
+  o tamanho do CSS. 🚨 O ajuste de permissões roda como ROOT sobre pastas em que o site escreve:
+  **`find -execdir chown -h`**, nunca `-exec chown` — que segue atalho, e um atalho do site para
+  `.git/hooks` virava root na VPS no deploy seguinte (`permissoes-do-deploy.test.sh`). E recusa
+  `MAIL_MAILER=smtp` com host de desenvolvimento (mailpit/localhost/vazio): o app acharia que envia
+  e prometeria o link do "Esqueci a senha" — até o provedor existir, **`MAIL_MAILER=log`**. Falhou no meio? Fica em manutenção (o lado seguro); rodar de novo é seguro.
   `--primeiro-deploy`, `--sem-git`. ⚠️ **Todo `php artisan` na VPS com `-u www-data`**: como root, ele
   pode criar o log do dia como root e o site passa a dar 500.
 - **Testes (job `scripts` do CI):** `deploy.test.sh` (docker e curl falsos + `docker compose config`
   de verdade; também cobra que o guia, o `.env.example` e o config usem o MESMO gateway e a MESMA
   porta), `nginx.test.sh` (nginx 1.24 de verdade em container: Cloudflare × acesso direto, SNI, Host
-  desconhecido, redirect, upload de 11 × 13 MB, o arquivo da emissão sem certificado) e
-  `atualizar-ips-cloudflare.test.sh`. Sem Docker, as partes que dependem dele são puladas com aviso.
+  desconhecido, redirect, upload de 11 × 13 MB, o arquivo da emissão sem certificado, e o redirect
+  que o Apache monta em http:// saindo em https — `proxy_redirect`), `permissoes-do-deploy.test.sh`
+  (o trecho real do deploy.sh, como root, num container) e `atualizar-ips-cloudflare.test.sh`. Sem Docker, as partes que dependem dele são puladas com aviso.
 - **Pendências (não são código):** provedor de e-mail com remetente do domínio (SPF/DKIM/DMARC na
-  Cloudflare — ela não envia e-mail); a Política de Privacidade listar Oracle (com a região) e
-  Cloudflare como operadores, com `legal.version` subindo; revisão jurídica; Search Console (TXT na
-  Cloudflare + `/sitemap.xml`); desligar Rocket Loader e Email Obfuscation na Cloudflare.
+  Cloudflare — ela não envia e-mail; o nome dele entra na Política); confirmar a região da VPS da
+  Oracle (se for fora do Brasil, a seção 13 da Política diz isso); revisão jurídica; Search Console
+  (TXT na Cloudflare + `/sitemap.xml`); desligar Rocket Loader e Email Obfuscation na Cloudflare.
+  Endurecimento opcional: as faixas da Cloudflare são de TODOS os clientes dela — com Authenticated
+  Origin Pulls (certificado da zona), só a zona do Victor chega à origem.
 
 ## 🏗️ Visão de infraestrutura (decidida em jun/2026, ainda não executada)
 
