@@ -142,6 +142,9 @@ TRUSTED_PROXIES=172.16.80.1
 COMPOSE_FILE=docker-compose.prod.yml
 HTTP_PORT=8081
 
+# até escolher o provedor de e-mail (passo 9) — o do .env.example é o Mailpit de DEV
+MAIL_MAILER=log
+
 ADMIN_PANEL_ENABLED=false
 ```
 
@@ -175,7 +178,11 @@ openssl rand -hex 32     # DB_ROOT_PASSWORD
   aberta para a rede (de propósito, para testar pelo celular no Wi-Fi) e sobe uma caixa de e-mail
   falsa — nunca pode subir aqui.
 - **`HTTP_PORT=8081`** — a porta do app, só em 127.0.0.1. Mudou? Mude o `proxy_pass` do nginx junto.
-- **E-mail** — ver o passo 9 (ainda falta escolher o provedor).
+- **`MAIL_MAILER=log`** até o passo 9. O `.env.example` traz o e-mail de DESENVOLVIMENTO
+  (`MAIL_MAILER=smtp` + `MAIL_HOST=mailpit`), e o Mailpit não existe na VPS: nada sairia — e, com
+  `smtp`, o app acharia que sai, dizendo a quem pediu "Esqueci a senha" que o link foi enviado. Com
+  `log` ele diz a verdade ("o aplicativo não está enviando e-mails"). O `scripts/deploy.sh` recusa o
+  SMTP de desenvolvimento.
 
 O `scripts/deploy.sh` confere tudo isso antes de publicar e se recusa a continuar se algo estiver
 errado — a lista inteira de conferências está em `scripts/lib/deploy-comum.sh`.
@@ -375,9 +382,9 @@ seu domínio (ex.: `nao-responda@victordemelo.com.br`), senão Gmail e Outlook m
 - **A Cloudflare não envia e-mail** (o Email Routing dela só recebe e encaminha). É preciso um
   serviço de envio, que te dá os registros **SPF, DKIM e DMARC** para criar no DNS da Cloudflare —
   eles provam que aquele serviço pode enviar em nome do domínio.
-- Depois, no `.env`: `MAIL_HOST`, `MAIL_PORT`, `MAIL_SCHEME` (**465 → `smtps`**, **587 → `smtp`**
-  — trocados, a conexão morre sem mensagem útil), `MAIL_USERNAME`, `MAIL_PASSWORD`,
-  `MAIL_FROM_ADDRESS`, e `bash scripts/deploy.sh --sem-git`.
+- Depois, no `.env`: `MAIL_MAILER=smtp` (no lugar do `log` do passo 3), `MAIL_HOST`, `MAIL_PORT`,
+  `MAIL_SCHEME` (**465 → `smtps`**, **587 → `smtp`** — trocados, a conexão morre sem mensagem
+  útil), `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`, e `bash scripts/deploy.sh --sem-git`.
 
 ---
 

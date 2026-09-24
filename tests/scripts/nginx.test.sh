@@ -18,6 +18,8 @@
 #   - vindo de fora da Cloudflare, a conexão é fechada (444), mesmo com CF-Connecting-IP;
 #   - Host/SNI desconhecido: a 80 fecha a conexão e a 443 recusa o aperto de mão TLS;
 #   - a porta 80 do site manda para https, com o caminho;
+#   - redirect em http:// montado pelo Apache do container (a barra no fim da URL) chega ao
+#     visitante em https;
 #   - o limite de corpo: 11 MB passam, 13 MB recebem 413.
 #
 # Como se finge "vir da Cloudflare": o container ganha dois IPs a mais na interface de
@@ -84,6 +86,12 @@ cat > "$T/conf.d/zz-app-de-mentira.conf" << 'FIM'
 server {
     listen 127.0.0.1:8081;
     client_max_body_size 0;
+    # O redirect que o APACHE do container monta sozinho (a barra no fim, do .htaccess do
+    # Laravel; o DirectorySlash das pastas de public/): ele não sabe que a requisição original
+    # era https, e escreve http:// com o Host que recebeu.
+    location = /reset-password/TOKEN/ {
+        return 301 http://$host/reset-password/TOKEN$is_args$args;
+    }
     location / {
         default_type text/plain;
         return 200 "xff=$http_x_forwarded_for|proto=$http_x_forwarded_proto|xhost=$http_x_forwarded_host|porta=$http_x_forwarded_port|prefixo=$http_x_forwarded_prefix|forwarded=$http_forwarded|host=$http_host";
@@ -186,6 +194,18 @@ redireciona() {
   [ "$REDIRECIONA" = "301 https://$HOST/login?voltar=1" ] || { DETALHE="$REDIRECIONA"; return 1; }
 }
 afirmar "80 do site: 301 para https, com o caminho e a query" redireciona
+
+# ------------------------------------------------ redirect montado pelo Apache
+
+# O Apache do container não tem TLS: um redirect que ELE monta (a barra no fim da URL, no
+# .htaccess) sai em http://, com o caminho — e, na redefinição de senha, com o token e o
+# e-mail. O navegador de quem ainda não tem o HSTS seguiria em texto puro.
+APACHE_REDIRECT="$(curl_de "$IP_CLOUDFLARE" --resolve "$HOST:443:$IP_CLOUDFLARE" -o /dev/null -w '%{http_code} %{redirect_url}' \
+  -H "CF-Connecting-IP: 203.0.113.7" "https://$HOST/reset-password/TOKEN/?email=vitima%40example.com" 2>&1)"
+redirect_do_app_em_https() {
+  [ "$APACHE_REDIRECT" = "301 https://$HOST/reset-password/TOKEN?email=vitima%40example.com" ] || { DETALHE="$APACHE_REDIRECT"; return 1; }
+}
+afirmar "redirect em http:// montado pelo app (Apache) sai em https para o visitante" redirect_do_app_em_https
 
 # ------------------------------------------------ tamanho do corpo
 

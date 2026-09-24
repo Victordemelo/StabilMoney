@@ -225,7 +225,8 @@ SESSION_DOMAIN=null
 TRUSTED_PROXIES=172.16.80.1
 COMPOSE_FILE=docker-compose.prod.yml
 HTTP_PORT=8081
-MAIL_MAILER=smtp'
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.exemplo.com.br'
 
 U="$T/unidade"
 mkdir -p "$U"
@@ -267,6 +268,12 @@ afirmar ".env: senha de root vazia é recusada" recusa_env root "$(com DB_ROOT_P
 afirmar ".env: '\$' na senha do banco é recusado (o Compose interpolaria)" \
   recusa_env dolar "$(com DB_PASSWORD 'abc$def')" "tem '\$'"
 afirmar ".env: HTTP_PORT que não é número é recusada" recusa_env porta "$(com HTTP_PORT 127.0.0.1:8081)" "HTTP_PORT"
+# O .env.example traz o SMTP de desenvolvimento (o Mailpit do docker-compose.yml). Na VPS ele
+# não existe: nada sai, e com `smtp` o app acha que sai — promete o link do "Esqueci a senha".
+afirmar ".env: MAIL_HOST=mailpit (o do .env.example, de desenvolvimento) é recusado" \
+  recusa_env mailpit "$(com MAIL_HOST mailpit)" "MAIL_HOST=mailpit"
+afirmar ".env: MAIL_MAILER=smtp sem MAIL_HOST (vale 127.0.0.1, sem servidor de e-mail) é recusado" \
+  recusa_env mail-sem-host "$(com MAIL_HOST '')" "MAIL_HOST=(vazio)"
 
 avisa_env() { # <descrição> <conteúdo> <trecho esperado numa linha "aviso:">
   local r
@@ -275,6 +282,8 @@ avisa_env() { # <descrição> <conteúdo> <trecho esperado numa linha "aviso:">
   printf '%s\n' "$r" | grep '^aviso: ' | grep -qF "$3" || { DETALHE="$1 — veio: $r"; return 1; }
 }
 afirmar ".env: MAIL_MAILER=log só avisa (os e-mails não saem)" avisa_env mail "$(com MAIL_MAILER log)" "MAIL_MAILER=log"
+afirmar ".env: MAIL_MAILER=log com o MAIL_HOST do Mailpit só avisa (o app diz que não envia)" \
+  avisa_env mail-log-mailpit "$(com MAIL_MAILER log | awk -F= '$1 == "MAIL_HOST" { print "MAIL_HOST=mailpit"; next } { print }')" "MAIL_MAILER=log"
 afirmar ".env: HTTP_PORT ausente só avisa (vale o 8081 do compose)" avisa_env porta "$(com HTTP_PORT '')" "HTTP_PORT"
 
 css() {
@@ -331,6 +340,17 @@ corpo_combina() {
   [ -n "$nginx" ] && [ "$nginx" = "$php" ] || { DETALHE="nginx: ${nginx:-?}m | PHP post_max_size: ${php:-?}M"; return 1; }
 }
 afirmar "o limite de corpo do nginx é o post_max_size do PHP (o nginx não barra upload que o app aceita)" corpo_combina
+
+# O guia manda deixar "o resto do .env.example como está" até escolher o provedor de e-mail
+# (passo 9). Então o e-mail do .env.example chega à VPS: a conferência tem de DIZER que nada vai
+# sair — aviso (MAIL_MAILER=log: o app sabe que não envia) ou erro (SMTP que não existe lá, com
+# o app achando que envia). Passar calado é o defeito.
+mail_do_exemplo_acusado() {
+  local r
+  r="$(conferir "$(printf '%s\n' "$ENV_BOM" | grep -v '^MAIL_'; grep '^MAIL_' "$REPO/.env.example")")"
+  printf '%s\n' "$r" | grep -Eq '^(aviso: MAIL_MAILER=|erro: MAIL_HOST=)' || { DETALHE="passou calado: '$r'"; return 1; }
+}
+afirmar "o e-mail do .env.example, deixado como está na VPS, não passa calado pela conferência" mail_do_exemplo_acusado
 
 so_127_no_arquivo() {
   local portas

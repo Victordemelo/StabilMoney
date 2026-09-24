@@ -116,6 +116,20 @@ sm_conferir_env_de_producao() { # <arquivo .env>
   v="$(sm_ler_env "$env" MAIL_MAILER log)"
   case "$v" in
     log | null | array) echo "aviso: MAIL_MAILER=$v — nenhum e-mail sai: 'Esqueci a senha', confirmação de cadastro e alertas ficam desligados (checklist, item 5)" ;;
+    smtp)
+      # O .env.example traz o SMTP de DESENVOLVIMENTO (MAIL_HOST=mailpit, o Mailpit do
+      # docker-compose.yml). Aqui ele não existe: nenhum e-mail sai — e, com `smtp`, o
+      # App\Support\Mailer::entrega() diz que sai. O app promete o link do "Esqueci a senha",
+      # esconde o aviso de que o 2FA fica sem recuperação por e-mail e o modal de excluir a
+      # conta promete aviso por e-mail. Com `log`, ele diz a verdade (é só um aviso acima).
+      host="$(sm_minusculas "$(sm_ler_env "$env" MAIL_HOST)")"
+      if [ -z "$(sm_ler_env "$env" MAIL_URL)" ]; then
+        case "$host" in
+          '' | null | mailpit | localhost | 127.0.0.1 | ::1)
+            echo "erro: MAIL_HOST=${host:-(vazio)} com MAIL_MAILER=smtp — é o e-mail de DESENVOLVIMENTO, que não existe na VPS: nada sai, e o app, achando que envia, promete o link do 'Esqueci a senha'. Sem provedor ainda, use MAIL_MAILER=log (o app avisa que não envia); com provedor, o MAIL_HOST dele (docs/deploy-oracle-cloudflare.md, passo 9)" ;;
+        esac
+      fi
+      ;;
   esac
 
   v="$(sm_minusculas "$(sm_ler_env "$env" ADMIN_PANEL_ENABLED false)")"
