@@ -303,8 +303,8 @@
                 <tr>
                     <td>Oracle Cloud Infrastructure (Oracle)</td>
                     <td>Operador</td>
-                    <td>Servidor em nuvem onde rodam o aplicativo e o banco de dados. Não usa os dados para
-                        finalidade própria.</td>
+                    <td>Servidor em nuvem, na região de São Paulo (Brasil), onde rodam o aplicativo e o banco
+                        de dados. Não usa os dados para finalidade própria.</td>
                 </tr>
                 <tr>
                     <td>Cloudflare</td>
@@ -503,9 +503,10 @@
        confirmar sua identidade antes de atender ao pedido, para proteger sua conta.</p>
 
     <h2 id="s13">13. Transferência internacional de dados</h2>
-    <p>O servidor com o aplicativo e o banco de dados é contratado na nuvem da <strong>Oracle</strong>
-       (Oracle Cloud Infrastructure). Além dele, alguns serviços usados pelo Stabil Money são de empresas
-       estrangeiras e tratam dados fora do Brasil:</p>
+    <p>Os dados da sua conta ficam armazenados <strong>no Brasil</strong>: o servidor com o aplicativo e o
+       banco de dados está na região de São Paulo da nuvem da <strong>Oracle</strong> (Oracle Cloud
+       Infrastructure). Além dele, alguns serviços usados pelo Stabil Money são de empresas estrangeiras e
+       tratam dados fora do Brasil:</p>
     <ul>
         <li><strong>Cloudflare</strong> — todo acesso ao aplicativo passa pela rede global dela: endereço
             IP, dados do navegador e o conteúdo em trânsito;</li>

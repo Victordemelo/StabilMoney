@@ -256,8 +256,9 @@ tests/Feature/              # 1.978 testes (PHP): auth, dashboard, CRUD, valida�
   seção 13 lista as transferências internacionais com a base do art. 33), retenção (logs 6 meses —
   Marco Civil; backups 14 dias; auditoria do painel sobrevive à exclusão) e os direitos do art. 18.
   **Versão 3.0 (24/09/2026):** a 2.0 afirmava 2FA "ainda não disponível", "sem rotina de backup",
-  Google Fonts como "única transferência internacional" e servidor "no Brasil" (a região da VPS
-  não está confirmada — a Política não afirma o país). `PoliticaDescreveOCodigoRealTest` confere a
+  Google Fonts como "única transferência internacional" e servidor "no Brasil" sem saber a região.
+  **3.1 (24/09/2026):** a VPS fica na região **São Paulo** da Oracle (confirmado pelo Victor) — a
+  Política diz que os dados ficam no Brasil; mudou de região, mude as seções 6 e 13 e suba a versão. `PoliticaDescreveOCodigoRealTest` confere a
   Política contra o código (nome dos cookies; todo host externo que o código contata tem de estar
   nomeado) e `VersaoDosDocumentosLegaisTest` falha quando o texto visível muda sem subir a
   `legal.version` (registre a impressão nova que a falha mostra). **Ao mexer no que o app coleta/compartilha, atualizar essas
@@ -2251,8 +2252,7 @@ visitante → Cloudflare (proxy, SSL Full strict) → nginx do HOST (:443, Let's
   que o Apache monta em http:// saindo em https — `proxy_redirect`), `permissoes-do-deploy.test.sh`
   (o trecho real do deploy.sh, como root, num container) e `atualizar-ips-cloudflare.test.sh`. Sem Docker, as partes que dependem dele são puladas com aviso.
 - **Pendências (não são código):** provedor de e-mail com remetente do domínio (SPF/DKIM/DMARC na
-  Cloudflare — ela não envia e-mail; o nome dele entra na Política); confirmar a região da VPS da
-  Oracle (se for fora do Brasil, a seção 13 da Política diz isso); revisão jurídica; Search Console
+  Cloudflare — ela não envia e-mail; o nome dele entra na Política); revisão jurídica; Search Console
   (TXT na Cloudflare + `/sitemap.xml`); desligar Rocket Loader e Email Obfuscation na Cloudflare.
   Endurecimento opcional: as faixas da Cloudflare são de TODOS os clientes dela — com Authenticated
   Origin Pulls (certificado da zona), só a zona do Victor chega à origem.

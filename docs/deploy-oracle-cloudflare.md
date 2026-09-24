@@ -418,8 +418,9 @@ Só o login, o cadastro, os Termos e a Privacidade vão para o Google; todo o re
 
 ## 12. O que ainda não é código (antes de abrir para o público)
 
-- **Política de Privacidade:** ela lista os operadores e a transferência internacional de dados.
-  A Oracle Cloud (com a região da VPS) e a Cloudflare precisam entrar — e o `legal.version` sobe
-  junto (`config/legal.php`).
+- **Política de Privacidade:** já nomeia a Oracle Cloud (região de São Paulo — os dados ficam no
+  Brasil), a Cloudflare, o Have I Been Pwned e o Google Fonts (versão 3.1, 24/09/2026). Falta o
+  **nome do provedor de e-mail** quando ele for escolhido (passo 9) — e o `legal.version` sobe junto
+  (`config/legal.php`; o `VersaoDosDocumentosLegaisTest` cobra).
 - **Revisão jurídica** dos Termos e da Política (checklist, item 17): com o cadastro aberto ao
   público desde o primeiro dia, é um bloqueador.

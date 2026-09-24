@@ -17,7 +17,7 @@ return [
     |
     */
 
-    'version' => '3.0',
+    'version' => '3.1',
 
     'updated_at' => '24 de setembro de 2026',
 

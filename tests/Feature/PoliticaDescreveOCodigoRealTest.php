@@ -58,6 +58,9 @@ class PoliticaDescreveOCodigoRealTest extends TestCase
     {
         $this->get('/privacidade')
             ->assertSee('Oracle Cloud Infrastructure')
+            // A VPS fica na região de São Paulo (confirmado em 24/09/2026): os dados ficam no
+            // Brasil. Mudou de região? Mude as seções 6 e 13 — e, se sair do país, a 13 diz isso.
+            ->assertSee('região de São Paulo')
             ->assertSee('Cloudflare')
             ->assertSee('Provedor de envio de e-mail')
             ->assertSee('Have I Been Pwned')
@@ -104,7 +107,6 @@ class PoliticaDescreveOCodigoRealTest extends TestCase
             ->assertDontSee('ainda não disponível')             // o 2FA existe desde 05/08/2026
             ->assertDontSee('garantia de rotina de backup')     // scripts/backup-db.sh + cron do guia
             ->assertDontSee('única transferência internacional')
-            ->assertDontSee('servidor localizado no Brasil')    // a região da VPS não está confirmada
             ->assertDontSee('stabilmoney_session')              // o nome real vem da config
             ->assertDontSee('nome e, se preciso, e-mail');      // o login de dependente exige e-mail e senha
     }
