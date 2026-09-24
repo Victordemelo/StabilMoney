@@ -558,6 +558,13 @@ class TransactionController extends Controller
             // que o rollback restaura (`$tinhaFonte`).
             $transaction->refresh();
 
+            // DESPESA paga com resgate que sai da conta (vai para outra, ou vira receita):
+            // a reconciliação devolve o resgate INTEIRO ao investimento — ver
+            // `garantirPisoDaDespesaFinanciadaEditada`. Antes dela, que apaga o resgate.
+            if ($tinhaFonte && $transaction->type === 'expense') {
+                $this->garantirPisoDaDespesaFinanciadaEditada($transaction, $data, $funding);
+            }
+
             if ($tinhaFonte) {
                 $this->reconciliarFonte($transaction, $funding, (int) $data['account_id']);
             }
@@ -824,6 +831,52 @@ class TransactionController extends Controller
             $data['type'] === 'income' => [
                 round(max(0.0, $valorAntigo - (float) $data['amount']), 2),
                 'Não dá para baixar esta receita para '.Brl::format($data['amount']).': com esse valor,',
+            ],
+            default => [0.0, ''],
+        };
+
+        if ($sai <= 0.001) {
+            return;
+        }
+
+        foreach (collect([$antiga, $nova])->unique()->sort() as $id) {
+            Account::whereKey($id)->lockForUpdate()->first();
+        }
+
+        $funding->garantirPisoAoTirar($antiga, $sai, $abertura);
+    }
+
+    /**
+     * Editar uma DESPESA paga com resgate de modo que ela saia da conta — para outra
+     * conta, ou virando receita — não pode deixar a conta ANTIGA abaixo do piso (ver
+     * `FundingService::garantirPisoAoTirar`; achado do teste de propriedades de 24/09/2026,
+     * `EditarDespesaPagaComResgateRespeitaOPisoTest`).
+     *
+     * A reconciliação devolve ao investimento o resgate INTEIRO, e ele pode ser maior que a
+     * despesa: é o faltante, que inclui o vermelho que a conta já tinha
+     * (`SpendingGuard::faltante`). A conta antiga perde o mesmo que perderia se a linha
+     * fosse apagada (`perdaAoApagar`) — menos a receita nova, quando ela fica na mesma
+     * conta. Se a conta voltou a usar o cheque especial depois do resgate, ia abaixo do piso
+     * sem trava: o `garantirPisoDaReceitaEditada` só olha receita, e o `spend` só a conta
+     * que recebe a despesa nova.
+     *
+     * Continuar despesa na MESMA conta fica de fora: ali o `spend` confere, com o resgate já
+     * devolvido e o `$ignore`. Chame ANTES da reconciliação — depois dela o resgate já não
+     * existe para medir. Contas travadas em id crescente, como no `reconciliarFonte`.
+     */
+    private function garantirPisoDaDespesaFinanciadaEditada(Transaction $despesa, array $data, FundingService $funding): void
+    {
+        $antiga = (int) $despesa->account_id;
+        $nova = (int) $data['account_id'];
+
+        [$sai, $abertura] = match (true) {
+            $nova !== $antiga => [
+                $funding->perdaAoApagar($despesa),
+                'Não dá para tirar esta despesa da conta: o resgate que a pagou volta para o investimento, e ele também cobriu o saldo negativo que a conta já tinha — sem os dois,',
+            ],
+            $data['type'] === 'income' => [
+                round($funding->perdaAoApagar($despesa) - (float) $data['amount'], 2),
+                'Não dá para transformar esta despesa em receita: o resgate que a pagou volta para o investimento, e ele também cobriu o saldo negativo que a conta já tinha — com isso,',
             ],
             default => [0.0, ''],
         };
