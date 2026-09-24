@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.963 testes PHP / 11.618 asserções** — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **336 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **1.978 testes PHP / 50.445 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **336 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -222,7 +222,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 1.963 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 1.978 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1205,6 +1205,24 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   sessões abertas no painel (`PainelAdminSenhaTrocadaPeloTerminalEncerraAsSessoesTest`).
 - **Suíte:** o `phpunit.xml` pede `memory_limit` 512M (como o CI) — com ~1.970 testes o PHPUnit passa
   de 128 MB, e o php.ini de produção do container é 128M.
+- **Editar despesa paga com resgate** (para outra conta, ou virando receita) também passa pelo piso:
+  a reconciliação devolve o resgate INTEIRO, que pode ter coberto o vermelho de antes
+  (`TransactionController::garantirPisoDaDespesaFinanciadaEditada`,
+  `EditarDespesaPagaComResgateRespeitaOPisoTest`).
+- **Piso do `paid_on` da fatura = despesa em aberto mais antiga OU hoje**, o que vier primeiro, no
+  `PayInvoiceRequest` e no `payFloor`: a mais antiga pode ser a próxima parcela, datada no mês que
+  vem, e nenhuma data valia (`PagarFaturaComParcelaDatadaNoFuturoTest`).
+- **Conta fixa: a competência já paga é conferida ANTES do guard** — o reenvio perguntava a fonte
+  de novo por algo já pago (`ReenvioDoPagamentoDeContaFixaTest`).
+- **`InvariantesDoDinheiroEmSequenciaTest`** — teste de PROPRIEDADES: com semente fixa, uma família
+  completa faz operações aleatórias pelas rotas (lançar, transferir, parcelar, pagar/estornar
+  fatura, quitar pelo crédito, excluir, editar, aportar, resgatar, conta fixa, recorrência,
+  reenvio, relógio), e a cada passo confere um livro-sombra, o piso, a estrutura e as telas. Achou
+  os três itens acima. Padrão 8 sementes × 50 operações (~10 s). **Mexeu no modelo de dinheiro?
+  Explore:** `INVARIANTES_SEMENTES=1-200 INVARIANTES_OPERACOES=80` (acima de ~150 sementes,
+  `php -d memory_limit=1G vendor/bin/phpunit --filter=Invariantes`). ⚠️ Aporte/resgate têm cast
+  `date` (não `date:Y-m-d`): no sqlite a coluna guarda "Y-m-d 00:00:00" e as bordas da spark do
+  saldo comparam texto — o teste pula essa conferência só nesse caso (no MySQL a coluna é DATE).
 
 ## 🔎 SEO (23/09/2026) — `SeoDasPaginasPublicasTest`
 
@@ -2096,7 +2114,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (1.963 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (1.978 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
