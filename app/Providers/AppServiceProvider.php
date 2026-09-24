@@ -192,17 +192,31 @@ class AppServiceProvider extends ServiceProvider
         //
         // A chave é a CONTA + o IP: no desafio a pessoa ainda não está autenticada, então
         // o alvo vem do login pendente na sessão (ver TwoFactorChallengeController).
+        //
+        // 🚨 E a CONTA tem teto próprio, seja qual for o IP (CodigoDoDoisFatoresTemTetoPorContaTest).
+        // Só com a chave conta + IP, quem já tem a senha — justamente quem o segundo fator
+        // existe para barrar — ganhava 20 códigos novos por hora a cada endereço: com IPv6
+        // (uma VPS comum vem com um /64, e a Cloudflare repassa o IPv6 de cada visitante),
+        // 1.000 endereços davam 20.000 chutes por hora, e a conta de "~0,1% ao dia" acima
+        // virava ~76%. Preço aceito: quem tem a senha consegue gastar a cota e deixar o dono
+        // sem completar o login por até uma hora — o dono troca a senha (o que já derruba o
+        // login pendente do atacante) e espera; a alternativa era o código ser adivinhado.
         RateLimiter::for('dois-fatores', function (Request $request) {
             $conta = $request->user()?->getKey()
-                ?? $request->session()->get(TwoFactorChallengeController::CHAVE_ID)
-                ?? $request->ip();
+                ?? $request->session()->get(TwoFactorChallengeController::CHAVE_ID);
 
-            $chave = '2fa|'.$conta.'|'.$request->ip();
+            $chave = '2fa|'.($conta ?? $request->ip()).'|'.$request->ip();
 
-            return [
+            $limites = [
                 Limit::perMinute(5)->by($chave),
                 Limit::perHour(20)->by($chave),
             ];
+
+            if ($conta !== null) {
+                $limites[] = Limit::perHour(20)->by('2fa-conta|'.$conta);
+            }
+
+            return $limites;
         });
 
         // ── Painel administrativo ───────────────────────────────────────────────
@@ -218,10 +232,22 @@ class AppServiceProvider extends ServiceProvider
 
         // Segundo fator do painel: o mesmo raciocínio de 10^6 palpites do 2FA do app,
         // com teto ainda menor porque não há base de usuários para acomodar.
-        RateLimiter::for('painel-totp', fn (Request $request) => [
-            Limit::perMinute(3)->by('painel-totp|'.$request->ip()),
-            Limit::perHour(10)->by('painel-totp|'.$request->ip()),
-        ]);
+        //
+        // E o mesmo teto por CONTA do `dois-fatores`: por IP só, quem tem a senha do admin
+        // renovava a cota trocando de endereço (CodigoDoDoisFatoresTemTetoPorContaTest). As
+        // rotas do código ficam atrás do `AutenticaNoPainel`, então o admin já é conhecido.
+        RateLimiter::for('painel-totp', function (Request $request) {
+            $limites = [
+                Limit::perMinute(3)->by('painel-totp|'.$request->ip()),
+                Limit::perHour(10)->by('painel-totp|'.$request->ip()),
+            ];
+
+            if ($admin = $request->user('admin')) {
+                $limites[] = Limit::perHour(10)->by('painel-totp-admin|'.$admin->getKey());
+            }
+
+            return $limites;
+        });
 
         // Banir/desbanir/excluir. Um humano faz isso poucas vezes ao dia; um pico é
         // sinal de sessão sequestrada, e o limite transforma "apagou a base inteira"

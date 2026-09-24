@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Admin;
+use App\Support\BrowserSessions;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
@@ -63,6 +64,10 @@ class CriarAdmin extends Command
             ? "Administrador {$admin->email} atualizado."
             : "Administrador {$admin->email} criado.");
 
+        if ($existia) {
+            $this->encerrarAsSessoesNoPainel($admin);
+        }
+
         if (! $admin->temDoisFatores()) {
             $this->newLine();
             $this->warn('O segundo fator ainda NÃO está configurado.');
@@ -77,5 +82,36 @@ class CriarAdmin extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Senha nova = as sessões abertas no painel com a senha antiga caem
+     * (PainelAdminSenhaTrocadaPeloTerminalEncerraAsSessoesTest).
+     *
+     * Trocar a senha por aqui é o remédio que o app indica quando ela pode ter vazado (o
+     * alerta do painel e a saída do `admin:zerar-2fa`). Sem isto, quem já estava dentro seguia
+     * dentro: o guard `admin` não confere a senha a cada requisição. A mesma regra da troca de
+     * senha do cliente (PasswordController), que derruba as outras sessões.
+     *
+     * As sessões são achadas pelo payload, como no `admin:zerar-2fa` — a coluna `user_id` de
+     * `sessions` é do guard `web` e derrubaria o cliente do app com o mesmo número de id.
+     */
+    private function encerrarAsSessoesNoPainel(Admin $admin): void
+    {
+        $driver = (string) config('session.driver');
+
+        if ($driver !== 'database') {
+            $this->warn("O driver de sessão é \"{$driver}\": as sessões abertas no painel não puderam ser encerradas.");
+
+            return;
+        }
+
+        $encerradas = BrowserSessions::purgeForGuard('admin', $admin->getKey());
+
+        $this->line(match ($encerradas) {
+            0 => 'Não havia sessão aberta no painel.',
+            1 => '1 sessão aberta no painel foi encerrada.',
+            default => "{$encerradas} sessões abertas no painel foram encerradas.",
+        });
     }
 }

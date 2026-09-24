@@ -24,6 +24,16 @@ use Illuminate\Validation\ValidationException;
  */
 class TwoFactorController extends Controller
 {
+    /**
+     * Marca, na sessão, do segredo pendente que ESTA sessão gerou (um hash — nunca o segredo).
+     *
+     * O segredo ainda não confirmado mora na linha do admin, e antes a tela o mostrava a
+     * qualquer sessão que chegasse até ela. O QR aberto numa sessão anterior — inclusive a de
+     * quem só tinha a senha — continuava valendo depois que o admin confirmava a configuração
+     * na dele (PainelAdminSegredoDaConfiguracaoEDaSessaoTest).
+     */
+    private const CHAVE_SEGREDO_DA_SESSAO = 'admin_2fa_setup';
+
     // ── Setup (primeiro acesso) ──────────────────────────────────────────────
 
     public function setup(Request $request)
@@ -34,11 +44,20 @@ class TwoFactorController extends Controller
             return redirect()->route('painel.home');
         }
 
-        // Sem segredo ainda (ou setup abandonado): gera um novo. Regerar a cada visita
-        // à tela é seguro porque nada foi confirmado — e evita o QR "morto" de uma
-        // tentativa anterior continuar valendo.
-        if (! $admin->two_factor_secret) {
+        // Sem segredo ainda, ou com um segredo pendente que NÃO foi esta sessão que gerou
+        // (setup abandonado em outro navegador): gera um novo. Seguro porque nada foi
+        // confirmado, e é o que impede o QR de outra sessão de continuar valendo.
+        //
+        // Na MESMA sessão o segredo fica: recarregar a tela ou errar o código (a validação
+        // volta para cá) não obriga a escanear o QR de novo.
+        $marca = $request->session()->get(self::CHAVE_SEGREDO_DA_SESSAO);
+
+        if (! $admin->two_factor_secret
+            || ! is_string($marca)
+            || ! hash_equals(self::marcaDoSegredo($admin->two_factor_secret), $marca)) {
             $admin->iniciarDoisFatores();
+
+            $request->session()->put(self::CHAVE_SEGREDO_DA_SESSAO, self::marcaDoSegredo($admin->two_factor_secret));
         }
 
         return view('admin.auth.dois-fatores-setup', [
@@ -173,6 +192,12 @@ class TwoFactorController extends Controller
 
         $admin->registrarLogin($request->ip());
         AdminAudit::registrar(AdminAuditLog::LOGIN, $admin, $request, motivo: $motivo);
+    }
+
+    /** Hash do segredo, para a sessão reconhecer o que ela mesma gerou sem guardá-lo. */
+    private static function marcaDoSegredo(string $segredo): string
+    {
+        return hash('sha256', $segredo);
     }
 
     /**
