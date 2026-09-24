@@ -237,6 +237,18 @@ class FaturaController extends Controller
                     : 'Compra removida (todas as parcelas).';
             }
 
+            // A mesma conferência do piso do Histórico (`TransactionController::destroy`):
+            // a despesa em conta leva junto o resgate que a pagou, que pode ter coberto
+            // também o vermelho de antes; e uma receita (a tela não a lista, mas a URL a
+            // alcança) leva o dinheiro que já foi gasto. Antes do `estornarFonte`.
+            $funding->garantirPisoAoTirar(
+                (int) $transaction->account_id,
+                $funding->perdaAoApagar($transaction),
+                $transaction->type === 'income'
+                    ? 'Não dá para excluir esta receita: sem ela,'
+                    : 'Não dá para excluir esta despesa: o resgate que a pagou também cobriu o saldo negativo que a conta já tinha, e sem os dois',
+            );
+
             $funding->estornarFonte([$transaction->id]);
             $transaction->delete();
 

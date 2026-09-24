@@ -451,6 +451,84 @@ class FundingService
             + GoalContribution::whereIn('transaction_id', $ids)->delete();
     }
 
+    /**
+     * O PISO (invariante I1: `available >= −limite do cheque especial`) também vale quando
+     * o dinheiro sai de uma conta de caixa SEM ser por despesa: excluir ou baixar uma
+     * receita, mudá-la de conta, excluir uma transferência cujo destino já gastou o
+     * dinheiro — ou excluir a despesa cujo resgate cobriu também o vermelho que a conta já
+     * tinha (ver `perdaAoApagar`). O `spend()` só confere despesa NOVA — por esses caminhos
+     * a conta ia abaixo do piso sem cheque especial nenhum, e o guardado em
+     * metas/investimentos passava a ser dinheiro que ela não tem. É a regra irmã do F-4
+     * (reduzir o `initial_balance`), com a mesma escolha: só recusa o que deixaria a conta
+     * ABAIXO do piso — dentro do cheque especial, passa, como lá.
+     *
+     * Trava a conta (a mesma trava de toda despesa, então nenhuma entra no meio da conta
+     * abaixo): chame dentro da transação de banco de quem grava, ANTES de travar ou apagar
+     * os lançamentos — a ordem conta → lançamentos de todo caminho que mexe em dinheiro.
+     * Cartão de crédito não tem piso de saldo (receita nele é estorno): nada a conferir.
+     *
+     * @param  float  $sai  quanto o disponível da conta perde com a operação
+     * @param  string  $abertura  começo da frase de recusa, ex.: "Não dá para excluir esta receita: sem ela,"
+     *
+     * @throws ValidationException no campo `transaction` (o mesmo das outras recusas do Histórico)
+     */
+    public function garantirPisoAoTirar(int $contaId, float $sai, string $abertura): void
+    {
+        if ($sai <= SpendingGuard::EPSILON) {
+            return;
+        }
+
+        $conta = Account::whereKey($contaId)->lockForUpdate()->first();
+
+        if (! $conta || ! $conta->isCash()) {
+            return;
+        }
+
+        $piso = -$conta->overdraftLimitValue;
+        $depois = round($conta->available - $sai, 2);
+
+        if ($depois + SpendingGuard::EPSILON >= $piso) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'transaction' => $abertura.' a conta '.$conta->name.' ficaria em '.Brl::format($depois).', '
+                .($piso < 0
+                    ? 'abaixo do limite do cheque especial ('.Brl::format(-$piso).'). '
+                    : 'e ela não tem cheque especial para cobrir saldo negativo. ')
+                .'O saldo em conta não pode ficar abaixo de '.Brl::format($piso).' — esse dinheiro já foi usado '
+                .'(em despesas, ou guardado em metas e investimentos). Corrija primeiro o que foi pago com ele '
+                .'ou, se o banco lhe dá cheque especial, cadastre o limite na conta.',
+        ]);
+    }
+
+    /**
+     * Quanto o DISPONÍVEL da conta de uma linha perde se ela for apagada (≤ 0: não perde).
+     *
+     *  - Receita: perde o valor inteiro — é o dinheiro que deixa de ter entrado.
+     *  - Despesa: ganha o valor de volta, mas o resgate ligado a ela sai junto
+     *    (`estornarFonte`), e com ele o dinheiro que ele trouxe. Quase sempre o resgate é
+     *    no máximo o valor da despesa (ganho líquido). Mas ele é o FALTANTE, que inclui o
+     *    vermelho que a conta já tinha (`SpendingGuard::faltante`): com a conta em −300,
+     *    uma despesa de 200 resgata 500. Apagá-la tira 500 e devolve 200 — se a conta
+     *    voltou a usar o cheque especial nesse meio-tempo, ela passava do piso.
+     *
+     * Chame ANTES do `estornarFonte`: depois dele o resgate já não existe para medir.
+     */
+    public function perdaAoApagar(Transaction $linha): float
+    {
+        if ($linha->type === 'income') {
+            return round((float) $linha->amount, 2);
+        }
+
+        $resgatado = (float) InvestmentContribution::where('transaction_id', $linha->getKey())
+            ->where('type', 'resgate')->sum('amount')
+            + (float) GoalContribution::where('transaction_id', $linha->getKey())
+                ->where('type', 'resgate')->sum('amount');
+
+        return round($resgatado - (float) $linha->amount, 2);
+    }
+
     /** Cartão de crédito: a compra não pode passar do limite disponível. */
     private function assertLimiteCartao(Account $card, float $amount, float $ignore = 0.0): void
     {

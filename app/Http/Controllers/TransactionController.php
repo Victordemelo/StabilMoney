@@ -549,6 +549,11 @@ class TransactionController extends Controller
                 $this->reconciliarFonte($transaction, $funding, (int) $data['account_id']);
             }
 
+            // RECEITA que encolhe ou sai da conta: ver `garantirPisoDaReceitaEditada`.
+            if ($transaction->type === 'income') {
+                $this->garantirPisoDaReceitaEditada($transaction, $data, $funding);
+            }
+
             // Receita não gasta nada: grava direto.
             if ($data['type'] !== 'expense') {
                 $transaction->update($data);
@@ -593,9 +598,10 @@ class TransactionController extends Controller
         };
 
         // Só há o que reconciliar — e, portanto, o que envolver numa transação de
-        // banco aqui — quando a linha antiga tinha fonte. Sem fonte, quem abre a
-        // transação (e trava a conta) é o próprio FundingService.
-        $tinhaFonte
+        // banco aqui — quando a linha antiga tinha fonte, ou quando ela é uma RECEITA
+        // (a conferência do piso trava a conta e precisa valer até a gravação). Fora
+        // disso, quem abre a transação (e trava a conta) é o próprio FundingService.
+        ($tinhaFonte || $transaction->type === 'income')
             ? DB::transaction($gravar, attempts: 3)
             : $gravar();
 
@@ -783,6 +789,44 @@ class TransactionController extends Controller
     }
 
     /**
+     * Editar uma RECEITA de modo que ela deixe de sustentar a conta — baixar o valor, ou
+     * tirá-la de lá (outra conta, ou despesa em outra conta) — não pode deixar a conta
+     * ANTIGA abaixo do piso (ver `FundingService::garantirPisoAoTirar`).
+     *
+     * Virar despesa na MESMA conta fica de fora: ali o `spend` já confere, com o `$ignore`
+     * com sinal (auditoria de 28/07, item 1.6). Antes do spend, porque é ele quem grava.
+     *
+     * As contas envolvidas são travadas em id crescente ANTES de tudo, como no
+     * `reconciliarFonte`: a antiga (que perde a receita) e a nova (que o `spend` vai
+     * relocar). Sem ordem fixa, duas edições cruzadas (A→B e B→A) seriam deadlock ABBA.
+     */
+    private function garantirPisoDaReceitaEditada(Transaction $receita, array $data, FundingService $funding): void
+    {
+        $antiga = (int) $receita->account_id;
+        $nova = (int) $data['account_id'];
+        $valorAntigo = round((float) $receita->amount, 2);
+
+        [$sai, $abertura] = match (true) {
+            $nova !== $antiga => [$valorAntigo, 'Não dá para tirar esta receita da conta: sem ela,'],
+            $data['type'] === 'income' => [
+                round(max(0.0, $valorAntigo - (float) $data['amount']), 2),
+                'Não dá para baixar esta receita para '.Brl::format($data['amount']).': com esse valor,',
+            ],
+            default => [0.0, ''],
+        };
+
+        if ($sai <= 0.001) {
+            return;
+        }
+
+        foreach (collect([$antiga, $nova])->unique()->sort() as $id) {
+            Account::whereKey($id)->lockForUpdate()->first();
+        }
+
+        $funding->garantirPisoAoTirar($antiga, $sai, $abertura);
+    }
+
+    /**
      * Flash da edição. Quando o resgate foi recalculado, o usuário precisa saber
      * — dinheiro que sai (ou volta) de um investimento sem aviso é o tipo de
      * movimento que ninguém consegue explicar depois.
@@ -818,6 +862,28 @@ class TransactionController extends Controller
         // ter sido financiada por resgate — e é feito na MESMA transação de banco.
         if ($transaction->isTransferencia()) {
             DB::transaction(function () use ($transaction, $funding) {
+                // Desfazer a transferência TIRA o dinheiro do destino (a entrada some) — e,
+                // se a saída foi paga com um resgate que cobriu também o vermelho da origem,
+                // tira da origem (`perdaAoApagar`). Já gasto, a conta ia abaixo do piso sem
+                // despesa nenhuma passar pela trava. As duas contas são travadas em id
+                // crescente ANTES das pontas: a ordem conta → lançamentos, e a mesma ordem
+                // entre as duas que a reconciliação usa (sem ela, A→B e B→A cruzadas).
+                $pontas = Transaction::where('user_id', $transaction->user_id)
+                    ->where('transfer_group_id', $transaction->transfer_group_id)
+                    ->get();
+
+                foreach ($pontas->pluck('account_id')->unique()->sort() as $contaId) {
+                    Account::whereKey($contaId)->lockForUpdate()->first();
+                }
+
+                foreach ($pontas as $ponta) {
+                    $funding->garantirPisoAoTirar(
+                        (int) $ponta->account_id,
+                        $funding->perdaAoApagar($ponta),
+                        'Não dá para excluir esta transferência: sem ela,',
+                    );
+                }
+
                 $ids = Transaction::where('user_id', $transaction->user_id)
                     ->where('transfer_group_id', $transaction->transfer_group_id)
                     ->lockForUpdate()
@@ -890,6 +956,19 @@ class TransactionController extends Controller
             if ($encerrar && $transaction->account?->type === 'credit_card') {
                 Account::whereKey($transaction->account_id)->lockForUpdate()->first();
             }
+
+            // Apagar a linha não pode deixar a conta abaixo do piso: a RECEITA leva embora o
+            // dinheiro que já foi gasto, e a despesa leva junto o resgate que a pagou — que
+            // pode ter coberto também o vermelho de antes (`perdaAoApagar`). No cartão não
+            // há piso de saldo (receita nele é estorno) — o helper não confere. Antes do
+            // `estornarFonte`, que é quem apaga o resgate que a conta mede.
+            $funding->garantirPisoAoTirar(
+                (int) $transaction->account_id,
+                $funding->perdaAoApagar($transaction),
+                $transaction->type === 'income'
+                    ? 'Não dá para excluir esta receita: sem ela,'
+                    : 'Não dá para excluir esta despesa: o resgate que a pagou também cobriu o saldo negativo que a conta já tinha, e sem os dois',
+            );
 
             // Se esta despesa foi financiada por resgate de investimento, o
             // resgate morre junto — senão o aplicado encolhe sem contrapartida.
