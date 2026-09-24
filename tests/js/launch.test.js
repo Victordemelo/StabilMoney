@@ -214,6 +214,76 @@ describe('sucesso', () => {
     });
 });
 
+describe('client_uuid — uma chave por ABERTURA do modal', () => {
+    /**
+     * O servidor deduplica SÓ pela chave: `TransactionController::store` acha o
+     * `client_uuid` na família e devolve a linha que já existe (200), sem comparar
+     * valor, conta nem descrição. A chave, portanto, tem de identificar UM lançamento.
+     *
+     * O defeito aparece quando um envio termina sem resposta de sucesso mas FOI gravado:
+     * o 504 do nginx (`proxy_read_timeout` de 60 s, contra até três esperas de trava de
+     * ~50 s no `FundingService`) ou o "Cancelar" apertado com o spinner girando — o POST
+     * segue para o servidor. A pessoa reabre o modal e lança OUTRA coisa; com a chave de
+     * antes, o servidor responde "já existia" com o lançamento ANTERIOR, o modal fecha
+     * como se tivesse salvo, e o novo nunca é gravado.
+     */
+    it('reabrir depois de um envio sem sucesso gera chave nova para o próximo lançamento', async () => {
+        // 504 do proxy: o PHP pode ter seguido e gravado depois que o nginx desistiu.
+        respostasDoPost = [resposta(504), resposta(200)];
+
+        abrirComDespesa('150,00');
+        await salvar();
+        expect(erroVisivel()).toBe(true);
+
+        document.querySelector('[data-close-btn]').click();
+        abrirComDespesa('20,00');
+        await salvar();
+
+        const [primeiro, segundo] = chamadas.posts;
+        expect(segundo.amount).toBe('20,00');
+        // Com a mesma chave, o 200 acima seria o servidor devolvendo o lançamento de
+        // R$ 150,00 — e o de R$ 20,00 sumiria com o modal dizendo que salvou.
+        expect(segundo.client_uuid).not.toBe(primeiro.client_uuid);
+    });
+
+    it('"Cancelar" com o envio em voo e lançar outro não reaproveita a chave do que ainda está a caminho', async () => {
+        let responderPrimeiro;
+        respostasDoPost = [new Promise((r) => { responderPrimeiro = r; }), resposta(201)];
+
+        // Digitou R$ 1.500,00 por engano e salvou; a rede está lenta.
+        abrirComDespesa('1.500,00');
+        form().dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await flush();
+
+        // "Cancelar" com o spinner girando: o modal fecha, o POST continua.
+        document.querySelector('[data-close-btn]').click();
+        abrirComDespesa('150,00');
+        await salvar();
+
+        responderPrimeiro(resposta(201));
+        await flush();
+
+        const [emVoo, corrigido] = chamadas.posts;
+        expect(corrigido.amount).toBe('150,00');
+        // Mesma chave = o servidor grava um dos dois e devolve ESSE como resposta do
+        // outro: o valor corrigido nunca é gravado, e o modal diz que salvou.
+        expect(corrigido.client_uuid).not.toBe(emVoo.client_uuid);
+    });
+
+    it('na MESMA abertura, salvar de novo depois de um erro repete a chave (é o mesmo lançamento)', async () => {
+        respostasDoPost = [resposta(504), resposta(200)];
+
+        abrirComDespesa('150,00');
+        await salvar();
+        await salvar();
+
+        // Aqui a repetição é o que impede a duplicata: se o primeiro envio foi gravado
+        // apesar do 504, o segundo recebe o mesmo lançamento de volta.
+        expect(chamadas.posts).toHaveLength(2);
+        expect(chamadas.posts[1].client_uuid).toBe(chamadas.posts[0].client_uuid);
+    });
+});
+
 describe('419 — token CSRF morto', () => {
     it('com a sessão viva: busca token fresco, reescreve o _token e refaz UMA vez', async () => {
         respostasDoPost = [resposta(419), resposta(201)];

@@ -53,8 +53,33 @@ export function initLaunch() {
         shake();
     };
 
+    // Idempotência: o MESMO lançamento pode ser reenviado (duplo toque, retry de
+    // rede, 419, confirmação da escolha de fonte) sem virar dois — o servidor
+    // deduplica por client_uuid. Por isso a chave é UMA POR ABERTURA do modal
+    // (renovada no `zerar`, a cada abertura): dentro da mesma abertura ela se repete,
+    // e depois de gravar ou enfileirar troca de novo.
+    //
+    // ⚠️ Nunca reaproveite a chave de uma abertura anterior. O servidor devolve a linha
+    // que já tem aquela chave SEM comparar valor, conta nem descrição
+    // (TransactionController::store), com 200 — e o modal fecha como se tivesse salvo.
+    // Com a chave presa até um sucesso, um envio que terminou sem resposta de sucesso
+    // mas FOI gravado (504 do nginx com o PHP ainda trabalhando; o "Cancelar" apertado
+    // com o envio em voo) fazia o PRÓXIMO lançamento — outro valor, outra descrição —
+    // voltar como "já existia", e nunca ser gravado.
+    let clientUuid = novoUuid();
+
+    function novoUuid() {
+        if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+        // Fallback p/ navegador sem randomUUID (contexto não-seguro).
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = (Math.random() * 16) | 0;
+            return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+        });
+    }
+
     /**
-     * Estado inicial do modal: formulário em branco, RECEITA marcada, data de hoje.
+     * Estado inicial do modal: formulário em branco, RECEITA marcada, data de hoje —
+     * e chave de idempotência nova, porque é um lançamento novo.
      *
      * O `form.reset()` sozinho não basta: ele devolve os campos aos valores do HTML,
      * e o `checked` do HTML é o que o servidor renderizou. Marcar a receita aqui,
@@ -62,12 +87,19 @@ export function initLaunch() {
      * ajusta categorias e contas ao tipo (receita não entra em cartão de crédito).
      */
     const zerar = () => {
+        // Sem conta cadastrada o modal não tem formulário — só o "Crie uma conta
+        // primeiro" (partials/launch-modal), que é o estado de TODA pessoa recém-
+        // cadastrada. Sem esta guarda o `form.reset()` lançava TypeError: o clique no
+        // "Lançar", que já tinha cancelado a ida para /transactions/create, morria ali
+        // e o modal nunca abria.
+        if (!form) return;
         form.reset();
         const receita = form.querySelector('input[name="type"][value="income"]');
         if (receita) receita.checked = true;
         const valor = form.querySelector('#lm-amount');
         if (valor) valor.value = '';
         applyType();
+        clientUuid = novoUuid();
     };
 
     /**
@@ -253,21 +285,6 @@ export function initLaunch() {
         applyType();
     }));
     applyType();
-
-    // Idempotência: o mesmo lançamento pode ser reenviado (duplo toque, retry de
-    // rede, confirmação da escolha de fonte). O servidor deduplica por
-    // client_uuid, então geramos um por ABERTURA do modal e só trocamos depois
-    // de um envio bem-sucedido.
-    let clientUuid = novoUuid();
-
-    function novoUuid() {
-        if (window.crypto?.randomUUID) return window.crypto.randomUUID();
-        // Fallback p/ navegador sem randomUUID (contexto não-seguro).
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-            const r = (Math.random() * 16) | 0;
-            return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-        });
-    }
 
     // Envio por AJAX.
     form.addEventListener('submit', async (e) => {

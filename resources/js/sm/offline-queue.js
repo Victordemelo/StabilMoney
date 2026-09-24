@@ -419,31 +419,52 @@ function setSubmitting(btn, on) {
     }
 }
 
-function attachForm(form) {
-    form.addEventListener('submit', (e) => {
-        // Interceptamos SEMPRE (online e offline). O POST de form puro com token
-        // velho do cache responderia 419; no AJAX a gente busca um token fresco
-        // e refaz o envio, sem página de erro.
-        e.preventDefault();
+/**
+ * Liga o envio do formulário cheio de lançamento (`form[data-offline-queue]`).
+ *
+ * DELEGADO no `document`, e não preso ao elemento: o formulário também chega pelo pjax,
+ * que troca o `#content` inteiro — a página cheia remontada pelo `smPjaxReload` depois
+ * de salvar no modal "Lançar", ou o "voltar" do navegador até ela. Ligado só no elemento
+ * que existia na carga, o formulário novo fazia o POST comum do navegador: sem internet
+ * o lançamento morria numa página de erro de rede em vez de ir para a fila, e online
+ * perdia o retry do 419.
+ *
+ * Fase de BOLHA, depois do "Tem certeza?" do `sm/confirmar.js` (captura); envio que outro
+ * ouvinte já cancelou não é assunto daqui.
+ */
+function ligarFormulariosDaFila() {
+    document.addEventListener('submit', (e) => {
+        const form = e.target;
+        if (!(form instanceof HTMLFormElement) || !form.matches('form[data-offline-queue]')) return;
+        if (e.defaultPrevented) return;
 
-        const payload = serializeForm(form);
-        payload.client_uuid = uuid();
-        // client_uuid também no envio ONLINE: se a resposta se perder e houver
-        // retry, o servidor deduplica por esse uuid em vez de duplicar.
-
-        // ---- Caminho OFFLINE: comportamento original intacto. -------------
-        if (!navigator.onLine) {
-            enqueueOffline(
-                payload,
-                MSG_NA_FILA,
-                form
-            );
-            return;
-        }
-
-        // ---- Caminho ONLINE: envia por AJAX, com retry de CSRF em 419. -----
-        submitOnline(form, payload);
+        enviarFormulario(e, form);
     });
+}
+
+function enviarFormulario(e, form) {
+    // Interceptamos SEMPRE (online e offline). O POST de form puro com token
+    // velho do cache responderia 419; no AJAX a gente busca um token fresco
+    // e refaz o envio, sem página de erro.
+    e.preventDefault();
+
+    const payload = serializeForm(form);
+    payload.client_uuid = uuid();
+    // client_uuid também no envio ONLINE: se a resposta se perder e houver
+    // retry, o servidor deduplica por esse uuid em vez de duplicar.
+
+    // ---- Caminho OFFLINE: comportamento original intacto. -------------
+    if (!navigator.onLine) {
+        enqueueOffline(
+            payload,
+            MSG_NA_FILA,
+            form
+        );
+        return;
+    }
+
+    // ---- Caminho ONLINE: envia por AJAX, com retry de CSRF em 419. -----
+    submitOnline(form, payload);
 }
 
 async function submitOnline(form, payload) {
@@ -925,8 +946,8 @@ export function initOfflineQueue() {
 
     purgeCachedFormIfUserChanged();
 
-    const form = document.querySelector('form[data-offline-queue]');
-    if (form) attachForm(form);
+    // Vale para o formulário desta carga E para o que chegar depois, pelo pjax.
+    ligarFormulariosDaFila();
 
     // Sincroniza quando a conexão volta e ao carregar uma página logada.
     window.addEventListener('online', () => drain());
