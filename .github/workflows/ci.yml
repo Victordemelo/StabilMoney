@@ -345,5 +345,8 @@ jobs:
       - name: Testar o nginx do host (nginx 1.24 de verdade, em container)
         run: bash tests/scripts/nginx.test.sh
 
+      - name: Testar o ajuste de permissões do deploy (como root, em container)
+        run: bash tests/scripts/permissoes-do-deploy.test.sh
+
       - name: Testar o atualizador das faixas de IP da Cloudflare
         run: bash tests/scripts/atualizar-ips-cloudflare.test.sh

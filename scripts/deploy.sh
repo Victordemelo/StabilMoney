@@ -291,11 +291,20 @@ ajustar_permissoes() {
   #  - storage/backups fica DE FORA: os dumps têm o banco inteiro, e são do usuário de
   #    deploy (700/600). Dar ao www-data seria dar ao site a leitura dos backups.
   #  - .env: dono o usuário de deploy (que o edita), grupo www-data (o Apache só lê), 640.
+  #
+  # 🚨 `chown -h` + `-execdir`, nunca `-exec chown` (24/09/2026). Quem escreve em storage/ é
+  # o SITE (www-data), e isto roda como ROOT: o `chown` sem -h SEGUE atalho, e um atalho
+  # deixado em storage/ (storage/logs/x -> /var/www/html/.git/hooks) passava o alvo para o
+  # www-data a cada deploy. Com .git/hooks do www-data, o próximo `git fetch`/`git merge`
+  # deste script roda o gancho dele como o usuário de deploy NO HOST — que está no grupo
+  # docker. Uma falha no site virava root na VPS. O `-execdir` roda cada chown DENTRO da
+  # pasta que o find percorreu (./nome), então trocar uma pasta do caminho por um atalho no
+  # meio do caminho também não desvia o chown. `permissoes-do-deploy.test.sh`.
   no_app app sh -c '
     set -e
-    find storage bootstrap/cache -path storage/backups -prune -o -exec chown "www-data:$1" {} +
-    find storage bootstrap/cache -path storage/backups -prune -o -type d -exec chmod 2770 {} +
-    find storage bootstrap/cache -path storage/backups -prune -o -type f -exec chmod 660 {} +
+    find storage bootstrap/cache -path storage/backups -prune -o -execdir chown -h "www-data:$1" {} +
+    find storage bootstrap/cache -path storage/backups -prune -o -type d -execdir chmod 2770 {} +
+    find storage bootstrap/cache -path storage/backups -prune -o -type f -execdir chmod 660 {} +
     chown "$2:www-data" .env
     chmod 640 .env
   ' sh "$(id -g)" "$(id -u)"
