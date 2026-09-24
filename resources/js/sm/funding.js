@@ -200,11 +200,16 @@ export async function enviarComFonte(url, formData, { retorno = null } = {}) {
 
     let resp = await enviar();
 
-    if (resp.status === 409) {
+    // O 409 pode voltar DEPOIS da escolha: o servidor recalcula na hora de gravar e, se o
+    // valor aprovado ficou pequeno, devolve as opções recalculadas — então pergunta outra
+    // vez (no máximo 3), em vez de devolver um 409 que a tela mostraria como erro genérico.
+    for (let perguntas = 0; resp.status === 409 && perguntas < 3; perguntas++) {
         const dados = await resp.json().catch(() => ({}));
         const escolha = await pedirFonte(dados.fonte, { retorno });
         if (!escolha) return null; // cancelou: nada foi pago
 
+        // A escolha anterior não pode sobrar (de resgate para cheque, o id do investimento).
+        ['funding_source', 'funding_investment_id', 'funding_max_amount'].forEach((k) => formData.delete(k));
         Object.entries(escolha).forEach(([k, v]) => formData.set(k, v));
         resp = await enviar();
     }

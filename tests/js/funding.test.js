@@ -1,6 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { initFunding, pedirFonte } from '../../resources/js/sm/funding.js';
+import { flush } from './helpers/flush.js';
+
+import { enviarComFonte, initFunding, pedirFonte } from '../../resources/js/sm/funding.js';
 import { liberarDialogosOrfaos } from '../../resources/js/sm/dialogo.js';
 
 /**
@@ -90,5 +92,46 @@ describe('funding.js — o teto aprovado vai junto da escolha', () => {
         document.querySelector('[data-funding-close]').click();
 
         await expect(escolha).resolves.toBeNull();
+    });
+});
+
+describe('funding.js — enviarComFonte pergunta de novo quando o 409 volta', () => {
+    beforeEach(() => {
+        montarModal();
+        initFunding();
+    });
+
+    afterEach(() => {
+        liberarDialogosOrfaos();
+        vi.unstubAllGlobals();
+        document.body.innerHTML = '';
+    });
+
+    const resposta = (status, corpo = {}) => ({ status, ok: status >= 200 && status < 300, type: 'basic', json: async () => corpo });
+
+    it('pagamento de fatura: escolha, 409 recalculado, nova escolha — e o reenvio leva só a última', async () => {
+        const recalculado = { ...payload(), faltante: 300, disponivel: 0 };
+        const corpos = [];
+        const respostas = [resposta(409, { fonte: payload() }), resposta(409, { fonte: recalculado }), resposta(200)];
+        vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
+            corpos.push(Object.fromEntries(init.body.entries()));
+            return respostas.shift();
+        }));
+
+        const dados = new FormData();
+        dados.set('pay_account_id', '1');
+        const envio = enviarComFonte('/faturas/1/pagar', dados);
+
+        await flush();
+        escolher('resgate_investimento');
+        await flush();
+        // O modal abriu de novo, agora com o faltante recalculado.
+        expect(document.querySelector('[data-funding-resumo]').textContent).toContain('R$ 300,00');
+        escolher('cheque_especial');
+
+        const final = await envio;
+        expect(final.status).toBe(200);
+        expect(corpos).toHaveLength(3);
+        expect(corpos[2]).toEqual({ pay_account_id: '1', funding_source: 'cheque_especial', funding_max_amount: '300.00' });
     });
 });

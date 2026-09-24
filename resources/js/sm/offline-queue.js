@@ -524,8 +524,10 @@ async function submitOnline(form, payload) {
 
     // 409: o saldo disponível não cobre, mas há fonte (cheque especial ou
     // resgate). Pergunta ao usuário e reenvia com a escolha — mesmo payload,
-    // mesmo client_uuid, então não duplica.
-    if (res.status === 409) {
+    // mesmo client_uuid, então não duplica. Se o 409 VOLTAR depois da escolha (o
+    // servidor recalcula na hora de gravar e o valor aprovado ficou pequeno), pergunta
+    // de novo com as opções recalculadas — no máximo 3 vezes.
+    for (let perguntas = 0; res.status === 409 && perguntas < 3; perguntas++) {
         setSubmitting(btn, false);
         let dados = {};
         try { dados = await res.json(); } catch (_) { /* segue com genérico */ }
@@ -533,6 +535,10 @@ async function submitOnline(form, payload) {
         const escolha = await pedirFonte(dados.fonte);
         if (!escolha) return; // cancelou: fica na tela com os dados preenchidos
 
+        // A escolha anterior não pode sobrar (de resgate para cheque, o id do investimento).
+        delete payload.funding_source;
+        delete payload.funding_investment_id;
+        delete payload.funding_max_amount;
         Object.assign(payload, escolha);
         setSubmitting(btn, true);
         try {

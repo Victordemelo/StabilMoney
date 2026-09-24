@@ -368,6 +368,49 @@ describe('419 — token CSRF morto', () => {
 });
 
 describe('409 — de onde sai esse dinheiro', () => {
+    /**
+     * O servidor recalcula na hora de gravar: se o disponível caiu desde a pergunta, o valor
+     * aprovado ficou pequeno e ele devolve OUTRO 409, com as opções recalculadas. Antes o
+     * modal mostrava "Confira os campos" — agora pergunta de novo, com os números novos, e a
+     * escolha anterior não sobra no reenvio.
+     */
+    it('se o 409 voltar depois da escolha, pergunta de novo com as opções recalculadas', async () => {
+        const recalculado = { precisa_fonte: true, fonte: { faltante: 300, opcoes: [{ id: 'cheque_especial', cobre: true }] } };
+        respostasDoPost = [resposta(409, corpo409()), resposta(409, recalculado), resposta(201)];
+        mocks.pedirFonte
+            .mockResolvedValueOnce({ funding_source: 'resgate_investimento', funding_investment_id: '3', funding_max_amount: '120.00' })
+            .mockResolvedValueOnce({ funding_source: 'cheque_especial', funding_max_amount: '300.00' });
+
+        abrirComDespesa();
+        await salvar();
+
+        expect(mocks.pedirFonte).toHaveBeenCalledTimes(2);
+        expect(mocks.pedirFonte.mock.calls[1][0]).toEqual(recalculado.fonte);
+        expect(chamadas.posts).toHaveLength(3);
+        expect(chamadas.posts[2]).toMatchObject({ funding_source: 'cheque_especial', funding_max_amount: '300.00' });
+        // Do resgate escolhido antes não sobra nada.
+        expect(chamadas.posts[2]).not.toHaveProperty('funding_investment_id');
+        // Mesmo lançamento do começo ao fim.
+        expect(new Set(chamadas.posts.map((p) => p.client_uuid)).size).toBe(1);
+        expect(erroVisivel()).toBe(false);
+        expect(window.smPjaxReload).toHaveBeenCalledTimes(1);
+    });
+
+    it('cancelar na segunda pergunta não grava nada', async () => {
+        respostasDoPost = [resposta(409, corpo409()), resposta(409, corpo409())];
+        mocks.pedirFonte
+            .mockResolvedValueOnce({ funding_source: 'cheque_especial', funding_max_amount: '120.00' })
+            .mockResolvedValueOnce(null);
+
+        abrirComDespesa();
+        await salvar();
+
+        expect(chamadas.posts).toHaveLength(2);
+        expect(window.smPjaxReload).not.toHaveBeenCalled();
+        expect(mocks.enfileirarLancamento).not.toHaveBeenCalled();
+        expect(botaoSalvar().disabled).toBe(false);
+    });
+
     it('pergunta a fonte e, se o usuário cancelar, NÃO grava nada sozinho', async () => {
         respostasDoPost = [resposta(409, corpo409())];
         mocks.pedirFonte.mockResolvedValue(null);

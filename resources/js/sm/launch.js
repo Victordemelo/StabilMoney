@@ -337,27 +337,44 @@ export function initLaunch() {
 
         // 409 = o saldo não cobre, mas há fonte. Pergunta e reenvia a MESMA
         // requisição (mesmo client_uuid) com a escolha do usuário.
-        if (resp.status === 409) {
-            setSaving(false);
-            const dados = await resp.json().catch(() => ({}));
-            // Fechando o de fonte, o foco volta ao "Salvar" — quem desistiu da fonte
-            // continua no lançamento, pronto para ajustar o valor ou tentar de novo.
-            const escolha = await pedirFonte(dados.fonte, { retorno: saveBtn });
-            if (!escolha) return; // cancelou
+        //
+        // E pergunta DE NOVO se o 409 voltar (24/09/2026): o servidor recalcula na hora
+        // de gravar e, se o disponível caiu desde a pergunta, o valor aprovado ficou
+        // pequeno — ele devolve as opções RECALCULADAS em vez de resgatar ou usar cheque
+        // especial além do que a pessoa viu. Antes esse segundo 409 caía no "Confira os
+        // campos", numa tela sem campo errado. No máximo 3 perguntas por envio.
+        //
+        // Devolve a resposta final, ou null quando o envio já terminou aqui (cancelou a
+        // escolha, ou caiu na fila).
+        const resolverFonte = async (r) => {
+            for (let perguntas = 0; r.status === 409 && perguntas < 3; perguntas++) {
+                setSaving(false);
+                const dados = await r.json().catch(() => ({}));
+                // Fechando o de fonte, o foco volta ao "Salvar" — quem desistiu da fonte
+                // continua no lançamento, pronto para ajustar o valor ou tentar de novo.
+                const escolha = await pedirFonte(dados.fonte, { retorno: saveBtn });
+                if (!escolha) return null; // cancelou
 
-            Object.entries(escolha).forEach(([k, v]) => payload.set(k, v));
-            setSaving(true);
-            try {
-                resp = await enviar();
-            } catch (_) {
-                // Caiu a rede depois da escolha: enfileira JÁ COM a fonte
-                // escolhida. A fila só decide sozinha por cheque especial; um
-                // resgate de investimento nunca é automático — mas este aqui foi
-                // o próprio usuário quem pediu, então vai junto no payload.
-                await enfileirar();
-                return;
+                // A escolha anterior não pode sobrar: de resgate para cheque especial, o
+                // id do investimento ficaria no payload.
+                ['funding_source', 'funding_investment_id', 'funding_max_amount'].forEach((k) => payload.delete(k));
+                Object.entries(escolha).forEach(([k, v]) => payload.set(k, v));
+                setSaving(true);
+                try {
+                    r = await enviar();
+                } catch (_) {
+                    // Caiu a rede depois da escolha: enfileira JÁ COM a fonte escolhida
+                    // (e o teto aprovado) — foi o próprio usuário quem escolheu. A fila
+                    // nunca escolhe a fonte sozinha.
+                    await enfileirar();
+                    return null;
+                }
             }
-        }
+            return r;
+        };
+
+        resp = await resolverFonte(resp);
+        if (!resp) return;
 
         // 419 = token CSRF morto. Não é erro de preenchimento, e cair no texto de
         // validação ("confira os campos") numa tela sem campo errado deixava o
@@ -386,6 +403,10 @@ export function initLaunch() {
                 await enfileirar('Sua sessão expirou — lançamento na fila. Entre de novo para sincronizar.');
                 return;
             }
+
+            // Com o token novo, o servidor pode perguntar a fonte.
+            resp = await resolverFonte(resp);
+            if (!resp) return;
         }
 
         if (resp.ok) {
