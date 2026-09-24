@@ -30,19 +30,28 @@ class DependentController extends Controller
 
         // `gasto` = soma das DESPESAS do MÊS CORRENTE lançadas por cada pessoa
         // (made_by_user_id), pré-agregada para evitar N+1 ao montar os cards.
-        // Transferência entre contas não é gasto de ninguém — fica de fora.
+        // Ficam de fora, como em toda soma de despesa do app:
+        //  - a transferência entre contas, que não é gasto de ninguém;
+        //  - o PAGAMENTO DA FATURA (`settles_account_id`): o gasto foi a compra no
+        //    cartão, que já conta para quem comprou. Somando a quitação, quem clicava
+        //    em "Marcar como paga" "gastava" a fatura inteira de novo — a família
+        //    aparecia com o dobro do gasto do mês, e quem só pagou virava "quem mais
+        //    gastou".
         $mesInicio = now()->startOfMonth()->toDateString();
         $mesFim = now()->endOfMonth()->toDateString();
+        $gastoDoMes = fn ($q) => $q
+            ->where('type', 'expense')
+            ->whereNull('transfer_group_id')
+            ->whereNull('settles_account_id')
+            ->whereBetween('date', [$mesInicio, $mesFim]);
 
         $dependents = $titular->dependents()
-            ->withSum(['madeTransactions as gasto' => fn ($q) => $q
-                ->where('type', 'expense')->whereNull('transfer_group_id')->whereBetween('date', [$mesInicio, $mesFim])], 'amount')
+            ->withSum(['madeTransactions as gasto' => $gastoDoMes], 'amount')
             ->orderBy('name')
             ->get();
 
         // Quanto o próprio titular gastou no mês (mesma base dos cards).
-        $gastoTitular = (float) $titular->madeTransactions()
-            ->where('type', 'expense')->whereNull('transfer_group_id')->whereBetween('date', [$mesInicio, $mesFim])->sum('amount');
+        $gastoTitular = (float) $gastoDoMes($titular->madeTransactions())->sum('amount');
 
         // Total da família no mês: é o denominador da fatia de cada pessoa. Sem
         // ele o card mostra um número solto — "R$ 1.590" é muito ou pouco só em
