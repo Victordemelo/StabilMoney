@@ -171,9 +171,11 @@
                 <div class="field">
                     <label for="delete_confirm_code" class="sr-only">Código de verificação</label>
                     <input id="delete_confirm_code" class="input" type="text" name="codigo"
-                           placeholder="Código de 6 dígitos" inputmode="numeric"
-                           autocomplete="one-time-code" autocorrect="off" spellcheck="false"
+                           placeholder="Código de 6 dígitos" autocomplete="one-time-code"
+                           autocorrect="off" autocapitalize="characters" spellcheck="false"
                            data-no-money />
+                    {{-- Sem inputmode="numeric" de propósito: o teclado só de números do
+                         celular não tem letras, e o código de recuperação tem. --}}
                     @error('codigo', 'userDeletion')
                         <p class="field-error">{{ $message }}</p>
                     @enderror

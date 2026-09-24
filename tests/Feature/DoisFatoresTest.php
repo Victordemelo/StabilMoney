@@ -448,13 +448,13 @@ class DoisFatoresTest extends TestCase
 
         $this->actingAs($user)
             ->from('/configuracoes/2fa')
-            ->post(route('settings.2fa.codigos'), ['password' => 'senha-errada'])
+            ->post(route('settings.2fa.codigos'), ['password' => 'senha-errada', 'codigo' => $this->codigoAtual($user)])
             ->assertSessionHasErrors('password', errorBag: 'twoFactorCodigos');
 
         $this->assertSame($antigos, $user->fresh()->two_factor_recovery_codes);
 
         $this->actingAs($user)
-            ->post(route('settings.2fa.codigos'), ['password' => self::SENHA])
+            ->post(route('settings.2fa.codigos'), ['password' => self::SENHA, 'codigo' => $this->codigoAtual($user)])
             ->assertSessionHas('codigosDeRecuperacao');
 
         $novos = $user->fresh()->two_factor_recovery_codes;
@@ -474,7 +474,7 @@ class DoisFatoresTest extends TestCase
 
         $resposta = $this->actingAs($user)
             ->followingRedirects()
-            ->post(route('settings.2fa.codigos'), ['password' => self::SENHA])
+            ->post(route('settings.2fa.codigos'), ['password' => self::SENHA, 'codigo' => $this->codigoAtual($user)])
             ->assertOk();
 
         foreach ($user->fresh()->two_factor_recovery_codes as $codigo) {
@@ -490,7 +490,7 @@ class DoisFatoresTest extends TestCase
 
         $this->actingAs($user)
             ->from('/configuracoes/2fa')
-            ->delete(route('settings.2fa.desativar'), ['password' => 'senha-errada'])
+            ->delete(route('settings.2fa.desativar'), ['password' => 'senha-errada', 'codigo' => $this->codigoAtual($user)])
             ->assertSessionHasErrors('password', errorBag: 'twoFactorDesligar');
 
         $this->assertTrue($user->fresh()->temDoisFatores());
@@ -501,7 +501,7 @@ class DoisFatoresTest extends TestCase
         $user = $this->comDoisFatores();
 
         $this->actingAs($user)
-            ->delete(route('settings.2fa.desativar'), ['password' => self::SENHA])
+            ->delete(route('settings.2fa.desativar'), ['password' => self::SENHA, 'codigo' => $this->codigoAtual($user)])
             ->assertSessionHas('status', 'two-factor-disabled');
 
         $user->refresh();

@@ -166,7 +166,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Verificação em duas etapas (2FA por app autenticador) — OPCIONAL: nasce desligada e
     // só o dono da conta liga, informando a senha atual. Ligar, desligar e trocar os
     // códigos de recuperação decidem quem entra na conta, então pedem senha e têm limite
-    // (mesma razão de "encerrar outras sessões" e "excluir conta").
+    // (mesma razão de "encerrar outras sessões" e "excluir conta"). Desligar e trocar os
+    // códigos também pedem o código do autenticador — daí os dois limites, como na
+    // exclusão da conta.
     Route::post('/configuracoes/2fa', [TwoFactorController::class, 'ativar'])
         ->middleware('throttle:senha')
         ->name('settings.2fa.ativar');
@@ -178,11 +180,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('settings.2fa.confirmar');
 
     Route::post('/configuracoes/2fa/codigos', [TwoFactorController::class, 'regerarCodigos'])
-        ->middleware('throttle:senha')
+        ->middleware(['throttle:senha', 'throttle:dois-fatores'])
         ->name('settings.2fa.codigos');
 
     Route::delete('/configuracoes/2fa', [TwoFactorController::class, 'desativar'])
-        ->middleware('throttle:senha')
+        ->middleware(['throttle:senha', 'throttle:dois-fatores'])
         ->name('settings.2fa.desativar');
 
     // Dependentes (conta-família) — só o titular gerencia. O `{dependent}` tem binding

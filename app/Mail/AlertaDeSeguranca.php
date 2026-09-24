@@ -309,6 +309,27 @@ class AlertaDeSeguranca extends Mailable
         );
     }
 
+    /**
+     * Códigos de recuperação trocados (24/09/2026). Os anteriores deixaram de valer — e
+     * trocá-los exige a senha E o segundo fator, então, se não foi o dono, alguém tem os
+     * dois e está garantindo a própria volta à conta.
+     */
+    public static function codigosDeRecuperacaoTrocados(User $user, ContextoDeSeguranca $contexto): self
+    {
+        return new self(
+            user: $user,
+            assunto: 'Códigos de recuperação trocados',
+            titulo: 'Novos códigos de recuperação',
+            preheader: 'Os códigos de recuperação anteriores da sua conta deixaram de valer.',
+            paragrafos: [
+                'Uma nova lista de <strong>códigos de recuperação</strong> foi gerada para a sua conta, e os códigos anteriores <strong>deixaram de valer</strong>.',
+                'Guarde a lista nova em lugar seguro: é ela que devolve o acesso se você perder o celular com o aplicativo autenticador.',
+            ],
+            detalhes: $contexto->paraDetalhes(),
+            rodapeAviso: self::naoFoiVoce('alguém com a sua senha e o seu aplicativo autenticador gerou códigos novos'),
+        );
+    }
+
     // ───────────────────────────────────────────────────────────── sessões e conta
 
     public static function sessoesEncerradas(User $user, ContextoDeSeguranca $contexto, int $quantas): self

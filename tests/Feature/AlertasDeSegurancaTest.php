@@ -110,10 +110,27 @@ class AlertasDeSegurancaTest extends TestCase
         Mail::fake();
         $user = $this->comDoisFatores();
 
-        $this->actingAs($user)->delete(route('settings.2fa.desativar'), ['password' => self::SENHA]);
+        $this->actingAs($user)->delete(route('settings.2fa.desativar'), [
+            'password' => self::SENHA,
+            'codigo' => Totp::codigo($user->two_factor_secret, Totp::passoAtual()),
+        ]);
 
         $this->assertFalse($user->fresh()->temDoisFatores());
         $this->assertAlertouPara($user, 'duas etapas DESATIVADA');
+    }
+
+    /** Os códigos antigos morreram: se não foi o dono, alguém tem a senha E o celular. */
+    public function test_gerar_codigos_de_recuperacao_novos_avisa_o_dono(): void
+    {
+        Mail::fake();
+        $user = $this->comDoisFatores();
+
+        $this->actingAs($user)->post(route('settings.2fa.codigos'), [
+            'password' => self::SENHA,
+            'codigo' => Totp::codigo($user->two_factor_secret, Totp::passoAtual()),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertAlertouPara($user, 'Códigos de recuperação trocados');
     }
 
     /** Alarme falso é o que faz a pessoa parar de ler os alertas seguintes. */

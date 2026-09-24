@@ -107,6 +107,7 @@ class TextoDosEmailsSemEntidadesTest extends TestCase
             'alerta: e-mail trocado pelo titular' => [fn (self $t) => AlertaDeSeguranca::emailAlteradoPeloTitular($t->pessoa(), $t->titular(), self::EMAIL_HOSTIL, $t->contexto())],
             'alerta: 2FA ativado' => [fn (self $t) => AlertaDeSeguranca::doisFatoresAtivado($t->pessoa(), $t->contexto())],
             'alerta: 2FA desativado' => [fn (self $t) => AlertaDeSeguranca::doisFatoresDesativado($t->pessoa(), $t->contexto())],
+            'alerta: códigos de recuperação trocados' => [fn (self $t) => AlertaDeSeguranca::codigosDeRecuperacaoTrocados($t->pessoa(), $t->contexto())],
             'alerta: sessões encerradas' => [fn (self $t) => AlertaDeSeguranca::sessoesEncerradas($t->pessoa(), $t->contexto(), 3)],
             'alerta: conta excluída com dependentes' => [fn (self $t) => AlertaDeSeguranca::contaExcluida($t->pessoa(), $t->contexto(), [self::HOSTIL, 'Bruno & <Cia>'])],
             'alerta: conta excluída pela administração' => [fn (self $t) => AlertaDeSeguranca::contaExcluidaPelaAdministracao($t->pessoa(), '22 de setembro de 2026, às 10:00', [self::HOSTIL, 'Bruno & <Cia>'])],

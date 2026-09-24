@@ -164,7 +164,8 @@
             <form method="POST" action="{{ route('settings.2fa.desativar') }}" class="sess-logout-form">
                 @csrf
                 @method('delete')
-                <p>Sua conta volta a ser protegida só pela senha. Digite a senha atual para confirmar.</p>
+                <p>Sua conta volta a ser protegida só pela senha. Confirme com a senha atual e um
+                    código do aplicativo autenticador.</p>
                 <div class="field">
                     <label for="senha_desativar_2fa" class="sr-only">Senha</label>
                     <input id="senha_desativar_2fa" class="input" type="password" name="password"
@@ -172,6 +173,21 @@
                     @error('password', 'twoFactorDesligar')
                         <p class="field-error">{{ $message }}</p>
                     @enderror
+                </div>
+                <div class="field">
+                    <label for="codigo_desativar_2fa" class="sr-only">Código de verificação</label>
+                    <input id="codigo_desativar_2fa" class="input" type="text" name="codigo"
+                           placeholder="Código de 6 dígitos" autocomplete="one-time-code"
+                           autocorrect="off" autocapitalize="characters" spellcheck="false"
+                           data-no-money />
+                    @error('codigo', 'twoFactorDesligar')
+                        <p class="field-error">{{ $message }}</p>
+                    @enderror
+                    <label class="check" style="margin-top: 8px;">
+                        <input type="checkbox" name="recuperacao" value="1" />
+                        <span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
+                        <span>Não consigo abrir o aplicativo — vou usar um código de recuperação</span>
+                    </label>
                 </div>
                 <button type="submit" class="btn-danger">Desativar</button>
             </form>
@@ -185,7 +201,7 @@
             </div>
         @endif
 
-        {{-- Gerar novos códigos (exige a senha) --}}
+        {{-- Gerar novos códigos (exige a senha e um código do autenticador) --}}
         <details class="sess-logout tfa-acao" @if ($errors->twoFactorCodigos->isNotEmpty()) open @endif>
             <summary class="sess-logout-trigger tfa-trigger">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 16"/><path d="M4 20v-4h4"/></svg>
@@ -202,6 +218,21 @@
                     @error('password', 'twoFactorCodigos')
                         <p class="field-error">{{ $message }}</p>
                     @enderror
+                </div>
+                <div class="field">
+                    <label for="codigo_codigos_2fa" class="sr-only">Código de verificação</label>
+                    <input id="codigo_codigos_2fa" class="input" type="text" name="codigo"
+                           placeholder="Código de 6 dígitos" autocomplete="one-time-code"
+                           autocorrect="off" autocapitalize="characters" spellcheck="false"
+                           data-no-money />
+                    @error('codigo', 'twoFactorCodigos')
+                        <p class="field-error">{{ $message }}</p>
+                    @enderror
+                    <label class="check" style="margin-top: 8px;">
+                        <input type="checkbox" name="recuperacao" value="1" />
+                        <span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
+                        <span>Não consigo abrir o aplicativo — vou usar um código de recuperação</span>
+                    </label>
                 </div>
                 <button type="submit" class="btn-primary">Gerar novos códigos</button>
             </form>

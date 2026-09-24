@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Verificação em duas etapas — o lado de Configurações › 2FA (ligar, confirmar,
@@ -27,6 +28,14 @@ use Illuminate\Support\Str;
  * (celular esquecido aberto, PC compartilhado) desligaria o 2FA em um clique — e a
  * proteção viraria enfeite. Mesmo motivo pelo qual "encerrar outras sessões" e "excluir
  * conta" já pedem a senha. Todas as rotas daqui também têm limite de tentativas.
+ *
+ * **E, com o 2FA ligado, o código também** (24/09/2026 —
+ * DesligarODoisFatoresPedeOSegundoFatorTest): desligar e trocar os códigos de recuperação
+ * pedem a senha E o segundo fator, como a exclusão da conta. Só com a senha, quem tivesse
+ * uma sessão aberta e a senha — mas não o celular — desligava o 2FA e em seguida excluía a
+ * conta sem código nenhum, ou gerava códigos de recuperação próprios e voltava quando
+ * quisesse. Código de recuperação também serve (caixa "recuperacao"); quem perdeu o
+ * celular E os códigos fica na mesma situação do login: só o contato humano resolve.
  */
 class TwoFactorController extends Controller
 {
@@ -125,8 +134,6 @@ class TwoFactorController extends Controller
     /** Troca a lista de códigos de recuperação (invalida a anterior na hora). */
     public function regerarCodigos(Request $request): RedirectResponse
     {
-        $this->exigirSenha($request, self::BAG_CODIGOS);
-
         $user = $request->user();
 
         if (! $user->temDoisFatores()) {
@@ -136,15 +143,26 @@ class TwoFactorController extends Controller
             );
         }
 
+        $this->exigirSenhaESegundoFator($request, self::BAG_CODIGOS);
+
+        $codigos = $this->twoFactor->regerarCodigosDeRecuperacao($user);
+
+        // Os antigos morreram agora — quem os tinha anotados perdeu a porta de volta. Se
+        // não foi o dono, alguém com a senha E o celular dele está garantindo a volta.
+        Notificador::avisar($user, AlertaDeSeguranca::codigosDeRecuperacaoTrocados(
+            $user,
+            ContextoDeSeguranca::doRequest($request),
+        ));
+
         return $this->voltar()
             ->with('status', 'two-factor-recovery-codes')
-            ->with('codigosDeRecuperacao', $this->twoFactor->regerarCodigosDeRecuperacao($user));
+            ->with('codigosDeRecuperacao', $codigos);
     }
 
     /**
      * Desliga o 2FA — ou cancela uma configuração que ficou pela metade.
      *
-     * A senha só é exigida quando o 2FA está ATIVO. Cancelar um setup pendente não baixa
+     * Senha e código só são exigidos quando o 2FA está ATIVO. Cancelar um setup pendente não baixa
      * proteção nenhuma (o login ainda nem cobra código), e pedir a senha de novo, segundos
      * depois de já tê-la digitado para gerar o QR, só ensinaria o usuário a digitá-la sem
      * pensar.
@@ -155,7 +173,7 @@ class TwoFactorController extends Controller
         $estavaAtivo = $user->temDoisFatores();
 
         if ($estavaAtivo) {
-            $this->exigirSenha($request, self::BAG_DESLIGAR);
+            $this->exigirSenhaESegundoFator($request, self::BAG_DESLIGAR);
         }
 
         $this->twoFactor->desligar($user);
@@ -227,6 +245,46 @@ class TwoFactorController extends Controller
             'password.required' => 'Informe sua senha para continuar.',
             'password.current_password' => 'A senha informada está incorreta.',
         ]);
+    }
+
+    /**
+     * Senha E segundo fator, nesta ordem — a mesma da exclusão da conta
+     * (ProfileController::destroy): um código de recuperação é de uso único, e queimá-lo
+     * para depois descobrir que a senha estava errada gastaria uma das poucas voltas para
+     * casa de quem perdeu o celular. O modo é declarado pela caixa `recuperacao`, nunca
+     * adivinhado pelo formato.
+     */
+    private function exigirSenhaESegundoFator(Request $request, string $bag): void
+    {
+        $request->validateWithBag($bag, [
+            'password' => ['required', 'current_password'],
+            'codigo' => ['required', 'string'],
+        ], [
+            'password.required' => 'Informe sua senha para continuar.',
+            'password.current_password' => 'A senha informada está incorreta.',
+            'codigo.required' => 'Digite o código do seu aplicativo autenticador para confirmar.',
+        ]);
+
+        $user = $request->user();
+        $codigo = $request->string('codigo')->trim()->toString();
+        $recuperacao = $request->boolean('recuperacao');
+
+        $confere = $recuperacao
+            ? $this->twoFactor->consumirCodigoDeRecuperacao($user, $codigo)
+            : $this->twoFactor->verificarCodigo($user, $codigo);
+
+        if (! $confere) {
+            throw ValidationException::withMessages([
+                'codigo' => $recuperacao
+                    ? 'Código de recuperação inválido ou já utilizado.'
+                    : 'Código incorreto ou expirado. Confira o relógio do celular e tente com o código atual.',
+            ])->errorBag($bag);
+        }
+
+        // A conferência grava o passo gasto (ou tira o código de recuperação da lista) numa
+        // cópia TRAVADA da linha. O model desta requisição ficou para trás: sem recarregar,
+        // o `desligar()` que vem depois via `two_factor_last_step` "já nulo" e não o apagava.
+        $user->refresh();
     }
 
     /**
