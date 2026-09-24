@@ -66,7 +66,12 @@ class CodigoDoDoisFatoresTemTetoPorContaTest extends TestCase
         return sprintf('%06d', $n);
     }
 
-    /** Passa a falar de outro endereço — é o que o atacante faz a cada lote de chutes. */
+    /**
+     * Passa a falar de outro endereço — é o que o atacante faz a cada lote de chutes.
+     *
+     * Cada endereço dos testes é de uma rede /64 DIFERENTE (2001:db8:1::1, 2001:db8:2::1…):
+     * dentro da mesma /64 o limite já é um só (ChaveDeIp, TrocarDeEnderecoIpv6NaoRenovaOLimiteTest).
+     */
     private function doIp(string $ip): static
     {
         return $this->withServerVariables(['REMOTE_ADDR' => $ip]);
@@ -81,7 +86,7 @@ class CodigoDoDoisFatoresTemTetoPorContaTest extends TestCase
 
         // Quatro endereços, cinco chutes cada (o limite por minuto de cada um): 20 códigos
         // na mesma hora — o teto que o limitador promete.
-        foreach (['2001:db8::1', '2001:db8::2', '2001:db8::3', '2001:db8::4'] as $ip) {
+        foreach (['2001:db8:1::1', '2001:db8:2::1', '2001:db8:3::1', '2001:db8:4::1'] as $ip) {
             $this->doIp($ip)
                 ->post('/login', ['email' => $user->email, 'password' => self::SENHA])
                 ->assertRedirect(route('two-factor.login'));
@@ -95,11 +100,11 @@ class CodigoDoDoisFatoresTemTetoPorContaTest extends TestCase
         }
 
         // Um quinto endereço, na mesma hora: a conta já gastou a cota dela.
-        $this->doIp('2001:db8::5')
+        $this->doIp('2001:db8:5::1')
             ->post('/login', ['email' => $user->email, 'password' => self::SENHA])
             ->assertRedirect(route('two-factor.login'));
 
-        $this->doIp('2001:db8::5')
+        $this->doIp('2001:db8:5::1')
             ->post(route('two-factor.login'), ['codigo' => $errado])
             ->assertStatus(429);
 
@@ -112,16 +117,16 @@ class CodigoDoDoisFatoresTemTetoPorContaTest extends TestCase
         $user = $this->comDoisFatores();
         $errado = $this->codigoErrado($user->two_factor_secret);
 
-        $this->doIp('2001:db8::1')->post('/login', ['email' => $user->email, 'password' => self::SENHA]);
+        $this->doIp('2001:db8:1::1')->post('/login', ['email' => $user->email, 'password' => self::SENHA]);
 
         for ($i = 0; $i < 5; $i++) {
-            $this->doIp('2001:db8::1')
+            $this->doIp('2001:db8:1::1')
                 ->from(route('two-factor.login'))
                 ->post(route('two-factor.login'), ['codigo' => $errado])
                 ->assertRedirect(route('two-factor.login'));
         }
 
-        $this->doIp('2001:db8::1')
+        $this->doIp('2001:db8:1::1')
             ->post(route('two-factor.login'), ['codigo' => $errado])
             ->assertStatus(429);
     }
@@ -133,7 +138,7 @@ class CodigoDoDoisFatoresTemTetoPorContaTest extends TestCase
         $outra = $this->comDoisFatores();
         $errado = $this->codigoErrado($alvo->two_factor_secret);
 
-        foreach (['2001:db8::1', '2001:db8::2', '2001:db8::3', '2001:db8::4'] as $ip) {
+        foreach (['2001:db8:1::1', '2001:db8:2::1', '2001:db8:3::1', '2001:db8:4::1'] as $ip) {
             $this->doIp($ip)->post('/login', ['email' => $alvo->email, 'password' => self::SENHA]);
 
             for ($i = 0; $i < 5; $i++) {
@@ -143,11 +148,11 @@ class CodigoDoDoisFatoresTemTetoPorContaTest extends TestCase
             }
         }
 
-        $this->doIp('2001:db8::9')
+        $this->doIp('2001:db8:9::1')
             ->post('/login', ['email' => $outra->email, 'password' => self::SENHA])
             ->assertRedirect(route('two-factor.login'));
 
-        $this->doIp('2001:db8::9')
+        $this->doIp('2001:db8:9::1')
             ->post(route('two-factor.login'), ['codigo' => Totp::codigo($outra->two_factor_secret, Totp::passoAtual())])
             ->assertRedirect(route('dashboard', absolute: false));
 
@@ -170,7 +175,7 @@ class CodigoDoDoisFatoresTemTetoPorContaTest extends TestCase
 
         // Três endereços com a cota do minuto cheia (3 cada) e um quarto com um chute: 10
         // códigos na mesma hora — o teto por hora do painel.
-        foreach (['2001:db8::1' => 3, '2001:db8::2' => 3, '2001:db8::3' => 3, '2001:db8::4' => 1] as $ip => $chutes) {
+        foreach (['2001:db8:1::1' => 3, '2001:db8:2::1' => 3, '2001:db8:3::1' => 3, '2001:db8:4::1' => 1] as $ip => $chutes) {
             $this->doIp($ip)
                 ->post(route('painel.autenticar'), ['email' => 'chefe@exemplo.com', 'password' => self::SENHA_DO_PAINEL])
                 ->assertRedirect(route('painel.home'));
@@ -183,11 +188,11 @@ class CodigoDoDoisFatoresTemTetoPorContaTest extends TestCase
             }
         }
 
-        $this->doIp('2001:db8::5')
+        $this->doIp('2001:db8:5::1')
             ->post(route('painel.autenticar'), ['email' => 'chefe@exemplo.com', 'password' => self::SENHA_DO_PAINEL])
             ->assertRedirect(route('painel.home'));
 
-        $this->doIp('2001:db8::5')
+        $this->doIp('2001:db8:5::1')
             ->post(route('painel.2fa.verificar'), ['codigo' => $errado])
             ->assertStatus(429);
 

@@ -4,6 +4,7 @@ namespace App\Http\Requests\Auth;
 
 use App\Http\Middleware\BloqueiaUsuarioBanido;
 use App\Models\User;
+use App\Support\ChaveDeIp;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -134,9 +135,12 @@ class LoginRequest extends FormRequest
 
     /**
      * Get the rate limiting throttle key for the request.
+     *
+     * O IP entra pela `ChaveDeIp`: em IPv6, a rede /64 — senão cada tentativa sairia de um
+     * endereço novo da própria rede, com um limite novo (TrocarDeEnderecoIpv6NaoRenovaOLimiteTest).
      */
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        return Str::transliterate(Str::lower($this->string('email')).'|'.ChaveDeIp::da($this));
     }
 }

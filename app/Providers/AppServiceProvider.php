@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\User;
 use App\Services\FaturaService;
 use App\Services\SidebarService;
+use App\Support\ChaveDeIp;
 use App\Support\EnderecoPublico;
 use App\Support\VerificadorDeSenhaVazada;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -163,6 +164,11 @@ class AppServiceProvider extends ServiceProvider
      * definitivo. E cada tentativa custa um argon2id de 64 MiB, então sem limite isso
      * também é amplificação de DoS: o hash caro é a defesa, o limite é o que impede
      * de transformá-la em arma.
+     *
+     * "Por IP" aqui é sempre `ChaveDeIp::da($request)`, nunca `$request->ip()` cru: em
+     * IPv6 a chave é a rede /64, que o visitante não troca a cada requisição — o
+     * endereço inteiro ele troca à vontade, e cada endereço novo era um limite novo
+     * (TrocarDeEnderecoIpv6NaoRenovaOLimiteTest, 24/09/2026).
      */
     protected function configurarLimitesDeTaxa(): void
     {
@@ -170,16 +176,16 @@ class AppServiceProvider extends ServiceProvider
         // excluir conta, encerrar outras sessões). Chave pelo usuário — mais preciso que
         // por IP, que agruparia toda uma casa atrás do mesmo NAT.
         RateLimiter::for('senha', fn (Request $request) => Limit::perMinute(6)
-            ->by($request->user()?->id ?: $request->ip()));
+            ->by($request->user()?->id ?: ChaveDeIp::da($request)));
 
         // Rotas públicas de credencial. Cada POST em /register roda um argon2id;
         // sem limite, é o jeito mais barato de derrubar a VPS.
-        RateLimiter::for('credencial', fn (Request $request) => Limit::perMinute(5)->by($request->ip()));
+        RateLimiter::for('credencial', fn (Request $request) => Limit::perMinute(5)->by(ChaveDeIp::da($request)));
 
         // Login: complementa o throttle por e-mail+IP que já existe no LoginRequest.
         // Aquele protege UMA conta; este barra "password spraying" — uma senha comum
         // testada contra milhares de e-mails diferentes, que não repete a chave de lá.
-        RateLimiter::for('login-ip', fn (Request $request) => Limit::perMinute(20)->by($request->ip()));
+        RateLimiter::for('login-ip', fn (Request $request) => Limit::perMinute(20)->by(ChaveDeIp::da($request)));
 
         // Verificação em duas etapas: o desafio do login e a confirmação do setup.
         //
@@ -193,30 +199,27 @@ class AppServiceProvider extends ServiceProvider
         // A chave é a CONTA + o IP: no desafio a pessoa ainda não está autenticada, então
         // o alvo vem do login pendente na sessão (ver TwoFactorChallengeController).
         //
-        // 🚨 E a CONTA tem teto próprio, seja qual for o IP (CodigoDoDoisFatoresTemTetoPorContaTest).
-        // Só com a chave conta + IP, quem já tem a senha — justamente quem o segundo fator
-        // existe para barrar — ganhava 20 códigos novos por hora a cada endereço: com IPv6
-        // (uma VPS comum vem com um /64, e a Cloudflare repassa o IPv6 de cada visitante),
-        // 1.000 endereços davam 20.000 chutes por hora, e a conta de "~0,1% ao dia" acima
-        // virava ~76%. Preço aceito: quem tem a senha consegue gastar a cota e deixar o dono
-        // sem completar o login por até uma hora — o dono troca a senha (o que já derruba o
-        // login pendente do atacante) e espera; a alternativa era o código ser adivinhado.
+        // 🚨 O teto por HORA é da CONTA, venha o código de onde vier (24/09/2026 —
+        // CodigoDoDoisFatoresTemTetoPorContaTest e TrocarDeEnderecoIpv6NaoRenovaOLimiteTest).
+        // Com conta + IP na chave, quem já tem a senha — justamente quem o segundo fator
+        // existe para barrar — ganhava 20 códigos novos por hora a cada endereço: 1.000
+        // endereços (um /48 de túnel IPv6 são 65.536 redes /64; uma botnet, milhares de
+        // IPv4) davam 20.000 chutes por hora, e o "~0,1% ao dia" acima virava ~76%. O de
+        // MINUTO segue por conta + rede (rajada de uma origem). Preço aceito: quem tem a
+        // senha consegue gastar a cota e atrasar o login do dono em até uma hora — o dono
+        // troca a senha (o que já derruba o login pendente do atacante) e espera; a
+        // alternativa era o código ser adivinhado.
         RateLimiter::for('dois-fatores', function (Request $request) {
             $conta = $request->user()?->getKey()
                 ?? $request->session()->get(TwoFactorChallengeController::CHAVE_ID);
+            $rede = ChaveDeIp::da($request);
 
-            $chave = '2fa|'.($conta ?? $request->ip()).'|'.$request->ip();
-
-            $limites = [
-                Limit::perMinute(5)->by($chave),
-                Limit::perHour(20)->by($chave),
+            return [
+                Limit::perMinute(5)->by('2fa|'.($conta ?? $rede).'|'.$rede),
+                $conta !== null
+                    ? Limit::perHour(20)->by('2fa-conta|'.$conta)
+                    : Limit::perHour(20)->by('2fa-rede|'.$rede),
             ];
-
-            if ($conta !== null) {
-                $limites[] = Limit::perHour(20)->by('2fa-conta|'.$conta);
-            }
-
-            return $limites;
         });
 
         // ── Painel administrativo ───────────────────────────────────────────────
@@ -226,8 +229,8 @@ class AppServiceProvider extends ServiceProvider
         // mês. Qualquer volume acima disso é ataque, não uso. Apertar não incomoda
         // ninguém e derruba força bruta automatizada.
         RateLimiter::for('painel-login', fn (Request $request) => [
-            Limit::perMinute(3)->by($request->ip()),
-            Limit::perHour(10)->by($request->ip()),
+            Limit::perMinute(3)->by(ChaveDeIp::da($request)),
+            Limit::perHour(10)->by(ChaveDeIp::da($request)),
         ]);
 
         // Segundo fator do painel: o mesmo raciocínio de 10^6 palpites do 2FA do app,
@@ -238,8 +241,8 @@ class AppServiceProvider extends ServiceProvider
         // rotas do código ficam atrás do `AutenticaNoPainel`, então o admin já é conhecido.
         RateLimiter::for('painel-totp', function (Request $request) {
             $limites = [
-                Limit::perMinute(3)->by('painel-totp|'.$request->ip()),
-                Limit::perHour(10)->by('painel-totp|'.$request->ip()),
+                Limit::perMinute(3)->by('painel-totp|'.ChaveDeIp::da($request)),
+                Limit::perHour(10)->by('painel-totp|'.ChaveDeIp::da($request)),
             ];
 
             if ($admin = $request->user('admin')) {
@@ -253,8 +256,8 @@ class AppServiceProvider extends ServiceProvider
         // sinal de sessão sequestrada, e o limite transforma "apagou a base inteira"
         // em "apagou dez e parou" — tempo para o alerta por e-mail chegar.
         RateLimiter::for('painel-acao', fn (Request $request) => [
-            Limit::perMinute(5)->by($request->user('admin')?->id ?: $request->ip()),
-            Limit::perHour(30)->by($request->user('admin')?->id ?: $request->ip()),
+            Limit::perMinute(5)->by($request->user('admin')?->id ?: ChaveDeIp::da($request)),
+            Limit::perHour(30)->by($request->user('admin')?->id ?: ChaveDeIp::da($request)),
         ]);
     }
 }
