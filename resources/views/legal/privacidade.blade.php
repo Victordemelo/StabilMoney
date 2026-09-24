@@ -64,6 +64,13 @@
         <li><strong>Telefone</strong> e <strong>foto de perfil</strong> — opcionais, só se você preencher.</li>
         <li><strong>Data da última troca de senha</strong> — usada para mostrar a idade da sua senha na
             tela de Segurança.</li>
+        <li><strong>Data de nascimento</strong> e <strong>sexo</strong> — opcionais; você pode deixar em
+            branco ou escolher "Prefiro não informar".</li>
+        <li><strong>Verificação em duas etapas</strong>, se você ligar: o segredo do aplicativo
+            autenticador e os códigos de recuperação, guardados <strong>cifrados</strong>, e a data em que a
+            proteção foi ativada.</li>
+        <li><strong>Novo e-mail aguardando confirmação</strong> — quando você pede para trocar de e-mail,
+            o endereço novo fica guardado até ser confirmado pelo link enviado a ele.</li>
     </ul>
 
     <h3>2.2. Dados financeiros que você registra</h3>
@@ -95,9 +102,26 @@
             a caixa de aceite no cadastro. É a comprovação do seu consentimento exigida pelo art. 8º, §1º
             da LGPD; sem ela, não haveria registro de que você concordou nem de qual texto estava em vigor
             naquele momento.</li>
+        <li><strong>Pedidos de redefinição de senha</strong> — um código de uso único, guardado apenas como
+            <em>hash</em>, que deixa de valer em 60 minutos.</li>
+        <li><strong>Contagem de tentativas</strong> — para barrar quem tenta adivinhar senhas ou códigos, o
+            servidor conta por até uma hora as tentativas de login, de código e de cadastro, associadas ao
+            endereço IP e, no login, ao e-mail digitado.</li>
+        <li><strong>Alertas de segurança</strong> — os e-mails que avisam de mudanças na sua conta informam
+            quando, de qual endereço IP e de qual aparelho a ação foi feita, para você reconhecer se foi
+            você.</li>
     </ul>
     <p>Não usamos ferramentas de analytics, mapas de calor, gravação de sessão nem pixels de rastreamento
        de terceiros.</p>
+
+    <h3>2.4. Moderação</h3>
+    <p>Se uma conta for <strong>suspensa</strong> pela administração do aplicativo, guardamos a data, o
+       motivo e qual administrador a suspendeu. Suspensões, reativações e exclusões feitas pela
+       administração ficam num <strong>registro de auditoria</strong> com o nome e o e-mail da conta no
+       momento da ação, o motivo informado e o endereço IP do administrador (veja a seção 11). O painel
+       administrativo mostra os dados de cadastro e a <em>estrutura</em> da conta — quantas contas,
+       lançamentos e dependentes existem e o último acesso —, mas <strong>nunca valores
+       financeiros</strong>.</p>
 
     <h2 id="s3">3. O que nós não coletamos</h2>
     <p>Deixar isso explícito é tão importante quanto listar o que coletamos. O Stabil Money
@@ -128,7 +152,7 @@
             </thead>
             <tbody>
                 <tr>
-                    <td>Nome, e-mail, senha</td>
+                    <td>Nome, e-mail (e o novo e-mail, enquanto aguarda confirmação), senha</td>
                     <td>Criar sua conta, autenticar o login, identificar você no aplicativo</td>
                     <td>Execução de contrato — art. 7º, V</td>
                 </tr>
@@ -139,8 +163,8 @@
                     <td>Execução de contrato — art. 7º, V</td>
                 </tr>
                 <tr>
-                    <td>Telefone, foto de perfil</td>
-                    <td>Personalizar seu perfil (dados opcionais)</td>
+                    <td>Telefone, foto de perfil, data de nascimento, sexo</td>
+                    <td>Personalizar e completar seu perfil (dados opcionais)</td>
                     <td>Consentimento — art. 7º, I</td>
                 </tr>
                 <tr>
@@ -150,15 +174,27 @@
                         responsável legal</td>
                 </tr>
                 <tr>
-                    <td>IP, navegador, sessões ativas, logs</td>
+                    <td>IP, navegador, sessões ativas, logs, contagem de tentativas, pedidos de redefinição
+                        de senha</td>
                     <td>Segurança da conta, prevenção a acesso indevido, diagnóstico de falhas e
                         cumprimento do Marco Civil da Internet</td>
                     <td>Legítimo interesse — art. 7º, IX, e cumprimento de obrigação legal — art. 7º, II</td>
                 </tr>
                 <tr>
+                    <td>Segredo da verificação em duas etapas e códigos de recuperação</td>
+                    <td>Proteger o seu login com um segundo fator, quando você liga essa opção</td>
+                    <td>Execução de contrato — art. 7º, V</td>
+                </tr>
+                <tr>
+                    <td>Registro de moderação (suspensão, motivo e auditoria das ações administrativas)</td>
+                    <td>Fazer cumprir os Termos de Uso, proteger o serviço e comprovar as ações tomadas</td>
+                    <td>Legítimo interesse — art. 7º, IX, e exercício regular de direitos — art. 7º, VI</td>
+                </tr>
+                <tr>
                     <td>E-mail (avisos automáticos)</td>
-                    <td>Enviar <strong>alertas de segurança</strong> (senha alterada, verificação em duas
-                        etapas ligada ou desligada, sessões encerradas, conta excluída) e, ao titular,
+                    <td>Enviar <strong>alertas de segurança</strong> (senha alterada ou redefinida, pedido e
+                        confirmação de troca de e-mail, verificação em duas etapas ligada ou desligada,
+                        sessões encerradas, conta excluída) e, ao titular,
                         <strong>lembretes de vencimento</strong> de faturas de cartão e contas fixas —
                         3 dias antes, na véspera, no dia e a cada 7 dias enquanto houver atraso. Os
                         lembretes podem ser desligados em <em>Configurações › Conta</em>; os alertas de
@@ -199,7 +235,8 @@
             </thead>
             <tbody>
                 <tr>
-                    <td><code>stabilmoney_session</code></td>
+                    {{-- O nome sai da config: é o que o navegador recebe de fato. --}}
+                    <td><code>{{ config('session.cookie') }}</code></td>
                     <td>Cookie essencial</td>
                     <td>Mantém você conectado enquanto navega. Expira ao sair ou após inatividade.</td>
                 </tr>
@@ -207,6 +244,14 @@
                     <td><code>XSRF-TOKEN</code></td>
                     <td>Cookie essencial</td>
                     <td>Protege contra ataques de falsificação de requisição (CSRF).</td>
+                </tr>
+                <tr>
+                    <td><code>remember_web_…</code></td>
+                    <td>Cookie essencial</td>
+                    <td>Criado quando o login é feito com "Lembrar de mim" — a caixa já vem marcada;
+                        desmarque-a em aparelho compartilhado. Mantém você conectado neste aparelho por até
+                        400 dias. Some quando você sai da conta; trocar a senha ou encerrar as outras
+                        sessões o invalida nos outros aparelhos.</td>
                 </tr>
                 <tr>
                     <td><code>sm-theme</code></td>
@@ -256,9 +301,32 @@
             </thead>
             <tbody>
                 <tr>
-                    <td>Provedor de hospedagem (servidor e banco de dados, em território brasileiro)</td>
+                    <td>Oracle Cloud Infrastructure (Oracle)</td>
                     <td>Operador</td>
-                    <td>Hospeda a aplicação e o banco de dados. Não usa os dados para finalidade própria.</td>
+                    <td>Servidor em nuvem onde rodam o aplicativo e o banco de dados. Não usa os dados para
+                        finalidade própria.</td>
+                </tr>
+                <tr>
+                    <td>Cloudflare</td>
+                    <td>Operador</td>
+                    <td>Todo acesso ao aplicativo passa pela rede da Cloudflare, que protege o site contra
+                        ataques e encaminha a conexão ao servidor. Ela recebe seu <strong>endereço IP</strong>,
+                        informações do navegador e o conteúdo que trafega entre você e o servidor.</td>
+                </tr>
+                <tr>
+                    <td>Provedor de envio de e-mail (SMTP)</td>
+                    <td>Operador</td>
+                    <td>Entrega os e-mails do aplicativo — confirmação de cadastro e de troca de e-mail,
+                        redefinição de senha, alertas de segurança e lembretes. Recebe o seu endereço de
+                        e-mail e o conteúdo dessas mensagens.</td>
+                </tr>
+                <tr>
+                    <td>Have I Been Pwned (Pwned Passwords)</td>
+                    <td>Terceiro (consulta)</td>
+                    <td>Quando você cria ou troca uma senha, o servidor confere se ela aparece em vazamentos
+                        conhecidos. Só os <strong>5 primeiros caracteres do <em>hash</em> SHA-1</strong> da
+                        senha são enviados — nunca a senha, o seu e-mail ou o seu IP — e a comparação final
+                        é feita no nosso servidor.</td>
                 </tr>
                 <tr>
                     <td>Google Fonts</td>
@@ -299,7 +367,8 @@
        cadastrado como <strong>dependente</strong> exclusivamente por seu <strong>responsável legal</strong>,
        que assim exerce o consentimento previsto no art. 14 da LGPD, no melhor interesse da criança ou
        adolescente.</p>
-    <p>Nesse caso, cadastre apenas o mínimo necessário — nome e, se preciso, e-mail. Se você tomar
+    <p>Nesse caso, cadastre apenas o necessário para o login dele — nome, e-mail e senha — e deixe em
+       branco o que é opcional, como foto e parentesco. Se você tomar
        conhecimento de que dados de um menor foram cadastrados sem autorização do responsável, avise pelo
        contato da seção 16 e eles serão removidos.</p>
 
@@ -325,12 +394,20 @@
         <li><strong>proteção contra CSRF</strong> em todos os formulários;</li>
         <li><strong>gestão de sessões</strong> — você vê os dispositivos conectados e pode encerrar as
             outras sessões confirmando sua senha;</li>
+        <li><strong>verificação em duas etapas</strong> opcional, por aplicativo autenticador, com códigos
+            de recuperação;</li>
+        <li><strong>limite de tentativas</strong> no login, nos códigos e nas ações que pedem senha;</li>
+        <li><strong>alertas por e-mail</strong> quando a senha, o e-mail ou a verificação em duas etapas
+            mudam, ou quando sessões são encerradas;</li>
+        <li><strong>cópias de segurança do banco de dados</strong>, feitas diariamente;</li>
         <li><strong>HTTPS</strong> em todo o tráfego no ambiente publicado;</li>
-        <li>acesso administrativo ao servidor <strong>restrito ao desenvolvedor</strong>.</li>
+        <li>acesso administrativo ao servidor <strong>restrito ao desenvolvedor</strong>; o painel
+            administrativo exige verificação em duas etapas e não exibe valores financeiros.</li>
     </ul>
     <p><strong>Limites honestos:</strong> este é um projeto pessoal em fase de testes. Não há certificação
-       de segurança, auditoria externa, autenticação em duas etapas (prevista, ainda não disponível) nem
-       garantia de rotina de backup. <strong>Nenhum sistema é totalmente seguro.</strong> Cadastre apenas
+       de segurança nem auditoria externa, e a verificação em duas etapas é opcional — ligue-a em
+       <em>Configurações › 2FA</em>. Cópias de segurança reduzem, mas não eliminam, o risco de perda de
+       dados. <strong>Nenhum sistema é totalmente seguro.</strong> Cadastre apenas
        informações com as quais você se sinta confortável nesse cenário, e evite escrever em descrições
        dados que você não gostaria de ver expostos (senhas, números de documento, dados de saúde).</p>
 
@@ -363,6 +440,26 @@
                         base separada.</td>
                 </tr>
                 <tr>
+                    <td>Pedidos de redefinição de senha</td>
+                    <td>Deixam de valer em 60 minutos; são apagados quando usados, quando você pede outro
+                        ou na exclusão da conta.</td>
+                </tr>
+                <tr>
+                    <td>Contagem de tentativas</td>
+                    <td>Até uma hora.</td>
+                </tr>
+                <tr>
+                    <td>Cópias de segurança (backups) do banco de dados</td>
+                    <td>Uma por dia, guardadas por até <strong>14 dias</strong> e depois apagadas.</td>
+                </tr>
+                <tr>
+                    <td>Registro de auditoria das ações administrativas (suspensão, reativação,
+                        exclusão)</td>
+                    <td>Mantido <strong>mesmo após a exclusão da conta</strong>, com o nome e o e-mail da
+                        época, para comprovar a ação tomada — exercício regular de direitos
+                        (art. 7º, VI).</td>
+                </tr>
+                <tr>
                     <td>Comunicações por e-mail com o suporte</td>
                     <td>Mantidas enquanto necessárias ao atendimento e à defesa de direitos.</td>
                 </tr>
@@ -370,8 +467,9 @@
         </table>
     </div>
     <p>Ao excluir a conta em <em>Configurações › Conta</em>, o registro do usuário e os dados financeiros
-       vinculados são removidos do banco de dados. Cópias residuais podem persistir por curto período em
-       backups ou logs até serem sobrescritas.</p>
+       vinculados são removidos do banco de dados. Cópias feitas antes da exclusão continuam nos backups
+       até serem apagadas pela rotação (até 14 dias), e os registros de acesso seguem o prazo dos logs
+       (até 6 meses). A exceção é o registro de auditoria das ações administrativas, descrito acima.</p>
 
     <h2 id="s12">12. Seus direitos e como exercê-los</h2>
     <p>A LGPD (art. 18) garante a você, gratuitamente, o direito de:</p>
@@ -397,18 +495,29 @@
             categorias;</li>
         <li><strong>excluir tudo</strong> — <em>Configurações › Conta › Excluir conta</em>.</li>
     </ul>
-    <p>Para os demais pedidos — inclusive <strong>exportar seus dados</strong>, revogar consentimento ou
-       obter confirmação por escrito — escreva para
+    <p>Para os demais pedidos — inclusive <strong>exportar seus dados</strong>, <strong>excluir uma conta
+       que você não consegue acessar</strong> (por exemplo, suspensa), revogar consentimento ou obter
+       confirmação por escrito — escreva para
        <strong>{{ config('legal.contact_email') }}</strong> usando o e-mail cadastrado na sua conta. A resposta
        será dada em até <strong>15 dias</strong>, conforme o art. 19, II da LGPD. Pode ser necessário
        confirmar sua identidade antes de atender ao pedido, para proteger sua conta.</p>
 
     <h2 id="s13">13. Transferência internacional de dados</h2>
-    <p>Os dados da sua conta ficam armazenados em <strong>servidor localizado no Brasil</strong>.</p>
-    <p>A única transferência internacional atual decorre do carregamento das fontes tipográficas pelo
-       <strong>Google Fonts</strong>, que expõe seu endereço IP a servidores fora do país. Nenhum dado
-       financeiro ou de conta é transferido para o exterior. Caso serviços internacionais passem a ser
-       usados, esta política será atualizada antes, com indicação da base legal do art. 33 da LGPD.</p>
+    <p>O servidor com o aplicativo e o banco de dados é contratado na nuvem da <strong>Oracle</strong>
+       (Oracle Cloud Infrastructure). Além dele, alguns serviços usados pelo Stabil Money são de empresas
+       estrangeiras e tratam dados fora do Brasil:</p>
+    <ul>
+        <li><strong>Cloudflare</strong> — todo acesso ao aplicativo passa pela rede global dela: endereço
+            IP, dados do navegador e o conteúdo em trânsito;</li>
+        <li><strong>Google Fonts</strong> — endereço IP e dados do navegador, ao carregar as fontes;</li>
+        <li>o <strong>provedor de envio de e-mail</strong>, se for estrangeiro — seu endereço de e-mail e o
+            conteúdo das mensagens do aplicativo;</li>
+        <li><strong>Have I Been Pwned</strong> — só o trecho do <em>hash</em> da senha descrito na seção 6,
+            que não identifica você.</li>
+    </ul>
+    <p>Essas transferências são necessárias para prestar o serviço que você contratou ao se cadastrar
+       (art. 33, IX, combinado com o art. 7º, V, da LGPD). Os dados financeiros só passam pela Cloudflare
+       no trajeto entre você e o servidor; nenhum desses serviços os recebe para finalidade própria.</p>
 
     <h2 id="s14">14. Incidentes de segurança</h2>
     <p>Se ocorrer um incidente de segurança com risco relevante aos seus dados, você será

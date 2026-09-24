@@ -220,7 +220,11 @@
        da sua conta remove também os dependentes vinculados a ela.</p>
     <p><strong>Pelo responsável:</strong> a conta pode ser suspensa ou encerrada em caso de violação
        destes termos, uso fraudulento, risco à segurança do serviço ou determinação legal. Sempre que
-       possível, você será avisado antes.</p>
+       possível, você será avisado antes. A suspensão da conta de um titular vale também para os
+       dependentes da família, e o encerramento pela administração remove a família inteira, como na
+       exclusão feita por você — nesse caso, cada pessoa recebe um aviso por e-mail. Quem tiver a conta
+       suspensa vê, ao tentar entrar, o contato para contestar a decisão ou pedir a exclusão dos dados:
+       <strong>{{ config('legal.contact_email') }}</strong>.</p>
 
     <h2 id="s15">15. Alterações nestes termos</h2>
     <p>Estes termos podem ser atualizados para refletir mudanças no aplicativo ou na legislação. A data
