@@ -191,7 +191,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // próprio (AppServiceProvider::configurarPessoasDaFamiliaNaRota): só acha DEPENDENTE da
     // família de quem pede, e o de outra família responde como id que não existe.
     Route::get('/dependentes', [DependentController::class, 'index'])->name('dependentes');
-    Route::post('/dependentes', [DependentController::class, 'store'])->name('dependentes.store');
+    // Cadastrar dependente é o `/register` feito pelo titular: cria um LOGIN (argon2id) e manda
+    // e-mail para o endereço digitado. Leva o mesmo limite (`credencial`, 5/min por IP). Sem
+    // ele era a porta sem teto para duas coisas que o cadastro público já encarece: saber se
+    // um e-mail tem conta ("Este e-mail já está em uso" — com uma senha curta nada é criado)
+    // e disparar o "Bem-vindo" para qualquer endereço, com o assunto trazendo o nome que o
+    // titular escolheu.
+    Route::post('/dependentes', [DependentController::class, 'store'])
+        ->middleware('throttle:credencial')
+        ->name('dependentes.store');
     Route::patch('/dependentes/{dependent}', [DependentController::class, 'update'])->name('dependentes.update');
     Route::delete('/dependentes/{dependent}', [DependentController::class, 'destroy'])->name('dependentes.destroy');
 

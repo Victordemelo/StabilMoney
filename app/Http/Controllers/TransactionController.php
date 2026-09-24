@@ -22,6 +22,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class TransactionController extends Controller
 {
@@ -314,6 +315,18 @@ class TransactionController extends Controller
 
         $origem = Account::whereKey($data['account_id'])->firstOrFail();
         $destino = Account::whereKey($data['to_account_id'])->firstOrFail();
+
+        // A regra `different:account_id` do Form Request compara o TEXTO enviado: "5" e "05"
+        // passam por contas diferentes, e o banco resolve os dois para a MESMA linha — nasciam
+        // duas pontas que se anulam na mesma conta (e que ainda podiam usar cheque especial ou
+        // resgatar investimento para "cobrir" um dinheiro que não saiu de lugar nenhum). Quem
+        // decide é a conta encontrada, não o texto.
+        if ($origem->is($destino)) {
+            throw ValidationException::withMessages([
+                'to_account_id' => 'A conta de destino precisa ser diferente da de origem.',
+            ]);
+        }
+
         $valor = round((float) $data['amount'], 2);
         $descricao = trim((string) ($data['description'] ?? ''));
         $grupo = (string) Str::uuid();
