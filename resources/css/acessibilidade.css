@@ -78,3 +78,32 @@
 @media (max-width: 640px) {
   .cat-chip .cc-grip { display: none; }
 }
+
+/* ----- Alvos de toque no celular (out/2026 — tests/e2e/responsividade.mjs) -----
+   Nada de controle com menos de 32px de lado abaixo de 768px. Onde crescer o
+   desenho mudaria o layout (botões de ícone dentro de linhas apertadas), cresce o
+   ALVO, não o desenho: um pseudo-elemento absoluto e invisível — o mesmo truque do
+   .modal-x, do .cc-act/.cc-del e do .meta-act. A varredura conta esse pseudo. */
+@media (max-width: 767px) {
+  /* "Ver todas", "Gerenciar", "Editar" dos cards: 24px de altura viram 32. */
+  .mini-btn { min-height: 32px; }
+  /* Semana · Mês · Ano. */
+  .seg button { min-height: 32px; }
+  /* Mostrar/ocultar senha: 30 → 38 no dedo, sem mexer no campo. */
+  .pw-toggle::after { content: ""; position: absolute; inset: -4px; }
+  /* Mover categoria (▲▼): cada seta ganha 32×32 para FORA — a de cima sobe, a de
+     baixo desce e as duas avançam para a esquerda (o lado do pontinho de cor, que não
+     é clicável). Nenhuma invade a outra nem o "editar" à direita. */
+  .cat-chip .cc-mv { position: relative; }
+  .cat-chip .cc-mv:first-child::after { content: ""; position: absolute; inset: -8px 0 0 -14px; }
+  .cat-chip .cc-mv:last-child::after { content: ""; position: absolute; inset: 0 0 -8px -14px; }
+  /* "Esqueceu a senha?" ao lado do "Lembrar de mim". */
+  .auth .row-between .link { display: inline-flex; align-items: center; min-height: 32px; }
+}
+/* Com a pilha de setas DEITADA na 2ª linha do chip (≤ 340px, ver design-system.css)
+   cada seta já tem 32×32 de desenho: a área extra sairia, e encostaria no vizinho. */
+@media (max-width: 340px) {
+  .cat-chip .cc-mover { flex-direction: row; width: auto; gap: 2px; margin: 0 0 0 auto; }
+  .cat-chip .cc-mv { width: 32px; height: 32px; }
+  .cat-chip .cc-mv::after { display: none; }
+}

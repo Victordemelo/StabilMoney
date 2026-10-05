@@ -404,7 +404,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   position: absolute; pointer-events: none; opacity: 0; transform: translate(-50%, 4px) scale(.96);
   transition: opacity .15s var(--ease), transform .15s var(--ease);
   background: var(--brand-900); color: #fff; border-radius: 12px; padding: 11px 13px;
-  font-size: 12px; box-shadow: var(--shadow-lg); min-width: 150px; z-index: 5;
+  font-size: 12px; box-shadow: var(--shadow-lg); min-width: min(150px, calc(100vw - 32px)); z-index: 5;
 }
 .cf-tip.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
 .cf-tip .tt { font-size: 11px; color: var(--brand-300); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 7px; }
@@ -665,6 +665,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    conflitariam com o .field de forms.css usado nos formulários existentes. */
 .modal-scrim {
   position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 20px;
+  /* PWA instalado (viewport-fit=cover): o respiro soma a área do notch e da barra de
+     gestos — sem isso o rodapé do modal (Cancelar/Salvar) ficava sob a barra de gestos
+     do iPhone, onde o toque vira gesto do sistema. Fora do PWA os env() valem 0. */
+  padding: calc(20px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-right, 0px))
+           calc(20px + env(safe-area-inset-bottom, 0px)) calc(20px + env(safe-area-inset-left, 0px));
   background: rgba(7,20,14,.55); backdrop-filter: blur(3px);
   opacity: 0; pointer-events: none;
   /* `visibility: hidden` além do opacity: sem ela o modal fechado continua na ORDEM
@@ -696,7 +701,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   padding: 0;
   display: flex; flex-direction: column;
   max-height: calc(100vh - 40px);
-  max-height: calc(100dvh - 40px);
+  max-height: calc(100dvh - 40px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   overflow: hidden;
 }
 /* O <form> quase sempre envolve body+foot (o submit precisa estar dentro dele),
@@ -995,7 +1000,7 @@ form[data-type="transfer"] .type-toggle.tt-3 .tt-pill {
 @media (max-width: 480px) { .cookie-bar { flex-direction: column; align-items: stretch; } .cookie-accept { width: 100%; } }
 
 /* ============ Dependentes (portado do styles.css v2) ============ */
-.dep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; align-items: stretch; }
+.dep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(270px, 100%), 1fr)); gap: 14px; align-items: stretch; }
 /* Cards da mesma linha com a MESMA altura e o bloco de gasto preso ao pé: o do titular não tem
    os botões de editar/remover, então o cabeçalho dele era mais baixo e "Gastou no mês", a barra
    e o rodapé ficavam desalinhados dos cards dos dependentes. */
@@ -1114,7 +1119,7 @@ form[data-type="transfer"] .type-toggle.tt-3 .tt-pill {
 /* Formulários longos e confirmações com muito aviso: LARGO e baixo, campos em duas colunas,
    para caber sem rolar numa tela de notebook (lançar, lançar despesa, excluir conta). */
 .modal-xl { max-width: 780px; }
-.excl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: stretch; }
+.excl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 14px; align-items: stretch; }
 .excl-col > .flash-error { flex: 1 1 auto; } /* avisos da mesma altura: os aceites ficam na mesma linha */
 .excl-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 
@@ -1362,7 +1367,9 @@ body.pjax-loading #content { opacity: .5; }
   .app { grid-template-columns: 1fr; height: auto; }
   .app.collapsed { grid-template-columns: 1fr; }
   .sidebar {
-    position: fixed; top: 0; bottom: 0; left: 0; width: 280px; z-index: 50;
+    /* Nunca mais larga que a tela: num aparelho de 200-300px a gaveta de 280px
+       passava da borda direita (e o véu ficava sem uma faixa para tocar e fechar). */
+    position: fixed; top: 0; bottom: 0; left: 0; width: min(280px, calc(100vw - 24px)); z-index: 50;
     transform: translateX(-100%); transition: transform .35s var(--ease);
     /* O `.sidebar` base é `overflow: hidden`, e a classe `.scroll` da view só
        estiliza a barra de rolagem — não define overflow nenhum. Resultado: num
@@ -1402,6 +1409,9 @@ body.pjax-loading #content { opacity: .5; }
   .topbar { display: none; }
   .mobile-top {
     display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+    /* PWA instalado no iPhone deitado: o notch vira margem lateral (viewport-fit=cover). */
+    padding-left: calc(16px + env(safe-area-inset-left, 0px));
+    padding-right: calc(16px + env(safe-area-inset-right, 0px));
     position: sticky; top: 0; z-index: 30; background: transparent;
     border-bottom: 1px solid transparent;
     transition: background .25s var(--ease), border-color .25s var(--ease);
@@ -1425,10 +1435,17 @@ body.pjax-loading #content { opacity: .5; }
     display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 45;
     background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(16px);
     border-top: 1px solid var(--line); padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    padding-left: calc(8px + env(safe-area-inset-left, 0px));
+    padding-right: calc(8px + env(safe-area-inset-right, 0px));
     justify-content: space-around;
   }
+  /* Os itens DIVIDEM a largura (flex 1 + min-width 0) em vez de 14px fixos de cada
+     lado: com o padding fixo a barra media 329px e, abaixo de 330px, empurrava a
+     página para o lado — no celular o navegador então afastava o zoom e a própria
+     barra ficava cortada na borda de baixo (out/2026, tests/e2e/responsividade.mjs). */
   .bn-item {
-    display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 14px;
+    flex: 1 1 0; min-width: 0; white-space: nowrap;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px;
     color: var(--ink-3); font-size: 10.5px; font-weight: 600; border-radius: 12px; transition: color .2s;
     text-decoration: none;
   }
@@ -1437,7 +1454,7 @@ body.pjax-loading #content { opacity: .5; }
   [data-theme="dark"] .bn-item.active { color: var(--brand-300); }
   .bn-item.fab {
     background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); color: #fff;
-    width: 52px; height: 52px; border-radius: 18px; justify-content: center; margin-top: -22px;
+    flex: none; width: 52px; height: 52px; border-radius: 18px; justify-content: center; margin-top: -22px;
     box-shadow: 0 10px 22px rgba(17,98,74,.4);
   }
   .bn-item.fab svg { width: 26px; height: 26px; }
@@ -1886,8 +1903,18 @@ body.pjax-loading #content { opacity: .5; }
 }
 @media (max-width: 920px) {
   .app, .app.collapsed { grid-template-columns: 1fr; }
-  .sidebar { width: 280px; }
-  .content { padding: 10px 16px 96px; }
+  /* O `.sidebar { padding: 18px 14px 15px }` do redesenho (acima, fora de media query)
+     vinha DEPOIS do bloco do drawer e apagava o respiro da área segura: no iPhone o botão
+     de perfil (o caminho para "Sair") voltava para a faixa da barra de gestos. */
+  .sidebar {
+    width: min(280px, calc(100vw - 24px));
+    padding: calc(18px + env(safe-area-inset-top, 0px)) 14px calc(15px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px));
+  }
+  /* As laterais somam o notch do iPhone deitado no PWA; o pé, a barra de gestos
+     (a bottom-nav cresce por ela, então o respiro do fim da página também). */
+  .content {
+    padding: 10px calc(16px + env(safe-area-inset-right, 0px)) calc(96px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+  }
   .section-head { align-items: center; }
   .collapsed .side-balance { margin: 18px 2px 10px; padding: 14px; }
 }
@@ -1930,7 +1957,8 @@ body.pjax-loading #content { opacity: .5; }
 .tx-d-aviso { margin: 0; padding: 12px 14px; border-radius: 12px; font-size: 12.5px; line-height: 1.5; background: #FDEFD6; color: #7A4A00; }
 [data-theme="dark"] .tx-d-aviso { background: rgba(240,169,59,.14); color: #F5C778; }
 @media (max-width: 1000px) {
-  .tx-edit { grid-template-columns: 1fr; }
+  /* `minmax(0, 1fr)`: com `1fr` a coluna não encolhia abaixo do conteúdo (200px vazava). */
+  .tx-edit { grid-template-columns: minmax(0, 1fr); }
   .tx-detalhe { position: static; order: -1; }
 }
 
@@ -1988,6 +2016,123 @@ body.pjax-loading #content { opacity: .5; }
 .tb-hora { font-family: var(--font-head); font-size: 19px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .tb-fuso { font-size: 10.5px; color: var(--ink-3); }
 .relogio-form { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
-.relogio-form .field { margin-bottom: 0; min-width: 240px; }
+.relogio-form .field { margin-bottom: 0; min-width: min(240px, 100%); }
 .instalar-app { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 .instalar-app .btn-ghost svg { width: 17px; height: 17px; }
+
+/* =====================================================================
+   ============ Responsividade estreita (out/2026) ============
+   Larguras abaixo do menor celular comum (380 → 200px). No FIM do arquivo de
+   propósito: as regras do celular (≤ 920px) estão espalhadas em blocos mais
+   abaixo do que o "Responsive" original, e estas precisam vencer todas.
+   Ferramenta de regressão: tests/e2e/responsividade.mjs (ver CLAUDE.md).
+   ===================================================================== */
+/* O topo do celular é menu + marca + sino + tema. A marca escrita é a parte que cede:
+   primeiro encolhe, depois some (o desenho da marca fica, com o alt "StabilMoney").
+   Sem isto o topo media 329px e o botão de tema saía da tela abaixo de 330px. */
+/* Cabeçalho dos cards de Contas a pagar (contas fixas, despesas em conta, cada cartão):
+   até ~420px o total não cabe ao lado do título e "R$" ficava numa linha e "3.682,00"
+   na outra. O total desce para baixo do título, inteiro numa linha só. */
+@media (max-width: 420px) {
+  .fatura-head { flex-wrap: wrap; row-gap: 10px; }
+  .fatura-head .fh-info { flex: 1 1 0; }
+  .fatura-head .fh-total { margin-left: 0; flex: 1 1 100%; text-align: left; order: 1; }
+  .fatura-head .fh-total b { white-space: nowrap; }
+  .fatura-head .fh-total > span { display: inline; margin-right: 6px; }
+}
+@media (max-width: 380px) {
+  .mobile-top { gap: 8px; }
+  .mobile-top .mbrand { font-size: 13.5px; letter-spacing: .06em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+@media (max-width: 340px) {
+  .mobile-top .mbrand { display: none; }
+}
+/* Celular estreitíssimo (≤ 300px): a barra de baixo fica só com os ícones. O texto
+   continua lá (font-size 0), então o nome acessível de cada destino não muda. */
+@media (max-width: 300px) {
+  .bn-item { font-size: 0; gap: 0; }
+  .mobile-top { gap: 6px; padding-top: 10px; padding-bottom: 10px; }
+}
+@media (max-width: 240px) {
+  .mobile-top { padding-left: 8px; padding-right: 8px; }
+  .content { padding-left: 8px; padding-right: 8px; }
+  .bottom-nav { padding-left: 4px; padding-right: 4px; }
+}
+
+/* Abaixo de 360px uma palavra só — um e-mail, "Transferência", um valor — já pode ser
+   mais larga que a caixa. `anywhere` deixa quebrar no meio e, ao contrário de
+   `break-word`, entra no tamanho MÍNIMO dos itens de flex/grid: a caixa encolhe em
+   vez de vazar por cima do vizinho. Texto normal não muda (só quebra o que não cabe). */
+@media (max-width: 360px) {
+  body { overflow-wrap: anywhere; }
+  /* Linhas "título ··· selo/ação": sem caber lado a lado, o segundo desce de linha em
+     vez de se sobrepor ao título (era o "Pessoas vinculadas" sob "Gastos de outubro"). */
+  .card-head, .tfa-familia-head, .cards-sum, .cc-item-top, .dp-spent, .dp-foot, .chart-legend { flex-wrap: wrap; }
+  .cards-sum .right { text-align: left; }
+  /* Editar transação › parcelas: nº e data em cima, valor e situação embaixo. */
+  .tx-d-parcelas li { grid-template-columns: auto minmax(0, 1fr); }
+  /* Sessões: o selo "Atual" desce para baixo do nome do aparelho. */
+  .sess-item { flex-wrap: wrap; row-gap: 6px; }
+  .sess-item .sess-info { flex: 1 1 calc(100% - 53px); }
+  .sess-item .sess-badge { margin-left: 53px; }
+  /* Três segmentos (Receita · Despesa · Transferência) só cabem sem os ícones. */
+  .type-toggle.tt-3 label svg { display: none; }
+  .type-toggle.tt-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* O saldo de destaque acompanha a largura (34px só cabe a partir de ~360px). */
+  .dashboard-overview-grid .dashboard-balance-hero .value { font-size: clamp(22px, 10vw, 34px); }
+  .section-head .head-actions { max-width: 100%; }
+  .section-head .head-actions > * { max-width: 100%; white-space: normal; text-align: center; }
+  /* Meu perfil: a foto em cima, nome/selos/botão da foto embaixo, com a largura toda. */
+  .ph-id { flex-direction: column; align-items: flex-start; }
+  .ph-id .avatar-preview { width: 72px; height: 72px; font-size: 24px; }
+  .ph-foto .btn-ghost { white-space: normal; max-width: 100%; height: auto; min-height: 36px; }
+}
+@media (max-width: 340px) {
+  /* Linhas "ícone · texto · valor": o valor desce para a 2ª linha, alinhado à direita,
+     e o texto fica com a largura toda ao lado do ícone. Antes o valor (nowrap) passava
+     por cima do texto, ou era recortado pela borda do card. */
+  .tx, .acct { flex-wrap: wrap; }
+  .tx > div:not([class]), .tx .tx-txt { flex: 1 1 calc(100% - 54px); }
+  .acct > div:not([class]) { flex: 1 1 calc(100% - 48px); min-width: 0; }
+  .tx .tx-amt, .acct .av { margin-left: auto; }
+  .fatura-item > .fi-txt { flex: 1 1 calc(100% - 53px); }
+  /* Categoria: nome ao lado do emoji; os controles descem para a linha de baixo. */
+  .cat-chip { flex-wrap: wrap; row-gap: 8px; }
+  .cat-chip .cc-name { flex: 1 1 calc(100% - 50px); }
+  .cat-chip .cc-dot { margin-left: 0; }
+  /* (as setas ▲▼ deitam na 2ª linha: regra no acessibilidade.css, onde mora o .cc-mover) */
+  /* Família: os botões editar/remover descem para baixo do nome. */
+  .dp-top { flex-wrap: wrap; }
+  .dp-top .dp-id { flex: 1 1 calc(100% - 58px); }
+  .dp-top .dp-actions { margin-left: auto; }
+  /* Gaveta estreita: o nome do item encolhe com reticências antes de encostar no selo. */
+  .nav-txt .nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+/* ≤ 300px: os toggles de tipo empilham (a pílula desce em vez de deslizar para o lado)
+   e os modais encolhem o respiro — 20px de cada lado eram 20% da tela. */
+@media (max-width: 300px) {
+  /* `form` na frente: o forms.css vem depois no app.css e venceria o empate. */
+  form .type-toggle label svg { display: none; }
+  form .type-toggle label { font-size: 12px; }
+  form .type-toggle, form .type-toggle.tt-3 { grid-template-columns: minmax(0, 1fr); }
+  .type-toggle .tt-pill, .type-toggle.tt-3 .tt-pill { width: auto; right: 4px; bottom: auto; height: 38px; }
+  form[data-type="expense"] .type-toggle .tt-pill { transform: translateY(calc(100% + 4px)); }
+  form[data-type="transfer"] .type-toggle.tt-3 .tt-pill { transform: translateY(calc(200% + 8px)); }
+  .modal-scrim {
+    padding: calc(10px + env(safe-area-inset-top, 0px)) calc(8px + env(safe-area-inset-right, 0px))
+             calc(10px + env(safe-area-inset-bottom, 0px)) calc(8px + env(safe-area-inset-left, 0px));
+  }
+  .modal { max-height: calc(100dvh - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+  .modal-head { padding: 14px 12px 10px; gap: 10px; }
+  .modal-ico { display: none; }
+  .modal-body { padding: 0 12px; }
+  .modal-foot { padding: 12px; flex-wrap: wrap; }
+  .modal-foot > .btn, .modal-foot > button, .modal-foot > a { flex: 1 1 auto; }
+  /* Meus cartões (dashboard): a miniatura do banco fica em cima, os números embaixo. */
+  .cc-item { flex-direction: column; }
+  .cc-item-body { width: 100%; }
+  .cat-col { padding: 10px; }
+  .cat-drop { padding: 4px; }
+  /* Botões das telas de entrada ("Enviar link de recuperação"): quebram em vez de vazar. */
+  .auth .btn-primary { flex-wrap: wrap; text-align: center; }
+}

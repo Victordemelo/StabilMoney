@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.081 testes PHP / 50.207 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **343 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.088 testes PHP / 50.239 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **343 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -227,7 +227,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.081 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.088 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1289,6 +1289,52 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   tudo no `layouts/legal`. O texto jurídico mora só em `legal/*.blade.php` (é dele a impressão do
   `VersaoDosDocumentosLegaisTest`): layout muda sem subir a `legal.version`.
 
+## 📱 Responsividade (out/2026) — não regredir
+
+De **1920×1080 até 200px**, claro e escuro, e o **PWA instalado** (iPhone com notch, retrato e
+paisagem; Android). Varredura: `tests/e2e/responsividade.mjs` — 33 telas/estados (inclusive os
+modais Lançar receita/despesa/transferência, Lançar despesa, Remover despesa, Excluir conta, Nova
+conta, Nova meta, o drawer e o popover do perfil) × 17 larguras × 2 temas + 4 perfis de PWA =
+1.332 combinações em ~6 min. Mede rolagem lateral, elemento fora da tela ou do próprio card,
+**texto sobreposto** (`Range.getClientRects()` por nó de texto + `elementsFromPoint` para não
+contar o que rola por baixo de camada fixa), texto cortado sem reticências, alvo de toque < 32px
+(abaixo de 768px; conta o `::after` invisível que estende a área), modal que passa da tela, o fim
+da página sob a bottom-nav e, no PWA, texto/controle de camada fixa na área do notch/barra de
+gestos (`Emulation.setSafeAreaInsetsOverride` do CDP). **Antes: 3.046 achados (HEAD 2f09550). Depois: 0.**
+Sentinelas de CSS em `ResponsividadeDoCssTest` (6 das 7 falham no CSS antigo).
+
+- **Rodar:** suba a prévia descartável (`.git/stabil-patches/previa/montar.sh`, nunca o app de
+  dev) e `node tests/e2e/responsividade.mjs --base=http://127.0.0.1:8092 --cookie=<cookie.json>
+  [--pwa] [--fotos] [--larguras=390,200] [--telas=painel,modal-*]`. Sai com 1 quando acha algo;
+  `achados.json` + JPEGs marcados na pasta `--saida`. Mexeu em CSS de layout? Rode com `--pwa`.
+- **Bottom-nav:** itens com `flex: 1 1 0; min-width: 0` (dividem a largura). Com 14px fixos de
+  cada lado a barra media 329px e, abaixo disso, a página rolava para o lado — no celular o
+  navegador afastava o zoom e a própria barra saía cortada. ≤ 300px: só ícones (`font-size: 0`,
+  o nome acessível continua). Topo do celular: a marca escrita encolhe (≤ 380) e some (≤ 340).
+- **Nada de largura mínima fixa:** `minmax(min(270px, 100%), 1fr)`, `min-width: min(150px, 100%)`
+  e trilha única `minmax(0, 1fr)` (nunca `1fr`, que é `minmax(auto, 1fr)` e não encolhe abaixo da
+  palavra mais longa — era o login e a edição de transação em 200px). O sentinela barra
+  `minmax(NNNpx` e `min-width` ≥ 150px.
+- **≤ 360px: `body { overflow-wrap: anywhere }`** (entra no tamanho mínimo de flex/grid; texto
+  normal não muda) e as linhas "título ··· selo/valor" (`.card-head`, `.cards-sum`, `.dp-spent`,
+  `.sess-item`…) quebram em vez de sobrepor. ≤ 340px: em `.tx`/`.acct`/`.fatura-item`/`.cat-chip`
+  o valor ou os controles descem para a 2ª linha. ≤ 420px: o total do `.fatura-head` desce para
+  baixo do título, inteiro (`R$` e o número ficavam em linhas diferentes). ≤ 300px: os
+  type-toggles empilham (a pílula desce) e os modais encolhem o respiro.
+- **Área segura (PWA, `viewport-fit=cover` em todos os layouts):** `.modal-scrim` soma
+  `env(safe-area-inset-*)` ao padding e o `.modal` desconta da altura (Cancelar/Salvar ficavam
+  sob a barra de gestos); `.content`, `.mobile-top`, `.bottom-nav` e o topo/corpo das páginas
+  legais somam as laterais (iPhone deitado). ⚠️ O `.sidebar { padding }` do redesenho, fora de
+  media query e mais abaixo no arquivo, apagava o respiro do drawer — a regra do celular agora é
+  a ÚLTIMA (`ResponsividadeDoCssTest` confere a ordem).
+- **Ordem das folhas:** `design-system` → `forms` → `auth` → `acessibilidade` (app.css). Regra
+  estreita no design-system com o MESMO seletor de uma do forms.css PERDE o empate — por isso as
+  regras de ≤ 380/340/300/240 ficam no FIM do design-system com seletor mais específico, e as de
+  alvo de toque/`.cc-mover` no acessibilidade.css.
+- **Alvo de toque ≥ 32px abaixo de 768px:** cresce o ALVO, não o desenho, onde o layout é
+  apertado (`::after` absoluto e invisível, como `.modal-x`/`.cc-act`/`.meta-act`/`.pw-toggle`/
+  `.cc-mv`); `.mini-btn` e `.seg button` ganham `min-height: 32px`.
+
 ## 🧾 Auditoria de atividade (out/2026) — não regredir
 
 **Quem mexeu em quê, onde e quando**, em Configurações › **Atividade** (`settings/atividade`).
@@ -2257,7 +2303,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.081 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.088 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo

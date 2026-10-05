@@ -148,6 +148,13 @@
             .erro { padding: 26px 20px; }
             h1 { font-size: 21px; }
         }
+        /* Celular estreitíssimo: a trilha do grid deixa de crescer até a palavra mais
+           longa ("encontramos") e a página não rola mais para o lado. */
+        @media (max-width: 360px) {
+            body { grid-template-columns: minmax(0, 1fr); padding: 16px 10px; overflow-wrap: anywhere; }
+            .erro { padding: 22px 16px; }
+            h1 { font-size: 19px; }
+        }
     </style>
 </head>
 <body>

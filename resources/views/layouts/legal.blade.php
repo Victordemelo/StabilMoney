@@ -53,7 +53,9 @@
         /* Barra do topo, presa ao rolar: a pessoa nunca fica sem saída num documento longo. */
         .legal-topo { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 86%, transparent);
                       backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
-        .legal-topo-in { max-width: 1140px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+        .legal-topo-in { max-width: 1140px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+                         /* PWA no iPhone deitado: o notch vira margem lateral (viewport-fit=cover). */
+                         padding-left: calc(20px + env(safe-area-inset-left, 0px)); padding-right: calc(20px + env(safe-area-inset-right, 0px)); }
         .legal-docs { display: flex; gap: 4px; padding: 4px; margin-left: auto; border-radius: 12px;
                       background: var(--surface-3); border: 1px solid var(--line); }
         .legal-docs a { padding: 7px 14px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--ink-3); text-decoration: none; white-space: nowrap; }
@@ -63,7 +65,8 @@
                         border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
         .legal-voltar::before { content: "← "; }
 
-        .legal-wrap { max-width: 1140px; margin: 0 auto; padding: 28px 20px 80px; }
+        .legal-wrap { max-width: 1140px; margin: 0 auto; padding: 28px 20px 80px;
+                      padding-left: calc(20px + env(safe-area-inset-left, 0px)); padding-right: calc(20px + env(safe-area-inset-right, 0px)); }
         /* O documento num card legível; com sumário, o sumário vira uma coluna FIXA à
            esquerda (só no desktop) — os itens continuam na mesma ordem do HTML. */
         .legal { background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
@@ -114,6 +117,20 @@
             .legal-docs { order: 3; width: 100%; margin-left: 0; }
             .legal-docs a { flex: 1; text-align: center; padding: 7px 8px; }
             .legal-voltar { margin-left: auto; }
+            /* Alvos de toque de 32px (tests/e2e/responsividade.mjs): os itens do sumário
+               eram linhas de 17px coladas umas nas outras. */
+            .legal-toc li { margin-bottom: 0; }
+            .legal-toc a { display: block; padding: 7px 0; }
+            .legal-head, .legal-back { min-height: 32px; display: inline-flex; align-items: center; }
+        }
+        /* Celular estreito: "Política de Privacidade" quebra em duas linhas dentro da
+           pílula em vez de passar da tela; o e-mail de contato quebra no meio. */
+        @media (max-width: 420px) {
+            .legal-docs a { white-space: normal; min-width: 0; }
+            .legal-topo-in { padding: 10px calc(14px + env(safe-area-inset-right, 0px)) 10px calc(14px + env(safe-area-inset-left, 0px)); }
+            .legal-wrap { padding: 18px calc(10px + env(safe-area-inset-right, 0px)) 60px calc(10px + env(safe-area-inset-left, 0px)); }
+            .legal { padding: 18px 14px 24px; overflow-wrap: anywhere; }
+            .legal h1 { font-size: 24px; }
         }
     </style>
 </head>
