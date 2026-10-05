@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Atividade;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -53,6 +54,33 @@ Artisan::command('sessoes:limpar', function () {
     ));
 })->purpose('Apaga as sessões expiradas — a tabela guarda IP e user-agent (LGPD)');
 
+/**
+ * Apaga o registro de atividade (Configurações › Atividade) com mais de 180 dias.
+ *
+ * A Política de Privacidade promete guardar o histórico de atividade por 6 meses — e cada
+ * linha leva IP e aparelho, que são dados pessoais. Sem esta limpeza a tabela crescia para
+ * sempre. Mudou o prazo aqui (`Atividade::DIAS_DE_RETENCAO`), mude o texto da Política.
+ *
+ * Em lotes de 1.000 (DELETE … LIMIT), para não segurar a tabela inteira numa transação só
+ * quando o primeiro rodar sobre meses acumulados. Usa o índice de `created_at`.
+ */
+Artisan::command('atividades:limpar', function () {
+    $limite = now()->subDays(Atividade::DIAS_DE_RETENCAO);
+    $apagadas = 0;
+
+    do {
+        $lote = Atividade::where('created_at', '<', $limite)->limit(1000)->delete();
+        $apagadas += $lote;
+    } while ($lote > 0);
+
+    $this->info(sprintf(
+        'Registro de atividade: %d %s com mais de %d dias.',
+        $apagadas,
+        $apagadas === 1 ? 'linha removida' : 'linhas removidas',
+        Atividade::DIAS_DE_RETENCAO,
+    ));
+})->purpose('Apaga o registro de atividade com mais de 180 dias — guarda IP e aparelho (LGPD)');
+
 /*
 |--------------------------------------------------------------------------
 | Agendamentos
@@ -69,6 +97,10 @@ Artisan::command('sessoes:limpar', function () {
 
 Schedule::command('sessoes:limpar')
     ->dailyAt('03:10')
+    ->withoutOverlapping();
+
+Schedule::command('atividades:limpar')
+    ->dailyAt('03:20')
     ->withoutOverlapping();
 
 // Lembrete de vencimento por e-mail — só notifica, nunca cria dado (ver o comando).

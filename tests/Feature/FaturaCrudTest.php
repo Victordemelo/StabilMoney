@@ -288,7 +288,7 @@ class FaturaCrudTest extends TestCase
 
         // Apagar UMA parcela apaga a compra inteira (mesmo group_id).
         $parcela = Transaction::firstOrFail();
-        $this->actingAs($this->user)->delete("/faturas/compra/{$parcela->id}")
+        $this->actingAs($this->user)->delete("/faturas/compra/{$parcela->id}", ['password' => 'password'])
             ->assertRedirect(route('faturas.index'));
 
         $this->assertDatabaseCount('transactions', 0);
@@ -300,7 +300,7 @@ class FaturaCrudTest extends TestCase
         $outra = Transaction::factory()->for($this->user)->for($this->card)->expense()->create();
 
         $compra = Transaction::where('description', 'Compra de teste')->firstOrFail();
-        $this->actingAs($this->user)->delete("/faturas/compra/{$compra->id}")
+        $this->actingAs($this->user)->delete("/faturas/compra/{$compra->id}", ['password' => 'password'])
             ->assertRedirect(route('faturas.index'));
 
         $this->assertDatabaseMissing('transactions', ['id' => $compra->id]);
@@ -344,7 +344,7 @@ class FaturaCrudTest extends TestCase
         $tx = Transaction::factory()->for($stranger)->for($strangerCard)->expense()->create();
 
         // O 404 de um id que não existe: a compra alheia não existe para quem pede.
-        $this->actingAs($this->user)->delete("/faturas/compra/{$tx->id}")->assertNotFound();
+        $this->actingAs($this->user)->delete("/faturas/compra/{$tx->id}", ['password' => 'password'])->assertNotFound();
 
         $this->assertDatabaseHas('transactions', ['id' => $tx->id]);
     }

@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\BloqueiaUsuarioBanido;
+use App\Models\Atividade;
 use App\Models\User;
 use App\Services\TwoFactorService;
+use App\Support\AparelhoConfiavel;
 use Illuminate\Contracts\Session\Session;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -123,6 +125,18 @@ class TwoFactorChallengeController extends Controller
             : $this->twoFactor->verificarCodigo($user, $codigo);
 
         if (! $entrou) {
+            // A senha já estava certa — é exatamente o sinal que o dono precisa ver. Fora de
+            // transação de propósito: a exceção abaixo não pode levar o registro junto.
+            Atividade::registrar(
+                'acesso.codigo_2fa_errado',
+                $request->boolean('recuperacao')
+                    ? 'tentou entrar com um código de recuperação inválido (a senha estava certa)'
+                    : 'errou o código da verificação em duas etapas ao entrar (a senha estava certa)',
+                $user->ownerId(),
+                $user,
+                autor: $user,
+            );
+
             throw ValidationException::withMessages([
                 'codigo' => $request->boolean('recuperacao')
                     ? 'Código de recuperação inválido ou já utilizado.'
@@ -141,6 +155,13 @@ class TwoFactorChallengeController extends Controller
         // Só AQUI a sessão autenticada nasce. `login()` já migra o id da sessão.
         Auth::guard('web')->login($user, $lembrar);
         $request->session()->regenerate();
+
+        // "Confiar neste aparelho por 7 dias" (caixa desmarcada por padrão): só depois do
+        // código CERTO. Daqui a 7 dias — ou antes, se a senha mudar, o 2FA for refeito ou a
+        // confiança for revogada —, este navegador volta a pedir o código desta conta.
+        if ($request->boolean('confiar')) {
+            AparelhoConfiavel::confiar($request, $user);
+        }
 
         $destino = redirect()->intended(route('dashboard', absolute: false));
 

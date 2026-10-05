@@ -6,6 +6,7 @@ use App\Http\Requests\ProfileUpdateRequest;
 use App\Mail\AlertaDeSeguranca;
 use App\Mail\ContaDaFamiliaExcluida;
 use App\Models\Account;
+use App\Models\Atividade;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\FixedBillService;
@@ -186,6 +187,14 @@ class ProfileController extends Controller
             }
 
             $user->forceFill(['pending_email_sent_at' => now()])->save();
+
+            // Sem o endereço novo na frase: a troca ainda nem valeu, e quem confirma é o link.
+            Atividade::registrar(
+                'email.troca_pedida',
+                'pediu para trocar o e-mail de login (a troca só vale depois de confirmada no endereço novo)',
+                $user->ownerId(),
+                $user,
+            );
 
             // No PEDIDO, e não só na confirmação: é o único momento em que o dono ainda
             // consegue impedir a troca (ver AlertaDeSeguranca::emailTrocaPedida). O texto

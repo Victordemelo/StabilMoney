@@ -44,9 +44,10 @@ class RedesenhoDaNavegacaoTest extends TestCase
             $sidebar[0], $itens, PREG_SET_ORDER);
 
         $rotulos = array_column($itens, 2);
+        // Menu por intenção (out/2026): Início · Dia a dia · Planejamento · Cadastros.
         $this->assertSame([
-            'Visão geral', 'Movimentações', 'Contas e cartões', 'Metas', 'Investimentos',
-            'Contas a pagar', 'Categorias', 'Família',
+            'Visão geral', 'Movimentações', 'Contas a pagar', 'Metas', 'Investimentos',
+            'Contas e cartões', 'Categorias', 'Família',
         ], $rotulos);
 
         foreach ($itens as [, $href, $rotulo]) {

@@ -388,7 +388,7 @@ class ExcluirPeloHistoricoPodeEncerrarARecorrenciaTest extends TestCase
 
         // Série legada encerrada em Pagar despesas: a paga que sobrou não oferece a caixa.
         [$academiaPaga, $academiaAberta] = $this->serieLegadaEmConta();
-        $this->actingAs($this->user)->delete(route('faturas.compra.destroy', $academiaAberta))->assertSessionHasNoErrors();
+        $this->actingAs($this->user)->delete(route('faturas.compra.destroy', $academiaAberta), ['password' => 'password'])->assertSessionHasNoErrors();
         $this->assertSame(1, EndedRecurrence::count(), 'Pré-condição: Pagar despesas encerrou a série.');
 
         $this->assertNull($this->caixaDeEncerrar($academiaPaga));

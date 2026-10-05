@@ -33,6 +33,7 @@ class AvisoDoTopoSemCodigoInternoTest extends TestCase
             '2FA desligado' => ['two-factor-disabled', '/configuracoes/2fa', 'A verificação em duas etapas foi desativada'],
             'setup cancelado' => ['two-factor-cancelled', '/configuracoes/2fa', ''],
             'códigos novos' => ['two-factor-recovery-codes', '/configuracoes/2fa', ''],
+            'aparelhos confiáveis esquecidos' => ['two-factor-trusted-forgotten', '/configuracoes/2fa', 'Pronto: nenhum aparelho é confiável agora.'],
             'sessões encerradas' => ['sessions-cleared', '/configuracoes/seguranca', 'As outras sessões foram encerradas.'],
         ];
     }

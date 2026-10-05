@@ -56,6 +56,21 @@
         {{-- A data também é do servidor: aba aberta de um dia para o outro mostrava ontem. --}}
         <p id="topbarData" data-pjax-atualizar>{{ $dataHoje }} · resumo das suas finanças</p>
     </div>
+    {{-- Relógio no fuso escolhido em Configurações › Conta (padrão: Brasília). O servidor
+         desenha a hora (vale sem JS); o `sm/relogio.js` a mantém andando. Só exibição: as
+         datas do dinheiro seguem no horário de Brasília. --}}
+    @php
+        $fusoRelogio = auth()->user()?->fusoDoRelogio() ?? 'America/Sao_Paulo';
+        $agoraNoFuso = now($fusoRelogio);
+        $deslocamento = $agoraNoFuso->format('P');
+        $rotuloUtc = $deslocamento === '+00:00' ? 'UTC'
+            : 'UTC'.str_replace('-', '−', preg_replace('/^([+-])0?(\d+):00$/', '$1$2', $deslocamento));
+    @endphp
+    <a class="tb-relogio" href="{{ route('settings', 'conta') }}#relogio" data-relogio data-fuso="{{ $fusoRelogio }}"
+       title="Mudar o fuso do relógio em Configurações">
+        <span class="tb-hora" data-relogio-hora>{{ $agoraNoFuso->format('H:i') }}</span>
+        <span class="tb-fuso">{{ \App\Models\User::FUSOS[$fusoRelogio] }} · {{ $rotuloUtc }}</span>
+    </a>
     {{-- "Lançar": recolhido vira só "+"; no hover/foco floresce em "+ Lançar" --}}
     <a class="launch-btn" href="{{ route('transactions.create') }}" data-launch-open aria-label="Lançar nova transação">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>

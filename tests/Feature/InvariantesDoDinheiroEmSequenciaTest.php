@@ -554,7 +554,7 @@ class InvariantesDoDinheiroEmSequenciaTest extends TestCase
         $resgates = $this->resgatesLigados($alvo->pluck('id')->all());
         $this->descricao = 'excluir em Pagar despesas '.$this->rotulo($linha).' ('.$alvo->count().' linhas em aberto)';
 
-        $r = $this->http('DELETE', route('faturas.compra.destroy', $linha));
+        $r = $this->http('DELETE', route('faturas.compra.destroy', $linha), ['password' => 'password']);
         if ($this->classificar($r) !== 'ok') {
             return 'recusada';
         }

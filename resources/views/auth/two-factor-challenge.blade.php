@@ -81,6 +81,20 @@
             </div>
         </div>
 
+        {{-- Desmarcada por padrão: confiar é uma escolha consciente, por aparelho. A senha
+             continua sendo pedida em todo login; o que se dispensa é só o código, e só
+             NESTE navegador e nesta conta (App\Support\AparelhoConfiavel). --}}
+        <div class="tfa-confiar">
+            <label class="check">
+                <input type="checkbox" name="confiar" value="1" @checked(old('confiar')) />
+                <span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
+                <span>
+                    Confiar neste aparelho por {{ \App\Support\AparelhoConfiavel::DIAS }} dias
+                    <small>O código não será pedido neste navegador até lá. Não marque em computador compartilhado.</small>
+                </span>
+            </label>
+        </div>
+
         <button type="submit" class="btn-primary spaced">
             Entrar
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>

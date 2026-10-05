@@ -4,6 +4,7 @@ namespace App\Http\Requests\Auth;
 
 use App\Http\Middleware\BloqueiaUsuarioBanido;
 use App\Models\User;
+use App\Support\AparelhoConfiavel;
 use App\Support\ChaveDeIp;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -17,6 +18,9 @@ class LoginRequest extends FormRequest
 {
     /** Conta cuja senha acabou de ser conferida (preenchida por authenticate()). */
     private ?User $usuario = null;
+
+    /** Este navegador foi marcado como confiável por ESTA conta (App\Support\AparelhoConfiavel)? */
+    private bool $aparelhoConfiavel = false;
 
     /**
      * Determine if the user is authorized to make this request.
@@ -88,6 +92,13 @@ class LoginRequest extends FormRequest
 
         $this->usuario = $usuario;
 
+        // "Confiar neste aparelho por 7 dias": conferido só agora — com a senha certa e a
+        // conta não banida —, e só para ESTA conta. O cookie de outra pessoa no mesmo
+        // navegador não carrega o id desta e nunca pula o desafio dela.
+        $this->aparelhoConfiavel = $usuario instanceof User
+            && $usuario->temDoisFatores()
+            && AparelhoConfiavel::confia($this, $usuario);
+
         // Sem 2FA (o caso da imensa maioria — o recurso é opcional): entra direto,
         // exatamente como antes.
         if (! $this->precisaDeSegundaEtapa()) {
@@ -97,11 +108,14 @@ class LoginRequest extends FormRequest
 
     /**
      * A senha conferiu, mas a conta ainda precisa do código do autenticador?
-     * Só é verdade para quem LIGOU e CONFIRMOU o 2FA nas Configurações.
+     * Só é verdade para quem LIGOU e CONFIRMOU o 2FA nas Configurações — e não marcou ESTE
+     * aparelho como confiável nos últimos 7 dias.
      */
     public function precisaDeSegundaEtapa(): bool
     {
-        return $this->usuario !== null && $this->usuario->temDoisFatores();
+        return $this->usuario !== null
+            && $this->usuario->temDoisFatores()
+            && ! $this->aparelhoConfiavel;
     }
 
     /** A conta cuja senha acabou de ser conferida. Só válida depois de authenticate(). */

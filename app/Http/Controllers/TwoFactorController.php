@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Mail\AlertaDeSeguranca;
+use App\Models\Atividade;
 use App\Services\TwoFactorService;
+use App\Support\AparelhoConfiavel;
 use App\Support\BrowserSessions;
 use App\Support\ContextoDeSeguranca;
 use App\Support\Notificador;
@@ -52,6 +54,8 @@ class TwoFactorController extends Controller
     private const BAG_CODIGOS = 'twoFactorCodigos';
 
     private const BAG_DESLIGAR = 'twoFactorDesligar';
+
+    private const BAG_APARELHOS = 'twoFactorAparelhos';
 
     public function __construct(private readonly TwoFactorService $twoFactor) {}
 
@@ -119,6 +123,13 @@ class TwoFactorController extends Controller
 
         $this->desconectarOsOutrosAparelhos($request);
 
+        Atividade::registrar(
+            'dois_fatores.ligado',
+            'ligou a verificação em duas etapas (os outros aparelhos foram desconectados)',
+            $user->ownerId(),
+            $user,
+        );
+
         Notificador::avisar($user, AlertaDeSeguranca::doisFatoresAtivado(
             $user,
             ContextoDeSeguranca::doRequest($request),
@@ -146,6 +157,13 @@ class TwoFactorController extends Controller
         $this->exigirSenhaESegundoFator($request, self::BAG_CODIGOS);
 
         $codigos = $this->twoFactor->regerarCodigosDeRecuperacao($user);
+
+        Atividade::registrar(
+            'dois_fatores.codigos_trocados',
+            'gerou novos códigos de recuperação da verificação em duas etapas (os antigos deixaram de valer)',
+            $user->ownerId(),
+            $user,
+        );
 
         // Os antigos morreram agora — quem os tinha anotados perdeu a porta de volta. Se
         // não foi o dono, alguém com a senha E o celular dele está garantindo a volta.
@@ -182,6 +200,8 @@ class TwoFactorController extends Controller
         // nada — avisar ali seria alarme falso, e alarme falso é o que faz a pessoa
         // parar de ler os próximos.
         if ($estavaAtivo) {
+            Atividade::registrar('dois_fatores.desligado', 'desligou a verificação em duas etapas', $user->ownerId(), $user);
+
             Notificador::avisar($user, AlertaDeSeguranca::doisFatoresDesativado(
                 $user,
                 ContextoDeSeguranca::doRequest($request),
@@ -189,6 +209,27 @@ class TwoFactorController extends Controller
         }
 
         return $this->voltar()->with('status', $estavaAtivo ? 'two-factor-disabled' : 'two-factor-cancelled');
+    }
+
+    /**
+     * "Esquecer todos os aparelhos confiáveis" — todo navegador marcado com "Confiar neste
+     * aparelho por 7 dias" (App\Support\AparelhoConfiavel) volta a pedir o código, inclusive
+     * este. Só a senha: não desliga proteção nenhuma, só a deixa mais exigente.
+     *
+     * Soma 1 na versão de confiança da conta, que entra na assinatura de cada cookie: os
+     * cookies continuam nos navegadores, mas nenhum confere mais. Neste aparelho o cookie da
+     * conta também sai, para a tela não ficar guardando uma entrada morta.
+     */
+    public function esquecerAparelhosConfiaveis(Request $request): RedirectResponse
+    {
+        $this->exigirSenha($request, self::BAG_APARELHOS);
+
+        $user = $request->user();
+
+        $user->revogarAparelhosConfiaveis();
+        AparelhoConfiavel::esquecerNeste($request, $user);
+
+        return $this->voltar()->with('status', 'two-factor-trusted-forgotten');
     }
 
     /**

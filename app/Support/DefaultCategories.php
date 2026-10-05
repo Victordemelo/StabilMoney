@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Atividade;
 use App\Models\User;
 
 /**
@@ -99,8 +100,12 @@ class DefaultCategories
      */
     public static function seedFor(User $user): void
     {
-        self::seedType($user, 'expense', self::EXPENSES);
-        self::seedType($user, 'income', self::INCOMES);
+        // Sem registro de atividade: as 14 categorias padrão nascem com a conta (o cadastro
+        // já tem a linha dele), e 14 linhas "criou a categoria" que ninguém criou seriam ruído.
+        Atividade::semRegistrar(function () use ($user) {
+            self::seedType($user, 'expense', self::EXPENSES);
+            self::seedType($user, 'income', self::INCOMES);
+        });
     }
 
     /**

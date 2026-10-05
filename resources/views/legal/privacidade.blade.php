@@ -66,6 +66,8 @@
             tela de Segurança.</li>
         <li><strong>Data de nascimento</strong> e <strong>sexo</strong> — opcionais; você pode deixar em
             branco ou escolher "Prefiro não informar".</li>
+        <li><strong>Fuso do relógio</strong> — opcional, escolhido em Configurações, só para mostrar a hora
+            no topo da tela.</li>
         <li><strong>Verificação em duas etapas</strong>, se você ligar: o segredo do aplicativo
             autenticador e os códigos de recuperação, guardados <strong>cifrados</strong>, e a data em que a
             proteção foi ativada.</li>
@@ -110,6 +112,14 @@
         <li><strong>Alertas de segurança</strong> — os e-mails que avisam de mudanças na sua conta informam
             quando, de qual endereço IP e de qual aparelho a ação foi feita, para você reconhecer se foi
             você.</li>
+        <li><strong>Registro de atividade</strong> — cada ação feita na conta (lançar, editar ou excluir
+            um lançamento, cadastrar um cartão, adicionar um dependente, entrar, sair, trocar a senha, ligar
+            a verificação em duas etapas…) fica registrada com <strong>quem fez</strong>, <strong>o que
+            mudou</strong> (inclusive valores), a <strong>data e hora</strong>, o <strong>endereço IP</strong>
+            e o <strong>navegador e sistema operacional</strong>. Você o vê em <em>Configurações ›
+            Atividade</em>. Senhas, códigos e o segredo da verificação em duas etapas
+            <strong>nunca</strong> entram nele, e de mudanças em telefone, data de nascimento e sexo ele
+            guarda só que o campo mudou, não o valor.</li>
     </ul>
     <p>Não usamos ferramentas de analytics, mapas de calor, gravação de sessão nem pixels de rastreamento
        de terceiros.</p>
@@ -121,7 +131,7 @@
        momento da ação, o motivo informado e o endereço IP do administrador (veja a seção 11). O painel
        administrativo mostra os dados de cadastro e a <em>estrutura</em> da conta — quantas contas,
        lançamentos e dependentes existem e o último acesso —, mas <strong>nunca valores
-       financeiros</strong>.</p>
+       financeiros</strong>, e não tem acesso ao registro de atividade da família.</p>
 
     <h2 id="s3">3. O que nós não coletamos</h2>
     <p>Deixar isso explícito é tão importante quanto listar o que coletamos. O Stabil Money
@@ -179,6 +189,13 @@
                     <td>Segurança da conta, prevenção a acesso indevido, diagnóstico de falhas e
                         cumprimento do Marco Civil da Internet</td>
                     <td>Legítimo interesse — art. 7º, IX, e cumprimento de obrigação legal — art. 7º, II</td>
+                </tr>
+                <tr>
+                    <td>Registro de atividade (ação, o que mudou, data, IP e aparelho)</td>
+                    <td><strong>Segurança da conta</strong> (perceber um acesso ou uma alteração que você não
+                        fez) e <strong>transparência na família</strong> (saber quem lançou, editou ou
+                        excluiu cada coisa no dinheiro que é compartilhado)</td>
+                    <td>Legítimo interesse — art. 7º, IX, e execução de contrato — art. 7º, V</td>
                 </tr>
                 <tr>
                     <td>Segredo da verificação em duas etapas e códigos de recuperação</td>
@@ -252,6 +269,16 @@
                         desmarque-a em aparelho compartilhado. Mantém você conectado neste aparelho por até
                         400 dias. Some quando você sai da conta; trocar a senha ou encerrar as outras
                         sessões o invalida nos outros aparelhos.</td>
+                </tr>
+                <tr>
+                    <td><code>sm-aparelho-confiavel</code></td>
+                    <td>Cookie essencial</td>
+                    <td>Criado só se você marcar "Confiar neste aparelho por 7 dias" ao digitar o código da
+                        verificação em duas etapas. Durante 7 dias, este navegador entra com a senha sem pedir
+                        o código. Guarda a identificação da conta, a validade e uma assinatura (nunca a senha
+                        nem o código). Deixa de valer se você trocar a senha, desligar ou religar a
+                        verificação, trocar os códigos de recuperação, encerrar as outras sessões ou tocar em
+                        "Esquecer todos os aparelhos confiáveis".</td>
                 </tr>
                 <tr>
                     <td><code>sm-theme</code></td>
@@ -353,6 +380,9 @@
         <li><strong>Todos os membros da família veem tudo.</strong> Um dependente com login próprio acessa
             todas as contas, cartões, transações, metas e investimentos da família —
             <strong>inclusive os do titular</strong>. Não existe visão parcial ou privada nesta versão.</li>
+        <li><strong>O registro de atividade é a exceção.</strong> Em <em>Configurações › Atividade</em>, o
+            titular vê o que cada pessoa da família fez — inclusive o IP e o aparelho usados —, e cada
+            dependente vê só o que ele mesmo fez.</li>
         <li><strong>Famílias diferentes são isoladas.</strong> Nenhum usuário de outra família tem qualquer
             acesso aos seus dados. Esse isolamento é aplicado no servidor e coberto por testes
             automatizados.</li>
@@ -433,6 +463,13 @@
                 <tr>
                     <td>Registros de acesso (logs)</td>
                     <td>Até <strong>6 meses</strong>, prazo do art. 15 do Marco Civil da Internet.</td>
+                </tr>
+                <tr>
+                    <td>Registro de atividade (Configurações › Atividade)</td>
+                    <td>Até <strong>6 meses</strong>; depois é apagado automaticamente, todo dia. Na exclusão
+                        da conta do titular, o da família inteira é apagado junto. Quando um
+                        <strong>dependente</strong> sai, as ações que ele fez continuam no registro da família
+                        (são a história do dinheiro dela), mas o IP e o aparelho dele são apagados.</td>
                 </tr>
                 <tr>
                     <td>Registro do aceite (data, versão e IP)</td>

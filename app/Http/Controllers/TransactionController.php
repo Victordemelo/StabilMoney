@@ -7,14 +7,17 @@ use App\Http\Requests\StoreTransactionRequest;
 use App\Http\Requests\StoreTransferRequest;
 use App\Http\Requests\UpdateTransactionRequest;
 use App\Models\Account;
+use App\Models\Atividade;
 use App\Models\Category;
 use App\Models\CreditSettlement;
 use App\Models\EndedRecurrence;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\FundingService;
+use App\Support\Atividades\Descritor;
 use App\Support\Brl;
 use App\Support\FundingSource;
+use App\Support\PeriodoDoFiltro;
 use App\Support\Texto;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -113,43 +116,14 @@ class TransactionController extends Controller
     }
 
     /**
-     * Lê "de"/"até" da query string, tolerando lixo.
-     *
-     * Se vierem invertidos (de > até), são TROCADOS em vez de devolver lista
-     * vazia: quem digita 30/09 no "de" e 01/09 no "até" quis setembro, e uma tela
-     * em branco não ajuda a perceber o erro.
+     * Lê "de"/"até" da query string, tolerando lixo — a regra mora em
+     * `App\Support\PeriodoDoFiltro`, a mesma do filtro de Configurações › Atividade.
      *
      * @return array{0: ?CarbonImmutable, 1: ?CarbonImmutable}
      */
     private function periodoDoFiltro(Request $request): array
     {
-        $ler = function (?string $valor): ?CarbonImmutable {
-            $valor = trim((string) $valor);
-            if ($valor === '') {
-                return null;
-            }
-
-            // ⚠️ `createFromFormat` é TOLERANTE: "2026-13-45" não estoura, ele
-            // transborda para 2027-02-14. Um mês 13 digitado por engano viraria um
-            // filtro silenciosamente errado. Por isso a data é reformatada e
-            // comparada com a entrada — só passa o que for exatamente Y-m-d válido.
-            try {
-                $data = CarbonImmutable::createFromFormat('Y-m-d', $valor);
-            } catch (\Throwable) {
-                return null;
-            }
-
-            return $data && $data->format('Y-m-d') === $valor ? $data->startOfDay() : null;
-        };
-
-        $de = $ler($request->query('de'));
-        $ate = $ler($request->query('ate'));
-
-        if ($de && $ate && $de->greaterThan($ate)) {
-            return [$ate, $de];
-        }
-
-        return [$de, $ate];
+        return PeriodoDoFiltro::ler($request);
     }
 
     public function create(Request $request)
@@ -966,9 +940,20 @@ class TransactionController extends Controller
                     ->pluck('id');
 
                 $funding->estornarFonte($ids);
-                // Delete em massa não dispara evento Eloquent — e não precisa: nenhum
-                // hook de Transaction depende disso. O estorno acima é explícito.
+                // Delete em massa não dispara evento Eloquent — nem o do registro de
+                // atividade: por isso o registro abaixo é explícito, na MESMA transação.
                 Transaction::whereIn('id', $ids)->delete();
+
+                $saida = $pontas->firstWhere('type', 'expense');
+                $entrada = $pontas->firstWhere('type', 'income');
+                Atividade::registrar(
+                    'transferencia.desfeita',
+                    'desfez a transferência de '.Brl::format($saida?->amount ?? $transaction->amount)
+                        .' de '.Descritor::rotuloDaConta($saida?->account_id)
+                        .' para '.Descritor::rotuloDaConta($entrada?->account_id),
+                    (int) $transaction->user_id,
+                    $transaction,
+                );
             });
 
             return redirect()->route('transactions.index')

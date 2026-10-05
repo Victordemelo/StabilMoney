@@ -50,6 +50,10 @@ class TwoFactorService
             'two_factor_confirmed_at' => null,
             'two_factor_last_step' => null,
         ])->save();
+
+        // Recomeçar o 2FA invalida os aparelhos confiáveis do 2FA anterior (o segredo e a
+        // confirmação novos já os derrubariam; a versão deixa isso explícito).
+        $user->revogarAparelhosConfiaveis();
     }
 
     /**
@@ -80,10 +84,15 @@ class TwoFactorService
             'two_factor_recovery_codes' => $codigos,
         ])->save();
 
+        $user->revogarAparelhosConfiaveis();
+
         return $codigos;
     }
 
-    /** Desliga o 2FA e apaga tudo que dependia dele. */
+    /**
+     * Desliga o 2FA e apaga tudo que dependia dele — inclusive a confiança dos aparelhos
+     * marcados com "Confiar neste aparelho por 7 dias": quem religar começa do zero.
+     */
     public function desligar(User $user): void
     {
         $user->forceFill([
@@ -92,6 +101,8 @@ class TwoFactorService
             'two_factor_confirmed_at' => null,
             'two_factor_last_step' => null,
         ])->save();
+
+        $user->revogarAparelhosConfiaveis();
     }
 
     /**
@@ -107,6 +118,10 @@ class TwoFactorService
         $codigos = RecoveryCodes::gerar();
 
         $user->forceFill(['two_factor_recovery_codes' => $codigos])->save();
+
+        // Quem troca os códigos desconfia de que alguém viu a lista — e esse alguém pode ter
+        // entrado e marcado o aparelho dele como confiável. Todos voltam a pedir o código.
+        $user->revogarAparelhosConfiaveis();
 
         return $codigos;
     }

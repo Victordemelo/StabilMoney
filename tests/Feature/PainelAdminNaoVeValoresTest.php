@@ -201,6 +201,30 @@ class PainelAdminNaoVeValoresTest extends TestCase
         }
     }
 
+    /**
+     * O registro de atividade da família (Configurações › Atividade, out/2026) traz frases
+     * com VALORES ("lançou a despesa … de R$ 120,00"). O painel não o lê — nem para contar.
+     */
+    public function test_nenhuma_query_do_painel_toca_o_registro_de_atividade(): void
+    {
+        $consultas = [];
+        DB::listen(function ($q) use (&$consultas) {
+            $consultas[] = $q->sql;
+        });
+
+        $this->comoAdmin()->get(route('painel.pessoas'))->assertOk();
+        $this->comoAdmin()->get(route('painel.pessoa', $this->titular->id))->assertOk();
+        $this->comoAdmin()->get(route('painel.home'))->assertOk();
+        $this->comoAdmin()->get(route('painel.historico'))->assertOk();
+
+        $this->assertNotEmpty($consultas);
+        $tabela = DB::getQueryGrammar()->wrapTable('atividades');
+
+        foreach ($consultas as $sql) {
+            $this->assertStringNotContainsString($tabela, $sql, "Uma query do painel tocou o registro de atividade:\n{$sql}");
+        }
+    }
+
     /** Contar registros é permitido; somar valores, não. */
     public function test_o_painel_conta_registros_sem_somar_valores(): void
     {

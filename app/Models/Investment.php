@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\EscopoDaFamiliaNaRota;
+use App\Models\Concerns\RegistraAtividade;
 use App\Support\TributosRendaFixa;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -19,7 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Investment extends Model
 {
     // Na URL, investimento de outra família responde como investimento que não existe (ver o trait).
-    use EscopoDaFamiliaNaRota, HasFactory;
+    use EscopoDaFamiliaNaRota, HasFactory, RegistraAtividade;
 
     /** Rótulos PT-BR das classes de ativo (usados na view). */
     public const CLASSES = [

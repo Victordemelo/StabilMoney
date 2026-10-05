@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Mail\AlertaDeSeguranca;
+use App\Models\Atividade;
 use App\Models\User;
 use App\Support\BrowserSessions;
 use App\Support\ContextoDeSeguranca;
@@ -74,6 +75,10 @@ class NewPasswordController extends Controller
                     'password_changed_at' => now(),
                 ])->save();
 
+                // Aparelhos confiáveis do 2FA também caem: quem redefine a senha pode estar
+                // retomando a conta de um invasor que marcou o aparelho dele como confiável.
+                $user->revogarAparelhosConfiaveis();
+
                 // Derruba TODAS as sessões da conta (A-2 da auditoria de 05/09/2026).
                 // Este é o caminho de quem PERDEU a conta — muitas vezes para um invasor
                 // que já está logado. Sem isto a senha mudava e ele seguia dentro, com o
@@ -91,6 +96,15 @@ class NewPasswordController extends Controller
                 BrowserSessions::purgeForUser($user->getKey());
 
                 event(new PasswordReset($user));
+
+                // Ninguém está logado aqui: o autor é a própria pessoa (quem tem o link).
+                Atividade::registrar(
+                    'senha.redefinida',
+                    'redefiniu a senha pelo link enviado por e-mail (todos os aparelhos foram desconectados)',
+                    $user->ownerId(),
+                    $user,
+                    autor: $user,
+                );
 
                 // Avisa o dono da conta. Este é o caminho que um invasor usa quando já
                 // tomou a CAIXA DE E-MAIL da vítima: ele pede a recuperação e define a

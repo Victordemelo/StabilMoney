@@ -97,7 +97,7 @@ class EstornoApareceNaListaDoCartaoTest extends TestCase
 
         $this->assertSame(600.0, round((float) Account::find($this->cartao->id)->committed, 2));
 
-        $this->actingAs($this->user)->delete(route('faturas.compra.destroy', $estorno))
+        $this->actingAs($this->user)->delete(route('faturas.compra.destroy', $estorno), ['password' => 'password'])
             ->assertRedirect(route('faturas.index'))
             ->assertSessionHasNoErrors();
 

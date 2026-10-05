@@ -147,7 +147,7 @@ class EstornoEIdempotenciaTest extends TestCase
         [$despesa, $inv] = $this->despesaFinanciadaPorResgate();
 
         $this->actingAs($this->user)
-            ->delete(route('faturas.compra.destroy', $despesa))
+            ->delete(route('faturas.compra.destroy', $despesa), ['password' => 'password'])
             ->assertSessionHasNoErrors();
 
         $this->assertSame(800.0, $inv->fresh()->aplicado);
@@ -173,7 +173,7 @@ class EstornoEIdempotenciaTest extends TestCase
         $this->assertSame(500.0, $inv->fresh()->aplicado);
 
         $this->actingAs($this->user)
-            ->delete(route('faturas.compra.destroy', $despesa))
+            ->delete(route('faturas.compra.destroy', $despesa), ['password' => 'password'])
             ->assertSessionHasNoErrors();
 
         $this->assertSame(800.0, $inv->fresh()->aplicado);

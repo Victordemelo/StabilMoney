@@ -95,4 +95,6 @@
     </form>
 
     <p class="ac-alt">Não tem uma conta? <a href="{{ route('register') }}">Cadastre-se grátis</a></p>
+
+    @include('partials.instalar-app')
 @endsection

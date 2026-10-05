@@ -124,7 +124,7 @@ class CorrecoesFaturaDashboardTest extends TestCase
         $parcelas[0]->update(['paid_at' => now()]);
 
         // Exclui a compra inteira.
-        $this->delete(route('faturas.compra.destroy', $parcelas[1]));
+        $this->delete(route('faturas.compra.destroy', $parcelas[1]), ['password' => 'password']);
 
         $pagaAindaExiste = Transaction::whereKey($parcelas[0]->id)->exists();
 

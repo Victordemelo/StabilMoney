@@ -6,6 +6,7 @@ use App\Http\Requests\StoreDependentRequest;
 use App\Http\Requests\UpdateDependentRequest;
 use App\Mail\AlertaDeSeguranca;
 use App\Mail\BemVindoDependente;
+use App\Models\Atividade;
 use App\Models\User;
 use App\Support\BrowserSessions;
 use App\Support\ContextoDeSeguranca;
@@ -170,6 +171,15 @@ class DependentController extends Controller
 
             return redirect()->route('dependentes')->with('status', 'Dependente atualizado.');
         }
+
+        // A senha não aparece no registro, só o fato. (Nome, e-mail, foto e parentesco
+        // trocados no mesmo envio já foram registrados pelo evento do model, no `save()`.)
+        Atividade::registrar(
+            'dependente.senha_trocada',
+            'trocou a senha de '.$dependent->name.' (os aparelhos dele(a) foram desconectados)',
+            $titular->ownerId(),
+            $dependent,
+        );
 
         // Derruba TODAS as sessões do dependente, sem exceção. Quem troca é o titular, na
         // sessão DELE: não há sessão "atual" do dependente a preservar, e uma senha trocada

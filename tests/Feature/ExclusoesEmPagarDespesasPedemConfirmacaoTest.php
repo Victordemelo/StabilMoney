@@ -119,7 +119,13 @@ class ExclusoesEmPagarDespesasPedemConfirmacaoTest extends TestCase
 
         foreach ($esperadas as $acao => $pergunta) {
             $form = $this->formulario($xp, $acao);
-            $this->assertSame($pergunta, $form->getAttribute('data-confirmar'), "Pergunta errada no formulário de {$acao}");
+            // Remover despesa (out/2026) abre o modal que pede a SENHA, com esta pergunta;
+            // as outras exclusões seguem no "Tem certeza?" do sm/confirmar.js.
+            $remocao = str_contains($acao, '/faturas/compra/');
+            $this->assertSame($pergunta, $form->getAttribute($remocao ? 'data-pergunta' : 'data-confirmar'), "Pergunta errada no formulário de {$acao}");
+            if ($remocao) {
+                $this->assertTrue($form->hasAttribute('data-remover-despesa'), "O formulário de {$acao} não abre o modal de senha");
+            }
             $this->assertSame('DELETE', $this->metodo($xp, $form), "O formulário de {$acao} não é uma exclusão");
         }
 

@@ -16,6 +16,7 @@ use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
@@ -81,15 +82,16 @@ class AppServiceProvider extends ServiceProvider
             $user = auth()->user();
             // Escopo por família: o patrimônio é o do titular (ownerId), visível também aos dependentes.
             $view->with('patrimonio', $user ? app(SidebarService::class)->build($user->ownerId()) : null);
+            // Contas vencidas no item "Contas a pagar" do menu: a MESMA lista do sino.
+            $view->with('vencidasNoMenu', $this->vencimentosDaRequisicao()
+                ->filter(fn ($v) => (int) $v['diasRestantes'] < 0)->count());
         });
 
         // Notificações da topbar: contas a vencer nos próximos 7 dias (faturas de
         // cartão em aberto + recorrências não pagas). Escopo por família.
         View::composer('partials.topbar', function (\Illuminate\View\View $view) {
             $user = auth()->user();
-            $view->with('vencimentos', $user
-                ? app(FaturaService::class)->upcomingDue($user->ownerId(), 7)
-                : collect());
+            $view->with('vencimentos', $this->vencimentosDaRequisicao());
         });
 
         // Modal global de "Lançar" (nova transação), presente no shell de todas as
@@ -106,6 +108,26 @@ class AppServiceProvider extends ServiceProvider
                 'lmFamily' => $ownerId ? User::familyOf($ownerId)->get() : collect(),
             ]);
         });
+    }
+
+    /**
+     * Vencimentos da família (sino + contador do menu), calculados UMA vez por requisição:
+     * os dois partials do shell perguntam a mesma coisa. Guardado nos atributos da
+     * requisição, e não num `static`, para não vazar entre requisições do mesmo processo.
+     */
+    private function vencimentosDaRequisicao(): Collection
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return collect();
+        }
+
+        $requisicao = request();
+        if (! $requisicao->attributes->has('sm.vencimentos')) {
+            $requisicao->attributes->set('sm.vencimentos', app(FaturaService::class)->upcomingDue($user->ownerId(), 7));
+        }
+
+        return $requisicao->attributes->get('sm.vencimentos');
     }
 
     /**

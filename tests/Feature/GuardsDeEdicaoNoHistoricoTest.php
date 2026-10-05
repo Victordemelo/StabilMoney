@@ -351,7 +351,7 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
 
         // A saída que a mensagem indica precisa existir de verdade.
         $this->actingAs($this->user)
-            ->delete(route('faturas.compra.destroy', $segunda))
+            ->delete(route('faturas.compra.destroy', $segunda), ['password' => 'password'])
             ->assertSessionHasNoErrors();
 
         $this->assertSame(0, Transaction::where('group_id', $segunda->group_id)->count());

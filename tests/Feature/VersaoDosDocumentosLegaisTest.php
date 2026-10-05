@@ -22,6 +22,7 @@ class VersaoDosDocumentosLegaisTest extends TestCase
     private const IMPRESSOES = [
         '3.0' => '6e3f53764749972259a7045f17a20c38be802f2212980fd8e40675947e8d4bc6',
         '3.1' => 'c36132e44a1bde0d3085cf1cb4a88eacbf7d6d00c974d7edc47f45035f94cf1c', // região de São Paulo confirmada (24/09/2026)
+        '3.2' => 'e6999aebe4eead82c12e27dd1829763ed53f184f6880a4825a805f3b45c69434', // registro de atividade, aparelho confiável do 2FA e fuso do relógio (04/10/2026)
     ];
 
     public function test_o_texto_dos_documentos_so_muda_com_a_versao(): void

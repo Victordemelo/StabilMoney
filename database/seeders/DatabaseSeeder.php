@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Account;
+use App\Models\Atividade;
 use App\Models\User;
 use App\Support\DefaultCategories;
 use Illuminate\Database\Seeder;
@@ -32,6 +33,13 @@ class DatabaseSeeder extends Seeder
             return;
         }
 
+        // O usuário de dev e a conta inicial não são ações de ninguém: fora do registro de
+        // atividade, como o seeder de demonstração.
+        Atividade::semRegistrar(fn () => $this->semear());
+    }
+
+    private function semear(): void
+    {
         $email = env('SEED_USER_EMAIL', 'victor@stabilmoney.test');
 
         // Usuário principal de dev. Se já existir, atualiza nome/senha para

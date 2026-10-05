@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Mail\ConfirmarNovoEmail;
+use App\Models\Concerns\RegistraAtividade;
 use App\Notifications\RedefinicaoDeSenha;
 use App\Notifications\VerificacaoDeEmail;
 use App\Support\BrowserSessions;
@@ -52,7 +53,7 @@ use Illuminate\Support\Str;
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, RegistraAtividade;
 
     /**
      * The attributes that are mass assignable.
@@ -119,6 +120,26 @@ class User extends Authenticatable implements MustVerifyEmail
      * obrigar alguém a se declarar para usar o app não serve a nada aqui, e o
      * campo inteiro é opcional. A ordem alfabética evita sugerir uma resposta.
      */
+    /**
+     * Fusos oferecidos para o relógio da topbar (valor => rótulo). Só exibição: o app conta
+     * datas de dinheiro sempre em Brasília. Nulo no banco = 'America/Sao_Paulo'.
+     */
+    public const FUSOS = [
+        'America/Sao_Paulo' => 'Brasília',
+        'America/Manaus' => 'Manaus',
+        'America/Cuiaba' => 'Cuiabá',
+        'America/Rio_Branco' => 'Rio Branco',
+        'America/Noronha' => 'Fernando de Noronha',
+        'Europe/Lisbon' => 'Lisboa',
+        'UTC' => 'UTC',
+    ];
+
+    /** Fuso do relógio da topbar (o escolhido em Configurações, ou Brasília). */
+    public function fusoDoRelogio(): string
+    {
+        return isset(self::FUSOS[$this->timezone]) ? $this->timezone : 'America/Sao_Paulo';
+    }
+
     public const GENEROS = [
         'feminino' => 'Feminino',
         'masculino' => 'Masculino',
@@ -181,6 +202,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'two_factor_recovery_codes' => 'encrypted:array',
             'two_factor_confirmed_at' => 'datetime',
             'two_factor_last_step' => 'integer',
+            'two_factor_trust_version' => 'integer',
             'reminder_emails' => 'boolean',
             'reminder_last_sent_on' => 'date:Y-m-d',
         ];
@@ -193,6 +215,9 @@ class User extends Authenticatable implements MustVerifyEmail
      * pelo e-mail). A Política de Privacidade promete que os dados associados são
      * removidos — sem isto, o retrato da pessoa continuaria servido publicamente
      * pelo symlink de `storage/` depois da conta deixar de existir.
+     *
+     * Também o registro de atividade da família (titular) — ou o IP e o aparelho das linhas
+     * do dependente que sai (ver o comentário no hook).
      *
      * Os dependentes são apagados aqui, um a um, DE PROPÓSITO: o cascade da FK
      * `account_owner_id` roda no banco e não dispara eventos do Eloquent, então as
@@ -218,6 +243,20 @@ class User extends Authenticatable implements MustVerifyEmail
             }
 
             BrowserSessions::purgeForUser($user->getKey());
+
+            // O registro de ATIVIDADE (Configurações › Atividade). O do TITULAR é da família
+            // inteira e vai embora com ela — DEPOIS do laço acima, que registrou a saída de
+            // cada dependente (essas linhas também saem). O de um DEPENDENTE fica: é a
+            // história do dinheiro da família, que continua com o titular. Mas IP e aparelho
+            // são dados pessoais de quem saiu, e somem (a Política promete). Na mesma
+            // transação de quem chama, como o resto deste hook.
+            if ($user->account_owner_id === null) {
+                Atividade::where('owner_id', $user->getKey())->delete();
+            } else {
+                Atividade::where('owner_id', $user->account_owner_id)
+                    ->where('user_id', $user->getKey())
+                    ->update(['ip' => null, 'aparelho' => null]);
+            }
 
             // Os pedidos de "esqueci a senha" em aberto (achado L-2 da auditoria de
             // 07/09/2026). A tabela é chaveada pelo E-MAIL, sem FK, então nenhum cascade a
@@ -524,6 +563,26 @@ class User extends Authenticatable implements MustVerifyEmail
     public function doisFatoresPendente(): bool
     {
         return $this->two_factor_secret !== null && $this->two_factor_confirmed_at === null;
+    }
+
+    /**
+     * Derruba a confiança de TODOS os aparelhos marcados com "Confiar neste aparelho por 7
+     * dias" (App\Support\AparelhoConfiavel): o número entra na assinatura do cookie, e
+     * mudá-lo faz toda assinatura antiga deixar de conferir.
+     *
+     * Incremento no BANCO, e não `valor do model + 1`: um model carregado antes de outra
+     * revogação gravaria o mesmo número que ela e não revogaria nada. Grava na hora e não
+     * dispara evento de model; o atributo em memória é acertado para quem usar o model depois.
+     */
+    public function revogarAparelhosConfiaveis(): void
+    {
+        $consulta = static::query()->whereKey($this->getKey());
+        $consulta->increment('two_factor_trust_version');
+
+        $this->forceFill([
+            'two_factor_trust_version' => (int) static::query()->whereKey($this->getKey())->value('two_factor_trust_version'),
+        ]);
+        $this->syncOriginalAttribute('two_factor_trust_version');
     }
 
     /** Quantos códigos de recuperação ainda restam (0 quando o 2FA está desligado). */

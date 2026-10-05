@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Atividade;
 use App\Models\User;
 use App\Support\Mailer;
 use App\Support\Notificador;
@@ -85,6 +86,10 @@ class RegisteredUserController extends Controller
         // framework também escuta este evento, mas se cala diante de um usuário já
         // verificado — quem manda o link é a linha abaixo, que sabe tratar a falha.
         event(new Registered($user));
+
+        // Primeira linha do registro de atividade da família. Ainda não há sessão aberta:
+        // o autor é a própria pessoa.
+        Atividade::registrar('app.conta_criada', 'criou a conta no Stabil Money', $user->getKey(), $user, autor: $user);
 
         if (Mailer::entrega() && Notificador::tentarEnviar(
             $user,

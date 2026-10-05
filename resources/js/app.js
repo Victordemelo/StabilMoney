@@ -17,6 +17,8 @@ import { initPwa } from './sm/pwa';
 import { initOfflineQueue } from './sm/offline-queue';
 import { initDialogos, liberarDialogosOrfaos } from './sm/dialogo';
 import { initConfirmar } from './sm/confirmar';
+import { initRelogio } from './sm/relogio';
+import { initInstalar, aplicarEstadoDeInstalacao } from './sm/instalar';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -24,6 +26,8 @@ import { initConfirmar } from './sm/confirmar';
 // validação esperam o DOMContentLoaded, e o módulo roda antes dele — assim a ponte
 // sempre existe quando eles a procuram.
 initDialogos();
+// "Instalar o app": o `beforeinstallprompt` chega cedo — o ouvinte entra já na carga do módulo.
+initInstalar();
 
 // Módulos que agem sobre o CONTEÚDO (#content). Rodam na 1ª carga E de novo a
 // cada troca por pjax (navegação sem reload). Cada um checa o próprio root no DOM,
@@ -41,6 +45,7 @@ function initContent() {
     initFaturas();
     initSecurity();
     initMoney();
+    aplicarEstadoDeInstalacao();
 }
 
 // Inicialização do shell (sidebar/topbar/modal/PWA) — roda UMA vez; esses
@@ -48,6 +53,7 @@ function initContent() {
 function init() {
     initTheme();
     initShell();
+    initRelogio();
     initAuth();
     // "Tem certeza?" dos formulários de excluir (`form[data-confirmar]`): um ouvinte
     // só, no documento, que vale também para o conteúdo trocado pelo pjax. Substitui os

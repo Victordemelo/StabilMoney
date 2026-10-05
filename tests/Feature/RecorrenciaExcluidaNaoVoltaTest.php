@@ -80,7 +80,7 @@ class RecorrenciaExcluidaNaoVoltaTest extends TestCase
 
     private function excluir(Transaction $ocorrencia)
     {
-        return $this->actingAs($this->user)->delete(route('faturas.compra.destroy', $ocorrencia));
+        return $this->actingAs($this->user)->delete(route('faturas.compra.destroy', $ocorrencia), ['password' => 'password']);
     }
 
     private function pagarFatura(string $ciclo): void

@@ -1793,7 +1793,7 @@ body.pjax-loading #content { opacity: .5; }
 .brand-badge { width: 36px; height: 36px; border-radius: 12px; box-shadow: 0 3px 12px rgba(0,0,0,.16); }
 .brand-badge img { width: 27px; height: 27px; }
 .brand-name { font-size: 15px; font-weight: 600; letter-spacing: .09em; }
-.nav-group-label { padding: 17px 10px 7px; font-size: 10px; font-weight: 600; }
+.nav-group-label { padding: 13px 10px 5px; font-size: 10px; font-weight: 600; }
 .nav { gap: 3px; }
 .nav-item { min-height: 42px; padding: 0 11px; gap: 11px; border-radius: 12px; color: #ABC5BA; }
 .nav-item svg { width: 18px; height: 18px; stroke-width: 1.8; opacity: 1; }
@@ -1943,3 +1943,51 @@ body.pjax-loading #content { opacity: .5; }
 .tfa-faq summary::after { content: "+"; color: var(--ink-3); font-weight: 500; font-size: 16px; line-height: 1; }
 .tfa-faq details[open] summary::after { content: "−"; }
 .tfa-faq p { margin: 0; padding: 0 12px 11px; font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
+
+/* Contas e cartões separados por tipo (out/2026): Contas · Cartões de crédito · Débito · Pix. */
+.acct-grupo + .acct-grupo { margin-top: 28px; }
+.acct-grupo-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 0 2px 14px; }
+.acct-grupo-head h3 { font-family: var(--font-head); font-size: 17px; font-weight: 600; letter-spacing: -.02em; margin: 0; display: flex; align-items: center; gap: 8px; }
+.acct-grupo-n { font-size: 11px; font-weight: 700; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; display: inline-grid; place-items: center; background: var(--surface-3); color: var(--ink-3); }
+.acct-grupo-sub { font-size: 12px; color: var(--ink-3); }
+.acct-grupo-add { margin-left: auto; }
+
+/* ============ Sidebar por intenção (out/2026) ============
+   Grupos Início · Dia a dia · Planejamento · Cadastros, uma linha dizendo para que cada
+   item serve, o atalho "Novo lançamento" no topo e as vencidas em "Contas a pagar". */
+.side-lancar {
+  display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 42px;
+  margin: 2px 0 4px; border-radius: 12px; font-size: 13px; font-weight: 600; color: #fff;
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); box-shadow: 0 6px 16px rgba(0,0,0,.2);
+  transition: filter .15s var(--ease), transform .15s var(--ease);
+}
+.side-lancar:hover { filter: brightness(1.07); transform: translateY(-1px); }
+.side-lancar svg { width: 18px; height: 18px; stroke-width: 2.2; flex: none; }
+.side-lancar .nav-label { font-size: 13px; font-weight: 600; }
+.nav-item { min-height: 44px; padding-top: 4px; padding-bottom: 4px; }
+.nav-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; }
+.nav-desc { margin-top: 2px; font-size: 10.5px; font-weight: 400; color: var(--side-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-item.active .nav-desc { color: #B7DCCD; }
+.nav-badge-wrap { margin-left: auto; display: flex; }
+.nav-badge-wrap:empty { display: none; }
+.nav-item .badge.late { background: rgba(229,96,77,.24); color: #FFC9C0; }
+.collapsed .nav-txt { width: 0; overflow: hidden; opacity: 0; }
+.collapsed .side-lancar { width: 44px; height: 44px; min-height: 44px; padding: 0; margin-inline: auto; }
+.collapsed .side-lancar .nav-label { display: none; }
+@media (max-width: 920px) {
+  .collapsed .nav-txt { width: auto; overflow: visible; opacity: 1; }
+  .collapsed .side-lancar { width: 100%; height: auto; min-height: 42px; }
+  .collapsed .side-lancar .nav-label { display: inline; }
+}
+
+/* Relógio da topbar (out/2026) — ocupa o vazio à direita do "Bem-vindo". */
+.tb-relogio { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15;
+  padding: 5px 12px; border-radius: 11px; text-decoration: none; color: inherit; transition: background .15s var(--ease); }
+.tb-relogio:hover { background: var(--surface-2); }
+.tb-relogio + .launch-btn { margin-left: 0; }
+.tb-hora { font-family: var(--font-head); font-size: 19px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.tb-fuso { font-size: 10.5px; color: var(--ink-3); }
+.relogio-form { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.relogio-form .field { margin-bottom: 0; min-width: 240px; }
+.instalar-app { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.instalar-app .btn-ghost svg { width: 17px; height: 17px; }

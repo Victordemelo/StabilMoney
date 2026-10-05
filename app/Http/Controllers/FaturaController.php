@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Http\Requests\PayInvoiceRequest;
 use App\Http\Requests\StoreFaturaLaunchRequest;
 use App\Models\Account;
+use App\Models\Atividade;
 use App\Models\CreditSettlement;
 use App\Models\EndedRecurrence;
 use App\Models\Transaction;
 use App\Services\FaturaService;
 use App\Services\FundingService;
+use App\Support\Atividades\Descritor;
 use App\Support\Brl;
 use App\Support\Texto;
 use Carbon\CarbonImmutable;
@@ -139,9 +141,18 @@ class FaturaController extends Controller
      * Numa série RECORRENTE, excluir também a ENCERRA (`EndedRecurrence`) — ver
      * `encerrarSerie()`.
      */
-    public function destroy(Transaction $transaction, FundingService $funding)
+    public function destroy(Request $request, Transaction $transaction, FundingService $funding)
     {
         $this->authorize('delete', $transaction);
+
+        // Remover mexe em dinheiro (saldo, fatura, limite): pede a SENHA (out/2026 —
+        // `RemoverDespesaPedeASenhaTest`). Bag própria para a tela reabrir o modal certo.
+        $request->validateWithBag('remocao', [
+            'password' => ['required', 'current_password'],
+        ], [
+            'password.required' => 'Digite a sua senha para remover.',
+            'password.current_password' => 'Senha incorreta. Nada foi removido.',
+        ]);
 
         // TRANSFERÊNCIA entre contas não se apaga por aqui (R2-1 da auditoria
         // financeira, rodada 2). Esta rota apaga UMA linha — ou as parcelas de um
@@ -223,6 +234,24 @@ class FaturaController extends Controller
                 $funding->estornarFonte($emAberto);
 
                 $apagadas = Transaction::whereIn('id', $emAberto)->delete();
+
+                // Delete em massa não dispara o evento do registro de atividade: a linha
+                // da compra (ou da série) é gravada aqui, na mesma transação do delete.
+                if ($apagadas > 0) {
+                    $nome = Descritor::q(Descritor::nomeDaTransacao($transaction));
+                    $plural = fn (string $um, string $varios) => $apagadas.' '.($apagadas === 1 ? $um : $varios);
+
+                    Atividade::registrar(
+                        $serieRecorrente ? 'recorrencia.excluida' : 'compra.excluida',
+                        $serieRecorrente
+                            ? "excluiu a recorrência {$nome} de ".Descritor::rotuloDaConta($transaction->account_id)
+                                .' ('.$plural('cobrança em aberto', 'cobranças em aberto').')'
+                            : "excluiu a compra parcelada {$nome} de ".Descritor::rotuloDaConta($transaction->account_id)
+                                .' ('.$plural('parcela em aberto', 'parcelas em aberto').')',
+                        (int) $transaction->user_id,
+                        $transaction,
+                    );
+                }
 
                 $restaram = Transaction::where('user_id', $transaction->user_id)
                     ->where('group_id', $transaction->group_id)
@@ -568,7 +597,20 @@ class FaturaController extends Controller
             $voltaram = Transaction::where('credit_settlement_id', $registro->id)
                 ->update(['paid_at' => null, 'credit_settlement_id' => null]);
 
-            CreditSettlement::whereKey($registro->id)->delete();
+            $apagou = CreditSettlement::whereKey($registro->id)->delete();
+
+            // Delete em massa: o registro de atividade é explícito, na mesma transação. Só
+            // quando ESTA requisição desfez (o segundo clique não acha mais nada).
+            if ($apagou > 0) {
+                Atividade::registrar(
+                    'fatura.quitacao_desfeita',
+                    'desfez a quitação pelo crédito da fatura do cartão '
+                        .Descritor::q(Descritor::rotuloDaConta($registro->account_id))
+                        .': '.$voltaram.' '.($voltaram === 1 ? 'linha voltou' : 'linhas voltaram').' para a fatura em aberto',
+                    (int) $registro->user_id,
+                    $registro,
+                );
+            }
 
             return $voltaram;
         }, attempts: FundingService::TENTATIVAS);
@@ -881,6 +923,16 @@ class FaturaController extends Controller
             if ($affected === 0) {
                 return; // já estava paga (ou outra requisição venceu a corrida).
             }
+
+            // Update em massa (a trava contra o clique repetido) não dispara evento: o
+            // registro de atividade vai aqui, na mesma transação.
+            Atividade::registrar(
+                'recorrencia.paga',
+                'marcou como paga a cobrança '.Descritor::q(Descritor::nomeDaTransacao($transaction))
+                    .' de '.Brl::format($transaction->amount).' em '.Descritor::rotuloDaConta($transaction->account_id),
+                (int) $transaction->user_id,
+                $transaction,
+            );
 
             $this->gerarProximaOcorrencia($transaction, $funding);
         }, attempts: FundingService::TENTATIVAS);

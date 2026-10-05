@@ -147,6 +147,37 @@ export function initFaturas() {
     const abrir = (gatilho = null) => abrirDialogo(modal, { foco: '#lanc-desc', retorno: gatilho });
     ligarFechamento(modal, '[data-lancar-close]');
 
+    // ---- Remover despesa: o "x" de cada linha abre um modal que pede a SENHA ----
+    // O <form> da linha continua existindo (sem JS ele envia sem senha e o servidor recusa
+    // com a mensagem); aqui o envio dele vira a abertura do modal, que manda para a MESMA
+    // ação com a senha. A ação vem do atributo do formulário renderizado pelo servidor.
+    const remover = document.getElementById('removerDespesaModal');
+    if (remover) {
+        const rdForm = remover.querySelector('[data-rd-form]');
+        const rdPergunta = remover.querySelector('[data-rd-pergunta]');
+        const rdAlvo = remover.querySelector('[data-rd-alvo]');
+        const rdPerguntaCampo = remover.querySelector('[data-rd-pergunta-campo]');
+        const senha = remover.querySelector('#rd-senha');
+        ligarFechamento(remover, '[data-remover-close]');
+
+        const abrirRemocao = (acao, pergunta, gatilho) => {
+            rdForm.setAttribute('action', acao);
+            rdAlvo.value = (acao.match(/\/(\d+)$/) || [])[1] || '';
+            rdPergunta.textContent = pergunta || 'Remover esta despesa?';
+            rdPerguntaCampo.value = pergunta || '';
+            senha.value = '';
+            abrirDialogo(remover, { foco: '#rd-senha', retorno: gatilho });
+        };
+
+        $$('form[data-remover-despesa]').forEach((form) => form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            abrirRemocao(form.getAttribute('action'), form.dataset.pergunta, form.querySelector('button'));
+        }));
+
+        // Senha errada: o servidor volta com o erro e a ação remontada pelo id.
+        if (remover.dataset.reabrirAcao) abrirDialogo(remover, { foco: '#rd-senha' });
+    }
+
     // ---- Abrir (botão do topo + botão do estado vazio) ----
     ['lancarBtn', 'lancarBtnVazio'].forEach((id) => {
         const el = document.getElementById(id);

@@ -343,7 +343,7 @@ class FaturaAtrasadaTest extends TestCase
         $this->pagarTudo();
 
         $this->actingAs($this->user)
-            ->delete(route('faturas.compra.destroy', $compra))
+            ->delete(route('faturas.compra.destroy', $compra), ['password' => 'password'])
             ->assertSessionHasErrors('transaction');
 
         // A compra continua lá — senão a saída de caixa de R$ 300 ficaria órfã.
@@ -365,7 +365,7 @@ class FaturaAtrasadaTest extends TestCase
         $this->pagarTudo();
 
         $this->actingAs($this->user)
-            ->delete(route('faturas.compra.destroy', $primeira))
+            ->delete(route('faturas.compra.destroy', $primeira), ['password' => 'password'])
             ->assertSessionHasErrors('transaction');
 
         $this->assertSame(2, Transaction::where('group_id', $grupo)->count());
@@ -376,7 +376,7 @@ class FaturaAtrasadaTest extends TestCase
         $compra = $this->compra('2026-09-15', 100, 'Padaria de hoje');
 
         $this->actingAs($this->user)
-            ->delete(route('faturas.compra.destroy', $compra))
+            ->delete(route('faturas.compra.destroy', $compra), ['password' => 'password'])
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseMissing('transactions', ['id' => $compra->id]);
@@ -395,7 +395,7 @@ class FaturaAtrasadaTest extends TestCase
         ]);
 
         $this->actingAs($this->user)
-            ->delete(route('faturas.compra.destroy', $despesa))
+            ->delete(route('faturas.compra.destroy', $despesa), ['password' => 'password'])
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseMissing('transactions', ['id' => $despesa->id]);

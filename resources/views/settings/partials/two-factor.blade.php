@@ -6,8 +6,8 @@
     Separar assim tira da frente o texto que só se lê uma vez e deixa a página caber
     sem rolagem — quando tudo era um card só, a explicação empurrava a ação para baixo.
 
-    Espera: $user, $qrCode e $chaveManual (só preenchidos durante a configuração) e
-    $semRecuperacaoPorEmail (SettingsController).
+    Espera: $user, $qrCode e $chaveManual (só preenchidos durante a configuração),
+    $semRecuperacaoPorEmail e $aparelhoConfiavelAte (SettingsController).
 
     O recurso é OPCIONAL: nasce desligado e só liga por decisão do dono da conta. O card
     tem três estados, e a ordem em que aparecem aqui é a ordem em que a pessoa os vive:
@@ -50,6 +50,12 @@
         <div class="sec-ok" role="status">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg>
             A verificação em duas etapas foi desativada. Agora só a senha é pedida no login.
+        </div>
+    @elseif (session('status') === 'two-factor-trusted-forgotten')
+        <div class="sec-ok" role="status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg>
+            Pronto: nenhum aparelho é confiável agora. O código volta a ser pedido em todo login,
+            inclusive neste navegador.
         </div>
     @elseif (session('status') === 'two-factor-cancelled')
         <div class="sec-ok" role="status">
@@ -239,6 +245,45 @@
                     </label>
                 </div>
                 <button type="submit" class="btn-primary">Gerar novos códigos</button>
+            </form>
+        </details>
+
+        {{-- ====== Aparelhos confiáveis ("Confiar neste aparelho por 7 dias") ====== --}}
+        {{-- Diz o que vale PARA ESTE navegador (é o único que o servidor enxerga: o cookie
+             mora em cada navegador) e oferece revogar todos de uma vez. --}}
+        <div class="tfa-confiavel" data-aparelho-confiavel="{{ $aparelhoConfiavelAte ? 'sim' : 'nao' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/></svg>
+            <div>
+                <strong>Este aparelho</strong>
+                @if ($aparelhoConfiavelAte)
+                    <span>É confiável até {{ $aparelhoConfiavelAte->translatedFormat('j \d\e F \à\s H:i') }}:
+                        até lá, o login neste navegador pede só a senha.</span>
+                @else
+                    <span>Não é confiável: o código é pedido em todo login. Para dispensá-lo por
+                        {{ \App\Support\AparelhoConfiavel::DIAS }} dias, marque "Confiar neste aparelho"
+                        na tela do código.</span>
+                @endif
+            </div>
+        </div>
+
+        <details class="sess-logout tfa-acao" @if ($errors->twoFactorAparelhos->isNotEmpty()) open @endif>
+            <summary class="sess-logout-trigger tfa-trigger">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20M9.5 8.5l5 5M14.5 8.5l-5 5"/></svg>
+                Esquecer todos os aparelhos confiáveis
+            </summary>
+            <form method="POST" action="{{ route('settings.2fa.esquecer-aparelhos') }}" class="sess-logout-form">
+                @csrf
+                <p>Todo navegador marcado como confiável — inclusive este — volta a pedir o código
+                    no próximo login. Use se perdeu um aparelho ou marcou um computador que não é seu.</p>
+                <div class="field">
+                    <label for="senha_aparelhos_2fa" class="sr-only">Senha</label>
+                    <input id="senha_aparelhos_2fa" class="input" type="password" name="password"
+                           placeholder="Sua senha" autocomplete="current-password" />
+                    @error('password', 'twoFactorAparelhos')
+                        <p class="field-error">{{ $message }}</p>
+                    @enderror
+                </div>
+                <button type="submit" class="btn-primary">Esquecer aparelhos</button>
             </form>
         </details>
 

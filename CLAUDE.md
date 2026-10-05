@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.002 testes PHP / 42.375 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **339 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.081 testes PHP / 50.207 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **343 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -148,8 +148,8 @@ app/
 │   ├── Controllers/        # Dashboard, Transaction, Account, Category, Fatura, FixedBill, Goal, Investment, Profile, Settings, Security, Dependent,
 │   │                       # TwoFactor (2FA nas Configurações) + Auth/ (Breeze + TwoFactorChallengeController = 2ª etapa do login)
 │   └── Requests/           # Form Requests com mensagens/attributes PT-BR (Store/Update por recurso) + PayInvoiceRequest, PayFixedBillRequest
-├── Models/                 # User (bolsos de auth: two_factor_*), Account (bolsos: balance/reserved/available/spendable), Category, Transaction, Goal, Investment, FixedBill, CreditSettlement
-│   └── Concerns/           # EscopoDaFamiliaNaRota (recurso de outra família na URL = recurso que não existe)
+├── Models/                 # User (bolsos de auth: two_factor_*), Account (bolsos: balance/reserved/available/spendable), Category, Transaction, Goal, Investment, FixedBill, CreditSettlement, Atividade (registro de atividade)
+│   └── Concerns/           # EscopoDaFamiliaNaRota (recurso de outra família na URL = recurso que não existe), RegistraAtividade
 ├── Policies/               # Account/Category/Transaction/FixedBillPolicy (update+delete = família); descoberta automática
 ├── Services/               # DashboardService, SidebarService, FaturaService,
 │                           # SpendingGuard (calcula os bolsos e decide), FundingService (grava sob lock),
@@ -227,7 +227,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.002 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.081 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -309,8 +309,8 @@ tests/Feature/              # 2.002 testes (PHP): auth, dashboard, CRUD, valida�
 | `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"**. 5 tipos (Conta Corrente/Poupança, Cartão de Débito/Crédito, **Pix**) + **banco** com logo (imagem `public/assets/banks/`, preview no form). Form com campos condicionais por tipo (JS): conta = saldo inicial; **corrente = + limite do cheque especial**; crédito = limite + fechamento/vencimento; débito = vincula corrente/poupança que ele espelha. **Sem picker de ícone/cor.** O card mostra a imagem do banco e o **"Saldo em conta" = `available`** (vermelho quando negativo), com barra de uso do cheque especial; débito mostra corrente/poupança separados + total. **Travas (23/09/2026):** conta que um débito/Pix espelha **não troca de tipo, nem zerada** (`Account::travaDeTipo` = classe + espelho — antes uma corrente zerada virava cartão de crédito e o débito passava a lançar numa fatura; `ContaEspelhadaNaoTrocaDeTipoTest`); **excluir conta** bloqueia com lançamentos ou com guardado líquido ≠ 0 em algum cofrinho — zerado, os aportes/resgates dela saem junto, sem mudar total (`ContaComGuardadoZeradoPodeSerExcluidaTest`); o **banco é obrigatório e NÃO vem pré-selecionado** (antes tudo virava Nubank — `CadastroDeContaSemBancoPreSelecionadoTest`); e **excluir conta que um débito/Pix usa é recusado**, com a mensagem nomeando o método (23/09/2026 — `ContaUsadaPorDebitoOuPixNaoSaiTest`): a FK `nullOnDelete` deixava o método órfão, sumindo em silêncio do select de pagamento, ou passando a sacar da outra conta vinculada. |
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas **Receitas (esquerda) / Despesas (direita)** com chips emoji+nome; **criar/editar abre MODAL** na própria tela, aberto em RECEITA (página cheia de fallback); **arrastar DENTRO da coluna reordena** (coluna `position`, `PATCH categories/ordenar`) e **entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. **Categoria em uso não troca de tipo** (22/09/2026 — `CategoriaEmUsoNaoTrocaDeTipoTest`): 422 em `type` se algum lançamento dela tem tipo diferente do novo, ou se uma conta fixa a usa e o tipo novo é receita — antes os lançamentos ficavam presos numa categoria do tipo oposto (editar dava 422, o donut misturava receita com despesa). A regra confere o INVARIANTE, não "tem lançamento": arrastar de volta uma categoria que ficou errada é permitido, e é o que a conserta. 🚨 Nunca "consertar" mudando o `type` das transações (é o sinal do dinheiro). Arraste e modal mostram a mensagem do servidor (`mensagemDeErro` em `categories.js`). **Reordenar sem arrastar** (23/09/2026, A-4): botões ▲▼ por chip (`[data-cat-mover]`, com o nome no rótulo), mesmo `PATCH categories/ordenar`, posição anunciada em `#catAnuncio`. |
 | `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais em **dois cards lado a lado** (mesmo grid das Configurações, largura cheia): "Quem é você" (foto com preview, nome, **data de nascimento**, **sexo**) e "Como falamos com você" (e-mail, telefone). Nascimento e sexo são **opcionais** — minimização de dados; `User::GENEROS` traz "Prefiro não informar". O campo de **senha atual** só aparece quando o e-mail muda (mesma regra do `ProfileUpdateRequest`). **Acesso pelo popover do perfil** (sidebar). **Desde out/2026 (`MeuPerfilMostraOResumoDaContaTest`):** um cabeçalho de identidade no topo (foto com "Trocar/Adicionar foto" e "Remover a foto" — dentro do mesmo `<form>` —, selos de papel, e-mail confirmado/troca pendente e 2FA, e três números: pessoas na família, lançamentos da pessoa no mês SEM quitação de fatura nem pontas de transferência, e % do perfil preenchido com o que falta), e um bloco "Segurança e acesso" com atalhos para Configurações (idade da senha, 2FA, aparelhos). Dados em `ProfileController::resumoDoPerfil`; nunca valor em dinheiro. |
-| `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security|two-factor|conta`) | **Três subabas-pílula** (Segurança · **2FA** · Conta) numa coluna de 1120px, com o corpo em grid de 12 colunas — cada aba tem DOIS cards lado a lado (`span6`/`span7`+`span5`), de altura igual, e cabe sem rolar. **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), (lista com **teto de 4 itens** e rolagem interna — sem isso o card esticava além do de Senha e a página voltava a rolar). **2FA** = card de ação + card "Como funciona" ao lado. **O SWITCH é o controle**: a linha inteira é um `<summary>` (`.tfa-toggle`) que abre a confirmação por senha DENTRO do card — ligar e desligar seguem exigindo senha, sem botão-gatilho separado empurrando o conteúdo. No rodapé, **"Autenticadores da família"** lista quem já protegeu o próprio login (nome, papel, desde quando) — só status, nunca segredo: `two_factor_secret` é `encrypted` e não chega à view. **Conta** = resumo real da conta (e-mail, desde quando, dependentes, estado do 2FA) + zona de perigo. |
-| `POST/DELETE /configuracoes/2fa` (`settings.2fa.ativar` / `.desativar`), `POST /configuracoes/2fa/confirmar` (`.confirmar`), `POST /configuracoes/2fa/codigos` (`.codigos`) → `TwoFactorController` | bloco em `settings/partials/two-factor` | **2FA (opcional).** Ligar/desligar/trocar códigos exigem a **senha atual** (`throttle:senha`); confirmar o setup exige o **código** (`throttle:dois-fatores`). Sem rota de listagem — tudo acontece no card da aba **2FA**, e toda ação volta para ela (`TwoFactorController::voltar()` → `settings/2fa`, 22/09/2026). Voltando para a aba Segurança, o QR sumia de quem pediu para ligar e — pior — o flash com os **códigos de recuperação** era consumido numa aba que não os mostra: quem ligava o 2FA nunca via a única porta de volta. Teste de flash depois de redirect SEGUE o redirect (`followingRedirects`): um GET direto na aba certa passava verde com o defeito. |
+| `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security|two-factor|conta`) | **Quatro subabas-pílula** (Segurança · **2FA** · Conta · **Atividade** — esta de out/2026, ver "🧾 Auditoria de atividade") numa coluna de 1120px, com o corpo em grid de 12 colunas — cada aba tem DOIS cards lado a lado (`span6`/`span7`+`span5`), de altura igual, e cabe sem rolar. **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), (lista com **teto de 4 itens** e rolagem interna — sem isso o card esticava além do de Senha e a página voltava a rolar). **2FA** = card de ação + card "Como funciona" ao lado. **O SWITCH é o controle**: a linha inteira é um `<summary>` (`.tfa-toggle`) que abre a confirmação por senha DENTRO do card — ligar e desligar seguem exigindo senha, sem botão-gatilho separado empurrando o conteúdo. No rodapé, **"Autenticadores da família"** lista quem já protegeu o próprio login (nome, papel, desde quando) — só status, nunca segredo: `two_factor_secret` é `encrypted` e não chega à view. **Conta** = resumo real da conta (e-mail, desde quando, dependentes, estado do 2FA) + zona de perigo. |
+| `POST/DELETE /configuracoes/2fa` (`settings.2fa.ativar` / `.desativar`), `POST /configuracoes/2fa/confirmar` (`.confirmar`), `POST /configuracoes/2fa/codigos` (`.codigos`), `POST /configuracoes/2fa/aparelhos-confiaveis/esquecer` (`.esquecer-aparelhos`) → `TwoFactorController` | bloco em `settings/partials/two-factor` | **2FA (opcional).** Ligar/desligar/trocar códigos exigem a **senha atual** (`throttle:senha`); confirmar o setup exige o **código** (`throttle:dois-fatores`). Sem rota de listagem — tudo acontece no card da aba **2FA**, e toda ação volta para ela (`TwoFactorController::voltar()` → `settings/2fa`, 22/09/2026). Voltando para a aba Segurança, o QR sumia de quem pediu para ligar e — pior — o flash com os **códigos de recuperação** era consumido numa aba que não os mostra: quem ligava o 2FA nunca via a única porta de volta. Teste de flash depois de redirect SEGUE o redirect (`followingRedirects`): um GET direto na aba certa passava verde com o defeito. |
 | `GET/POST /verificacao-em-duas-etapas` (`two-factor.login`) + `POST /verificacao-em-duas-etapas/cancelar` (`two-factor.cancel`) → `Auth\TwoFactorChallengeController` | `auth/two-factor-challenge` | **Segunda etapa do login.** Grupo `guest`: quem está aqui ainda NÃO tem sessão. Aceita o código do autenticador ou um **código de recuperação** (`?recuperacao=1`, sem depender de JS). |
 | `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais **fora da `.card`** — ela tem `overflow:hidden`+animação `transform`, que prendia o `position:fixed`). **Redesign v2 (06/08/2026):** o topo traz o **resumo da família** (pessoas na conta · gasto do mês · quem mais gastou) e cada card mostra **foto** (avatar), nome com **selo de papel** (`.dp-badge`), e-mail, **quanto gastou no mês** (`Σ` despesas do mês corrente com `made_by_user_id` da pessoa; titular incluso) e a **fatia do gasto da família** em barra. O denominador é o ponto: número solto não responde "quem está gastando quanto" — R$ 1.590 é muito ou pouco só em relação ao total (`$gastoFamilia`, com guarda de divisão por zero). Sem dependente nenhum aparece um **card-fantasma** (`.dep-ghost`, `aria-hidden`) mostrando o FORMATO do card que a pessoa vai receber; ele some no instante em que existe um dependente de verdade, e seus números são 0% / R$ 0,00 — valor inventado ao lado de barra cheia contaria duas histórias no mesmo card. Botões **editar** e **excluir** por card. No cadastro/edição define-se nome, e-mail, **foto** (avatar central clicável — a bolinha É o botão de upload, classe `.avatar-pick`), **parentesco** (select `User::RELATIONSHIPS`) e senha (Store/UpdateDependentRequest; senha opcional na edição). **Lançar em nome de um dependente** é feito no formulário de transação, pelo seletor "quem fez a compra" (suporta deep-link `transactions.create?autor=ID`). **Editar sem o campo PRESERVA o autor gravado**, e autor nulo aparece como "Não informado" — antes a autoria passava para quem editava (23/09/2026, A-11 — `EditarLancamentoPreservaOAutorTest`). Só titular acessa (403 p/ dependente); dependente de outra família: 404, como id que não existe. |
 | `/metas` (`GoalController` index/store/update/destroy + aportes/resgates) | `metas/index` | **Metas (implementado).** Objetivos de poupança modelo "cofrinho": aporte reserva, resgate devolve à conta. Compartilhadas na família (`ownerId`). |
@@ -1264,9 +1264,79 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
 - **2FA:** "Cancelar configuração" ao lado do "Confirmar" pelo atributo `form="tfaCancelarForm"`
   (sem form aninhado); "Situações comuns" no card "Como funciona"; autenticadores da família sem
   foto mostram as iniciais (antes `<img src="">`).
+- **Menu por intenção** (`ShellReorganizadoTest`): grupos Início · Dia a dia (Movimentações, Contas a
+  pagar) · Planejamento (Metas, Investimentos) · Cadastros (Contas e cartões, Categorias, Família),
+  uma linha `.nav-desc` dizendo para que cada item serve, o botão "Novo lançamento" no topo
+  (`data-launch-open`) e as VENCIDAS no item Contas a pagar — a mesma lista do sino,
+  calculada uma vez por requisição (`AppServiceProvider::vencimentosDaRequisicao`, nos atributos
+  da requisição; nunca `static`).
+- **Relógio da topbar** no fuso de Configurações › Conta (`users.timezone`, nulo = Brasília;
+  `User::FUSOS` fecha a lista; `PATCH settings.relogio`, sem senha). SÓ exibição: datas do dinheiro
+  seguem em Brasília. `sm/relogio.js` mantém andando a hora que o servidor desenhou.
+- **"Instalar o app" (PWA)** na tela de login e em Configurações › Conta (`partials/instalar-app`,
+  `sm/instalar.js`): botão só com o `beforeinstallprompt` do navegador; no iPhone, a instrução
+  "Compartilhar › Adicionar à Tela de Início"; instalado, "já instalado". Em http (sem HTTPS) nada
+  aparece — é o navegador que não oferece.
+- **Contas e cartões separados por tipo** (Contas · Cartões de crédito · Cartões de débito · Pix), cada
+  grupo em ordem alfabética; o card de cada conta é o `accounts/_card`.
+- **Contas a pagar:** "Despesas em conta" logo abaixo das contas fixas (aberto); cada cartão é um
+  `<details class="fatura-recolhe">` que abre sozinho com fatura vencida. **Remover despesa pede a
+  SENHA** (`faturas.compra.destroy` com `current_password` na bag `remocao` + `throttle:senha`;
+  `ContasAPagarReorganizadaTest`): o "x" é um form que o `faturas.js` troca pelo modal; depois de
+  senha errada o modal reabre com a ação remontada pelo ID (`_alvo` só dígitos) — nunca por URL vinda
+  do formulário. Teste que chame a rota manda `['password' => 'password']`.
 - **Páginas legais:** barra do topo com Termos/Privacidade e o sumário fixo à esquerda no desktop —
   tudo no `layouts/legal`. O texto jurídico mora só em `legal/*.blade.php` (é dele a impressão do
   `VersaoDosDocumentosLegaisTest`): layout muda sem subir a `legal.version`.
+
+## 🧾 Auditoria de atividade (out/2026) — não regredir
+
+**Quem mexeu em quê, onde e quando**, em Configurações › **Atividade** (`settings/atividade`).
+Tabela `atividades` (`App\Models\Atividade`) — NÃO é a `admin_audit_logs` (essa é do painel).
+Testes: `AtividadeDoDinheiroTest`, `AtividadeDeCadastrosEFamiliaTest`,
+`AtividadeDeAcessoESegurancaTest`, `TelaDeAtividadeTest` (+ uma no `SeederDeDemonstracaoTest` e uma
+no `PainelAdminNaoVeValoresTest`).
+
+- **Captura automática:** trait `Models\Concerns\RegistraAtividade` (eventos `created`/`updated`/
+  `deleted`) em Transaction, Account, Category, Goal, Investment, GoalContribution,
+  InvestmentContribution, FixedBill, EndedRecurrence, CreditSettlement e User. A frase e o antes →
+  depois saem do `Support\Atividades\Descritor`. **Model novo da família = `use RegistraAtividade`
+  + um ramo no `Descritor`.**
+- 🚨 **Delete/update EM MASSA não dispara evento** — quem escreve assim chama
+  `Atividade::registrar()` no ponto da escrita: `TransactionController::destroy` (transferência),
+  `FaturaController::destroy` (parcelas/série), `desfazerQuitacaoPeloCredito`, `pay` (recorrência
+  legada), `CategoryController::ordenar` e `FundingService::estornarFonte` (resgate desfeito).
+  Caminho novo com `->delete()`/`->update()` no builder precisa do mesmo.
+- 🚨 **O registro fica na MESMA transação da ação** (gravado dentro do evento/da closure), nunca em
+  fila nem `afterCommit`: rollback ou a repetição do `FundingService` no deadlock levam a linha junto.
+- **Uma ação, uma linha:** compra em 12x registra só a 1ª parcela; transferência só a ENTRADA (que já
+  acha a saída); edição de transferência só a saída. Edição só com campo técnico mudado
+  (`position`, `remember_token`, `funding_*`, `two_factor_last_step`) não registra nada.
+- 🚨 **Lista de PERMISSÃO de campos** no `Descritor::mudancas` — senha, `remember_token`,
+  `two_factor_*`, tokens e `client_uuid` nunca entram no JSON. Telefone, nascimento, sexo e foto
+  entram como "alterado", sem valor. `ip` tem cast `encrypted` (coluna `text`).
+- **Autor** (`Atividade::autorDaRequisicao`): rota `painel.*` → "A administração do Stabil Money"
+  (antes do guard `web`: o admin pode estar logado no app no mesmo navegador); usuário do guard
+  `web`; senão "Sistema". Sem sessão (cadastro, redefinir senha, código errado do 2FA) passe
+  `autor:`. Nome congelado em `autor_nome`; `user_id` sem FK. IP/aparelho só com requisição ROTEADA.
+- **Acesso:** `Listeners\RegistraAcessoNaAtividade` (eventos `Login`/`Logout`, guard `web`). A frase
+  sai da AÇÃO da rota (os POST de login/cadastro/2FA não têm nome): login, segunda etapa (código ou
+  recuperação), "lembrar de mim" (qualquer outra rota); cadastro e confirmar o 2FA não registram
+  entrada. `Logout` só na rota `logout` (o `BloqueiaUsuarioBanido` também desloga). **Senha errada
+  no login NÃO é registrada** (timing revelaria quem tem conta e qualquer um encheria o histórico);
+  código errado do 2FA é (a senha já estava certa). Explícitos: senha trocada/redefinida, 2FA
+  ligado/desligado/códigos, sessões encerradas, pedido de troca de e-mail, lembretes, senha do
+  dependente, conta criada.
+- **Quem vê:** `Atividade::visivelPara()` — titular vê a família; dependente só o que ele fez.
+  Filtro `pessoa` alheio é IGNORADO; `tipo` = `Atividade::GRUPOS` (dinheiro/cadastros/família/
+  acesso), período por `Support\PeriodoDoFiltro` (o mesmo das Movimentações). Uma consulta paginada,
+  sem N+1. O **painel NUNCA lê** a tabela.
+- **`Atividade::semRegistrar(fn)`**: seeders (`DatabaseSeeder`, `DadosDeDemonstracaoSeeder`) e as
+  categorias padrão do cadastro (`DefaultCategories::seedFor`).
+- **LGPD:** exclusão do titular apaga a atividade da família (hook `deleting` do User, depois de
+  apagar os dependentes); dependente que sai deixa as ações (história do dinheiro da família) mas
+  perde IP e aparelho. **`atividades:limpar`** (03:20, 180 dias = `Atividade::DIAS_DE_RETENCAO`) —
+  mudou o prazo, mude a Política (seções 2.3, 4, 7 e 11; versão 3.2).
 
 ## 🔎 SEO (23/09/2026) — `SeoDasPaginasPublicasTest`
 
@@ -1774,6 +1844,34 @@ certo — troca o `remember_token`, apaga as outras linhas de `sessions` e chama
 aparelho com o token novo (o `logoutOtherDevices` exige a senha em texto, e ali só há o código) e
 dá id novo à sessão atual. Código errado não derruba nada.
 
+### "Confiar neste aparelho por 7 dias" (out/2026 — `ConfiarNesteAparelhoNoDoisFatoresTest`)
+
+Caixa na tela do código (**desmarcada** por padrão, vale também com código de recuperação). Com o
+código CERTO e a caixa marcada, `App\Support\AparelhoConfiavel::confiar()` grava o cookie
+**`sm-aparelho-confiavel`** (7 dias, httpOnly, SameSite=Lax, `secure` da sessão, cifrado pelo
+EncryptCookies). Nos 7 dias seguintes, o login NESTE navegador e NESTA conta pede só a **senha**:
+`LoginRequest::authenticate()` confere `AparelhoConfiavel::confia()` depois da senha e do banimento,
+e `precisaDeSegundaEtapa()` fica falso. Todo o resto do login segue igual (limites, banido barrado
+antes do `login()`, `regenerate()`, "lembrar de mim" do formulário).
+
+- **Valor:** até 5 entradas `id:validade:assinatura` (uma por conta — o computador da família serve
+  ao titular e ao dependente sem uma apagar a outra). A assinatura é HMAC-SHA256 com a APP_KEY sobre
+  id + validade + **`users.two_factor_trust_version`** + hash da senha + `two_factor_confirmed_at` +
+  hash do segredo TOTP. Entrada de outro id nunca vale para a conta que está entrando; validade
+  além de agora + 7 dias é ignorada; a validade é FIXA (o login confiável não renova o prazo).
+- **Revogação de TODOS os aparelhos:** `User::revogarAparelhosConfiaveis()` (incremento no banco,
+  não `model + 1`) em `TwoFactorService::iniciar/confirmar/desligar/regerarCodigosDeRecuperacao`,
+  `PasswordController`, `NewPasswordController`, `SecurityController` (encerrar sessões) e no botão
+  **"Esquecer todos os aparelhos confiáveis"** (Configurações › 2FA, pede a senha, `throttle:senha`,
+  apaga também o cookie deste navegador). E, **estruturalmente**, qualquer mudança de senha — por
+  qualquer caminho, inclusive os que ainda não existem (o titular trocando a do dependente, um
+  `forceFill` futuro) — derruba a confiança, porque o hash está na assinatura.
+- 🚨 **Nunca o `remember_token`** na assinatura: ele recicla a cada logout, e a confiança cairia
+  sempre que a pessoa saísse da conta.
+- A aba 2FA mostra se ESTE navegador é confiável e até quando (`data-aparelho-confiavel`).
+- 🚨 **Cookie novo na Política de Privacidade:** `sm-aparelho-confiavel` — 7 dias — dispensa o código
+  do 2FA neste navegador, só quando a pessoa marca a caixa (a tabela de cookies precisa dele).
+
 ### Uso único dos dois lados
 
 - **TOTP:** `two_factor_last_step` guarda o último passo de 30 s gasto; `Totp::verificar`
@@ -1815,7 +1913,8 @@ impediria reexibi-los.
 - ⚠️ **Nunca escreva a tag de fechamento do PHP dentro de um comentário `//`** (ex.: citando
   uma declaração XML): o interpretador encerra o bloco ali e o arquivo deixa de compilar.
   Custou um `ParseError` no `TwoFactorService`.
-- **"Lembrar de mim" pula o desafio nas visitas seguintes** — é a semântica padrão de
+- **"Lembrar de mim" pula o desafio nas visitas seguintes** (`LembrarDeMimEntraSemSenhaTest`: a
+  sessão expira e o cookie `remember_web_…` entra sem senha e sem código) — é a semântica padrão de
   "dispositivo confiável" (Fortify e a maioria dos sites fazem igual), mas note que a tela de
   login deste app deixa a caixa **marcada por padrão**. O 2FA continua protegendo qualquer
   login em aparelho novo, que é o ataque real.
@@ -2158,7 +2257,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.002 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.081 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo

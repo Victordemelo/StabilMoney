@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Account;
+use App\Models\Atividade;
 use App\Models\Category;
 use App\Models\FixedBill;
 use App\Models\Goal;
@@ -55,7 +56,9 @@ class DadosDeDemonstracaoSeeder extends Seeder
 
         $this->titular = User::whereNull('account_owner_id')->orderBy('id')->firstOrFail();
 
-        DB::transaction(function () {
+        // Sem registro de atividade: são milhares de linhas que ninguém lançou de verdade, e
+        // elas soterrariam o histórico real da família em Configurações › Atividade.
+        Atividade::semRegistrar(fn () => DB::transaction(function () {
             $this->limpar();
             $this->carregarCategorias();
             $this->criarDependentes();
@@ -64,7 +67,7 @@ class DadosDeDemonstracaoSeeder extends Seeder
             $this->criarContasFixas();
             $this->pagarContasFixasPassadas();
             $this->criarMetasEInvestimentos();
-        });
+        }));
 
         $this->command?->info("Dados de demonstração criados para {$this->titular->name}.");
     }

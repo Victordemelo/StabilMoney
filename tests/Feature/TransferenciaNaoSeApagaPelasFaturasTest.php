@@ -77,7 +77,7 @@ class TransferenciaNaoSeApagaPelasFaturasTest extends TestCase
     {
         return $this->actingAs($this->titular)
             ->from(route('faturas.index'))
-            ->delete(route('faturas.compra.destroy', $ponta));
+            ->delete(route('faturas.compra.destroy', $ponta), ['password' => 'password']);
     }
 
     /** Patrimônio, investido e disponível da família, como a sidebar mostra. */

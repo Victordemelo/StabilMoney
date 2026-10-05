@@ -150,7 +150,7 @@ class IsolamentoFaturasEContasFixasTest extends TestCase
         $compra = $this->compraNoCartao();
 
         $this->actingAs($this->estranho)
-            ->delete(route('faturas.compra.destroy', $compra))
+            ->delete(route('faturas.compra.destroy', $compra), ['password' => 'password'])
             ->assertNotFound();
 
         $this->assertTrue(Transaction::whereKey($compra->id)->exists(), 'A compra do dono foi apagada.');

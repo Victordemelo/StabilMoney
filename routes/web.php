@@ -156,6 +156,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // então só ele muda). Preferência sem risco — não pede senha nem tem limite próprio.
     Route::patch('/configuracoes/lembretes', [SettingsController::class, 'atualizarLembretes'])
         ->name('settings.lembretes');
+    Route::patch('/configuracoes/relogio', [SettingsController::class, 'atualizarRelogio'])
+        ->name('settings.relogio');
 
     // Segurança: encerrar as demais sessões/dispositivos conectados
     // Valida a senha atual → limitada (ver 'senha' no AppServiceProvider).
@@ -186,6 +188,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/configuracoes/2fa', [TwoFactorController::class, 'desativar'])
         ->middleware(['throttle:senha', 'throttle:dois-fatores'])
         ->name('settings.2fa.desativar');
+
+    // "Esquecer todos os aparelhos confiáveis": todo navegador marcado com "Confiar neste
+    // aparelho por 7 dias" volta a pedir o código. Pede a senha (e tem o limite dela) para
+    // uma sessão sequestrada não ficar apagando e recriando confianças sem ninguém notar.
+    Route::post('/configuracoes/2fa/aparelhos-confiaveis/esquecer', [TwoFactorController::class, 'esquecerAparelhosConfiaveis'])
+        ->middleware('throttle:senha')
+        ->name('settings.2fa.esquecer-aparelhos');
 
     // Dependentes (conta-família) — só o titular gerencia. O `{dependent}` tem binding
     // próprio (AppServiceProvider::configurarPessoasDaFamiliaNaRota): só acha DEPENDENTE da
@@ -226,6 +235,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/faturas', [FaturaController::class, 'index'])->name('faturas.index');
     Route::post('/faturas/lancar', [FaturaController::class, 'store'])->name('faturas.lancar');
     Route::delete('/faturas/compra/{transaction}', [FaturaController::class, 'destroy'])
+        ->middleware('throttle:senha')
         ->name('faturas.compra.destroy');
     // Recorrência "infinita": pagar a ocorrência em aberto gera a próxima (+1 mês).
     Route::post('/faturas/recorrente/{transaction}/pagar', [FaturaController::class, 'pay'])

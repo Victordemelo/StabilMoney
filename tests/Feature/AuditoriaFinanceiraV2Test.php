@@ -139,7 +139,7 @@ class AuditoriaFinanceiraV2Test extends TestCase
 
         // Pelos DOIS caminhos que o usuário tem na tela.
         $this->actingAs($this->user)
-            ->delete(route('faturas.compra.destroy', $quitacao))
+            ->delete(route('faturas.compra.destroy', $quitacao), ['password' => 'password'])
             ->assertSessionHasErrors('transaction');
 
         $this->actingAs($this->user)

@@ -213,6 +213,54 @@
             </div>
         </div>
     @else
+        {{-- ---------- Despesas pagas em conta (não-cartão) ----------
+             Logo abaixo das contas fixas e sempre aberto: é o que sai da conta no dia a dia.
+             Os cartões vêm depois, recolhidos. --}}
+        @if ($accountExpenses->isNotEmpty())
+            @php $totalAvulso = $accountExpenses->sum('amount'); @endphp
+            <div class="card fatura-card span12">
+                <div class="fatura-head">
+                    <div class="fh-card" style="background:linear-gradient(135deg,#1B4D89,#0E2A4D)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" width="22" height="22"><path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/></svg>
+                    </div>
+                    <div class="fh-info">
+                        <strong>Despesas em conta</strong>
+                        <span>Pagas via débito, Pix ou conta corrente</span>
+                    </div>
+                    <div class="fh-total">
+                        <span>Total no período</span>
+                        <b>{{ $brl($totalAvulso) }}</b>
+                    </div>
+                </div>
+                <div class="fatura-items">
+                    @foreach ($accountExpenses as $exp)
+                        <div class="fatura-item">
+                            <span class="fi-ico">{{ $exp->category?->icon ?: '📦' }}</span>
+                            <div class="fi-txt">
+                                <strong>{{ $exp->description ?: ($exp->category?->name ?? 'Despesa') }}</strong>
+                                <span>
+                                    {{ $exp->category?->name ?? 'Sem categoria' }} · {{ $exp->account->name }}
+                                    @if ($exp->madeBy?->name) · <em class="fi-who"><span class="fw-av" style="background:#1B4D89">{{ $iniciais($exp->madeBy->name) }}</span>{{ \Illuminate\Support\Str::before(trim($exp->madeBy->name), ' ') }}</em>@endif
+                                </span>
+                            </div>
+                            <div class="fi-val">
+                                <b>{{ $brl($exp->amount) }}</b>
+                                <small>{{ $exp->date?->translatedFormat('d M') }}</small>
+                            </div>
+                            <form method="POST" action="{{ route('faturas.compra.destroy', $exp->id) }}"
+                                  data-remover-despesa data-pergunta="Remover esta despesa?">
+                                @csrf
+                                @method('DELETE')
+                                <button class="fi-rm" type="submit" aria-label="Remover" title="Remover">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                                </button>
+                            </form>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
         {{-- ---------- Uma fatura-card por cartão ---------- --}}
         @foreach ($cards as $card)
             @php
@@ -222,8 +270,12 @@
                 $usadoPct   = max(0, min(100, (float) ($card->limitUsedPct ?? 0)));
                 $usadoValor = max(0, $limite - (float) ($card->availableLimit ?? 0));
             @endphp
-            <div class="card fatura-card span12">
-                <div class="fatura-head">
+            @php $vencida = (bool) ($card->closedInvoice['vencida'] ?? false); @endphp
+            {{-- Cada cartão é RECOLHÍVEL (fechado mostra só o cabeçalho, com a fatura atual):
+                 com vários cartões a tela virava uma parede de compras. Abre sozinho quando
+                 há fatura vencida — é o caso que pede ação. --}}
+            <details class="card fatura-card span12 fatura-recolhe" @if ($vencida) open @endif>
+                <summary class="fatura-head">
                     <div class="fh-card {{ $acc->bankImageUrl() ? 'has-bank-art' : '' }}" style="background:linear-gradient(135deg,{{ $cor }},color-mix(in srgb,{{ $cor }} 55%,#000))">
                         @if ($acc->bankImageUrl())
                             <img src="{{ $acc->bankImageUrl() }}" alt="{{ $acc->bankLabel() ?: $acc->name }}" loading="lazy">
@@ -241,10 +293,12 @@
                         </span>
                     </div>
                     <div class="fh-total">
-                        <span>Fatura atual</span>
+                        <span>Fatura atual @if ($vencida)<em class="fh-vencida">vencida</em>@endif</span>
                         <b>{{ $brl($card->currentInvoice) }}</b>
                     </div>
-                </div>
+                    <svg class="fh-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </summary>
+                <div class="fatura-corpo">
 
                 {{-- ---- Fatura JÁ FECHADA e não paga ----
                      Bloco próprio, acima da fatura do mês: ela tem vencimento
@@ -450,7 +504,7 @@
                                 </form>
                             @endif
                             <form method="POST" action="{{ route('faturas.compra.destroy', $item->id) }}"
-                                  data-confirmar="{{ $confirmaRemover }}">
+                                  data-remover-despesa data-pergunta="{{ $confirmaRemover }}">
                                 @csrf
                                 @method('DELETE')
                                 <button class="fi-rm" type="submit" aria-label="Remover" title="Remover">
@@ -462,54 +516,9 @@
                         <div class="fi-empty">Nenhuma despesa neste cartão ainda.</div>
                     @endforelse
                 </div>
-            </div>
+                </div>{{-- /.fatura-corpo --}}
+            </details>
         @endforeach
-
-        {{-- ---------- Despesas pagas em conta (não-cartão) ---------- --}}
-        @if ($accountExpenses->isNotEmpty())
-            @php $totalAvulso = $accountExpenses->sum('amount'); @endphp
-            <div class="card fatura-card span12">
-                <div class="fatura-head">
-                    <div class="fh-card" style="background:linear-gradient(135deg,#1B4D89,#0E2A4D)">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" width="22" height="22"><path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/></svg>
-                    </div>
-                    <div class="fh-info">
-                        <strong>Despesas em conta</strong>
-                        <span>Pagas via débito, Pix ou conta corrente</span>
-                    </div>
-                    <div class="fh-total">
-                        <span>Total no período</span>
-                        <b>{{ $brl($totalAvulso) }}</b>
-                    </div>
-                </div>
-                <div class="fatura-items">
-                    @foreach ($accountExpenses as $exp)
-                        <div class="fatura-item">
-                            <span class="fi-ico">{{ $exp->category?->icon ?: '📦' }}</span>
-                            <div class="fi-txt">
-                                <strong>{{ $exp->description ?: ($exp->category?->name ?? 'Despesa') }}</strong>
-                                <span>
-                                    {{ $exp->category?->name ?? 'Sem categoria' }} · {{ $exp->account->name }}
-                                    @if ($exp->madeBy?->name) · <em class="fi-who"><span class="fw-av" style="background:#1B4D89">{{ $iniciais($exp->madeBy->name) }}</span>{{ \Illuminate\Support\Str::before(trim($exp->madeBy->name), ' ') }}</em>@endif
-                                </span>
-                            </div>
-                            <div class="fi-val">
-                                <b>{{ $brl($exp->amount) }}</b>
-                                <small>{{ $exp->date?->translatedFormat('d M') }}</small>
-                            </div>
-                            <form method="POST" action="{{ route('faturas.compra.destroy', $exp->id) }}"
-                                  data-confirmar="Remover esta despesa?">
-                                @csrf
-                                @method('DELETE')
-                                <button class="fi-rm" type="submit" aria-label="Remover" title="Remover">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                                </button>
-                            </form>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        @endif
 
         {{-- Aviso quando ainda não há cartões, mas há despesas avulsas --}}
         @if ($cards->isEmpty())
@@ -526,6 +535,50 @@
         @endif
     @endif
 </section>
+
+{{-- ===================== MODAL: REMOVER DESPESA (pede a senha) =====================
+     Remover uma despesa mexe em dinheiro (saldo, fatura, limite): pede a senha, conferida
+     no servidor (`current_password` + throttle:senha). O "x" de cada linha é um <form>
+     que o JS intercepta e troca por este modal; sem JS ele envia sem senha e o servidor
+     recusa com a mensagem. Depois de um erro o modal reabre para o MESMO lançamento — a
+     ação é remontada no servidor a partir do id (`_alvo`), nunca de uma URL vinda do form. --}}
+@php
+    $reabreRemocao = $errors->remocao->isNotEmpty() && ctype_digit((string) old('_alvo'));
+@endphp
+<div class="modal-scrim" id="removerDespesaModal" data-remover-modal
+     data-reabrir-acao="{{ $reabreRemocao ? route('faturas.compra.destroy', (int) old('_alvo')) : '' }}">
+    <div class="modal modal-md" role="dialog" aria-modal="true"
+         aria-labelledby="removerDespesaModal-titulo" aria-describedby="removerDespesaModal-pergunta">
+        <div class="modal-head">
+            <span class="modal-ico perigo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg></span>
+            <div>
+                <h3 id="removerDespesaModal-titulo">Remover despesa</h3>
+                <p id="removerDespesaModal-pergunta" data-rd-pergunta>{{ $reabreRemocao ? old('_pergunta', 'Remover esta despesa?') : 'Remover esta despesa?' }}</p>
+            </div>
+            <button class="modal-x" type="button" data-remover-close aria-label="Fechar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+        </div>
+        <form method="POST" action="{{ $reabreRemocao ? route('faturas.compra.destroy', (int) old('_alvo')) : '' }}" data-rd-form>
+            @csrf
+            @method('DELETE')
+            <input type="hidden" name="_alvo" value="{{ $reabreRemocao ? (int) old('_alvo') : '' }}" data-rd-alvo>
+            <input type="hidden" name="_pergunta" value="{{ $reabreRemocao ? old('_pergunta') : '' }}" data-rd-pergunta-campo>
+            <div class="modal-body">
+                <div class="field">
+                    <label for="rd-senha">Confirme com a sua senha</label>
+                    <input class="input @error('password', 'remocao') input-error @enderror" type="password" id="rd-senha"
+                           name="password" autocomplete="current-password" required>
+                    @error('password', 'remocao')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn ghost" type="button" data-remover-close>Cancelar</button>
+                <button class="btn-danger" type="submit">Remover</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 {{-- ============================ MODAL: LANÇAR DESPESA ============================ --}}
 {{-- Único form que valida nesta tela é o de lançar despesa → o bag padrão já o identifica. --}}

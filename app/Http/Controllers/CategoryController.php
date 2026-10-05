@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\RespondsToAjax;
 use App\Http\Requests\StoreCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
+use App\Models\Atividade;
 use App\Models\Category;
 use App\Models\FixedBill;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -115,6 +116,12 @@ class CategoryController extends Controller
                 Category::where('user_id', $ownerId)
                     ->where('id', $id)
                     ->update(['position' => $posicao++]);
+            }
+
+            // Update em massa não dispara o evento do registro de atividade: uma linha
+            // só pela reordenação inteira, na mesma transação.
+            if ($posicao > 0) {
+                Atividade::registrar('categoria.reordenada', 'reorganizou a ordem das categorias', $ownerId);
             }
         });
 

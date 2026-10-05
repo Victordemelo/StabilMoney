@@ -4,15 +4,18 @@ namespace App\Services;
 
 use App\Exceptions\RequiresFundingChoice;
 use App\Models\Account;
+use App\Models\Atividade;
 use App\Models\GoalContribution;
 use App\Models\Investment;
 use App\Models\InvestmentContribution;
 use App\Models\Transaction;
+use App\Support\Atividades\Descritor;
 use App\Support\Brl;
 use App\Support\FundingSource;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Database\DetectsConcurrencyErrors;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -447,8 +450,48 @@ class FundingService
         // Hoje só o investimento é oferecido como fonte, mas a coluna existe nos
         // dois — deixar a meta de fora criaria o mesmo buraco no dia em que ela
         // virar opção de fonte.
-        return InvestmentContribution::whereIn('transaction_id', $ids)->delete()
+        $desfeitos = InvestmentContribution::whereIn('transaction_id', $ids)->delete()
             + GoalContribution::whereIn('transaction_id', $ids)->delete();
+
+        if ($desfeitos > 0) {
+            $this->registrarResgatesDesfeitos($ids);
+        }
+
+        return $desfeitos;
+    }
+
+    /**
+     * O delete em massa do `estornarFonte` não dispara o evento do registro de atividade:
+     * cada resgate desfeito vira uma linha aqui, na MESMA transação (se a exclusão da
+     * despesa for desfeita, a linha some junto).
+     *
+     * Lê da DESPESA, e DEPOIS do delete: o `funding_amount` dela é o valor exato do resgate
+     * (ver `comResgate`), e quem chama sempre estorna antes de apagar ou zerar a despesa.
+     * Uma leitura antes do delete ficaria entre as travas das contas e o estorno — a
+     * sequência que o EdicaoNeutraPreservaResgateTest confere.
+     *
+     * @param  Collection<int, int>  $ids
+     */
+    private function registrarResgatesDesfeitos(Collection $ids): void
+    {
+        if (! Atividade::registrando()) {
+            return;
+        }
+
+        $despesas = Transaction::whereIn('id', $ids)
+            ->where('funding_source', FundingSource::RESGATE_INVESTIMENTO)
+            ->get(['id', 'user_id', 'account_id', 'category_id', 'description', 'funding_amount']);
+
+        foreach ($despesas as $despesa) {
+            Atividade::registrar(
+                'resgate.desfeito',
+                'desfez o resgate de '.Brl::format($despesa->funding_amount).' que cobria a despesa '
+                    .Descritor::q(Descritor::nomeDaTransacao($despesa)).' em '.Descritor::rotuloDaConta($despesa->account_id)
+                    .': o dinheiro voltou para o investimento',
+                (int) $despesa->user_id,
+                $despesa,
+            );
+        }
     }
 
     /**

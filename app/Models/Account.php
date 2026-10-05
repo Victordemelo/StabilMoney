@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\EscopoDaFamiliaNaRota;
+use App\Models\Concerns\RegistraAtividade;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -18,7 +19,7 @@ use Illuminate\Support\Str;
 class Account extends Model
 {
     // Na URL, conta de outra família responde como conta que não existe (ver o trait).
-    use EscopoDaFamiliaNaRota, HasFactory;
+    use EscopoDaFamiliaNaRota, HasFactory, RegistraAtividade;
 
     protected $fillable = [
         'user_id',

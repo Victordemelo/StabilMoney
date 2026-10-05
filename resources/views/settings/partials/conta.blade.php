@@ -128,6 +128,45 @@
     @include('profile.partials.delete-user-form')
 </div>
 
+{{-- Instalar o app (PWA) — o mesmo botão da tela de login. --}}
+<div class="card sec-card span12">
+    <div class="card-head">
+        <h3>Aplicativo no celular</h3>
+        <span class="chip">PWA</span>
+    </div>
+    <p class="sec-card-desc">
+        Instale o Stabil Money na tela inicial: abre como um aplicativo e deixa lançar sem internet
+        (os lançamentos sincronizam quando a conexão volta).
+    </p>
+    @include('partials.instalar-app')
+</div>
+
+{{-- Relógio da topbar: o fuso é só de EXIBIÇÃO. Preferência como o tema — sem senha. --}}
+<div class="card sec-card span12" id="relogio">
+    <div class="card-head">
+        <h3>Relógio</h3>
+        <span class="chip">Exibição</span>
+    </div>
+    <p class="sec-card-desc">
+        A hora no topo da tela. O fuso não muda as datas dos lançamentos, das faturas e das
+        contas fixas — essas seguem o horário de Brasília.
+    </p>
+    <form method="POST" action="{{ route('settings.relogio') }}" class="relogio-form">
+        @csrf
+        @method('PATCH')
+        <div class="field">
+            <label for="timezone">Fuso do relógio</label>
+            <select class="input @error('timezone') input-error @enderror" id="timezone" name="timezone">
+                @foreach (\App\Models\User::FUSOS as $valor => $rotulo)
+                    <option value="{{ $valor }}" @selected($user->fusoDoRelogio() === $valor)>{{ $rotulo }} ({{ now($valor)->format('H:i') }})</option>
+                @endforeach
+            </select>
+            @error('timezone')<div class="field-error">{{ $message }}</div>@enderror
+        </div>
+        <button class="btn-primary" type="submit">Salvar</button>
+    </form>
+</div>
+
 {{-- FORA do card: a `.card` tem overflow:hidden + animação com transform, e isso
      prende um `position: fixed` filho. Ver o cabeçalho do partial. --}}
 @include('profile.partials.delete-user-modal')

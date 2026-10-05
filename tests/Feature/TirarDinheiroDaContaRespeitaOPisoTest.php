@@ -228,7 +228,7 @@ class TirarDinheiroDaContaRespeitaOPisoTest extends TestCase
         $salario = $this->receita($conta, '1.000,00');
         $this->despesa($conta, '900,00');
 
-        $this->erro($this->from(route('faturas.index'))->delete(route('faturas.compra.destroy', $salario)));
+        $this->erro($this->from(route('faturas.index'))->delete(route('faturas.compra.destroy', $salario), ['password' => 'password']));
 
         $this->assertNoPiso($conta);
         $this->assertNotNull($salario->fresh());
@@ -285,7 +285,7 @@ class TirarDinheiroDaContaRespeitaOPisoTest extends TestCase
     {
         [$conta, $paga] = $this->despesaCujoResgateCobriuOVermelho();
 
-        $this->erro($this->from(route('faturas.index'))->delete(route('faturas.compra.destroy', $paga)));
+        $this->erro($this->from(route('faturas.index'))->delete(route('faturas.compra.destroy', $paga), ['password' => 'password']));
 
         $this->assertNoPiso($conta);
         $this->assertNotNull($paga->fresh());

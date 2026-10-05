@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\AlertaDeSeguranca;
+use App\Models\Atividade;
 use App\Support\BrowserSessions;
 use App\Support\ContextoDeSeguranca;
 use App\Support\Notificador;
@@ -49,6 +50,10 @@ class SecurityController extends Controller
         $user->setRememberToken(Str::random(60));
         $user->save();
 
+        // "Encerrar" também tira a confiança de todo aparelho marcado no 2FA — inclusive a
+        // deste: um navegador que o invasor marcou como confiável voltaria pulando o código.
+        $user->revogarAparelhosConfiaveis();
+
         // Regrava o hash da senha (com a mesma senha) e devolve a este aparelho o cookie
         // de "lembrar de mim" com o token novo, se ele tinha um.
         Auth::logoutOtherDevices($request->input('password'));
@@ -57,6 +62,14 @@ class SecurityController extends Controller
         $encerradas = BrowserSessions::purgeForUser(
             $user->getAuthIdentifier(),
             exceptSessionId: $request->session()->getId(),
+        );
+
+        Atividade::registrar(
+            'sessoes.encerradas',
+            'encerrou as sessões dos outros aparelhos ('.$encerradas.' '
+                .($encerradas === 1 ? 'aparelho desconectado' : 'aparelhos desconectados').')',
+            $user->ownerId(),
+            $user,
         );
 
         // Avisa quantos aparelhos caíram. Serve para os dois lados: confirma ao dono que

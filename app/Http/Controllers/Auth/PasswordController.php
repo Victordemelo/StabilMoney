@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Mail\AlertaDeSeguranca;
+use App\Models\Atividade;
 use App\Support\BrowserSessions;
 use App\Support\ContextoDeSeguranca;
 use App\Support\Notificador;
@@ -60,6 +61,11 @@ class PasswordController extends Controller
         $user->setRememberToken(Str::random(60));
         $user->save();
 
+        // E todo aparelho marcado como confiável no 2FA volta a pedir o código. O hash novo
+        // da senha já derrubaria a confiança (ele entra na assinatura do cookie); a versão
+        // deixa a revogação explícita, sem depender disso (App\Support\AparelhoConfiavel).
+        $user->revogarAparelhosConfiaveis();
+
         // Trocar a senha PRECISA desconectar os outros dispositivos: é a ação que a
         // pessoa toma justamente ao suspeitar de invasão, e sem isto o invasor com o
         // cookie continuava logado. `logoutOtherDevices` regrava o hash da senha (que só
@@ -70,6 +76,13 @@ class PasswordController extends Controller
         BrowserSessions::purgeForUser(
             $user->getKey(),
             exceptSessionId: $request->session()->getId(),
+        );
+
+        Atividade::registrar(
+            'senha.trocada',
+            'trocou a senha (os outros aparelhos foram desconectados)',
+            $user->ownerId(),
+            $user,
         );
 
         // Derrubar as outras sessões protege contra quem NÃO tem a senha. Este aviso

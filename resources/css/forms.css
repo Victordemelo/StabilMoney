@@ -595,6 +595,15 @@ a.tx { text-decoration: none; color: inherit; }
 .sess-logout-trigger.tfa-trigger:hover { background: var(--brand-50); border-color: var(--brand-300); }
 [data-theme="dark"] .sess-logout-trigger.tfa-trigger:hover { background: rgba(28,154,112,.1); }
 .tfa-acao .sess-logout-form { max-width: 420px; }
+/* "Este aparelho" — se é confiável no 2FA e até quando. */
+.tfa-confiavel {
+  display: flex; align-items: flex-start; gap: 12px; margin-top: 16px; padding: 12px 14px;
+  border: 1px solid var(--line-2); border-radius: 12px;
+}
+.tfa-confiavel svg { width: 18px; height: 18px; flex: none; stroke-width: 1.8; color: var(--brand-600); margin-top: 1px; }
+.tfa-confiavel > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tfa-confiavel strong { font-size: 13px; font-weight: 600; color: var(--ink); }
+.tfa-confiavel span { font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
 
 /* ============================================================
    Metas (objetivos de poupança) — portado do design v2 (styles.css .meta-*)
@@ -939,3 +948,36 @@ a.tx { text-decoration: none; color: inherit; }
   display: grid; place-items: center; color: #fff; font: 700 12px/1 var(--font-head);
   background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
 }
+
+/* Contas a pagar (out/2026): cada cartão é um <details> recolhível — o cabeçalho é o
+   <summary>, e a seta gira ao abrir. */
+.fatura-recolhe > summary { list-style: none; cursor: pointer; border-radius: 12px; }
+.fatura-recolhe > summary::-webkit-details-marker { display: none; }
+.fatura-recolhe > summary:focus-visible { outline: 2px solid var(--brand-300); outline-offset: 4px; }
+.fh-chev { width: 20px; height: 20px; flex: none; color: var(--ink-3); stroke-width: 2; transition: transform .2s var(--ease); }
+.fatura-recolhe[open] .fh-chev { transform: rotate(180deg); }
+.fatura-corpo { margin-top: 16px; }
+.fh-vencida { font-style: normal; font-weight: 700; color: var(--neg); margin-left: 6px; text-transform: lowercase; }
+
+/* ----- Configurações › Atividade (registro de quem mexeu em quê — out/2026) ----- */
+/* Mesmo vocabulário da lista de sessões (`.sess-*`), mas a frase QUEBRA linha: ela é o
+   conteúdo, e cortá-la com reticências esconderia justamente o valor ou o nome que importa. */
+.atv-lista { list-style: none; margin: 0; padding: 0; }
+.atv-item { display: flex; align-items: flex-start; gap: 13px; padding: 13px 2px; border-bottom: 1px solid var(--line-2); }
+.atv-item:last-child { border-bottom: none; }
+.atv-ico {
+  width: 38px; height: 38px; border-radius: 12px; flex: none; display: grid; place-items: center;
+  background: var(--surface-3); color: var(--ink-2);
+}
+.atv-ico svg { width: 19px; height: 19px; stroke-width: 1.8; }
+.atv-ico.g-dinheiro { background: var(--brand-50); color: var(--brand-600); }
+.atv-ico.g-acesso { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--ink-2); }
+[data-theme="dark"] .atv-ico.g-dinheiro { background: rgba(28,154,112,.14); color: var(--brand-300); }
+.atv-txt { min-width: 0; flex: 1; }
+.atv-frase { font-size: 13.5px; font-weight: 500; color: var(--ink); line-height: 1.5; overflow-wrap: anywhere; }
+.atv-meta { margin-top: 3px; font-size: 12px; color: var(--ink-3); display: flex; flex-wrap: wrap; gap: 2px 10px; }
+.atv-mudancas { list-style: none; margin: 6px 0 0; padding: 7px 10px; border-radius: var(--r-xs); background: var(--surface-2); }
+.atv-mudancas li { font-size: 12px; color: var(--ink-2); line-height: 1.55; overflow-wrap: anywhere; }
+.atv-mudancas li strong { font-weight: 600; color: var(--ink); }
+.atv-mudancas .de { text-decoration: line-through; color: var(--ink-3); }
+.atv-rodape { margin-top: 12px; font-size: 12px; color: var(--ink-3); line-height: 1.5; }

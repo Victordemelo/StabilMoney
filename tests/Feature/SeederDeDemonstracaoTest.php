@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\Atividade;
 use App\Models\FixedBill;
 use App\Models\Goal;
 use App\Models\Investment;
@@ -183,6 +184,16 @@ class SeederDeDemonstracaoTest extends TestCase
         // estouraria a constraint.
         $this->assertSame(1, $parcelas->whereNotNull('client_uuid')->count());
         $this->assertNotNull($parcelas->first()->client_uuid);
+    }
+
+    /**
+     * Seis meses de histórico de mentira não podem virar milhares de linhas em
+     * Configurações › Atividade: ninguém fez aquilo (`Atividade::semRegistrar`).
+     */
+    public function test_o_seeder_nao_enche_o_registro_de_atividade(): void
+    {
+        $this->assertGreaterThan(50, Transaction::where('user_id', $this->titular->id)->count());
+        $this->assertSame(0, Atividade::count());
     }
 
     public function test_rodar_de_novo_nao_duplica_nada(): void

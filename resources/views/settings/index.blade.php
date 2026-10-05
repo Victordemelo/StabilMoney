@@ -6,7 +6,7 @@
 <section class="view settings-view">
     <div class="section-head">
         <h2>Configurações</h2>
-        <span class="sub">Segurança e conta</span>
+        <span class="sub">Segurança, conta e atividade</span>
     </div>
 
     {{-- Subabas (pílulas, server-routed) --}}
@@ -27,6 +27,8 @@
             @include('settings.partials.two-factor')
         @elseif ($tab === 'conta')
             @include('settings.partials.conta')
+        @elseif ($tab === 'atividade')
+            @include('settings.partials.atividade')
         @endif
     </div>
 </section>

@@ -307,7 +307,7 @@ class FaturaCobertaPeloEstornoTest extends TestCase
 
         // As três portas recusam — apontando o caminho que EXISTE.
         $pelasFaturas = $this->erro($this->actingAs($this->user)->from(route('faturas.index'))
-            ->delete(route('faturas.compra.destroy', $compra)));
+            ->delete(route('faturas.compra.destroy', $compra), ['password' => 'password']));
         $peloHistorico = $this->erro($this->actingAs($this->user)->from(route('transactions.index'))
             ->delete(route('transactions.destroy', $compra)));
         $editando = $this->erro($this->actingAs($this->user)->from(route('transactions.index'))
@@ -339,7 +339,7 @@ class FaturaCobertaPeloEstornoTest extends TestCase
 
         // Agora a compra sai — e o estorno fica, como CRÉDITO para a próxima fatura.
         $this->actingAs($this->user)->from(route('faturas.index'))
-            ->delete(route('faturas.compra.destroy', $compra))
+            ->delete(route('faturas.compra.destroy', $compra), ['password' => 'password'])
             ->assertSessionHasNoErrors();
 
         $this->assertNull($compra->fresh());
@@ -364,7 +364,7 @@ class FaturaCobertaPeloEstornoTest extends TestCase
         $this->quitarPeloCredito()->assertSessionHasNoErrors();
 
         $mensagem = $this->erro($this->actingAs($this->user)->from(route('faturas.index'))
-            ->delete(route('faturas.compra.destroy', $estorno)));
+            ->delete(route('faturas.compra.destroy', $estorno), ['password' => 'password']));
 
         $this->assertStringContainsString('Este estorno', $mensagem);
         $this->assertStringContainsString('não pode ser excluído', $mensagem);
