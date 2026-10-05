@@ -19,7 +19,7 @@
 
     <div class="acct-info">
         <div class="acct-info-top">
-            <span class="acct-name">{{ $conta->name }}</span>
+            <span class="acct-name" title="{{ $conta->name }}">{{ $conta->name }}</span>
             <span class="acct-type">{{ $conta->typeLabel() }}{{ $conta->bankLabel() ? ' · ' . $conta->bankLabel() : '' }}</span>
         </div>
 
@@ -45,16 +45,16 @@
             @else
                 <div class="acct-balance">@brl(0) <span class="acct-balance-lbl">sem conta vinculada</span></div>
             @endif
-        @elseif ($conta->isPix())
-            {{-- Pix espelha UMA conta (a chave vive numa conta só), então
-                 mostra a origem em vez de somar corrente + poupança. --}}
+        @elseif ($conta->usaUmaContaSo())
+            {{-- Pix e TED espelham UMA conta, então mostram a origem em vez de
+                 somar corrente + poupança. --}}
             @php
                 $origem = $conta->contaDoPix();
             @endphp
             @if ($origem)
                 <div class="acct-sub"><span>Sai de <b>{{ $origem->name }}</b></span></div>
             @endif
-            <div class="acct-balance {{ $conta->available < 0 ? 'neg' : '' }}">@brl($conta->available) <span class="acct-balance-lbl">disponível para Pix</span></div>
+            <div class="acct-balance {{ $conta->available < 0 ? 'neg' : '' }}">@brl($conta->available) <span class="acct-balance-lbl">disponível para {{ $conta->isTed() ? 'TED' : 'Pix' }}</span></div>
         @elseif ($conta->isCard())
             <div class="acct-balance">@brl($conta->availableLimitDisplay) <span class="acct-balance-lbl">limite disponível</span></div>
         @else

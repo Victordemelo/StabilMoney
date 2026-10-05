@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\NormalizesMoneyInput;
+use App\Models\Account;
 use App\Models\Category;
 use App\Support\FundingSource;
 use Closure;
@@ -62,7 +63,7 @@ class StoreTransactionRequest extends FormRequest
                     ->where('user_id', $userId)
                     // Métodos ESPELHO (débito e Pix) não têm saldo próprio: os
                     // selects já mandam o id da conta vinculada.
-                    ->whereNotIn('type', ['debit_card', 'pix'])),
+                    ->whereNotIn('type', Account::TIPOS_ESPELHO)),
             ],
             'category_id' => [
                 'nullable',

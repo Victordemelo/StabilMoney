@@ -84,11 +84,11 @@
                 </div>
 
                 <div class="ph-stats">
-                    <div class="ph-stat">
+                    <div class="ph-stat ph-stat-num">
                         <span class="lbl">Pessoas na família</span>
                         <strong>{{ $resumo['pessoasNaFamilia'] }}</strong>
                     </div>
-                    <div class="ph-stat">
+                    <div class="ph-stat ph-stat-num">
                         <span class="lbl">Seus lançamentos no mês</span>
                         <strong>{{ $resumo['lancamentosNoMes'] }}</strong>
                     </div>
@@ -107,82 +107,79 @@
                 </div>
             </div>
 
-            {{-- ---------- Identidade ---------- --}}
-            <div class="card sec-card span6">
+            {{-- ---------- Seus dados: identidade + contato num card só, um Salvar (out/2026) ----------
+                 Grade com ÁREAS: no desktop cada linha casa um campo de cada lado (Nome ↔ E-mail,
+                 Nascimento/Sexo ↔ Telefone), então os campos ficam alinhados mesmo com textos de
+                 tamanhos diferentes; no celular as áreas empilham por assunto. --}}
+            <div class="card sec-card span12 perfil-dados-card">
                 <div class="card-head">
-                    <h3>Quem é você</h3>
+                    <h3>Seus dados</h3>
                     <span class="chip">{{ $user->isTitular() ? 'Titular' : 'Dependente' }}</span>
                 </div>
 
-                <p class="sec-card-desc">
-                    O nome aparece para a família nos lançamentos que você faz. Nascimento e sexo
-                    são opcionais e ficam só no seu perfil.
-                </p>
-
-                <div class="field">
-                    <label for="name">Nome</label>
-                    <input class="input @error('name') input-error @enderror" type="text" id="name" name="name"
-                           value="{{ old('name', $user->name) }}" required autocomplete="name">
-                    @error('name')<div class="field-error">{{ $message }}</div>@enderror
-                </div>
-
-                <div class="form-row">
-                    <div class="field">
-                        <label for="birth_date">Data de nascimento <span class="hint">(opcional)</span></label>
-                        <input class="input @error('birth_date') input-error @enderror" type="date" id="birth_date"
-                               name="birth_date" value="{{ $nascimento }}"
-                               max="{{ now()->toDateString() }}" min="1900-01-01" autocomplete="bday">
-                        @error('birth_date')<div class="field-error">{{ $message }}</div>@enderror
+                <div class="perfil-dados">
+                    <div class="pd-sec pd-quem">
+                        <h4>Quem é você</h4>
+                        <p class="sec-card-desc">O nome aparece para a família nos seus lançamentos. Nascimento e sexo são opcionais e ficam só no seu perfil.</p>
+                    </div>
+                    <div class="pd-sec pd-contato">
+                        <h4>Como falamos com você</h4>
+                        <p class="sec-card-desc">O e-mail é o que recupera sua conta — por isso trocá-lo pede a senha atual.</p>
                     </div>
 
-                    <div class="field">
-                        <label for="gender">Sexo <span class="hint">(opcional)</span></label>
-                        <select class="input @error('gender') input-error @enderror" id="gender" name="gender">
-                            <option value="">Selecione</option>
-                            @foreach (\App\Models\User::GENEROS as $valor => $rotulo)
-                                <option value="{{ $valor }}" @selected($sexo === $valor)>{{ $rotulo }}</option>
-                            @endforeach
-                        </select>
-                        @error('gender')<div class="field-error">{{ $message }}</div>@enderror
+                    <div class="field pd-nome">
+                        <label for="name">Nome</label>
+                        <input class="input @error('name') input-error @enderror" type="text" id="name" name="name"
+                               value="{{ old('name', $user->name) }}" required autocomplete="name">
+                        @error('name')<div class="field-error">{{ $message }}</div>@enderror
                     </div>
-                </div>
-            </div>
 
-            {{-- ---------- Contato ---------- --}}
-            <div class="card sec-card span6">
-                <div class="card-head">
-                    <h3>Como falamos com você</h3>
-                    <span class="chip">Contato</span>
-                </div>
+                    <div class="field pd-email">
+                        <label for="email">E-mail</label>
+                        <input class="input @error('email') input-error @enderror" type="email" id="email" name="email"
+                               value="{{ old('email', $user->email) }}" required autocomplete="email" inputmode="email">
+                        @error('email')<div class="field-error">{{ $message }}</div>@enderror
+                    </div>
 
-                <p class="sec-card-desc">
-                    O e-mail é o que recupera sua conta — por isso trocá-lo pede a senha atual.
-                </p>
+                    <div class="form-row pd-nasc">
+                        <div class="field">
+                            <label for="birth_date">Data de nascimento <span class="hint">(opcional)</span></label>
+                            <input class="input @error('birth_date') input-error @enderror" type="date" id="birth_date"
+                                   name="birth_date" value="{{ $nascimento }}"
+                                   max="{{ now()->toDateString() }}" min="1900-01-01" autocomplete="bday">
+                            @error('birth_date')<div class="field-error">{{ $message }}</div>@enderror
+                        </div>
 
-                <div class="field">
-                    <label for="email">E-mail</label>
-                    <input class="input @error('email') input-error @enderror" type="email" id="email" name="email"
-                           value="{{ old('email', $user->email) }}" required autocomplete="email" inputmode="email">
-                    @error('email')<div class="field-error">{{ $message }}</div>@enderror
-                </div>
+                        <div class="field">
+                            <label for="gender">Sexo <span class="hint">(opcional)</span></label>
+                            <select class="input @error('gender') input-error @enderror" id="gender" name="gender">
+                                <option value="">Selecione</option>
+                                @foreach (\App\Models\User::GENEROS as $valor => $rotulo)
+                                    <option value="{{ $valor }}" @selected($sexo === $valor)>{{ $rotulo }}</option>
+                                @endforeach
+                            </select>
+                            @error('gender')<div class="field-error">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
 
-                <div class="field">
-                    <label for="phone">Telefone <span class="hint">(opcional)</span></label>
-                    <input class="input @error('phone') input-error @enderror" type="tel" id="phone" name="phone"
-                           value="{{ old('phone', $user->phone) }}" placeholder="(11) 90000-0000" autocomplete="tel">
-                    @error('phone')<div class="field-error">{{ $message }}</div>@enderror
-                </div>
+                    <div class="field pd-tel">
+                        <label for="phone">Telefone <span class="hint">(opcional)</span></label>
+                        <input class="input @error('phone') input-error @enderror" type="tel" id="phone" name="phone"
+                               value="{{ old('phone', $user->phone) }}" placeholder="(11) 90000-0000" autocomplete="tel">
+                        @error('phone')<div class="field-error">{{ $message }}</div>@enderror
+                    </div>
 
-                {{-- Senha atual: exigida SÓ quando o e-mail muda (ProfileUpdateRequest).
-                     O campo aparece assim que o e-mail é editado — pedir de saída, para
-                     quem só quer trocar o telefone, seria pedágio à toa. --}}
-                <div class="field" id="campoSenhaAtual" @if (! $errors->has('current_password')) hidden @endif>
-                    <label for="current_password">Senha atual</label>
-                    <input class="input @error('current_password') input-error @enderror" type="password"
-                           id="current_password" name="current_password" autocomplete="current-password"
-                           placeholder="Confirme com a sua senha">
-                    @error('current_password')<div class="field-error">{{ $message }}</div>@enderror
-                    <span class="hint">Só para confirmar a troca de e-mail.</span>
+                    {{-- Senha atual: exigida SÓ quando o e-mail muda (ProfileUpdateRequest).
+                         O campo aparece assim que o e-mail é editado — pedir de saída, para
+                         quem só quer trocar o telefone, seria pedágio à toa. --}}
+                    <div class="field pd-senha" id="campoSenhaAtual" @if (! $errors->has('current_password')) hidden @endif>
+                        <label for="current_password">Senha atual</label>
+                        <input class="input @error('current_password') input-error @enderror" type="password"
+                               id="current_password" name="current_password" autocomplete="current-password"
+                               placeholder="Confirme com a sua senha">
+                        @error('current_password')<div class="field-error">{{ $message }}</div>@enderror
+                        <span class="hint">Só para confirmar a troca de e-mail.</span>
+                    </div>
                 </div>
 
                 <div class="perfil-acoes">

@@ -117,7 +117,11 @@ class UpdateAccountRequest extends StoreAccountRequest
                 return;
             }
 
-            $metodo = $this->input('type') === 'pix' ? 'Pix' : 'cartão de débito';
+            $metodo = match ($this->input('type')) {
+                'pix' => 'Pix',
+                'ted' => 'TED',
+                default => 'cartão de débito',
+            };
 
             $fail('Um '.$metodo.' não tem saldo próprio: ele tira o dinheiro de OUTRA conta. '
                 .'Escolha a conta corrente ou poupança de onde o dinheiro sai — não dá para vinculá-lo '

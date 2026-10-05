@@ -71,7 +71,7 @@ class StoreFaturaLaunchRequest extends FormRequest
                     ->where('user_id', $userId)
                     // Métodos ESPELHO (débito e Pix) não têm saldo próprio: os
                     // selects já mandam o id da conta vinculada.
-                    ->whereNotIn('type', ['debit_card', 'pix'])),
+                    ->whereNotIn('type', Account::TIPOS_ESPELHO)),
             ],
             // De onde sai o dinheiro quando o disponível não cobre (o
             // FundingService responde 409 pedindo a escolha).

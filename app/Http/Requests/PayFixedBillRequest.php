@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\NormalizesMoneyInput;
+use App\Models\Account;
 use App\Models\FixedBill;
 use App\Services\FixedBillService;
 use App\Support\Brl;
@@ -93,7 +94,7 @@ class PayFixedBillRequest extends FormRequest
                     ->where('user_id', $ownerId)
                     // Métodos ESPELHO (débito e Pix) não têm saldo próprio: os
                     // selects já mandam o id da conta vinculada.
-                    ->whereNotIn('type', ['debit_card', 'pix'])),
+                    ->whereNotIn('type', Account::TIPOS_ESPELHO)),
             ],
             // `decimal:0,2` é o que barra "1e12" — `numeric` o aceita. (Já "800.123"
             // é OITOCENTOS MIL: ponto + 3 dígitos é separador de milhar no pt-BR;

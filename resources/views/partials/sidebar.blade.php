@@ -29,12 +29,6 @@
         <span class="brand-name">Stabil<b>Money</b></span>
     </div>
 
-    {{-- Atalho principal: lançar é o que mais se faz no app, e ficava só na topbar. --}}
-    <button class="side-lancar" type="button" data-launch-open>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
-        <span class="nav-label">Novo lançamento</span>
-    </button>
-
     {{-- Menu por INTENÇÃO (out/2026): "onde eu pago?" e "onde eu cadastro?" têm resposta
          no próprio menu — cada item diz em uma linha para que serve. --}}
     <div class="nav-group-label">Início</div>

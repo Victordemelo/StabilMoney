@@ -33,7 +33,7 @@ class SidebarService
         // Precisa ser a MESMA lista do DashboardService — quando a sidebar
         // excluía só o crédito, os dois totais divergiam na mesma tela.
         $cardIds = Account::where('user_id', $userId)
-            ->whereIn('type', ['credit_card', 'debit_card', 'pix'])
+            ->whereIn('type', ['credit_card', ...Account::TIPOS_ESPELHO])
             ->pluck('id')
             ->all();
 

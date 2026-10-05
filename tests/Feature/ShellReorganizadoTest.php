@@ -31,7 +31,9 @@ class ShellReorganizadoTest extends TestCase
         $this->assertMatchesRegularExpression('#Início.*Dia a dia.*Planejamento.*Cadastros#s', $html);
         $this->assertStringContainsString('<span class="nav-desc">Pague faturas e contas</span>', $html);
         $this->assertStringContainsString('<span class="nav-desc">Bancos, cartões e Pix</span>', $html);
-        $this->assertStringContainsString('class="side-lancar" type="button" data-launch-open', $html);
+        // O "Novo lançamento" saiu da sidebar (out/2026): o "+" da topbar já está em toda tela.
+        $this->assertStringNotContainsString('side-lancar', $html);
+        $this->assertStringContainsString('data-launch-open', $html);
         // Aluguel venceu dia 5: o item "Contas a pagar" mostra 1 vencida.
         $this->assertMatchesRegularExpression('#id="navContasAPagar" data-pjax-atualizar><span class="badge late" title="Contas vencidas">1</span>#', $html);
     }
@@ -76,7 +78,7 @@ class ShellReorganizadoTest extends TestCase
         $html = $this->actingAs($user)->get(route('accounts.index'))->assertOk()->getContent();
 
         $this->assertMatchesRegularExpression('#>Contas <span class="acct-grupo-n">2</span>.*>Cartões de crédito <span class="acct-grupo-n">2</span>.*>Cartões de débito <span class="acct-grupo-n">1</span>#s', $html);
-        $this->assertStringNotContainsString('>Pix <span', $html, 'Grupo vazio não aparece.');
+        $this->assertStringNotContainsString('>Pix e TED <span', $html, 'Grupo vazio não aparece.');
         $this->assertLessThan(strpos($html, 'Zeta Corrente'), strpos($html, 'alfa Poupança'), 'Ordem alfabética sem diferenciar maiúscula.');
         $this->assertLessThan(strpos($html, 'Roxinho'), strpos($html, 'Azul'));
     }

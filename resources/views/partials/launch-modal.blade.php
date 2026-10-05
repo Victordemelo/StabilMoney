@@ -97,20 +97,26 @@
                     <div class="form-row">
                         <div class="field">
                             <label for="lm-account" data-lm-account-label>Onde</label>
-                            {{-- data-card marca os cartões de crédito: em RECEITA eles somem
-                                 do select (não se recebe dinheiro num cartão de crédito). --}}
+                            {{-- Agrupado por o que cada lançamento aceita (`Account::gruposDeLancamento`):
+                                 receita e transferência só em conta de banco; despesa só por um
+                                 método (crédito, débito, Pix, TED). O launch.js esconde os grupos
+                                 cujo `data-para` não inclui o tipo escolhido. --}}
                             <select class="input" id="lm-account" name="account_id" required>
-                                @foreach ($lmAccounts as $conta)
-                                    {{-- $lmAccounts vem de Account::paymentOptions() e é Fluent:
-                                         `isCard` é PROPRIEDADE, não método. Chamar isCard() aqui
-                                         cairia no __call do Fluent, que devolve $this (truthy) e
-                                         marcaria TODA conta como cartão. --}}
-                                    {{-- data-cash: só corrente/poupança podem ser origem de transferência. --}}
-                                    <option value="{{ $conta->id }}" data-card="{{ $conta->isCard ? '1' : '0' }}"
-                                            data-cash="{{ in_array($conta->type, ['checking', 'savings'], true) ? '1' : '0' }}"
-                                            data-saldo="{{ \App\Support\Brl::format($conta->saldo ?? 0) }}"
-                                            data-saldo-rotulo="{{ $conta->saldoRotulo ?? 'disponível' }}"
-                                            data-negativo="{{ ($conta->saldo ?? 0) < 0 ? '1' : '0' }}">{{ $conta->rotulo ?? $conta->name }}</option>
+                                @foreach (\App\Models\Account::gruposDeLancamento($lmAccounts) as $grupo)
+                                    <optgroup label="{{ $grupo['rotulo'] }}" data-para="{{ $grupo['para'] }}">
+                                        @foreach ($grupo['opcoes'] as $conta)
+                                            {{-- $lmAccounts vem de Account::paymentOptions() e é Fluent:
+                                                 `isCard` é PROPRIEDADE, não método. Chamar isCard() aqui
+                                                 cairia no __call do Fluent, que devolve $this (truthy) e
+                                                 marcaria TODA conta como cartão. --}}
+                                            <option value="{{ $conta->id }}" data-para="{{ $grupo['para'] }}"
+                                                    data-card="{{ $conta->isCard ? '1' : '0' }}"
+                                                    data-cash="{{ in_array($conta->type, ['checking', 'savings'], true) ? '1' : '0' }}"
+                                                    data-saldo="{{ \App\Support\Brl::format($conta->saldo ?? 0) }}"
+                                                    data-saldo-rotulo="{{ $conta->saldoRotulo ?? 'disponível' }}"
+                                                    data-negativo="{{ ($conta->saldo ?? 0) < 0 ? '1' : '0' }}">{{ $conta->rotulo ?? $conta->name }}</option>
+                                        @endforeach
+                                    </optgroup>
                                 @endforeach
                             </select>
                             {{-- Quanto ainda dá para gastar por este método, atualizado ao

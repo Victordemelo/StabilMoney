@@ -184,6 +184,15 @@ export function initLaunch() {
         const marcado = form.querySelector('input[name="type"]:checked');
         const opt = contaSel.selectedOptions[0];
 
+        // Despesa sem método nenhum cadastrado: a linha explica o que falta, em vez de um
+        // select vazio sem motivo.
+        if ((!opt || opt.disabled) && marcado && marcado.value === 'expense') {
+            alvo.classList.remove('reservado', 'neg');
+            alvo.textContent = 'Para lançar uma despesa, cadastre um cartão, Pix ou TED em Contas e cartões.';
+            alvo.hidden = false;
+            return;
+        }
+
         if (!opt || (marcado && marcado.value === 'income')) {
             // A linha some, mas o ESPAÇO fica: sem ele o modal mudava de altura a cada
             // troca de tipo (receita × despesa × transferência) e a rolagem ia e vinha.
@@ -219,23 +228,31 @@ export function initLaunch() {
             });
         }
 
-        // RECEITA não entra em cartão de crédito — some as opções de cartão e,
-        // se uma delas estava escolhida, cai na primeira conta válida.
-        // TRANSFERÊNCIA só sai de conta de CAIXA (corrente/poupança): cartões e
-        // métodos espelho (débito/Pix) somem do "De".
+        // Cada opção diz para quais tipos vale (`data-para`, de Account::gruposDeLancamento):
+        // RECEITA e TRANSFERÊNCIA só em conta de banco; DESPESA só por um método (crédito,
+        // débito, Pix, TED). Sem `data-para` (marcação antiga), vale a regra de antes: cartão
+        // não recebe receita e transferência só sai de conta de caixa.
         if (contaSel) {
             let trocar = false;
             contaSel.querySelectorAll('option').forEach((opt) => {
-                const soDespesa = opt.dataset.card === '1' && tipo === 'income';
-                const naoEhCaixa = tipo === 'transfer' && opt.dataset.cash !== '1';
-                const fora = soDespesa || naoEhCaixa;
+                const fora = opt.dataset.para !== undefined
+                    ? !opt.dataset.para.split(' ').includes(tipo)
+                    : (opt.dataset.card === '1' && tipo === 'income')
+                        || (tipo === 'transfer' && opt.dataset.cash !== '1');
                 opt.hidden = fora;
                 opt.disabled = fora;
                 if (fora && opt.selected) trocar = true;
             });
-            if (trocar) {
+            contaSel.querySelectorAll('optgroup[data-para]').forEach((g) => {
+                g.hidden = !g.dataset.para.split(' ').includes(tipo);
+            });
+            if (trocar || !contaSel.selectedOptions[0] || contaSel.selectedOptions[0].disabled) {
+                // `selected` na OPÇÃO, nunca `contaSel.value = …`: Pix e débito submetem o id da
+                // conta que espelham, então o mesmo valor aparece em mais de uma opção — e o
+                // setter de `value` marcaria a primeira, que pode ser a desabilitada.
                 const valida = Array.from(contaSel.options).find((o) => !o.disabled);
-                if (valida) contaSel.value = valida.value;
+                if (valida) valida.selected = true;
+                else contaSel.selectedIndex = -1;
             }
         }
 
@@ -254,7 +271,10 @@ export function initLaunch() {
         foraTransfer.forEach((el) => { el.hidden = ligado; });
         if (destinoSel) destinoSel.disabled = !ligado;
         if (select) select.disabled = ligado;
-        if (rotuloConta) rotuloConta.textContent = ligado ? 'De' : 'Onde';
+        if (rotuloConta) {
+            const tipo = form.dataset.type;
+            rotuloConta.textContent = ligado ? 'De' : (tipo === 'expense' ? 'Pagar com' : 'Onde');
+        }
         if (subtitulo) {
             subtitulo.textContent = ligado
                 ? 'Mova dinheiro entre suas contas — não conta como receita nem despesa'

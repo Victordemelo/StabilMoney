@@ -70,6 +70,12 @@ class AccountFactory extends Factory
         ]);
     }
 
+    /** TED: como o Pix, sai de UMA conta (out/2026). */
+    public function ted(?int $contaId = null, string $tipoDaConta = 'checking'): static
+    {
+        return $this->pix($contaId, $tipoDaConta)->state(fn (array $attributes) => ['type' => 'ted']);
+    }
+
     /** Cartão de crédito com limite e dias de fechamento/vencimento. */
     public function creditCard(): static
     {

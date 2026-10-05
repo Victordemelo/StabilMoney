@@ -112,20 +112,26 @@
                 {{-- Conta --}}
                 <div class="field">
                     <label for="account_id" data-tx-account-label>{{ $tipoAtual === 'transfer' ? 'De' : 'Onde' }}</label>
-                    {{-- data-card marca os cartões de crédito: em RECEITA eles somem
-                         do select (não se recebe dinheiro num cartão de crédito).
-                         data-cash marca corrente/poupança: só elas são origem de transferência. --}}
+                    {{-- Agrupado por o que cada lançamento aceita (`Account::gruposDeLancamento`,
+                         a mesma regra do modal "Lançar"): receita e transferência só em conta de
+                         banco; despesa só por um método. Na EDIÇÃO a conta de banco vale também
+                         para despesa: há despesas antigas lançadas direto nela, e o filtro não pode
+                         trocar a conta sozinho (trocar a conta reconcilia o dinheiro). --}}
                     <select class="input @error('account_id') input-error @enderror" id="account_id" name="account_id" required>
-                        @foreach ($accounts as $conta)
-                            {{-- $accounts vem de Account::paymentOptions() e é Fluent:
-                                 `isCard` é PROPRIEDADE. Chamar isCard() cairia no __call
-                                 do Fluent, que devolve $this (truthy) e marcaria TODA
-                                 conta como cartão — em "Receita" o select ficava vazio. --}}
-                            <option value="{{ $conta->id }}" data-card="{{ $conta->isCard ? '1' : '0' }}"
-                                    data-cash="{{ in_array($conta->type, ['checking', 'savings'], true) ? '1' : '0' }}"
-                                    @selected((int) old('account_id', $transaction->account_id ?? 0) === $conta->id)>
-                                {{ $conta->rotulo ?? $conta->name }}
-                            </option>
+                        @foreach (\App\Models\Account::gruposDeLancamento($accounts) as $grupo)
+                            @php $para = $editando && $grupo['para'] === 'income transfer' ? 'income transfer expense' : $grupo['para']; @endphp
+                            <optgroup label="{{ $grupo['rotulo'] }}" data-para="{{ $para }}">
+                                @foreach ($grupo['opcoes'] as $conta)
+                                    {{-- $accounts vem de Account::paymentOptions() e é Fluent:
+                                         `isCard` é PROPRIEDADE. Chamar isCard() cairia no __call
+                                         do Fluent, que devolve $this (truthy) e marcaria TODA
+                                         conta como cartão — em "Receita" o select ficava vazio. --}}
+                                    <option value="{{ $conta->id }}" data-para="{{ $para }}"
+                                            @selected((int) old('account_id', $transaction->account_id ?? 0) === $conta->id)>
+                                        {{ $conta->rotulo ?? $conta->name }}
+                                    </option>
+                                @endforeach
+                            </optgroup>
                         @endforeach
                     </select>
                     @error('account_id')<div class="field-error">{{ $message }}</div>@enderror
@@ -297,23 +303,25 @@
                 });
             }
 
-            // RECEITA não entra em cartão de crédito: some as opções de cartão
-            // e, se uma delas estava escolhida, cai na primeira conta válida.
-            // TRANSFERÊNCIA só sai de conta de CAIXA: cartões e métodos espelho
-            // (débito/Pix) somem do "De".
+            // Cada opção diz para quais tipos vale (`data-para`): receita e transferência só
+            // em conta de banco, despesa só por um método. Se a escolhida ficou de fora, cai na
+            // primeira válida — marcando a OPÇÃO (`selected`), nunca por `value`: Pix e débito
+            // submetem o id da conta que espelham, e o mesmo valor aparece em mais de uma opção.
             if (contaSel) {
                 var trocar = false;
                 contaSel.querySelectorAll('option').forEach(function (opt) {
-                    var soDespesa = opt.dataset.card === '1' && tipo === 'income';
-                    var naoEhCaixa = tipo === 'transfer' && opt.dataset.cash !== '1';
-                    var fora = soDespesa || naoEhCaixa;
+                    var fora = (opt.dataset.para || '').split(' ').indexOf(tipo) === -1;
                     opt.hidden = fora;
                     opt.disabled = fora;
                     if (fora && opt.selected) trocar = true;
                 });
+                contaSel.querySelectorAll('optgroup[data-para]').forEach(function (g) {
+                    g.hidden = g.dataset.para.split(' ').indexOf(tipo) === -1;
+                });
                 if (trocar) {
                     var valida = Array.prototype.find.call(contaSel.options, function (o) { return !o.disabled; });
-                    if (valida) contaSel.value = valida.value;
+                    if (valida) valida.selected = true;
+                    else contaSel.selectedIndex = -1;
                 }
             }
 

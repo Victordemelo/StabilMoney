@@ -119,8 +119,16 @@
             <label for="type-{{ $uid }}">Tipo</label>
             <select class="input @error('type') input-error @enderror" id="type-{{ $uid }}" name="{{ $tipoTravado ? '_type_travado' : 'type' }}"
                     data-type required @disabled($tipoTravado) @if ($tipoTravado) data-type-locked @endif>
-                @foreach ($types as $valor => $rotulo)
-                    <option value="{{ $valor }}" @selected($tipoAtual === $valor)>{{ $rotulo }}</option>
+                {{-- Agrupado (out/2026): o que guarda o dinheiro, os cartões e os métodos
+                     que tiram dinheiro de uma conta. --}}
+                @foreach (\App\Models\Account::GRUPOS_DE_TIPO as $grupo => $valores)
+                    <optgroup label="{{ $grupo }}">
+                        @foreach ($valores as $valor)
+                            @isset($types[$valor])
+                                <option value="{{ $valor }}" @selected($tipoAtual === $valor)>{{ $types[$valor] }}</option>
+                            @endisset
+                        @endforeach
+                    </optgroup>
                 @endforeach
             </select>
             @if ($tipoTravado)
@@ -223,14 +231,19 @@
         @endif
     </div>
 
-    <div data-fields-pix @if ($tipoAtual !== 'pix') hidden @endif>
-        <p class="form-hint">
+    {{-- Pix e TED usam o MESMO bloco (saem de uma conta só); o texto troca pelo tipo. --}}
+    <div data-fields-pix @if (! in_array($tipoAtual, \App\Models\Account::TIPOS_DE_UMA_CONTA, true)) hidden @endif>
+        <p class="form-hint" data-so-pix @if ($tipoAtual === 'ted') hidden @endif>
             O Pix não tem saldo próprio: o dinheiro sai da conta em que a chave está
             registrada, na hora. Se o saldo acabar, o cheque especial daquela conta entra —
             igual a débito. Uma chave Pix fica em <strong>uma</strong> conta só.
         </p>
+        <p class="form-hint" data-so-ted @if ($tipoAtual !== 'ted') hidden @endif>
+            A TED não tem saldo próprio: o dinheiro sai da conta escolhida. Se o saldo acabar,
+            o cheque especial daquela conta entra — igual a débito e Pix.
+        </p>
         <div class="field">
-            <label for="pix_account_id-{{ $uid }}">Conta da chave Pix</label>
+            <label for="pix_account_id-{{ $uid }}" data-rotulo-conta-do-metodo>{{ $tipoAtual === 'ted' ? 'Conta de onde sai a TED' : 'Conta da chave Pix' }}</label>
             <select class="input @error('checking_account_id') input-error @enderror @error('savings_account_id') input-error @enderror"
                     id="pix_account_id-{{ $uid }}" name="pix_account_id">
                 <option value="">Selecione a conta</option>
@@ -253,7 +266,7 @@
             @error('savings_account_id')<div class="field-error">{{ $message }}</div>@enderror
         </div>
         @if ($checkingAccounts->isEmpty() && $savingsAccounts->isEmpty())
-            <p class="form-hint">Você ainda não tem contas corrente/poupança. Crie uma primeiro para registrar a chave Pix.</p>
+            <p class="form-hint">Você ainda não tem contas corrente/poupança. Crie uma primeiro para registrar o Pix ou a TED.</p>
         @endif
     </div>
 
@@ -308,7 +321,15 @@
             if (grupos.overdraft) grupos.overdraft.hidden = t !== 'checking';
             if (grupos.credit) grupos.credit.hidden = t !== 'credit_card';
             if (grupos.debit) grupos.debit.hidden = t !== 'debit_card';
-            if (grupos.pix) grupos.pix.hidden = t !== 'pix';
+            if (grupos.pix) {
+                grupos.pix.hidden = !(t === 'pix' || t === 'ted');
+                var soPix = grupos.pix.querySelector('[data-so-pix]');
+                var soTed = grupos.pix.querySelector('[data-so-ted]');
+                var rotulo = grupos.pix.querySelector('[data-rotulo-conta-do-metodo]');
+                if (soPix) soPix.hidden = t === 'ted';
+                if (soTed) soTed.hidden = t !== 'ted';
+                if (rotulo) rotulo.textContent = t === 'ted' ? 'Conta de onde sai a TED' : 'Conta da chave Pix';
+            }
         }
         // Sem banco escolhido (o placeholder), o preview some em vez de virar uma
         // imagem quebrada apontando para ".png".

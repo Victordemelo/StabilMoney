@@ -47,7 +47,24 @@ class Account extends Model
         'debit_card' => 'Cartão de Débito',
         'credit_card' => 'Cartão de Crédito',
         'pix' => 'Pix',
+        'ted' => 'TED',
     ];
+
+    /**
+     * Os tipos agrupados como aparecem no select do cadastro (out/2026): o que GUARDA o
+     * dinheiro, os cartões e os métodos que tiram dinheiro de uma conta.
+     */
+    public const GRUPOS_DE_TIPO = [
+        'Contas de banco' => ['checking', 'savings'],
+        'Cartões' => ['credit_card', 'debit_card'],
+        'Métodos de pagamento' => ['pix', 'ted'],
+    ];
+
+    /** Métodos ESPELHO: sem saldo próprio, tiram o dinheiro da conta vinculada. */
+    public const TIPOS_ESPELHO = ['debit_card', 'pix', 'ted'];
+
+    /** Espelhos de UMA conta só (a chave Pix e a TED saem de uma conta; o débito saca de duas). */
+    public const TIPOS_DE_UMA_CONTA = ['pix', 'ted'];
 
     /** Bancos suportados (valor => rótulo). A imagem é `public/assets/banks/{valor}.png`. */
     public const BANKS = [
@@ -107,7 +124,7 @@ class Account extends Model
         return match ($type) {
             'checking', 'savings' => 'caixa',
             'credit_card' => 'credito',
-            'debit_card', 'pix' => 'debito',
+            'debit_card', 'pix', 'ted' => 'debito',
             default => 'desconhecida',
         };
     }
@@ -191,7 +208,7 @@ class Account extends Model
         }
 
         return self::where('user_id', $this->user_id)
-            ->whereIn('type', ['debit_card', 'pix'])
+            ->whereIn('type', self::TIPOS_ESPELHO)
             ->where(fn ($q) => $q
                 ->where('checking_account_id', $this->id)
                 ->orWhere('savings_account_id', $this->id))
@@ -337,6 +354,38 @@ class Account extends Model
             ->values();
     }
 
+    /**
+     * As opções de `paymentOptions()` agrupadas para o select de LANÇAMENTO (out/2026 — regra
+     * do Victor, `LancamentoPorMetodoTest`):
+     *
+     * - RECEITA e TRANSFERÊNCIA só entram/saem de conta de banco (corrente/poupança) — não se
+     *   recebe dinheiro num cartão de débito nem num Pix;
+     * - DESPESA só sai por um MÉTODO: cartão de crédito (vai para a fatura), cartão de débito,
+     *   Pix ou TED — que tiram o dinheiro da conta vinculada. Não sai "direto" da corrente.
+     *
+     * `para` são os tipos de lançamento que enxergam o grupo (o JS esconde os outros). É regra
+     * de TELA: o servidor continua aceitando despesa na conta (o método espelho submete o id
+     * dela, e o histórico tem despesas assim).
+     *
+     * @param  Collection<int, Fluent>  $opcoes
+     * @return list<array{rotulo: string, para: string, opcoes: Collection<int, Fluent>}>
+     */
+    public static function gruposDeLancamento(Collection $opcoes): array
+    {
+        $grupos = [
+            ['rotulo' => 'Contas de banco', 'para' => 'income transfer', 'tipos' => ['checking', 'savings']],
+            ['rotulo' => 'Cartões de crédito', 'para' => 'expense', 'tipos' => ['credit_card']],
+            ['rotulo' => 'Cartões de débito', 'para' => 'expense', 'tipos' => ['debit_card']],
+            ['rotulo' => 'Pix e TED', 'para' => 'expense', 'tipos' => self::TIPOS_DE_UMA_CONTA],
+        ];
+
+        return array_values(array_filter(array_map(fn (array $g) => [
+            'rotulo' => $g['rotulo'],
+            'para' => $g['para'],
+            'opcoes' => $opcoes->whereIn('type', $g['tipos'])->values(),
+        ], $grupos), fn (array $g) => $g['opcoes']->isNotEmpty()));
+    }
+
     /** É um cartão de débito? (Espelha o saldo das contas vinculadas.) */
     public function isDebit(): bool
     {
@@ -353,6 +402,18 @@ class Account extends Model
         return $this->type === 'pix';
     }
 
+    /** É TED? Como o Pix: sai de UMA conta, na hora (out/2026). */
+    public function isTed(): bool
+    {
+        return $this->type === 'ted';
+    }
+
+    /** Pix ou TED: método espelho de uma conta só. */
+    public function usaUmaContaSo(): bool
+    {
+        return in_array($this->type, self::TIPOS_DE_UMA_CONTA, true);
+    }
+
     /**
      * Método ESPELHO: não tem saldo próprio, o dinheiro é o da(s) conta(s)
      * vinculada(s). Cartão de débito e Pix.
@@ -364,10 +425,10 @@ class Account extends Model
      */
     public function espelhaConta(): bool
     {
-        return $this->isDebit() || $this->isPix();
+        return in_array($this->type, self::TIPOS_ESPELHO, true);
     }
 
-    /** A conta que este método espelha, quando é Pix (a chave vive em UMA conta). */
+    /** A conta que este método espelha, quando é Pix ou TED (saem de UMA conta). */
     public function contaDoPix(): ?self
     {
         return $this->linkedChecking ?? $this->linkedSavings;
@@ -411,6 +472,7 @@ class Account extends Model
         'debit_card' => ['Débito', 'debito'],
         'credit_card' => ['Crédito', 'credito'],
         'pix' => ['Pix', 'pix'],
+        'ted' => ['TED', 'ted'],
     ];
 
     /** Rótulo PT-BR do banco, ou null se não houver. */

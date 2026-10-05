@@ -616,18 +616,28 @@
                         <input class="input" type="text" id="lanc-desc" name="description"
                                value="{{ $reabreLancar ? old('description') : '' }}" placeholder="Ex.: Supermercado, passagem aérea…" required>
                     </div>
-                    {{-- Método de pagamento (todas as contas da família) --}}
+                    {{-- Método de pagamento: despesa só sai por um MÉTODO (crédito, débito, Pix,
+                         TED) — os mesmos grupos de despesa do modal "Lançar"
+                         (`Account::gruposDeLancamento`); conta de banco não aparece aqui. --}}
+                    @php $gruposDeDespesa = collect(\App\Models\Account::gruposDeLancamento($accounts))->where('para', 'expense'); @endphp
                     <div class="field">
                         <label for="lanc-method">Método de pagamento</label>
                         <select class="input" id="lanc-method" name="account_id" required>
-                            @foreach ($accounts as $account)
-                                <option value="{{ $account->id }}"
-                                        data-card="{{ $account->isCard ? '1' : '0' }}"
-                                        @selected($reabreLancar && (int) old('account_id') === $account->id)>
-                                    {{ $account->rotulo ?? $account->name }}
-                                </option>
+                            @foreach ($gruposDeDespesa as $grupo)
+                                <optgroup label="{{ $grupo['rotulo'] }}">
+                                    @foreach ($grupo['opcoes'] as $account)
+                                        <option value="{{ $account->id }}"
+                                                data-card="{{ $account->isCard ? '1' : '0' }}"
+                                                @selected($reabreLancar && (int) old('account_id') === $account->id)>
+                                            {{ $account->rotulo ?? $account->name }}
+                                        </option>
+                                    @endforeach
+                                </optgroup>
                             @endforeach
                         </select>
+                        @if ($gruposDeDespesa->isEmpty())
+                            <small class="field-hint">Para lançar uma despesa, cadastre um cartão, Pix ou TED em Contas e cartões.</small>
+                        @endif
                     </div>
                 </div>
                 <div class="form-row">

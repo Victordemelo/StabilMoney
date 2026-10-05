@@ -1020,8 +1020,10 @@ form[data-type="transfer"] .type-toggle.tt-3 .tt-pill {
 .dp-name .dp-badge { margin-left: 0; vertical-align: 0; }
 .dp-rel { font-size: 12px; color: var(--ink-3); margin-top: 2px; overflow-wrap: anywhere; }
 /* O e-mail do card fica numa linha só (o completo vai no `title`): quebrado no meio
-   ("lucas.demo@sta / bilmoney.test") ele empurrava o resto do card para baixo. */
-.dp-id .dp-rel { margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+   ("lucas.demo@sta / bilmoney.test") ele empurrava o resto do card para baixo. Desde
+   out/2026 ele mora FORA do cabeçalho, alinhado ao nome e indo até a borda do card (passa
+   por baixo dos botões): por extenso quando cabe, reticências só quando nem assim cabe. */
+.dp-email { margin: -6px 0 14px 58px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dp-rel strong { color: var(--brand-600); font-weight: 700; }
 [data-theme="dark"] .dp-rel strong { color: var(--brand-300); }
 .dp-actions { display: flex; gap: 4px; margin-left: auto; flex: none; }
@@ -1178,6 +1180,28 @@ body.pjax-loading #content { opacity: .5; }
 .ph-stat strong { display: block; margin-top: 5px; font-family: var(--font-head); font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
 .ph-stat .dp-bar { margin-top: 8px; }
 .ph-falta { display: block; margin-top: 6px; font-size: 10.5px; color: var(--ink-3); }
+/* Os dois quadrinhos só com número: o número ocupa o espaço que sobra, centralizado e
+   maior — antes ficava colado no rótulo, com um vazio embaixo (o terceiro, com barra e
+   "Falta:", é mais alto e estica a linha). */
+.ph-stat-num { display: flex; flex-direction: column; }
+.ph-stat-num strong { flex: 1; display: flex; align-items: center; justify-content: center; margin-top: 4px; font-size: 34px; line-height: 1; }
+
+/* Meu perfil › Seus dados: um card, duas colunas casadas linha a linha. */
+.perfil-dados {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 32px; row-gap: 14px;
+  grid-template-areas: "quem contato" "nome email" "nasc tel" ". senha";
+}
+.pd-quem { grid-area: quem; } .pd-contato { grid-area: contato; }
+.pd-nome { grid-area: nome; } .pd-email { grid-area: email; }
+.pd-nasc { grid-area: nasc; } .pd-tel { grid-area: tel; }
+.pd-senha { grid-area: senha; }
+.perfil-dados > .field, .perfil-dados > .form-row, .perfil-dados .form-row > .field { margin: 0; }
+.pd-sec h4 { margin: 0 0 4px; font-family: var(--font-head); font-size: 14.5px; font-weight: 600; letter-spacing: -.01em; }
+.pd-sec .sec-card-desc { margin: 0; }
+@media (max-width: 900px) {
+  .perfil-dados { grid-template-columns: minmax(0, 1fr); grid-template-areas: "quem" "nome" "nasc" "contato" "email" "tel" "senha"; }
+  .pd-contato { margin-top: 10px; }
+}
 
 .perfil-seguranca { margin-top: 16px; }
 .perfil-atalhos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
@@ -1985,16 +2009,8 @@ body.pjax-loading #content { opacity: .5; }
 
 /* ============ Sidebar por intenção (out/2026) ============
    Grupos Início · Dia a dia · Planejamento · Cadastros, uma linha dizendo para que cada
-   item serve, o atalho "Novo lançamento" no topo e as vencidas em "Contas a pagar". */
-.side-lancar {
-  display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 42px;
-  margin: 2px 0 4px; border-radius: 12px; font-size: 13px; font-weight: 600; color: #fff;
-  background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); box-shadow: 0 6px 16px rgba(0,0,0,.2);
-  transition: filter .15s var(--ease), transform .15s var(--ease);
-}
-.side-lancar:hover { filter: brightness(1.07); transform: translateY(-1px); }
-.side-lancar svg { width: 18px; height: 18px; stroke-width: 2.2; flex: none; }
-.side-lancar .nav-label { font-size: 13px; font-weight: 600; }
+   item serve e as vencidas em "Contas a pagar". (O atalho "Novo lançamento" saiu em out/2026:
+   o "+" da topbar e o do celular já estão em toda tela.) */
 .nav-item { min-height: 44px; padding-top: 4px; padding-bottom: 4px; }
 .nav-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; }
 .nav-desc { margin-top: 2px; font-size: 10.5px; font-weight: 400; color: var(--side-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2003,12 +2019,8 @@ body.pjax-loading #content { opacity: .5; }
 .nav-badge-wrap:empty { display: none; }
 .nav-item .badge.late { background: rgba(229,96,77,.24); color: #FFC9C0; }
 .collapsed .nav-txt { width: 0; overflow: hidden; opacity: 0; }
-.collapsed .side-lancar { width: 44px; height: 44px; min-height: 44px; padding: 0; margin-inline: auto; }
-.collapsed .side-lancar .nav-label { display: none; }
 @media (max-width: 920px) {
   .collapsed .nav-txt { width: auto; overflow: visible; opacity: 1; }
-  .collapsed .side-lancar { width: 100%; height: auto; min-height: 42px; }
-  .collapsed .side-lancar .nav-label { display: inline; }
 }
 
 /* Relógio da topbar (out/2026) — ocupa o vazio à direita do "Bem-vindo". */
@@ -2108,6 +2120,7 @@ body.pjax-loading #content { opacity: .5; }
   .dp-top { flex-wrap: wrap; }
   .dp-top .dp-id { flex: 1 1 calc(100% - 58px); }
   .dp-top .dp-actions { margin-left: auto; }
+  .dep-person .dp-email { margin-left: 0; }
   /* Gaveta estreita: o nome do item encolhe com reticências antes de encostar no selo. */
   .nav-txt .nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }

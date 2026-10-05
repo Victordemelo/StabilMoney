@@ -115,11 +115,17 @@
 
                     <div class="meta-emoji" style="background:{{ $cor }}1f">{{ $emoji }}</div>
                     <h3 class="meta-name">{{ $goal->name }}</h3>
+                    {{-- As duas linhas existem SEMPRE (out/2026): sem prazo, o card ficava uma linha
+                         mais baixo que os vizinhos e o anel desalinhava na grade. --}}
                     @if ($goal->target_date)
                         <span class="meta-prazo">🎯 {{ $goal->target_date->translatedFormat('M Y') }}</span>
+                    @else
+                        <span class="meta-prazo meta-sem-prazo">Sem prazo</span>
                     @endif
                     @if ($goal->madeBy?->name)
                         <span class="meta-by">por {{ \Illuminate\Support\Str::before(trim($goal->madeBy->name), ' ') }}</span>
+                    @else
+                        <span class="meta-by" aria-hidden="true">&nbsp;</span>
                     @endif
 
                     {{-- Anel de progresso (SVG server-rendered) --}}

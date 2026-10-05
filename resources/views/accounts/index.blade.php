@@ -52,7 +52,7 @@
                 ['titulo' => 'Contas', 'sub' => 'Corrente e poupança — onde o dinheiro está', 'itens' => $alfabetica($accounts->whereIn('type', ['checking', 'savings']))],
                 ['titulo' => 'Cartões de crédito', 'sub' => 'Viram fatura em Contas a pagar', 'itens' => $alfabetica($accounts->where('type', 'credit_card'))],
                 ['titulo' => 'Cartões de débito', 'sub' => 'Saem direto da conta vinculada', 'itens' => $alfabetica($accounts->where('type', 'debit_card'))],
-                ['titulo' => 'Pix', 'sub' => 'Sai na hora da conta da chave', 'itens' => $alfabetica($accounts->where('type', 'pix'))],
+                ['titulo' => 'Pix e TED', 'sub' => 'Saem na hora da conta escolhida', 'itens' => $alfabetica($accounts->whereIn('type', \App\Models\Account::TIPOS_DE_UMA_CONTA))],
             ], fn ($g) => $g['itens']->isNotEmpty());
         @endphp
 

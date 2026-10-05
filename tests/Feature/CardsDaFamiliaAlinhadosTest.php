@@ -29,7 +29,7 @@ class CardsDaFamiliaAlinhadosTest extends TestCase
         $this->assertMatchesRegularExpression('/flex-direction\s*:\s*column/', $regras['.dep-person:not(.pm-add)'] ?? '');
         $this->assertMatchesRegularExpression('/margin-top\s*:\s*auto/', $regras['.dep-person:not(.pm-add) .dp-spent'] ?? '',
             'Sem margin-top: auto, "Gastou no mês" fica logo abaixo do cabeçalho, que tem alturas diferentes.');
-        $this->assertMatchesRegularExpression('/white-space\s*:\s*nowrap/', $regras['.dp-id .dp-rel'] ?? '',
+        $this->assertMatchesRegularExpression('/white-space\s*:\s*nowrap/', $regras['.dp-email'] ?? '',
             'O e-mail quebrado em duas linhas empurrava o card para baixo.');
     }
 
@@ -39,8 +39,8 @@ class CardsDaFamiliaAlinhadosTest extends TestCase
         User::factory()->create(['account_owner_id' => $titular->id, 'email' => 'lucas.demo@stabilmoney.test']);
 
         $this->actingAs($titular)->get(route('dependentes'))->assertOk()
-            ->assertSee('<div class="dp-rel" title="titular.com.nome.comprido@exemplo.test">', false)
-            ->assertSee('<div class="dp-rel" title="lucas.demo@stabilmoney.test">', false);
+            ->assertSee('<div class="dp-rel dp-email" title="titular.com.nome.comprido@exemplo.test">', false)
+            ->assertSee('<div class="dp-rel dp-email" title="lucas.demo@stabilmoney.test">', false);
     }
 
     /** @return array<string, string> seletor => corpo (a última regra de cada seletor vence) */

@@ -87,7 +87,7 @@ class DashboardService
         foreach ($accounts as $account) {
             // Métodos ESPELHO (débito e Pix) exibem o saldo das contas vinculadas.
             // No Pix só uma existe; a outra entra como 0.
-            if (in_array($account->type, ['debit_card', 'pix'], true)) {
+            if (in_array($account->type, Account::TIPOS_ESPELHO, true)) {
                 $c = $account->checking_account_id ? (float) ($byId[$account->checking_account_id]->current_balance ?? 0) : 0;
                 $s = $account->savings_account_id ? (float) ($byId[$account->savings_account_id]->current_balance ?? 0) : 0;
                 $account->current_balance = round($c + $s, 2);
@@ -99,7 +99,7 @@ class DashboardService
         // Fora do patrimônio: crédito (não é caixa) e os métodos espelho (débito e
         // Pix), que mostram dinheiro que JÁ está sendo contado na conta vinculada.
         // Deixar o Pix de fora desta lista somaria a mesma conta corrente duas vezes.
-        $excludedTypes = ['credit_card', 'debit_card', 'pix'];
+        $excludedTypes = ['credit_card', ...Account::TIPOS_ESPELHO];
         $cardIds = $accounts->whereIn('type', $excludedTypes)->pluck('id')->all();
         // Só CARTÃO DE CRÉDITO: nele um `income` é estorno de compra, não receita.
         // (O de débito não recebe lançamento — o select manda a conta que ele espelha.)

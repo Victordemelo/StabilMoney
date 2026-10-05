@@ -44,8 +44,8 @@ class StoreAccountRequest extends FormRequest
         if ($type !== 'credit_card') {
             $this->merge(['credit_limit' => null, 'closing_day' => null, 'due_day' => null]);
         }
-        // Vínculos existem para os métodos ESPELHO: cartão de débito e Pix.
-        if (! in_array($type, ['debit_card', 'pix'], true)) {
+        // Vínculos existem para os métodos ESPELHO: cartão de débito, Pix e TED.
+        if (! in_array($type, Account::TIPOS_ESPELHO, true)) {
             $this->merge(['checking_account_id' => null, 'savings_account_id' => null]);
         }
 
@@ -54,7 +54,8 @@ class StoreAccountRequest extends FormRequest
         // TIPO da conta escolhida — assim o Pix reaproveita o mesmo par de colunas
         // do cartão de débito (e o `paymentOptions`, que já resolve com
         // `checking_account_id ?? savings_account_id`, funciona sem mudança).
-        if ($type === 'pix') {
+        // A TED (out/2026) é igual: sai de UMA conta, e usa o mesmo campo.
+        if (in_array($type, Account::TIPOS_DE_UMA_CONTA, true)) {
             $escolhida = $this->input('pix_account_id');
 
             $conta = $escolhida
@@ -74,9 +75,8 @@ class StoreAccountRequest extends FormRequest
         $isAccount = in_array($type, ['checking', 'savings'], true); // tem saldo próprio
         $isCredit = $type === 'credit_card';
         $isDebit = $type === 'debit_card';
-        $isPix = $type === 'pix';
-        // Débito e Pix espelham conta: os dois precisam de vínculo.
-        $espelho = $isDebit || $isPix;
+        // Débito, Pix e TED espelham conta: todos precisam de vínculo.
+        $espelho = in_array($type, Account::TIPOS_ESPELHO, true);
         $ownerId = $this->user()->ownerId();
 
         return [
@@ -137,14 +137,16 @@ class StoreAccountRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {
-            if ($this->input('type') !== 'pix') {
+            if (! in_array($this->input('type'), Account::TIPOS_DE_UMA_CONTA, true)) {
                 return;
             }
 
             if ($this->input('checking_account_id') && $this->input('savings_account_id')) {
                 $validator->errors()->add(
                     'checking_account_id',
-                    'Uma chave Pix fica registrada em uma conta só. Escolha a corrente OU a poupança.',
+                    $this->input('type') === 'ted'
+                        ? 'Uma TED sai de uma conta só. Escolha a corrente OU a poupança.'
+                        : 'Uma chave Pix fica registrada em uma conta só. Escolha a corrente OU a poupança.',
                 );
             }
         });

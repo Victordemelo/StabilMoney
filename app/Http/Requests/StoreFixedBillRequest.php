@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\NormalizesMoneyInput;
+use App\Models\Account;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -47,7 +48,7 @@ class StoreFixedBillRequest extends FormRequest
                     ->where('user_id', $ownerId)
                     // Métodos ESPELHO (débito e Pix) não têm saldo próprio: os
                     // selects já mandam o id da conta vinculada.
-                    ->whereNotIn('type', ['debit_card', 'pix'])),
+                    ->whereNotIn('type', Account::TIPOS_ESPELHO)),
             ],
             'category_id' => [
                 'nullable',

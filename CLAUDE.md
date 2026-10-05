@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.114 testes PHP / 52.150 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **343 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.129 testes PHP / 55.272 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **348 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -227,7 +227,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.114 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.129 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -320,7 +320,7 @@ tests/Feature/              # 2.114 testes (PHP): auth, dashboard, CRUD, valida�
 | `/transactions` (resource, sem `show`) | `transactions/*` | Lista com filtros GET (**tipo/conta/categoria/período `de`+`ate`**), **15 por página** (`TransactionController::POR_PAGINA`) e **sem rolagem interna** — a lista cresce para baixo (`.tx-list-cheia`; a rolagem de 4 itens do `.tx-list` é só das recentes do painel — `MovimentacoesPaginamDeQuinzeEmQuinzeTest`). **Compra parcelada é UMA linha**, com o total e o selo "em Nx", pela MENOR parcela que ainda existe (subconsulta `MIN(installment_no)` por `group_id`; filtros e paginação contam compras) — `ParceladoApareceUmaVezNasMovimentacoesTest`; recorrência segue linha a linha. O select de **categoria** agrupa por tipo com `<optgroup>` ("Outros" existe nos dois; sem o grupo apareceria duplicado sem distinção) e segue a ordem `position` da tela de Categorias. Id de outra família é IGNORADO, nunca aplicado — aceitá-lo viraria sonda para descobrir a categoria alheia. Data inválida no filtro é IGNORADA (vem pela URL; não pode derrubar a lista) e datas invertidas são TROCADAS. ⚠️ A leitura é ESTRITA — `createFromFormat` é tolerante e transformava `2026-13-45` em `2027-02-14` em silêncio, então a data é reformatada e comparada com a entrada. "Nova transação" abre o **modal global**, não outra tela; form com type-toggle, valor com vírgula, conta, categoria filtrada por tipo. |
 | `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"**. 5 tipos (Conta Corrente/Poupança, Cartão de Débito/Crédito, **Pix**) + **banco** com logo (imagem `public/assets/banks/`, preview no form). Form com campos condicionais por tipo (JS): conta = saldo inicial; **corrente = + limite do cheque especial**; crédito = limite + fechamento/vencimento; débito = vincula corrente/poupança que ele espelha. **Sem picker de ícone/cor.** O card mostra a imagem do banco e o **"Saldo em conta" = `available`** (vermelho quando negativo), com barra de uso do cheque especial; débito mostra corrente/poupança separados + total. **Travas (23/09/2026):** conta que um débito/Pix espelha **não troca de tipo, nem zerada** (`Account::travaDeTipo` = classe + espelho — antes uma corrente zerada virava cartão de crédito e o débito passava a lançar numa fatura; `ContaEspelhadaNaoTrocaDeTipoTest`); **excluir conta** bloqueia com lançamentos ou com guardado líquido ≠ 0 em algum cofrinho — zerado, os aportes/resgates dela saem junto, sem mudar total (`ContaComGuardadoZeradoPodeSerExcluidaTest`); o **banco é obrigatório e NÃO vem pré-selecionado** (antes tudo virava Nubank — `CadastroDeContaSemBancoPreSelecionadoTest`); e **excluir conta que um débito/Pix usa é recusado**, com a mensagem nomeando o método (23/09/2026 — `ContaUsadaPorDebitoOuPixNaoSaiTest`): a FK `nullOnDelete` deixava o método órfão, sumindo em silêncio do select de pagamento, ou passando a sacar da outra conta vinculada. |
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas **Receitas (esquerda) / Despesas (direita)** com chips emoji+nome; **criar/editar abre MODAL** na própria tela, aberto em RECEITA (página cheia de fallback); **arrastar DENTRO da coluna reordena** (coluna `position`, `PATCH categories/ordenar`) e **entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. **Categoria em uso não troca de tipo** (22/09/2026 — `CategoriaEmUsoNaoTrocaDeTipoTest`): 422 em `type` se algum lançamento dela tem tipo diferente do novo, ou se uma conta fixa a usa e o tipo novo é receita — antes os lançamentos ficavam presos numa categoria do tipo oposto (editar dava 422, o donut misturava receita com despesa). A regra confere o INVARIANTE, não "tem lançamento": arrastar de volta uma categoria que ficou errada é permitido, e é o que a conserta. 🚨 Nunca "consertar" mudando o `type` das transações (é o sinal do dinheiro). Arraste e modal mostram a mensagem do servidor (`mensagemDeErro` em `categories.js`). **Reordenar sem arrastar** (23/09/2026, A-4): botões ▲▼ por chip (`[data-cat-mover]`, com o nome no rótulo), mesmo `PATCH categories/ordenar`, posição anunciada em `#catAnuncio`. |
-| `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais em **dois cards lado a lado** (mesmo grid das Configurações, largura cheia): "Quem é você" (foto com preview, nome, **data de nascimento**, **sexo**) e "Como falamos com você" (e-mail, telefone). Nascimento e sexo são **opcionais** — minimização de dados; `User::GENEROS` traz "Prefiro não informar". O campo de **senha atual** só aparece quando o e-mail muda (mesma regra do `ProfileUpdateRequest`). **Acesso pelo popover do perfil** (sidebar). **Desde out/2026 (`MeuPerfilMostraOResumoDaContaTest`):** um cabeçalho de identidade no topo (foto com "Trocar/Adicionar foto" e "Remover a foto" — dentro do mesmo `<form>` —, selos de papel, e-mail confirmado/troca pendente e 2FA, e três números: pessoas na família, lançamentos da pessoa no mês SEM quitação de fatura nem pontas de transferência, e % do perfil preenchido com o que falta), e um bloco "Segurança e acesso" com atalhos para Configurações (idade da senha, 2FA, aparelhos). Dados em `ProfileController::resumoDoPerfil`; nunca valor em dinheiro. |
+| `GET/PATCH/DELETE /meu-perfil` (`profile.*`) | `profile/edit` | Dados pessoais num card só, **"Seus dados"**, com um Salvar (out/2026): "Quem é você" (nome, **data de nascimento**, **sexo**) e "Como falamos com você" (e-mail, telefone) em duas colunas casadas linha a linha por `grid-template-areas` (empilham por assunto ≤ 900px). Os dois números do resumo (`.ph-stat-num`) ficam centralizados e maiores. Nascimento e sexo são **opcionais** — minimização de dados; `User::GENEROS` traz "Prefiro não informar". O campo de **senha atual** só aparece quando o e-mail muda (mesma regra do `ProfileUpdateRequest`). **Acesso pelo popover do perfil** (sidebar). **Desde out/2026 (`MeuPerfilMostraOResumoDaContaTest`):** um cabeçalho de identidade no topo (foto com "Trocar/Adicionar foto" e "Remover a foto" — dentro do mesmo `<form>` —, selos de papel, e-mail confirmado/troca pendente e 2FA, e três números: pessoas na família, lançamentos da pessoa no mês SEM quitação de fatura nem pontas de transferência, e % do perfil preenchido com o que falta), e um bloco "Segurança e acesso" com atalhos para Configurações (idade da senha, 2FA, aparelhos). Dados em `ProfileController::resumoDoPerfil`; nunca valor em dinheiro. |
 | `GET /configuracoes/{tab?}` (`settings`) + `DELETE /configuracoes/sessoes` (`settings.sessions.destroy` → `SecurityController`) | `settings/index` (+ `settings/partials/security|two-factor|conta`) | **Quatro subabas-pílula** (Segurança · **2FA** · Conta · **Atividade** — esta de out/2026, ver "🧾 Auditoria de atividade") numa coluna de 1120px, com o corpo em grid de 12 colunas — cada aba tem DOIS cards lado a lado (`span6`/`span7`+`span5`), de altura igual, e cabe sem rolar. **Segurança** = visão geral (e-mail + idade da senha via `password_changed_at`), card de senha com **medidor de força**/mostrar-ocultar/requisitos ao vivo, **sessões/dispositivos ativos** (lista via `BrowserSessions`) + **encerrar outras sessões** (confirma senha → `Auth::logoutOtherDevices` + apaga as outras linhas de `sessions`), (lista com **teto de 4 itens** e rolagem interna — sem isso o card esticava além do de Senha e a página voltava a rolar). **2FA** = card de ação + card "Como funciona" ao lado. **O SWITCH é o controle**: a linha inteira é um `<summary>` (`.tfa-toggle`) que abre a confirmação por senha DENTRO do card — ligar e desligar seguem exigindo senha, sem botão-gatilho separado empurrando o conteúdo. No rodapé, **"Autenticadores da família"** lista quem já protegeu o próprio login (nome, papel, desde quando) — só status, nunca segredo: `two_factor_secret` é `encrypted` e não chega à view. **Conta** = resumo real da conta (e-mail, desde quando, dependentes, estado do 2FA) + zona de perigo. |
 | `POST/DELETE /configuracoes/2fa` (`settings.2fa.ativar` / `.desativar`), `POST /configuracoes/2fa/confirmar` (`.confirmar`), `POST /configuracoes/2fa/codigos` (`.codigos`), `POST /configuracoes/2fa/aparelhos-confiaveis/esquecer` (`.esquecer-aparelhos`) → `TwoFactorController` | bloco em `settings/partials/two-factor` | **2FA (opcional).** Ligar/desligar/trocar códigos exigem a **senha atual** (`throttle:senha`); confirmar o setup exige o **código** (`throttle:dois-fatores`). Sem rota de listagem — tudo acontece no card da aba **2FA**, e toda ação volta para ela (`TwoFactorController::voltar()` → `settings/2fa`, 22/09/2026). Voltando para a aba Segurança, o QR sumia de quem pediu para ligar e — pior — o flash com os **códigos de recuperação** era consumido numa aba que não os mostra: quem ligava o 2FA nunca via a única porta de volta. Teste de flash depois de redirect SEGUE o redirect (`followingRedirects`): um GET direto na aba certa passava verde com o defeito. |
 | `GET/POST /verificacao-em-duas-etapas` (`two-factor.login`) + `POST /verificacao-em-duas-etapas/cancelar` (`two-factor.cancel`) → `Auth\TwoFactorChallengeController` | `auth/two-factor-challenge` | **Segunda etapa do login.** Grupo `guest`: quem está aqui ainda NÃO tem sessão. Aceita o código do autenticador ou um **código de recuperação** (`?recuperacao=1`, sem depender de JS). |
@@ -462,6 +462,17 @@ modal mostra o **saldo daquele método** (`data-saldo` na option, de `Account::p
 é o que evita a surpresa de digitar, salvar e só então receber o 409 perguntando a fonte. Em
 receita a linha some. ⚠️ `paymentOptions()` passou a ler saldo por conta — mantenha o
 `preloadMoney()` dela, senão são N queries.
+
+**Por onde cada lançamento entra e sai (out/2026 — `LancamentoPorMetodoTest`, `tests/js/launch-metodos.test.js`):**
+RECEITA e TRANSFERÊNCIA só em conta de banco (corrente/poupança); DESPESA só por um MÉTODO —
+cartão de crédito, de débito, Pix ou TED. `Account::gruposDeLancamento()` agrupa as opções do
+`paymentOptions()` com `data-para` (os tipos que enxergam o grupo) e alimenta o modal Lançar, a
+página cheia e o "Lançar despesa" de Contas a pagar (só os grupos de despesa). É regra de TELA: o
+servidor segue aceitando despesa na conta, e na EDIÇÃO da página cheia a conta de banco vale também
+para despesa (o filtro trocaria a conta sozinho, e trocar a conta reconcilia o dinheiro). ⚠️ Pix e
+débito submetem o id da conta espelhada — o mesmo `value` aparece em mais de uma opção: troque a
+escolha marcando a OPÇÃO (`opt.selected = true`), nunca por `select.value`. O "Novo lançamento" da
+sidebar saiu: o "+" da topbar e o FAB do celular já estão em toda tela.
 
 **Modal "Lançar" (global):** o botão da topbar, o FAB e o "Nova transação" do Histórico
 (`data-launch-open`) abrem um modal de
@@ -890,6 +901,12 @@ linha travada. Antes, reajustar o aluguel em julho reescrevia maio e junho em ab
 
 ### Pix (05/08/2026) — `PixComoMetodoTest`
 
+**TED (out/2026 — `TedComoMetodoTest`) é igual ao Pix:** método espelho de UMA conta
+(`Account::TIPOS_DE_UMA_CONTA = ['pix','ted']`, `usaUmaContaSo()`), usa o mesmo campo
+`pix_account_id` do formulário, classe `debito`, fora do patrimônio. As listas de tipos vivem em
+constantes: `TIPOS_ESPELHO` (débito, Pix, TED) e `GRUPOS_DE_TIPO` (o select do cadastro: Contas de
+banco · Cartões · Métodos de pagamento). Na tela de Contas e cartões o grupo é "Pix e TED".
+
 **Pix é método ESPELHO, na mesma classe do cartão de débito.** Do ponto de vista de quem PAGA —
 que é o que este app modela — os dois são idênticos: o dinheiro sai da conta na hora, não há
 fatura nem limite, e o cheque especial daquela conta entra sozinho se o saldo acabar. As
@@ -910,8 +927,8 @@ BC, tarifa) são do **lojista que recebe**, não de quem controla o próprio din
   `CardDoDebitoMostraContaDebitadaTest`. Antes o card prometia 1.200 e o select do modal 700.
 - `classeDoTipo('pix') === 'debito'`: converter débito ↔ Pix é livre (nenhum dos dois tem saldo
   próprio, não há dinheiro para sumir), enquanto virar caixa/crédito continua travado.
-- **Requests que aceitam conta de lançamento usam lista de NEGAÇÃO** (`whereNotIn ['debit_card','pix']`)
-  — ao criar um método espelho novo, os 4 precisam ser atualizados. Já `PayInvoiceRequest` e o
+- **Requests que aceitam conta de lançamento usam lista de NEGAÇÃO** (`whereNotIn` em
+  `Account::TIPOS_ESPELHO`) — método espelho novo entra na constante, não nos 4 requests. Já `PayInvoiceRequest` e o
   `cashAccounts` do `FaturaService` usam lista de PERMISSÃO (`whereIn ['checking','savings']`) e
   ficaram corretos sem tocar. Prefira a lista de permissão em código novo.
 - ⚠️ **`@php($x = $obj->metodo())` quebrou o Blade** em `accounts/index`: compilou como
@@ -1278,8 +1295,7 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   foto mostram as iniciais (antes `<img src="">`).
 - **Menu por intenção** (`ShellReorganizadoTest`): grupos Início · Dia a dia (Movimentações, Contas a
   pagar) · Planejamento (Metas, Investimentos) · Cadastros (Contas e cartões, Categorias, Família),
-  uma linha `.nav-desc` dizendo para que cada item serve, o botão "Novo lançamento" no topo
-  (`data-launch-open`) e as VENCIDAS no item Contas a pagar — a mesma lista do sino,
+  uma linha `.nav-desc` dizendo para que cada item serve e as VENCIDAS no item Contas a pagar — a mesma lista do sino,
   calculada uma vez por requisição (`AppServiceProvider::vencimentosDaRequisicao`, nos atributos
   da requisição; nunca `static`).
 - **Relógio da topbar** no fuso de Configurações › Conta (`users.timezone`, nulo = Brasília;
@@ -2323,7 +2339,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.114 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.129 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo

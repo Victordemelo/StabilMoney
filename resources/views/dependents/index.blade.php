@@ -79,9 +79,17 @@
                         </div>
                         <div class="dp-id">
                             <div class="dp-name">{{ $titular->name }}<span class="dp-badge titular">Titular</span></div>
-                            <div class="dp-rel" title="{{ $titular->email }}">{{ $titular->email }}</div>
+                        </div>
+                        {{-- O titular não se edita aqui: o lápis leva às Configurações (out/2026). --}}
+                        <div class="dp-actions">
+                            <a class="dp-edit" href="{{ route('settings') }}" aria-label="Abrir as Configurações da sua conta" title="Configurações">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg>
+                            </a>
                         </div>
                     </div>
+                    {{-- E-mail por extenso, na largura do card (embaixo dos botões também); só
+                         corta com reticências quando nem assim cabe — o completo fica no title. --}}
+                    <div class="dp-rel dp-email" title="{{ $titular->email }}">{{ $titular->email }}</div>
                     <div class="dp-spent">
                         <span class="dp-spent-label">Gastou no mês</span>
                         <span class="dp-spent-val">@brl($gastoTitular)</span>
@@ -107,10 +115,9 @@
                             </div>
                             <div class="dp-id">
                                 <div class="dp-name">{{ $dep->name }}<span class="dp-badge">{{ $dep->relationshipLabel() ?? 'Dependente' }}</span></div>
-                                <div class="dp-rel" title="{{ $dep->email }}">{{ $dep->email }}</div>
                             </div>
                             <div class="dp-actions">
-                                <button class="dp-edit" type="button" data-edit="{{ $dep->id }}" aria-label="Editar dependente">
+                                <button class="dp-edit" type="button" data-edit="{{ $dep->id }}" aria-label="Editar {{ $dep->name }}">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg>
                                 </button>
                                 {{-- "Tem certeza?" pelo sm/confirmar.js. O `onsubmit` inline de
@@ -121,12 +128,13 @@
                                       data-confirmar="Remover {{ $dep->name }}? O acesso dele será excluído (os lançamentos da família permanecem).">
                                     @csrf
                                     @method('DELETE')
-                                    <button class="dp-rm" type="submit" aria-label="Remover dependente">
+                                    <button class="dp-rm" type="submit" aria-label="Remover {{ $dep->name }}">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg>
                                     </button>
                                 </form>
                             </div>
                         </div>
+                        <div class="dp-rel dp-email" title="{{ $dep->email }}">{{ $dep->email }}</div>
 
                         {{-- Quanto já gastou (despesas lançadas por ele) --}}
                         <div class="dp-spent">
@@ -165,9 +173,9 @@
                             </div>
                             <div class="dp-id">
                                 <div class="dp-name">Alguém da família<span class="dp-badge">Cônjuge</span></div>
-                                <div class="dp-rel">o-e-mail-dela@exemplo.com</div>
                             </div>
                         </div>
+                        <div class="dp-rel dp-email">o-e-mail-dela@exemplo.com</div>
                         <div class="dp-spent">
                             <span class="dp-spent-label">Gastou no mês</span>
                             <span class="dp-spent-val">@brl(0)</span>
