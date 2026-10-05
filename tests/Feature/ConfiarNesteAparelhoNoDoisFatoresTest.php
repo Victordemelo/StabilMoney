@@ -81,7 +81,7 @@ class ConfiarNesteAparelhoNoDoisFatoresTest extends TestCase
 
         // E o cookie sozinho não abre sessão nenhuma.
         $this->aparelhoNovo()->withCookie(AparelhoConfiavel::COOKIE, $confianca)
-            ->get(route('dashboard'))->assertRedirect(route('login'));
+            ->get(route('transactions.index'))->assertRedirect(route('login'));
         $this->assertGuest();
     }
 

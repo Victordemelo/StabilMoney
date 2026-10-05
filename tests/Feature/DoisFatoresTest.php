@@ -274,7 +274,7 @@ class DoisFatoresTest extends TestCase
         $this->assertGuest();
 
         // E o dashboard continua fechado enquanto o código não vier.
-        $this->get('/')->assertRedirect(route('login'));
+        $this->get(route('transactions.index'))->assertRedirect(route('login'));
     }
 
     public function test_o_codigo_certo_conclui_o_login(): void

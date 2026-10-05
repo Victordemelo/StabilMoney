@@ -75,6 +75,7 @@ class AuthenticationTest extends TestCase
         $response = $this->actingAs($user)->post('/logout');
 
         $this->assertGuest();
-        $response->assertRedirect('/');
+        // Para o login (out/2026): a raiz virou a página inicial pública.
+        $response->assertRedirect(route('login'));
     }
 }

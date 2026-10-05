@@ -51,7 +51,7 @@ class LembrarDeMimEntraSemSenhaTest extends TestCase
 
         $this->sessaoExpira();
 
-        $this->voltar($navegador)->get(route('dashboard'))->assertOk();
+        $this->voltar($navegador)->get(route('transactions.index'))->assertOk();
         $this->assertAuthenticatedAs($user);
     }
 
@@ -66,11 +66,11 @@ class LembrarDeMimEntraSemSenhaTest extends TestCase
         $this->assertArrayNotHasKey('lembrar', $navegador);
 
         // Controle: com a sessão viva, o navegador está dentro.
-        $this->voltar($navegador)->get(route('dashboard'))->assertOk();
+        $this->voltar($navegador)->get(route('transactions.index'))->assertOk();
 
         $this->sessaoExpira();
 
-        $this->voltar($navegador)->get(route('dashboard'))->assertRedirect(route('login'));
+        $this->voltar($navegador)->get(route('transactions.index'))->assertRedirect(route('login'));
         $this->assertGuest();
     }
 
@@ -97,7 +97,7 @@ class LembrarDeMimEntraSemSenhaTest extends TestCase
 
         $this->sessaoExpira();
 
-        $this->voltar($navegador)->get(route('dashboard'))->assertOk();
+        $this->voltar($navegador)->get(route('transactions.index'))->assertOk();
         $this->assertAuthenticatedAs($user);
     }
 

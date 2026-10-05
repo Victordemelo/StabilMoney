@@ -316,3 +316,6 @@
   .auth .painel-qr { max-width: 220px; margin: 0 auto; }
   .auth .painel-codigos { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* A marca do painel visual é um link para a página inicial pública (out/2026). */
+.auth a.av-top { text-decoration: none; color: inherit; }

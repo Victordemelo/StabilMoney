@@ -1,0 +1,98 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * Página inicial pública (out/2026 — pedido do Victor): a raiz do site, para quem não entrou,
+ * apresenta o projeto — o que faz, como funciona, a segurança, quem fez e as perguntas
+ * frequentes. Quem entrou continua indo para a Visão geral, no mesmo endereço.
+ */
+class PaginaInicialPublicaTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private const APP_URL = 'https://stabilmoney.victordemelo.com.br';
+
+    public function test_visitante_ve_a_apresentacao_com_as_secoes_e_os_caminhos_para_entrar(): void
+    {
+        $html = $this->get('/')->assertOk()->getContent();
+
+        $this->assertStringContainsString('<title>'.config('seo.paginas.dashboard.titulo').'</title>', $html);
+        $this->assertStringContainsString('Seu dinheiro com <em>clareza</em>, controle e crescimento.', $html);
+        foreach (['id="recursos"', 'id="como-funciona"', 'id="familia"', 'id="seguranca"', 'id="quem-fez"', 'id="perguntas"'] as $secao) {
+            $this->assertStringContainsString($secao, $html);
+        }
+        $this->assertStringContainsString('href="'.route('register').'"', $html);
+        $this->assertStringContainsString('href="'.route('login').'"', $html);
+        $this->assertStringContainsString('href="'.route('termos').'"', $html);
+        $this->assertStringContainsString('href="'.route('privacidade').'"', $html);
+    }
+
+    public function test_quem_fez_apresenta_o_autor_com_site_linkedin_e_contato(): void
+    {
+        $this->get('/')->assertOk()
+            ->assertSee(config('sistema.autor.nome'))
+            ->assertSee('Criador e desenvolvedor do Stabil Money')
+            ->assertSee('href="'.config('sistema.autor.site').'"', false)
+            ->assertSee('href="'.config('sistema.autor.linkedin').'"', false)
+            ->assertSee('mailto:'.config('legal.contact_email'), false)
+            ->assertSee('<span class="in-autor-av" aria-hidden="true">VR</span>', false);
+    }
+
+    public function test_quem_entrou_continua_indo_para_a_visao_geral(): void
+    {
+        $this->actingAs(User::factory()->create())->get('/')->assertOk()
+            ->assertSee('<title>Visão geral · StabilMoney</title>', false)
+            ->assertDontSee('id="quem-fez"', false);
+    }
+
+    public function test_as_perguntas_frequentes_viram_dados_estruturados_com_nonce(): void
+    {
+        $html = $this->get('/')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('#<script type="application/ld\+json" nonce="[^"]*">\{"@context":"https://schema.org","@type":"FAQPage"#', $html);
+        $this->assertStringContainsString('"name":"É grátis mesmo?"', $html);
+        // E o app (WebApplication) pelo partial de SEO, como no login.
+        $this->assertStringContainsString('"@type":"WebApplication"', $html);
+    }
+
+    public function test_em_producao_a_raiz_e_indexavel_so_para_o_visitante(): void
+    {
+        $this->app['env'] = 'production';
+        config(['app.url' => self::APP_URL]);
+
+        $visitante = $this->get(self::APP_URL.'/')->assertOk()->assertHeaderMissing('X-Robots-Tag');
+        $this->assertStringContainsString('<link rel="canonical" href="'.self::APP_URL.'/" />', $visitante->getContent());
+
+        // A Visão geral de quem entrou mora no mesmo endereço e nunca vai para os buscadores.
+        $this->actingAs(User::factory()->create())->get(self::APP_URL.'/')->assertOk()
+            ->assertHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    public function test_sair_leva_ao_login_e_o_app_instalado_abre_no_login(): void
+    {
+        $this->actingAs(User::factory()->create())->post(route('logout'))->assertRedirect(route('login'));
+
+        $this->assertSame('/login', $this->get('/site.webmanifest')->json('start_url'));
+        // Quem já entrou e abre o app instalado vai do /login direto para a Visão geral.
+        $this->actingAs(User::factory()->create())->get('/login')->assertRedirect(route('dashboard'));
+    }
+
+    public function test_a_marca_do_login_leva_a_pagina_inicial(): void
+    {
+        $this->get(route('login'))->assertOk()
+            ->assertSee('<a class="av-top" href="'.url('/').'" aria-label="Stabil Money — página inicial">', false);
+    }
+
+    public function test_a_pagina_rola_e_tem_os_proprios_tokens_claros(): void
+    {
+        $css = file_get_contents(resource_path('css/inicio.css'));
+
+        $this->assertMatchesRegularExpression('/\.inicio-body \{[^}]*overflow-y: auto;/', $css);
+        $this->assertStringContainsString("@import './inicio.css';", file_get_contents(resource_path('css/app.css')));
+    }
+}

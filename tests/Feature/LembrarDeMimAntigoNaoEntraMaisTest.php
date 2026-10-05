@@ -161,7 +161,7 @@ class LembrarDeMimAntigoNaoEntraMaisTest extends TestCase
     {
         return $this->outroAparelho()
             ->withCookie($this->nomeDoCookie(), $cookie)
-            ->get(route('dashboard'));
+            ->get(route('transactions.index'));
     }
 
     /**

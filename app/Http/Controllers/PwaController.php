@@ -57,7 +57,10 @@ class PwaController extends Controller
             'description' => 'Controle financeiro pessoal e da família.',
             'lang' => 'pt-BR',
             'dir' => 'ltr',
-            'start_url' => '/',
+            // O app instalado abre no LOGIN (out/2026): a raiz virou a página inicial pública
+            // (apresentação do projeto), que não tem lugar dentro do app. Quem já entrou é
+            // mandado do /login direto para a Visão geral.
+            'start_url' => '/login',
             'scope' => '/',
             'display' => 'standalone',
             'orientation' => 'portrait',

@@ -75,13 +75,14 @@ class ServiceWorkerApagaHtmlAutenticadoTest extends TestCase
     public function test_tela_do_app_sem_sessao_termina_numa_pagina_que_o_sw_reconhece(): void
     {
         $this->assertContains(
-            $this->destinoFinal(route('dashboard', absolute: false)),
+            // Uma tela do app (a raiz virou a página inicial pública, que abre para todos).
+            $this->destinoFinal(route('transactions.index', absolute: false)),
             $this->lista('ROTAS_SEM_SESSAO'),
         );
     }
 
     /**
-     * O próprio "Sair" também termina lá (/logout → / → /login). Não é redundância à toa: se o
+     * O próprio "Sair" também termina lá (/logout → /login). Não é redundância à toa: se o
      * gatilho 1 não rodar por qualquer motivo, a mesma cadeia de redirects dispara o 2.
      */
     public function test_a_cadeia_do_sair_termina_numa_pagina_que_o_sw_reconhece(): void

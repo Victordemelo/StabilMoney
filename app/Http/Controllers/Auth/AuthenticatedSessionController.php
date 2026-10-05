@@ -71,7 +71,9 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        $resposta = redirect('/');
+        // Para o LOGIN, não para a raiz (out/2026): a raiz virou a página inicial pública, e o
+        // service worker reconhece o fim da sessão pelo /login respondendo 200 (ver abaixo).
+        $resposta = redirect()->route('login');
 
         // Manda o navegador apagar o cache HTTP do site ao sair, para uma página
         // autenticada guardada ali não reaparecer depois do logout (no "Voltar", por

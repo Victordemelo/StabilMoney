@@ -8,13 +8,13 @@ use Tests\TestCase;
 class ExampleTest extends TestCase
 {
     /**
-     * Visitante não logado é redirecionado do dashboard para o login
-     * (todas as telas do app exigem autenticação desde a Fase 1).
+     * Visitante não logado: a raiz é a página inicial pública (out/2026), e as telas do app
+     * continuam exigindo login (desde a Fase 1).
      */
-    public function test_guests_are_redirected_to_the_login_screen(): void
+    public function test_guests_see_the_home_page_and_app_screens_ask_for_login(): void
     {
-        $response = $this->get('/');
+        $this->get('/')->assertOk()->assertSee('Criar conta grátis');
 
-        $response->assertRedirect(route('login'));
+        $this->get(route('transactions.index'))->assertRedirect(route('login'));
     }
 }

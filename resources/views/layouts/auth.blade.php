@@ -58,10 +58,11 @@
         </video>
         <div class="auth-veil"></div>
 
-        <div class="av-top">
-            <span class="av-badge"><img src="{{ asset('assets/stabilmoney-mark.png') }}" alt="StabilMoney" /></span>
+        {{-- A marca leva à página inicial pública (out/2026). --}}
+        <a class="av-top" href="{{ url('/') }}" aria-label="Stabil Money — página inicial">
+            <span class="av-badge"><img src="{{ asset('assets/stabilmoney-mark.png') }}" alt="" /></span>
             <span class="av-word">Stabil<b>Money</b></span>
-        </div>
+        </a>
 
         <div class="av-body">
             <span class="av-eyebrow"><span class="pulse"></span>@yield('eyebrow')</span>

@@ -113,6 +113,7 @@ class SeoDasPaginasPublicasTest extends TestCase
 
         $enderecos = array_map(fn ($url) => (string) $url->loc, iterator_to_array($xml->url, false));
         $this->assertSame([
+            self::APP_URL.'/',
             self::APP_URL.'/login',
             self::APP_URL.'/register',
             self::APP_URL.'/termos',
@@ -183,8 +184,8 @@ class SeoDasPaginasPublicasTest extends TestCase
         $this->assertSame('website', $this->meta($doc, 'property', 'og:type'));
         $this->assertSame('Stabil Money', $this->meta($doc, 'property', 'og:site_name'));
         $this->assertSame('pt_BR', $this->meta($doc, 'property', 'og:locale'));
-        $this->assertSame('Stabil Money — controle financeiro pessoal e da família, grátis', $this->meta($doc, 'property', 'og:title'));
-        $this->assertSame('Stabil Money — controle financeiro pessoal e da família, grátis', $doc->querySelector('title')?->textContent);
+        $this->assertSame('Entrar no Stabil Money — controle financeiro da família', $this->meta($doc, 'property', 'og:title'));
+        $this->assertSame('Entrar no Stabil Money — controle financeiro da família', $doc->querySelector('title')?->textContent);
         $this->assertSame($descricao, $this->meta($doc, 'property', 'og:description'));
         $this->assertSame(self::APP_URL.'/login', $this->meta($doc, 'property', 'og:url'));
         $this->assertSame(self::APP_URL.'/assets/og-stabilmoney.jpg', $this->meta($doc, 'property', 'og:image'));

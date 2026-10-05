@@ -53,7 +53,7 @@ class LembrarDeMimValeSeteDiasTest extends TestCase
         $this->travel(6)->days();
         $this->sessaoExpira();
 
-        $this->voltarCom($lembrar)->get(route('dashboard'))->assertOk();
+        $this->voltarCom($lembrar)->get(route('transactions.index'))->assertOk();
         $this->assertAuthenticatedAs($user);
     }
 
@@ -67,7 +67,7 @@ class LembrarDeMimValeSeteDiasTest extends TestCase
         $this->travel(1)->minutes();
         $this->sessaoExpira();
 
-        $resposta = $this->voltarCom($lembrar)->get(route('dashboard'))->assertRedirect(route('login'));
+        $resposta = $this->voltarCom($lembrar)->get(route('transactions.index'))->assertRedirect(route('login'));
         $this->assertGuest();
 
         $apagado = $resposta->getCookie(Auth::guard('web')->getRecallerName(), false);
@@ -82,7 +82,7 @@ class LembrarDeMimValeSeteDiasTest extends TestCase
         $hash = (fn ($senha) => $this->hashPasswordForCookie($senha))->call($guarda, $user->getAuthPassword());
 
         $this->voltarCom("{$user->id}|{$user->getRememberToken()}|{$hash}")
-            ->get(route('dashboard'))->assertRedirect(route('login'));
+            ->get(route('transactions.index'))->assertRedirect(route('login'));
         $this->assertGuest();
     }
 
@@ -92,7 +92,7 @@ class LembrarDeMimValeSeteDiasTest extends TestCase
         $lembrar = $this->lembrarDe($this->entrarLembrando($user));
         [$id, $token, $hash] = explode('|', $lembrar);
 
-        $this->voltarCom("{$id}|{$token}|{$hash}|amanha")->get(route('dashboard'))->assertRedirect(route('login'));
+        $this->voltarCom("{$id}|{$token}|{$hash}|amanha")->get(route('transactions.index'))->assertRedirect(route('login'));
         $this->assertGuest();
     }
 

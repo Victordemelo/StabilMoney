@@ -107,7 +107,7 @@ class PainelAdminAcessoTest extends TestCase
         $this->assertAuthenticated('admin');
 
         // Mesma sessão, rota do app: o guard `web` continua sem ninguém.
-        $this->get('/')->assertRedirect(route('login'));
+        $this->get(route('transactions.index'))->assertRedirect(route('login'));
         $this->assertGuest('web');
     }
 

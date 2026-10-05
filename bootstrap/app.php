@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\SaudeController;
 use App\Http\Middleware\BloqueiaUsuarioBanido;
+use App\Http\Middleware\PaginaInicialParaVisitante;
 use App\Http\Middleware\PainelAdminLigado;
 use App\Http\Middleware\SecurityHeaders;
 use App\Support\EnderecoPublico;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -74,6 +76,16 @@ return Application::configure(basePath: dirname(__DIR__))
             SecurityHeaders::class,
             BloqueiaUsuarioBanido::class,
         ]);
+
+        // A página inicial pública roda ANTES do `auth` na rota `/` (out/2026). Só a ordem
+        // escrita na rota não basta: o Laravel reordena os middlewares pela lista de
+        // prioridade, e o `auth` (que está nela) passava na frente — o visitante continuava
+        // indo para o login. Na lista, logo antes dele (e depois do StartSession, que ela já
+        // põe antes: sem sessão, quem entrou pareceria visitante).
+        $middleware->prependToPriorityList(
+            before: AuthenticatesRequests::class,
+            prepend: PaginaInicialParaVisitante::class,
+        );
 
     })
     ->withExceptions(function (Exceptions $exceptions): void {

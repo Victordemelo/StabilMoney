@@ -64,12 +64,12 @@ class LigarODoisFatoresDerrubaOsOutrosAparelhosTest extends TestCase
         $esteAparelho = $this->entrar(lembrar: false);
 
         // Controle: antes de ligar, o outro aparelho entra com a sessão que tem.
-        $this->voltar($outroAparelho)->get(route('dashboard'))->assertOk();
+        $this->voltar($outroAparelho)->get(route('transactions.index'))->assertOk();
 
         $this->ligarODoisFatores($esteAparelho)->assertSessionHasNoErrors();
 
         $this->assertDatabaseMissing('sessions', ['id' => $outroAparelho['sessao']]);
-        $this->voltar($outroAparelho)->get(route('dashboard'))->assertRedirect(route('login'));
+        $this->voltar($outroAparelho)->get(route('transactions.index'))->assertRedirect(route('login'));
         $this->assertGuest();
 
         // Só as desta conta: ninguém mais é desconectado.
@@ -105,7 +105,7 @@ class LigarODoisFatoresDerrubaOsOutrosAparelhosTest extends TestCase
         // Não era lembrado, e continua não sendo: ligar o 2FA não inventa um cookie longo.
         $this->assertNull($resposta->getCookie($this->nomeDoLembrar()));
 
-        $this->voltar($depois)->get(route('dashboard'))->assertOk();
+        $this->voltar($depois)->get(route('transactions.index'))->assertOk();
         $this->assertAuthenticatedAs($this->user);
         // E o 2FA não é cobrado de quem já estava dentro: é este aparelho que o ligou.
         $this->voltar($depois)->get('/configuracoes/2fa')->assertOk()->assertSee('Ativada');
@@ -125,7 +125,7 @@ class LigarODoisFatoresDerrubaOsOutrosAparelhosTest extends TestCase
 
         $this->assertNotSame($esteAparelho['sessao'], $depois['sessao']);
         $this->assertDatabaseMissing('sessions', ['id' => $esteAparelho['sessao']]);
-        $this->voltar(['sessao' => $esteAparelho['sessao']])->get(route('dashboard'))->assertRedirect(route('login'));
+        $this->voltar(['sessao' => $esteAparelho['sessao']])->get(route('transactions.index'))->assertRedirect(route('login'));
     }
 
     public function test_este_aparelho_continua_lembrado_com_um_cookie_novo(): void
@@ -168,7 +168,7 @@ class LigarODoisFatoresDerrubaOsOutrosAparelhosTest extends TestCase
         $this->assertSame($token, $this->user->fresh()->getRememberToken());
         $this->assertDatabaseHas('sessions', ['id' => $outroAparelho['sessao']]);
 
-        $this->voltar(['sessao' => $outroAparelho['sessao']])->get(route('dashboard'))->assertOk();
+        $this->voltar(['sessao' => $outroAparelho['sessao']])->get(route('transactions.index'))->assertOk();
         $this->soComOCookie($outroAparelho['lembrar'])->assertOk();
     }
 
@@ -299,7 +299,7 @@ class LigarODoisFatoresDerrubaOsOutrosAparelhosTest extends TestCase
     {
         return $this->aparelhoNovo()
             ->withCookie($this->nomeDoLembrar(), $cookie)
-            ->get(route('dashboard'));
+            ->get(route('transactions.index'));
     }
 
     /**

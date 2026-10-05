@@ -232,7 +232,7 @@ class DesignV2SecundariasTest extends TestCase
         return [
             // Login e cadastro levam o título de SEO (config/seo.php, out/2026): são a porta
             // de entrada do domínio nos buscadores.
-            'login' => ['/login', 'Stabil Money — controle financeiro pessoal e da família, grátis'],
+            'login' => ['/login', 'Entrar no Stabil Money — controle financeiro da família'],
             'cadastro' => ['/register', 'Criar conta grátis no Stabil Money — organize o dinheiro da família'],
             'esqueci a senha' => ['/forgot-password', 'Recuperar senha · StabilMoney'],
         ];

@@ -113,7 +113,7 @@ class AceiteDaPoliticaAtualTest extends TestCase
 
     public function test_sair_funciona_sem_aceitar(): void
     {
-        $this->actingAs($this->versaoAntiga())->post(route('logout'))->assertRedirect('/');
+        $this->actingAs($this->versaoAntiga())->post(route('logout'))->assertRedirect(route('login'));
         $this->assertGuest();
     }
 

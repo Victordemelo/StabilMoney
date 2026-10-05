@@ -22,6 +22,7 @@ use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Middleware\BloqueiaUsuarioBanido;
 use App\Http\Middleware\ExigeAceiteDaPoliticaAtual;
+use App\Http\Middleware\PaginaInicialParaVisitante;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -97,9 +98,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/termos/aceitar', [AceiteDaPoliticaController::class, 'store'])->name('termos.aceitar');
 });
 
+// A raiz: página inicial pública para quem não entrou; a Visão geral para quem entrou. A ORDEM
+// dos middlewares importa — o da página inicial vem antes do `auth`, que mandaria o visitante
+// para o login (`PaginaInicialParaVisitante`).
+Route::get('/', [DashboardController::class, 'index'])
+    ->middleware([PaginaInicialParaVisitante::class, 'auth', 'verified', ExigeAceiteDaPoliticaAtual::class])
+    ->name('dashboard');
+
 Route::middleware(['auth', 'verified', ExigeAceiteDaPoliticaAtual::class])->group(function () {
-    // Dashboard (tela inicial)
-    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
     // Token CSRF fresco da sessão atual. Usado pelo submit AJAX do lançamento
     // para se recuperar de um 419: quando o form é aberto OFFLINE (servido do

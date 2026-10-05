@@ -18,7 +18,8 @@ class GuestAccessTest extends TestCase
     public static function protectedRoutes(): array
     {
         return [
-            'dashboard' => ['/'],
+            // A raiz ('/') saiu da lista em out/2026: para quem não entrou ela é a página
+            // inicial pública (PaginaInicialPublicaTest).
             'transações' => ['/transactions'],
             'contas' => ['/accounts'],
             'categorias' => ['/categories'],

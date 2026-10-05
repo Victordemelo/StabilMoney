@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.163 testes PHP / 52.500 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **358 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.170 testes PHP / 52.560 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **358 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -229,7 +229,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.163 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.170 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -320,7 +320,7 @@ tests/Feature/              # 2.163 testes (PHP): auth, dashboard, CRUD, valida�
 
 | Rota (name) | View | O que mostra |
 |---|---|---|
-| `GET /` (`dashboard`) | `dashboard.blade.php` | Stats com sparklines, segmented semana/mês/ano, fluxo de caixa, donut por categoria, transações recentes, "Meu cartão" (rótulo "Limite disponível" p/ crédito) + contas, e cards **com dados reais** de Metas / Contas a pagar (faturas de cartão em aberto) / Investimentos — resumos via `DashboardService::featureResumos`. |
+| `GET /` (`dashboard`) — **visitante:** `inicio.blade.php` | `dashboard.blade.php` | Stats com sparklines, segmented semana/mês/ano, fluxo de caixa, donut por categoria, transações recentes, "Meu cartão" (rótulo "Limite disponível" p/ crédito) + contas, e cards **com dados reais** de Metas / Contas a pagar (faturas de cartão em aberto) / Investimentos — resumos via `DashboardService::featureResumos`. |
 | `/transactions` (resource, sem `show`) | `transactions/*` | Lista com filtros GET (**tipo/conta/categoria/período `de`+`ate`**), **15 por página** (`TransactionController::POR_PAGINA`) e **sem rolagem interna** — a lista cresce para baixo (`.tx-list-cheia`; a rolagem de 4 itens do `.tx-list` é só das recentes do painel — `MovimentacoesPaginamDeQuinzeEmQuinzeTest`). **Compra parcelada é UMA linha**, com o total e o selo "em Nx", pela MENOR parcela que ainda existe (subconsulta `MIN(installment_no)` por `group_id`; filtros e paginação contam compras) — `ParceladoApareceUmaVezNasMovimentacoesTest`; recorrência segue linha a linha. O select de **categoria** agrupa por tipo com `<optgroup>` ("Outros" existe nos dois; sem o grupo apareceria duplicado sem distinção) e segue a ordem `position` da tela de Categorias. Id de outra família é IGNORADO, nunca aplicado — aceitá-lo viraria sonda para descobrir a categoria alheia. Data inválida no filtro é IGNORADA (vem pela URL; não pode derrubar a lista) e datas invertidas são TROCADAS. ⚠️ A leitura é ESTRITA — `createFromFormat` é tolerante e transformava `2026-13-45` em `2027-02-14` em silêncio, então a data é reformatada e comparada com a entrada. "Nova transação" abre o **modal global**, não outra tela; form com type-toggle, valor com vírgula, conta, categoria filtrada por tipo. |
 | `/accounts` (resource, sem `show`) | `accounts/*` | **"Métodos de Pagamento"**. 5 tipos (Conta Corrente/Poupança, Cartão de Débito/Crédito, **Pix**) + **banco** com logo (imagem `public/assets/banks/`, preview no form). Form com campos condicionais por tipo (JS): conta = saldo inicial; **corrente = + limite do cheque especial**; crédito = limite + fechamento/vencimento; débito = vincula corrente/poupança que ele espelha. **Sem picker de ícone/cor.** O card mostra a imagem do banco e o **"Saldo em conta" = `available`** (vermelho quando negativo), com barra de uso do cheque especial; débito mostra corrente/poupança separados + total. **Travas (23/09/2026):** conta que um débito/Pix espelha **não troca de tipo, nem zerada** (`Account::travaDeTipo` = classe + espelho — antes uma corrente zerada virava cartão de crédito e o débito passava a lançar numa fatura; `ContaEspelhadaNaoTrocaDeTipoTest`); **excluir conta** bloqueia com lançamentos ou com guardado líquido ≠ 0 em algum cofrinho — zerado, os aportes/resgates dela saem junto, sem mudar total (`ContaComGuardadoZeradoPodeSerExcluidaTest`); o **banco é obrigatório e NÃO vem pré-selecionado** (antes tudo virava Nubank — `CadastroDeContaSemBancoPreSelecionadoTest`); e **excluir conta que um débito/Pix usa é recusado**, com a mensagem nomeando o método (23/09/2026 — `ContaUsadaPorDebitoOuPixNaoSaiTest`): a FK `nullOnDelete` deixava o método órfão, sumindo em silêncio do select de pagamento, ou passando a sacar da outra conta vinculada. |
 | `/categories` (resource, sem `show`) | `categories/*` | Duas colunas **Receitas (esquerda) / Despesas (direita)** com chips emoji+nome; **criar/editar abre MODAL** na própria tela, aberto em RECEITA (página cheia de fallback); **arrastar DENTRO da coluna reordena** (coluna `position`, `PATCH categories/ordenar`) e **entre colunas troca o tipo** (PATCH AJAX em `categories.js`, rollback se falhar); botões editar/excluir por chip; form com type-toggle e pickers. **Categoria em uso não troca de tipo** (22/09/2026 — `CategoriaEmUsoNaoTrocaDeTipoTest`): 422 em `type` se algum lançamento dela tem tipo diferente do novo, ou se uma conta fixa a usa e o tipo novo é receita — antes os lançamentos ficavam presos numa categoria do tipo oposto (editar dava 422, o donut misturava receita com despesa). A regra confere o INVARIANTE, não "tem lançamento": arrastar de volta uma categoria que ficou errada é permitido, e é o que a conserta. 🚨 Nunca "consertar" mudando o `type` das transações (é o sinal do dinheiro). Arraste e modal mostram a mensagem do servidor (`mensagemDeErro` em `categories.js`). **Reordenar sem arrastar** (23/09/2026, A-4): botões ▲▼ por chip (`[data-cat-mover]`, com o nome no rótulo), mesmo `PATCH categories/ordenar`, posição anunciada em `#catAnuncio`. |
@@ -1441,6 +1441,21 @@ no `PainelAdminNaoVeValoresTest`).
   perde IP e aparelho. **`atividades:limpar`** (03:20, 180 dias = `Atividade::DIAS_DE_RETENCAO`) —
   mudou o prazo, mude a Política (seções 2.3, 4, 7 e 11; versão 3.2).
 
+## 🌐 Página inicial pública (out/2026) — `PaginaInicialPublicaTest`
+
+A raiz (`/`) para quem **não entrou** é a apresentação do projeto (`resources/views/inicio.blade.php` +
+`resources/css/inicio.css`, sempre clara): abertura com o vídeo da marca e uma amostra da Visão geral,
+recursos, como funciona, conta-família, segurança, **quem fez** (autor, site, LinkedIn e contato, de
+`config/sistema.php`) e perguntas frequentes (FAQPage em JSON-LD). Quem entrou segue para a Visão geral.
+- `App\Http\Middleware\PaginaInicialParaVisitante` na rota `/`, ANTES do `auth`. 🚨 Só a ordem na rota
+  não basta: o Laravel reordena pela lista de prioridade e o `auth` passava na frente — por isso o
+  `prependToPriorityList(before: AuthenticatesRequests)` no `bootstrap/app.php`.
+- **"Sair" leva ao `/login`** (não mais à raiz) e o **app instalado abre em `/login`** (`start_url`): a
+  apresentação não tem lugar dentro do app, e o service worker reconhece o fim da sessão pelo /login 200.
+- Teste que precise de "tela que exige login" usa `route('transactions.index')`, nunca a raiz.
+- SEO: `seo.paginas.dashboard` (o título forte); `Seo::indexavel` exige visitante sem sessão — a Visão
+  geral, no mesmo endereço, nunca é indexável. A marca do login/cadastro leva à página inicial.
+
 ## 🔎 SEO (23/09/2026) — `SeoDasPaginasPublicasTest`
 
 O app é quase todo privado. **Só login, cadastro, Termos e Privacidade vão para os buscadores**, e só
@@ -1480,7 +1495,7 @@ uma). Página nova entra lá e aparece sozinha no sitemap.
   - Dados estruturados: autor com `sameAs` (site e LinkedIn, de `config/sistema.php`) e `featureList`.
 - Pendente (fora do código): verificar o domínio no Google Search Console e no Bing (TXT na Cloudflare
   ou as metas acima) e enviar o `/sitemap.xml`. Uma página inicial pública com conteúdo (hoje `/`
-  manda quem não entrou para o login) seria o maior ganho de SEO — é uma tela nova, a desenhar.
+  mandava quem não entrou para o login) — FEITO em out/2026, ver "🌐 Página inicial pública".
 
 ## 🔒 Segurança (pentest de 27/07/2026 — ondas 1, 2 e 3 aplicadas)
 
@@ -2388,7 +2403,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.163 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.170 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo

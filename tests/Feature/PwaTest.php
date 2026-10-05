@@ -26,7 +26,7 @@ class PwaTest extends TestCase
         $manifest = $response->json();
 
         $this->assertSame('standalone', $manifest['display']);
-        $this->assertSame('/', $manifest['start_url']);
+        $this->assertSame('/login', $manifest['start_url']);
         $this->assertNotEmpty($manifest['name']);
         $this->assertNotEmpty($manifest['short_name']);
 

@@ -48,8 +48,16 @@ return [
     // o login é a porta de entrada do domínio, e "Entrar · StabilMoney" não dizia o que o
     // app é. Sem `titulo`, vale o título da própria tela.
     'paginas' => [
-        'login' => [
+        // A raiz (`/`, rota `dashboard`): para quem NÃO entrou é a página inicial pública
+        // (`PaginaInicialParaVisitante`); para quem entrou, a Visão geral — que nunca é
+        // indexável (`Seo::indexavel` exige visitante sem sessão).
+        'dashboard' => [
             'titulo' => 'Stabil Money — controle financeiro pessoal e da família, grátis',
+            'descricao' => 'Organize receitas, despesas, cartões com fatura, contas fixas, metas e investimentos — sozinho ou em família. Gratuito, em português e funciona no celular.',
+            'aplicativo' => true,
+        ],
+        'login' => [
+            'titulo' => 'Entrar no Stabil Money — controle financeiro da família',
             'descricao' => 'Controle financeiro pessoal e da família: receitas, despesas, cartões, contas fixas, metas e investimentos num só lugar. Gratuito.',
             'aplicativo' => true,
         ],

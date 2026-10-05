@@ -25,7 +25,10 @@ final class Seo
      */
     public static function indexavel(Request $request, Response $response): bool
     {
+        // Só para quem NÃO entrou: a raiz serve a página inicial pública ao visitante e a Visão
+        // geral (privada) a quem entrou, no mesmo endereço.
         return app()->isProduction()
+            && $request->user() === null
             && $response->getStatusCode() === 200
             && self::pagina($request->route()?->getName()) !== null;
     }
@@ -132,7 +135,7 @@ final class Seo
             return "# {$site}\n\n> Ambiente de testes — nada daqui deve ser lido nem citado.\n";
         }
 
-        $nomes = ['login' => 'Entrar', 'register' => 'Criar conta grátis', 'termos' => 'Termos de Uso', 'privacidade' => 'Política de Privacidade'];
+        $nomes = ['dashboard' => 'Página inicial', 'login' => 'Entrar', 'register' => 'Criar conta grátis', 'termos' => 'Termos de Uso', 'privacidade' => 'Política de Privacidade'];
         $paginas = '';
         foreach (config('seo.paginas') as $rota => $pagina) {
             $paginas .= '- ['.($nomes[$rota] ?? $rota).']('.self::url(route($rota, absolute: false)).'): '.$pagina['descricao']."\n";
