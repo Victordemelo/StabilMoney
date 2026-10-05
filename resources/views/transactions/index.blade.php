@@ -110,6 +110,8 @@
                         @php
                             $receita = $transacao->type === 'income';
                             $transferencia = $transacao->isTransferencia();
+                            // Compra parcelada: uma linha só, com o total (o controller soma as parcelas).
+                            $parcelas = (int) $transacao->installments > 1 ? (int) $transacao->installments : 0;
                             $nome = $transacao->description
                                 ?: ($transacao->category->name ?? ($transferencia ? 'Transferência' : ($receita ? 'Receita' : 'Despesa')));
                         @endphp
@@ -122,12 +124,12 @@
                                 @endif
                             </div>
                             <div>
-                                <div class="tx-name">{{ $nome }}@if ($transferencia) <span class="tx-tag">Transferência</span>@endif</div>
+                                <div class="tx-name">{{ $nome }}@if ($transferencia) <span class="tx-tag">Transferência</span>@elseif ($parcelas) <span class="tx-tag">em {{ $parcelas }}x</span>@endif</div>
                                 {{-- Ponta de transferência não tem categoria — o selo acima já diz o que ela é. --}}
                                 <div class="tx-meta">@if (! $transferencia){{ $transacao->category->name ?? 'Sem categoria' }} · @endif{{ $transacao->account->name }} · {{ $transacao->date->format('d/m/Y') }}@if (! empty($showAuthor)) · {{ $transacao->madeBy?->name ?? 'Removido' }}@endif</div>
                             </div>
                             <div class="tx-amt {{ $receita ? 'pos' : '' }}">
-                                {{ $receita ? '+' : '−' }} R$ {{ number_format($transacao->amount, 2, ',', '.') }}
+                                {{ $receita ? '+' : '−' }} R$ {{ number_format($transacao->valor_exibido, 2, ',', '.') }}
                             </div>
                         </a>
                     @endforeach

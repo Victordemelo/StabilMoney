@@ -90,11 +90,10 @@
         $fixasAbertas = $contasFixas->where('paga', false);
         $fixasVencidas = $contasFixas->where('vencida', true);
         $totalFixas = round((float) $fixasAbertas->sum('valor'), 2);
-        // Editar/excluir são da CONTA FIXA, não da competência: a mesma conta
-        // pode aparecer em várias linhas (julho vencido + agosto a vencer), e
-        // repetir os botões em todas confundiria. Só a primeira linha de cada
-        // conta os recebe.
-        $fixasComAcoes = [];
+        // Editar/excluir são da CONTA FIXA, não da competência, mas aparecem em TODAS as
+        // linhas dela (out/2026 — `ContaFixaEditavelEmTodasAsLinhasTest`): só na primeira,
+        // com setembro vencido o outubro ficava sem lápis, e parecia que a conta só podia
+        // ser alterada depois de pagar a vencida.
     @endphp
     <div class="card fatura-card span12" style="margin-top:18px">
         <div class="fatura-head">
@@ -154,34 +153,28 @@
                         </button>
                     @endif
 
-                    @php
-                        $primeiraLinhaDaConta = ! in_array($bill->id, $fixasComAcoes, true);
-                        if ($primeiraLinhaDaConta) { $fixasComAcoes[] = $bill->id; }
-                    @endphp
-                    @if ($primeiraLinhaDaConta)
-                        {{-- Editar: corrige o previsto (1.800 digitado como 18.000 ficava
-                             projetado para sempre e ainda vinha pré-preenchido no pagamento). --}}
-                        <button class="fi-rm fi-ed" type="button" data-fixa-editar
-                                data-action="{{ route('contas-fixas.update', $bill) }}"
-                                data-nome="{{ $bill->name }}"
-                                data-valor="{{ number_format((float) $bill->amount, 2, ',', '.') }}"
-                                data-dia="{{ $bill->due_day }}"
-                                data-conta="{{ $bill->account_id }}"
-                                data-categoria="{{ $bill->category_id }}"
-                                data-inicio="{{ optional($bill->starts_on)->format('Y-m-d') }}"
-                                data-fim="{{ optional($bill->ends_on)->format('Y-m-d') }}"
-                                aria-label="Editar conta fixa" title="Editar conta fixa">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg>
+                    {{-- Editar: corrige o previsto (1.800 digitado como 18.000 ficava
+                         projetado para sempre e ainda vinha pré-preenchido no pagamento). --}}
+                    <button class="fi-rm fi-ed" type="button" data-fixa-editar
+                            data-action="{{ route('contas-fixas.update', $bill) }}"
+                            data-nome="{{ $bill->name }}"
+                            data-valor="{{ number_format((float) $bill->amount, 2, ',', '.') }}"
+                            data-dia="{{ $bill->due_day }}"
+                            data-conta="{{ $bill->account_id }}"
+                            data-categoria="{{ $bill->category_id }}"
+                            data-inicio="{{ optional($bill->starts_on)->format('Y-m-d') }}"
+                            data-fim="{{ optional($bill->ends_on)->format('Y-m-d') }}"
+                            aria-label="Editar a conta fixa {{ $bill->name }}" title="Editar conta fixa">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg>
+                    </button>
+                    <form method="POST" action="{{ route('contas-fixas.destroy', $bill) }}"
+                          data-confirmar="Excluir a conta fixa “{{ $bill->name }}”? As competências em aberto deixam de aparecer aqui; os pagamentos já feitos continuam no histórico.">
+                        @csrf
+                        @method('DELETE')
+                        <button class="fi-rm" type="submit" aria-label="Excluir a conta fixa {{ $bill->name }}" title="Excluir conta fixa">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
                         </button>
-                        <form method="POST" action="{{ route('contas-fixas.destroy', $bill) }}"
-                              data-confirmar="Excluir a conta fixa “{{ $bill->name }}”? As competências em aberto deixam de aparecer aqui; os pagamentos já feitos continuam no histórico.">
-                            @csrf
-                            @method('DELETE')
-                            <button class="fi-rm" type="submit" aria-label="Excluir conta fixa" title="Excluir conta fixa">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                            </button>
-                        </form>
-                    @endif
+                    </form>
                 </div>
             @empty
                 <div class="fi-empty">Nenhuma conta fixa cadastrada. Cadastre o condomínio, o aluguel ou a parcela do carro para nunca perder o vencimento.</div>
@@ -850,7 +843,7 @@
             <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg></span>
             <div>
                 <h3 id="fixaEditarModal-titulo">Editar conta fixa</h3>
-                <p id="fixaEditarModal-descricao">Vale para as próximas competências — os pagamentos já feitos não mudam.</p>
+                <p id="fixaEditarModal-descricao">O valor novo vale deste mês em diante; os pagamentos já feitos não mudam. Se só a conta deste mês veio diferente, ajuste o valor na hora de pagar.</p>
             </div>
             <button class="modal-x" type="button" data-fixaedit-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>

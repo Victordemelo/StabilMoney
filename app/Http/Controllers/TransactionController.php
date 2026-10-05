@@ -101,11 +101,41 @@ class TransactionController extends Controller
             $query->where('date', '<=', $ate->toDateString());
         }
 
+        // Compra parcelada aparece UMA vez, com o valor TOTAL e "em Nx" (out/2026 —
+        // `ParceladoApareceUmaVezNasMovimentacoesTest`), como nas recentes do painel: antes
+        // uma compra em 12x virava doze linhas de R$ 16,66. A linha da compra é a MENOR parcela
+        // que ainda existe (normalmente a 1ª, na data da compra) — "Contas a pagar" remove só as
+        // parcelas em aberto, e uma compra com a 1ª removida não pode sumir do histórico. As
+        // parcelas, uma a uma, continuam na fatura do cartão e no "Detalhes" da edição.
+        // Recorrência segue linha a linha: cada ocorrência é uma cobrança de verdade.
+        $query->where(fn ($q) => $q->whereNull('group_id')
+            ->orWhereNull('installments')
+            ->orWhere('installments', '<=', 1)
+            ->orWhere('installment_no', '=', fn ($menor) => $menor->from('transactions as parcela')
+                ->selectRaw('MIN(parcela.installment_no)')
+                ->whereColumn('parcela.group_id', 'transactions.group_id')
+                ->whereColumn('parcela.user_id', 'transactions.user_id')));
+
         $transactions = $query
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->paginate(self::POR_PAGINA)
             ->withQueryString();
+
+        // Valor exibido: o da compra inteira quando é parcelada (soma das parcelas que existem).
+        $grupos = $transactions->getCollection()
+            ->filter(fn (Transaction $t) => $t->group_id && (int) $t->installments > 1)
+            ->pluck('group_id')->unique()->values();
+        $totaisDosGrupos = $grupos->isEmpty() ? collect() : Transaction::where('user_id', $userId)
+            ->whereIn('group_id', $grupos)
+            ->groupBy('group_id')
+            ->selectRaw('group_id, SUM(amount) AS total')
+            ->pluck('total', 'group_id');
+        foreach ($transactions as $transacao) {
+            $transacao->valor_exibido = (int) $transacao->installments > 1 && isset($totaisDosGrupos[$transacao->group_id])
+                ? round((float) $totaisDosGrupos[$transacao->group_id], 2)
+                : (float) $transacao->amount;
+        }
 
         // Exibe "quem fez a compra" só quando a família tem dependentes.
         $showAuthor = User::where('account_owner_id', $userId)->exists();
