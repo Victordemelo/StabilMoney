@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PASSOS, retomarTutorial } from '../../resources/js/sm/tutorial.js';
 
 /**
@@ -44,6 +44,31 @@ describe('tutorial guiado', () => {
         expect(document.querySelector('.tour-passo').textContent).toBe(`Passo ${indice + 1} de ${PASSOS.length}`);
         // jsdom não mede elementos: sem alvo visível, o passo vai para o centro.
         expect(document.querySelector('.tour').classList.contains('sem-alvo')).toBe(true);
+    });
+
+    it('rola até o alvo SEM animação e o destaque acompanha qualquer rolagem', () => {
+        irPara('/transactions');
+        const indice = PASSOS.findIndex((p) => p.tela === '/transactions');
+        const alvo = document.createElement('form');
+        alvo.className = 'filter-bar';
+        document.body.appendChild(alvo);
+        let topo = 300;
+        alvo.getBoundingClientRect = () => ({ top: topo, left: 100, width: 400, height: 60, bottom: topo + 60, right: 500 });
+        const rolar = vi.fn();
+        alvo.scrollIntoView = rolar;
+        sessionStorage.setItem('sm-tutorial-passo', String(indice));
+
+        retomarTutorial();
+
+        // Com `scroll-behavior: smooth` no .content, o `auto` rolaria animado e a medida sairia
+        // no meio do caminho (o destaque ficava longe do botão).
+        expect(rolar).toHaveBeenCalledWith({ block: 'center', behavior: 'instant' });
+        const foco = document.querySelector('.tour-foco');
+        expect(foco.style.top).toBe('294px');
+
+        topo = 120;
+        document.dispatchEvent(new Event('scroll'));
+        expect(foco.style.top).toBe('114px');
     });
 
     it('Esc encerra e esquece o passo', () => {

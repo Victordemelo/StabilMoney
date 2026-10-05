@@ -69,6 +69,7 @@ function encerrar() {
         camada = null;
     }
     document.removeEventListener('keydown', aoTeclar, true);
+    document.removeEventListener('scroll', reposicionar, true);
     window.removeEventListener('resize', reposicionar);
 }
 
@@ -155,6 +156,8 @@ function montarCamada() {
     c.querySelector('.tour-proximo').addEventListener('click', () => irPara(atual + 1));
     document.body.appendChild(c);
     document.addEventListener('keydown', aoTeclar, true);
+    // Qualquer rolagem (o #content rola por dentro) move o alvo: o destaque acompanha.
+    document.addEventListener('scroll', reposicionar, true);
     window.addEventListener('resize', reposicionar);
     return c;
 }
@@ -171,7 +174,9 @@ function mostrar(indice) {
     camada.querySelector('.tour-proximo').textContent = indice === PASSOS.length - 1 ? 'Concluir' : 'Próximo';
 
     const alvo = acharAlvo(passo);
-    if (alvo) alvo.scrollIntoView({ block: 'center', behavior: 'auto' });
+    // `instant`, não `auto`: com `scroll-behavior: smooth` no CSS, o `auto` rola animado e a
+    // medida saía no meio do caminho — o destaque ficava longe do botão.
+    if (alvo) alvo.scrollIntoView({ block: 'center', behavior: 'instant' });
     reposicionar();
     camada.querySelector('.tour-proximo').focus();
 }
