@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **1.978 testes PHP / 50.445 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **336 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **1.981 testes PHP / 46.121 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **336 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -222,7 +222,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 1.978 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 1.981 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -310,19 +310,27 @@ tests/Feature/              # 1.978 testes (PHP): auth, dashboard, CRUD, valida�
 | `/dependentes` (`DependentController`: index/store/update/destroy) | `dependents/index` | **Conta-família (implementado).** Titular cria/edita/remove dependentes (modais **fora da `.card`** — ela tem `overflow:hidden`+animação `transform`, que prendia o `position:fixed`). **Redesign v2 (06/08/2026):** o topo traz o **resumo da família** (pessoas na conta · gasto do mês · quem mais gastou) e cada card mostra **foto** (avatar), nome com **selo de papel** (`.dp-badge`), e-mail, **quanto gastou no mês** (`Σ` despesas do mês corrente com `made_by_user_id` da pessoa; titular incluso) e a **fatia do gasto da família** em barra. O denominador é o ponto: número solto não responde "quem está gastando quanto" — R$ 1.590 é muito ou pouco só em relação ao total (`$gastoFamilia`, com guarda de divisão por zero). Sem dependente nenhum aparece um **card-fantasma** (`.dep-ghost`, `aria-hidden`) mostrando o FORMATO do card que a pessoa vai receber; ele some no instante em que existe um dependente de verdade, e seus números são 0% / R$ 0,00 — valor inventado ao lado de barra cheia contaria duas histórias no mesmo card. Botões **editar** e **excluir** por card. No cadastro/edição define-se nome, e-mail, **foto** (avatar central clicável — a bolinha É o botão de upload, classe `.avatar-pick`), **parentesco** (select `User::RELATIONSHIPS`) e senha (Store/UpdateDependentRequest; senha opcional na edição). **Lançar em nome de um dependente** é feito no formulário de transação, pelo seletor "quem fez a compra" (suporta deep-link `transactions.create?autor=ID`). **Editar sem o campo PRESERVA o autor gravado**, e autor nulo aparece como "Não informado" — antes a autoria passava para quem editava (23/09/2026, A-11 — `EditarLancamentoPreservaOAutorTest`). Só titular acessa (403 p/ dependente); dependente de outra família: 404, como id que não existe. |
 | `/metas` (`GoalController` index/store/update/destroy + aportes/resgates) | `metas/index` | **Metas (implementado).** Objetivos de poupança modelo "cofrinho": aporte reserva, resgate devolve à conta. Compartilhadas na família (`ownerId`). |
 | `/investimentos` (`InvestmentController` index/store/update/destroy + aportes/resgates) | `investimentos/index` | **Investimentos (implementado).** Cofrinho + metadados/projeções (indexador CDI/Selic/IPCA+/Prefixado, % do indexador, prévia de IR/IOF). Compartilhados na família. |
-| `/faturas` (**"Pagar despesas"**: `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy` + **`faturas.fatura.pagar`** + **`faturas.fatura.estornar`** + `faturas.recorrente.pagar` + `faturas.fatura.quitar-pelo-credito` + `faturas.fatura.desfazer-quitacao`) | `faturas/index` | **Pagar despesas (implementado).** Três blocos: **contas fixas do mês** (topo — competências projetadas, badge de vencida, botão Pagar e "+ Nova conta fixa"), faturas por cartão (parcelas/recorrência, ciclo, limite) e despesas avulsas. **Marcar fatura como paga** usa `PayInvoiceRequest` (com **data do pagamento** informável) e passa pelo `FundingService` — respeita saldo e pergunta a fonte. `Account::openInvoiceDue` = fatura do ciclo aberto; **`closedInvoiceDue`/`overdueInvoice`** = a do ciclo fechado e vencida. A recorrência de cartão agora tem **botão "Pagar"** (a rota existia sem UI, então nunca avançava de mês). |
+| `/faturas` (**"Contas a pagar"**, antes "Pagar despesas": `FaturaController` index + `faturas.lancar` + `faturas.compra.destroy` + **`faturas.fatura.pagar`** + **`faturas.fatura.estornar`** + `faturas.recorrente.pagar` + `faturas.fatura.quitar-pelo-credito` + `faturas.fatura.desfazer-quitacao`) | `faturas/index` | **Pagar despesas (implementado).** Três blocos: **contas fixas do mês** (topo — competências projetadas, badge de vencida, botão Pagar e "+ Nova conta fixa"), faturas por cartão (parcelas/recorrência, ciclo, limite) e despesas avulsas. **Marcar fatura como paga** usa `PayInvoiceRequest` (com **data do pagamento** informável) e passa pelo `FundingService` — respeita saldo e pergunta a fonte. `Account::openInvoiceDue` = fatura do ciclo aberto; **`closedInvoiceDue`/`overdueInvoice`** = a do ciclo fechado e vencida. A recorrência de cartão agora tem **botão "Pagar"** (a rota existia sem UI, então nunca avançava de mês). |
 | `/contas-fixas` (`FixedBillController` store/update/destroy + **`contas-fixas.pagar/{competencia}`**) | bloco em `faturas/index` | **Contas fixas mensais (implementado).** Condomínio, aluguel, parcela do carro. **Sem rota de listagem** — aparecem em `/faturas`. `due_day` aceita **1..31**. Pagar recebe o valor REAL (editável, vem preenchido com o previsto) e a data; idempotente pelo `unique(fixed_bill_id, competence)`. |
 | `routes/auth.php` | `auth/*` | Breeze: login, registro, esqueci/redefinir senha, confirmar senha, verificar e-mail. |
 | `GET /robots.txt` (`seo.robots`) + `GET /sitemap.xml` (`seo.sitemap`) → `SeoController` | — (texto/XML) | **SEO** (23/09/2026 — `SeoDasPaginasPublicasTest`): gerados pelo app a partir do APP_URL e do ambiente — em produção o robots abre tudo e aponta o sitemap; fora dela, `Disallow: /` e sitemap vazio. Sem sessão nem cookie (grupo do PWA). O `public/robots.txt` estático saiu: o Apache o serviria antes do Laravel. Ver "🔎 SEO". |
 | `GET /up` (`saude`) → `SaudeController` | — (texto) | **Checagem de saúde para o monitor** (22/09/2026 — `ChecagemDeSaudeEnxergaOAppTest`): responde `ok` (200), `manutencao` (503) ou `indisponivel` (503) em texto, com `no-store` e cabeçalhos de segurança; confere o banco (`select 1`) e se a pasta do log aceita escrita, e o motivo da falha vai só para o log. Registrada no `then:` do `bootstrap/app.php`, **fora do grupo `web`** (sem sessão nem cookie a cada batida) e excluída do middleware de manutenção (`preventRequestsDuringMaintenance(except: ['up'])`) para responder ela mesma. Substituiu o `health: '/up'` do framework, que servia HTML com script de CDN de terceiro e respondia 200 com o banco fora do ar — não volte a ele. |
 
-**Menu da sidebar (v2):** grupo **Menu** = Visão geral → `dashboard`, **Histórico** →
-`transactions.index`, Pagar despesas → `faturas`, Metas → `metas`, Investimentos →
-`investimentos`; grupo **Preferências** = Métodos de Pagamento → `accounts.index`,
-Categorias → `categories.index`. Sem Relatórios, sem Ajuda, sem Configurações no menu
-(Configurações vive no popover do perfil) e sem card de upsell. A sidebar ainda tem o card
-**Patrimônio total** (dados reais via `SidebarService`/View Composer) e o card **Dependentes**
-(estado vazio → rota `dependentes`).
+**Menu da sidebar (redesenho de out/2026 — `RedesenhoDaNavegacaoTest`):** grupo **Seu dinheiro** =
+Visão geral → `dashboard`, **Movimentações** → `transactions.index`, **Contas e cartões** →
+`accounts.index`, Metas → `metas`, Investimentos → `investimentos`; grupo **Organização** =
+**Contas a pagar** → `faturas`, Categorias → `categories.index`, **Família** → `dependentes` (só
+titular, com o número de dependentes; substituiu o card Dependentes). Sem Relatórios, sem Ajuda,
+sem Configurações no menu (vive no popover do perfil). **O título de cada tela (`<title>` e
+`<h2>`) é o mesmo nome do item do menu** — o teste percorre o menu e confere; renomeou um,
+renomeie o outro (e as mensagens que citam a tela: "na tela Contas a pagar", "em Movimentações").
+A bottom-nav mantém os rótulos curtos (Início · Extrato · Pagar · Metas). O card **Patrimônio
+total** (dados reais via `SidebarService`/View Composer) ficou compacto, mas **nenhuma linha de
+dinheiro some** (guardado, investido, cheque especial): só a spark e o brilho saem. Dashboard:
+o saldo é um card de destaque (`.dashboard-balance-hero`) e os outros três são compactos, com
+ícone → rótulo → valor → variação NO FLUXO (`.stat-top` em `display: contents`) — com
+`position: absolute`, o selo da variação cobria o valor no celular. O protótipo de origem está em
+`design/previews/dashboard-concept-02/` (o "Resumo inteligente" dele não foi implementado).
 
 **Navegação por AJAX (pjax):** os itens de menu (sidebar + bottom-nav, marcados `data-pjax`)
 navegam **sem reload** via `resources/js/sm/nav.js` — troca só o `#content` (shell persiste),
@@ -2115,7 +2123,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (1.978 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (1.981 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo

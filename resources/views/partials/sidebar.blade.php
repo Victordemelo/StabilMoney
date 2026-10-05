@@ -29,40 +29,48 @@
         <span class="brand-name">Stabil<b>Money</b></span>
     </div>
 
-    <div class="nav-group-label">Menu</div>
+    <div class="nav-group-label">Seu dinheiro</div>
     <nav class="nav">
         <a data-pjax class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
             <span class="nav-label">Visão geral</span>
         </a>
         <a data-pjax class="nav-item {{ request()->routeIs('transactions.*') ? 'active' : '' }}" href="{{ route('transactions.index') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 2M21 12a9 9 0 1 1-9-9c2.5 0 4.8 1 6.4 2.7M21 4v4h-4"/></svg>
-            <span class="nav-label">Histórico</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+            <span class="nav-label">Movimentações</span>
         </a>
-        <a data-pjax class="nav-item {{ request()->routeIs('faturas.*') ? 'active' : '' }}" href="{{ route('faturas.index') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 3h9l3 3v15l-2-1.3L13 21l-2-1.3L9 21l-2-1.3L5 21V5a2 2 0 0 1 1-2Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
-            <span class="nav-label">Pagar despesas</span>
+        <a data-pjax class="nav-item {{ request()->routeIs('accounts.*') ? 'active' : '' }}" href="{{ route('accounts.index') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 7V6a2 2 0 0 0-2-2H5a3 3 0 0 0 0 6h15v8a2 2 0 0 1-2 2H5a3 3 0 0 1-3-3V7"/><path d="M16 14h.01"/></svg>
+            <span class="nav-label">Contas e cartões</span>
         </a>
         <a data-pjax class="nav-item {{ request()->routeIs('metas.*') ? 'active' : '' }}" href="{{ route('metas.index') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".7" fill="currentColor"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 13V2l8 4-8 4"/><path d="M20.6 13.5A9 9 0 1 1 8 3.3"/><path d="M12 13 7.5 8.5"/></svg>
             <span class="nav-label">Metas</span>
         </a>
         <a data-pjax class="nav-item {{ request()->routeIs('investimentos.*') ? 'active' : '' }}" href="{{ route('investimentos.index') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V6M4 19h16M8 16v-4M12 16V8M16 16v-7M20 16v-3"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="m7 16 4-5 4 3 5-7"/></svg>
             <span class="nav-label">Investimentos</span>
         </a>
     </nav>
 
-    <div class="nav-group-label">Preferências</div>
+    <div class="nav-group-label">Organização</div>
     <nav class="nav">
-        <a data-pjax class="nav-item {{ request()->routeIs('accounts.*') ? 'active' : '' }}" href="{{ route('accounts.index') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg>
-            <span class="nav-label">Métodos de Pagamento</span>
+        <a data-pjax class="nav-item {{ request()->routeIs('faturas.*') ? 'active' : '' }}" href="{{ route('faturas.index') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2 3-2V6Z"/><path d="M14 2v4h5"/><path d="M8 9h6M8 13h7"/></svg>
+            <span class="nav-label">Contas a pagar</span>
         </a>
         <a data-pjax class="nav-item {{ request()->routeIs('categories.*') ? 'active' : '' }}" href="{{ route('categories.index') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12.6 2.7A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8 8a2 2 0 0 0 2.8 0l7.2-7.2a2 2 0 0 0 0-2.8Z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>
             <span class="nav-label">Categorias</span>
         </a>
+        @if ($usuario->isTitular())
+            @php $numDep = $usuario->dependents()->count(); @endphp
+            <a data-pjax class="nav-item {{ request()->routeIs('dependentes') ? 'active' : '' }}" href="{{ route('dependentes') }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span class="nav-label">Família</span>
+                @if ($numDep > 0)<span class="badge">{{ $numDep }}</span>@endif
+            </a>
+        @endif
     </nav>
 
     @if ($patrimonio)
@@ -100,21 +108,6 @@
     @endif
 
     <div class="sidebar-spacer"></div>
-
-    {{-- Dependentes: só o titular gerencia (card escondido para dependentes) --}}
-    @if ($usuario->isTitular())
-        @php($numDep = $usuario->dependents()->count())
-        <a data-pjax class="dep-card {{ request()->routeIs('dependentes') ? 'active' : '' }}" href="{{ route('dependentes') }}">
-            <div class="dep-avatars">
-                <span class="da solo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.4 2.9-5.6 6.5-5.6 1 0 2 .2 2.8.5M17 8.5v6M14 11.5h6"/></svg></span>
-            </div>
-            <div class="dep-card-txt">
-                <strong>Dependentes</strong>
-                <span>{{ $numDep === 0 ? 'Nenhum dependente' : $numDep . ' ' . ($numDep === 1 ? 'pessoa' : 'pessoas') }}</span>
-            </div>
-            <svg class="dep-card-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-        </a>
-    @endif
 
     <button class="side-foot" id="profileBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="profilePop">
         <span class="avatar-initials">

@@ -104,7 +104,7 @@ class LembreteDeVencimento extends Mailable
 
         // O app nunca paga nada sozinho (regra do modelo de dinheiro): o e-mail avisa e
         // aponta a tela onde a pessoa paga — inclusive escolhendo a fonte, se faltar saldo.
-        $paragrafos[] = 'Nada foi pago automaticamente. Quando pagar, marque em <strong>Pagar despesas</strong> para o limite do cartão voltar e a conta sair desta lista.';
+        $paragrafos[] = 'Nada foi pago automaticamente. Quando pagar, marque em <strong>Contas a pagar</strong> para o limite do cartão voltar e a conta sair desta lista.';
 
         $rodapeNota = 'Este é um lembrete automático de vencimentos da sua conta no Stabil&nbsp;Money. '
             .'Você pode desligá-lo em <a href="'.e(route('settings', 'conta')).'" style="color:#15795A; text-decoration:none;">Configurações › Conta</a>.';
@@ -121,7 +121,7 @@ class LembreteDeVencimento extends Mailable
                 'detalhes' => [],
                 'secoes' => $secoes,
                 'acaoUrl' => route('faturas.index'),
-                'acaoRotulo' => 'Abrir Pagar despesas',
+                'acaoRotulo' => 'Abrir Contas a pagar',
                 'rodapeAviso' => null,
                 'rodapeAvisoTexto' => null,
                 'rodapeNota' => $rodapeNota,

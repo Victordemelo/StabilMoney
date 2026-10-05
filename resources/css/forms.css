@@ -224,8 +224,8 @@ a.tx { text-decoration: none; color: inherit; }
 .cc .cc-emoji { font-size: 24px; line-height: 1; position: relative; z-index: 1; }
 
 /* Imagem do cartão do banco (proporção de cartão real) */
-.bankcard { border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-md); aspect-ratio: 1.586; background: var(--surface-3); }
-.bankcard img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bankcard { border-radius: 16px; overflow: hidden; box-shadow: 0 12px 28px rgba(15,35,27,.14); aspect-ratio: 1.586; background: var(--surface-3); }
+.bankcard img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
 
 /* Bloco de informações abaixo do cartão */
 .acct-info { margin-top: 12px; }
@@ -759,6 +759,8 @@ a.tx { text-decoration: none; color: inherit; }
 .fatura-card { padding: 20px; margin-top: 18px; }
 .fatura-head { display: flex; align-items: center; gap: 14px; }
 .fh-card { width: 50px; height: 50px; border-radius: 13px; flex: none; display: grid; place-items: center; color: #fff; font-family: var(--font-head); font-weight: 800; font-size: 19px; }
+.fh-card.has-bank-art { width: 76px; height: auto; aspect-ratio: 1.586; overflow: hidden; border-radius: 10px; box-shadow: 0 5px 14px rgba(15,35,27,.13); }
+.fh-card.has-bank-art img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
 .fh-info { min-width: 0; }
 .fh-info strong { font-family: var(--font-head); font-size: 15.5px; font-weight: 600; display: block; }
 .fh-info span { font-size: 12.5px; color: var(--ink-3); }

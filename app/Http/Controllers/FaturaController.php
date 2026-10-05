@@ -160,7 +160,7 @@ class FaturaController extends Controller
         // também apontam o caminho certo em vez de repetir a lógica dele.
         if ($transaction->isTransferencia()) {
             return back()->withErrors([
-                'transaction' => 'Esta linha é uma das pontas de uma transferência entre contas e não pode ser excluída por aqui: apagar só um lado faria o dinheiro sumir de uma conta ou aparecer do nada na outra. Para desfazer a transferência, exclua pelo Histórico — as duas pontas saem juntas.',
+                'transaction' => 'Esta linha é uma das pontas de uma transferência entre contas e não pode ser excluída por aqui: apagar só um lado faria o dinheiro sumir de uma conta ou aparecer do nada na outra. Para desfazer a transferência, exclua em Movimentações — as duas pontas saem juntas.',
             ]);
         }
 

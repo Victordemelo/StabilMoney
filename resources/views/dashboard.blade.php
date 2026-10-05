@@ -75,7 +75,7 @@
         </div>
     </div>
 
-    <div class="grid">
+    <div class="grid dashboard-overview-grid">
         {{-- Stat cards (valores do mês renderizados no servidor; o JS anima/troca o período) --}}
         @foreach ($statCards as $card)
             @php
@@ -91,7 +91,7 @@
                 $bom = $trend === null ? null : ($card['key'] === 'despesas' ? $trend < 0 : $trend >= 0);
                 $sparkVals = $payload['sparks'][$card['key']] ?? [];
             @endphp
-            <div class="card stat span3" style="animation-delay:{{ $card['delay'] }}">
+            <div @class(['card', 'stat', 'span3', 'dashboard-balance-hero' => $card['key'] === 'saldo']) style="animation-delay:{{ $card['delay'] }}">
                 <div class="stat-top">
                     <div class="ico {{ $card['g'] }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor">{!! $card['icon'] !!}</svg></div>
                     <span class="label" title="{{ $card['hint'] }}">{{ $card['label'] }}</span>

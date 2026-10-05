@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Pagar despesas')
+@section('title', 'Contas a pagar')
 
 @section('content')
 @php
@@ -26,7 +26,7 @@
 
 <section class="view">
     <div class="section-head">
-        <h2>Pagar despesas</h2>
+        <h2>Contas a pagar</h2>
         <span class="sub">Marque a fatura do cartão como paga; débito, Pix e conta já descontam na hora</span>
         <div class="head-actions">
             <button class="btn-primary" type="button" id="lancarBtn">
@@ -207,7 +207,7 @@
                 <div class="empty-block">
                     <div class="eb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/></svg></div>
                     <strong>Nenhuma despesa por aqui ainda</strong>
-                    <span>Cadastre um cartão de crédito em Métodos de Pagamento e lance suas despesas — elas viram fatura aqui.</span>
+                    <span>Cadastre um cartão de crédito em Contas e cartões e lance suas despesas — elas viram fatura aqui.</span>
                     <button class="btn primary" type="button" id="lancarBtnVazio" style="margin-top:14px">Lançar primeira despesa</button>
                 </div>
             </div>
@@ -224,8 +224,14 @@
             @endphp
             <div class="card fatura-card span12">
                 <div class="fatura-head">
-                    <div class="fh-card" style="background:linear-gradient(135deg,{{ $cor }},color-mix(in srgb,{{ $cor }} 55%,#000))">
-                        @if ($acc->icon){{ $acc->icon }}@else{{ $iniciais($acc->name) }}@endif
+                    <div class="fh-card {{ $acc->bankImageUrl() ? 'has-bank-art' : '' }}" style="background:linear-gradient(135deg,{{ $cor }},color-mix(in srgb,{{ $cor }} 55%,#000))">
+                        @if ($acc->bankImageUrl())
+                            <img src="{{ $acc->bankImageUrl() }}" alt="{{ $acc->bankLabel() ?: $acc->name }}" loading="lazy">
+                        @elseif ($acc->icon)
+                            {{ $acc->icon }}
+                        @else
+                            {{ $iniciais($acc->name) }}
+                        @endif
                     </div>
                     <div class="fh-info">
                         <strong>{{ $acc->name }}</strong>
@@ -512,7 +518,7 @@
                     <div class="empty-block">
                         <div class="eb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/></svg></div>
                         <strong>Nenhum cartão cadastrado</strong>
-                        <span>Adicione um cartão de crédito em Métodos de Pagamento para acompanhar faturas, parcelas e limite.</span>
+                        <span>Adicione um cartão de crédito em Contas e cartões para acompanhar faturas, parcelas e limite.</span>
                         <a class="btn primary" href="{{ route('accounts.create') }}" style="margin-top:14px">Cadastrar cartão</a>
                     </div>
                 </div>

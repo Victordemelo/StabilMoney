@@ -1,10 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Histórico')
+@section('title', 'Movimentações')
 
 @section('content')
     <div class="section-head">
-        <h2>Histórico</h2>
+        <h2>Movimentações</h2>
         <span class="sub">Todas as movimentações</span>
         <div class="head-actions">
             {{-- Abre o modal GLOBAL de lançamento (partials/launch-modal), o mesmo do

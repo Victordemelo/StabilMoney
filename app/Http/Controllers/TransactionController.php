@@ -647,7 +647,7 @@ class TransactionController extends Controller
         //    limite do cartão seguindo livre): sobra dinheiro dos dois lados.
         if ($transaction->settles_account_id) {
             return 'Esta linha é o pagamento de uma fatura de cartão e não pode ser editada. '
-                .'Para corrigir, use "Estornar pagamento" na tela Pagar despesas — as compras voltam a '
+                .'Para corrigir, use "Estornar pagamento" na tela Contas a pagar — as compras voltam a '
                 .'ficar em aberto e você paga de novo com o valor certo.';
         }
 
@@ -657,7 +657,7 @@ class TransactionController extends Controller
         if ($transaction->group_id && $transaction->installments) {
             return 'Esta despesa é a parcela '.$transaction->badge.' de uma compra parcelada e não pode '
                 .'ser editada sozinha — as outras parcelas continuariam com o valor antigo e a soma da '
-                .'compra ficaria errada. Para mexer na compra inteira, use a tela Pagar despesas.';
+                .'compra ficaria errada. Para mexer na compra inteira, use a tela Contas a pagar.';
         }
 
         // 3) COMPRA DE CARTÃO JÁ PAGA. `committed` (e o limite do cartão) ignoram
@@ -670,7 +670,7 @@ class TransactionController extends Controller
             return $transaction->credit_settlement_id
                 ? CreditSettlement::recusaParaLinha($transaction, 'editar')
                 : 'Esta compra já foi paga na fatura do cartão '.$transaction->account->name
-                    .' e não pode ser editada. Estorne o pagamento da fatura na tela Pagar despesas, '
+                    .' e não pode ser editada. Estorne o pagamento da fatura na tela Contas a pagar, '
                     .'corrija a compra e pague de novo.';
         }
 
@@ -971,23 +971,23 @@ class TransactionController extends Controller
         // quitada, criando dinheiro em dobro.
         if ($transaction->settles_account_id) {
             return back()->withErrors([
-                'transaction' => 'Esta linha é o pagamento de uma fatura de cartão e não pode ser excluída sozinha. Para desfazer, use "Estornar" na tela Pagar despesas — assim as compras voltam a ficar em aberto.',
+                'transaction' => 'Esta linha é o pagamento de uma fatura de cartão e não pode ser excluída sozinha. Para desfazer, use "Estornar" na tela Contas a pagar — assim as compras voltam a ficar em aberto.',
             ]);
         }
 
         // PARCELA ISOLADA (§14 da spec, D-12): apagar a 2/3 deixa "1/3" e "3/3"
         // no histórico e a soma da compra quebrada. Quem apaga a COMPRA inteira
         // — todas as parcelas em aberto de uma vez, mantendo as já pagas — é a
-        // tela Pagar despesas (`faturas.compra.destroy`).
+        // tela Contas a pagar (`faturas.compra.destroy`).
         if ($transaction->group_id && $transaction->installments) {
             return back()->withErrors([
                 'transaction' => 'Esta despesa é a parcela '.$transaction->badge.' de uma compra parcelada '
                     .'e não pode ser excluída sozinha — as outras continuariam no histórico dizendo "de '
-                    .$transaction->installments.'". Para remover a compra inteira, use a tela Pagar despesas.',
+                    .$transaction->installments.'". Para remover a compra inteira, use a tela Contas a pagar.',
             ]);
         }
 
-        // COMPRA DE CARTÃO JÁ QUITADA. A tela Pagar despesas já recusa isto
+        // COMPRA DE CARTÃO JÁ QUITADA. A tela Contas a pagar já recusa isto
         // ("histórico financeiro não se reescreve"), mas o Histórico apagava: a
         // compra sumia e a quitação que a pagou ficava com o valor velho, sem a
         // dívida do outro lado. Mesma família das guardas 1 e 3 da edição.
@@ -999,7 +999,7 @@ class TransactionController extends Controller
                     ? CreditSettlement::recusaParaLinha($transaction, 'excluir')
                     : 'Esta compra já foi paga na fatura do cartão '.$transaction->account->name
                         .' e não pode ser excluída — o pagamento continuaria no extrato sem a compra que o '
-                        .'originou. Use "Estornar pagamento" na tela Pagar despesas primeiro.',
+                        .'originou. Use "Estornar pagamento" na tela Contas a pagar primeiro.',
             ]);
         }
 

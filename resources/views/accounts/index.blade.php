@@ -1,10 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'Métodos de Pagamento')
+@section('title', 'Contas e cartões')
 
 @section('content')
     <div class="section-head">
-        <h2>Métodos de Pagamento</h2>
+        <h2>Contas e cartões</h2>
         <span class="sub">Seus cartões, contas e carteiras vivem aqui</span>
         <div class="head-actions">
             {{-- Abre o modal na própria tela. O href continua valendo: sem JS (ou se

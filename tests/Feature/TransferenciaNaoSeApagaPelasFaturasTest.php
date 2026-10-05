@@ -98,7 +98,7 @@ class TransferenciaNaoSeApagaPelasFaturasTest extends TestCase
     private function assertRecusadoApontandoOHistorico(TestResponse $r): void
     {
         $r->assertRedirect(route('faturas.index'))->assertSessionHasErrors('transaction');
-        $this->assertStringContainsString('Histórico', session('errors')->first('transaction'));
+        $this->assertStringContainsString('Movimentações', session('errors')->first('transaction'));
     }
 
     public function test_apagar_a_entrada_pelas_faturas_e_recusado_e_o_patrimonio_nao_muda(): void

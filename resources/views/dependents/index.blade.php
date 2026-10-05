@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Dependentes')
+@section('title', 'Família')
 
 @section('content')
 @php
@@ -32,7 +32,7 @@
 
 <section class="view">
     <div class="section-head">
-        <h2>Dependentes</h2>
+        <h2>Família</h2>
         <span class="sub">Compartilhe o controle financeiro com a família</span>
         <div class="head-actions">
             <button class="btn-primary" type="button" id="depAddBtn">

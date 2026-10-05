@@ -1681,3 +1681,151 @@ body.pjax-loading #content { opacity: .5; }
   background-size: 8px 8px;
   opacity: var(--fall-mesh-op);
 }
+
+/* ============================================================
+   Interface 2026 — direção visual aprovada no protótipo navegável
+   ============================================================ */
+
+/* Base mais editorial: menos brilho, bordas mais finas e hierarquia por escala. */
+:root {
+  --bg: #F3F5F1;
+  --surface-2: #F7F9F6;
+  --ink: #15231D;
+  --ink-2: #4D5E55;
+  --ink-3: #748078;
+  --line: #E2E8E3;
+  --line-2: #EDF1ED;
+  --side-bg-1: #082F23;
+  --side-bg-2: #07281E;
+  --side-ink: #DCECE5;
+  --side-muted: #82A99A;
+  --r-lg: 18px;
+  --sp: 14px;
+  --shadow-card: 0 1px 0 rgba(255,255,255,.7) inset, 0 5px 18px rgba(17,40,30,.035);
+}
+[data-theme="dark"] {
+  --bg: #0D1512;
+  --surface: #15211C;
+  --surface-2: #192720;
+  --surface-3: #203229;
+  --ink: #EDF6F1;
+  --ink-2: #B4C5BC;
+  --ink-3: #93A79D;
+  --line: #293B32;
+  --line-2: #22332B;
+  --side-bg-1: #071E17;
+  --side-bg-2: #061A14;
+}
+
+.app { grid-template-columns: 232px 1fr; }
+.app.collapsed { grid-template-columns: 76px 1fr; }
+.sidebar { padding: 18px 14px 15px; }
+.sidebar::after { background: radial-gradient(circle at 12% 0%, rgba(24,140,104,.28), transparent 240px); }
+.brand { padding: 4px 7px 10px; margin-bottom: 8px; }
+.brand-badge { width: 36px; height: 36px; border-radius: 12px; box-shadow: 0 3px 12px rgba(0,0,0,.16); }
+.brand-badge img { width: 27px; height: 27px; }
+.brand-name { font-size: 15px; font-weight: 600; letter-spacing: .09em; }
+.nav-group-label { padding: 17px 10px 7px; font-size: 10px; font-weight: 600; }
+.nav { gap: 3px; }
+.nav-item { min-height: 42px; padding: 0 11px; gap: 11px; border-radius: 12px; color: #ABC5BA; }
+.nav-item svg { width: 18px; height: 18px; stroke-width: 1.8; opacity: 1; }
+.nav-label { font-size: 13px; font-weight: 500; }
+.nav-item:hover { color: #fff; background: rgba(255,255,255,.055); }
+.nav-item.active { color: #fff; background: rgba(100,216,171,.15); }
+.nav-item.active svg { color: #70D6AF; }
+.nav-item.active::before { display: none; }
+.nav-item .badge { min-width: 20px; height: 20px; padding: 0 5px; display: grid; place-items: center; background: rgba(239,173,59,.17); color: #FFE0A1; border-radius: 7px; font-size: 10px; }
+
+/* O resumo da sidebar fica compacto, mas NENHUM número de dinheiro some: guardado,
+   investido e o cheque especial (vermelho quando em uso) são a razão de o card existir.
+   Só a decoração sai (o brilho e a spark). */
+.side-balance { margin: 18px 2px 10px; padding: 14px; border-radius: 15px; background: rgba(255,255,255,.045); }
+.side-balance .sb-glow, .side-balance .sb-spark { display: none; }
+.sb-label { font-size: 10px; font-weight: 500; }
+.sb-value { margin-top: 6px; font-size: 19px; font-weight: 600; }
+.sb-subline { margin-top: 5px; font-size: 10.5px; line-height: 1.35; }
+.side-balance .sb-foot { margin-top: 10px; font-size: 10px; }
+.side-foot { padding: 9px 7px; border-radius: 12px; }
+.side-foot:hover { background: rgba(255,255,255,.055); }
+.avatar-initials { border-radius: 11px; }
+.side-foot-text strong { font-size: 12px; font-weight: 600; }
+.side-foot-text span { font-size: 10px; }
+
+.topbar { min-height: 76px; padding: 15px 26px; gap: 11px; }
+.collapse-btn, .icon-btn { width: 38px; height: 38px; border-radius: 11px; }
+.greeting h1 { font-size: 19px; font-weight: 500; letter-spacing: -.025em; }
+.greeting p { margin-top: 4px; font-size: 11px; }
+.launch-btn { height: 39px; min-width: 39px; border-radius: 11px; font-size: 12px; box-shadow: none; }
+.content { padding: 8px 26px 34px; }
+.section-head { align-items: flex-end; margin: 8px 0 17px; }
+.section-head h2 { font-size: 23px; font-weight: 500; letter-spacing: -.04em; }
+.section-head .sub { padding-bottom: 3px; font-size: 11px; }
+.seg { padding: 3px; border-radius: 11px; background: var(--surface); }
+.seg button { padding: 6px 12px; border-radius: 8px; font-size: 10px; }
+.seg .seg-pill { inset: 3px auto 3px 0; border-radius: 8px; background: var(--surface-2); box-shadow: none; }
+
+.card { border-radius: 18px; box-shadow: var(--shadow-card); }
+.card-head h3 { font-size: 13px; font-weight: 600; }
+.mini-btn { font-size: 10.5px; }
+
+/* Primeiro KPI = resposta principal; os outros três viram leitura rápida.
+   Tudo NO FLUXO, nunca `position: absolute`: o `.stat-top` vira `display: contents` e a
+   ordem é ícone → rótulo → valor → variação (empurrada para baixo por `margin-top: auto`).
+   Com rótulo e variação absolutos, o card que encolhia no celular punha o selo da variação
+   POR CIMA do valor — "R$ 1.332,90" aparecia como "2,90". No fluxo, o card cresce. */
+.dashboard-overview-grid > .stat { grid-column: span 2; min-height: 174px; padding: 17px; display: flex; flex-direction: column; align-items: flex-start; }
+.dashboard-overview-grid > .dashboard-balance-hero { grid-column: span 6; }
+.dashboard-overview-grid .stat-top { display: contents; }
+.dashboard-overview-grid .stat .ico { order: 0; width: 35px; height: 35px; border-radius: 11px; }
+.dashboard-overview-grid .stat .ico svg { width: 17px; height: 17px; stroke-width: 1.8; }
+.dashboard-overview-grid .stat .label { order: 1; position: static; margin-top: 15px; font-size: 11px; }
+.dashboard-overview-grid .stat .value { order: 2; margin: 6px 0 12px; font-size: 19px; font-weight: 600; }
+.dashboard-overview-grid .stat .trend { order: 3; position: static; margin: auto 0 0; font-size: 10px; font-weight: 600; }
+.dashboard-overview-grid .stat .spark { display: none; }
+
+.dashboard-overview-grid .dashboard-balance-hero {
+  min-height: 174px; padding: 22px; color: #fff; border: 0;
+  background: linear-gradient(135deg, #0C3A2C, #147A5B);
+  box-shadow: 0 14px 34px rgba(8,47,35,.15);
+}
+.dashboard-balance-hero::after {
+  content: ""; position: absolute; width: 220px; height: 220px; right: -85px; top: -115px;
+  border-radius: 50%; border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 0 0 40px rgba(255,255,255,.025), 0 0 0 80px rgba(255,255,255,.017);
+}
+.dashboard-balance-hero .stat-top { position: static; }
+.dashboard-balance-hero .stat .ico, .dashboard-balance-hero .ico { display: none; }
+.dashboard-overview-grid .dashboard-balance-hero .label { position: relative; margin-top: 0; z-index: 1; color: rgba(255,255,255,.67); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.dashboard-overview-grid .dashboard-balance-hero .value { position: relative; z-index: 1; margin: 26px 0 16px; font-size: 34px; font-weight: 500; letter-spacing: -.045em; color: #fff; }
+.dashboard-overview-grid .dashboard-balance-hero .value .cur,
+.dashboard-overview-grid .dashboard-balance-hero .value .sign { color: rgba(255,255,255,.72); font-size: 13px; }
+.dashboard-overview-grid .dashboard-balance-hero .trend { position: relative; z-index: 1; padding: 5px 8px; color: #D2F9E9; background: rgba(255,255,255,.1); }
+.dashboard-overview-grid .dashboard-balance-hero .trend.down { color: #FFD0C9; }
+
+/* As artes dos cartões passam a ser reconhecíveis sem disputar com os dados. */
+.cc-list { --cc-item-h: 94px; gap: 16px; max-height: calc(var(--cc-item-h) * 2 + 16px); }
+.cc-item { align-items: center; }
+.cc-thumb { width: 72px; height: auto; aspect-ratio: 1.586; border-radius: 9px; box-shadow: 0 5px 13px rgba(15,35,27,.12); }
+.cc-thumb img { object-position: center; }
+.cards-sum { padding: 12px 14px; border-radius: 13px; background: var(--surface-2); }
+
+/* A textura animada anterior fica quase imperceptível nesta direção mais calma. */
+.sm-falling { opacity: .18; }
+
+@media (max-width: 1180px) {
+  .dashboard-overview-grid > .stat { grid-column: span 4; }
+  .dashboard-overview-grid > .dashboard-balance-hero { grid-column: span 12; }
+}
+@media (max-width: 920px) {
+  .app, .app.collapsed { grid-template-columns: 1fr; }
+  .sidebar { width: 280px; }
+  .content { padding: 10px 16px 96px; }
+  .section-head { align-items: center; }
+  .collapsed .side-balance { margin: 18px 2px 10px; padding: 14px; }
+}
+@media (max-width: 620px) {
+  .dashboard-overview-grid > .stat,
+  .dashboard-overview-grid .dashboard-balance-hero { grid-column: span 12; min-height: 132px; }
+  .dashboard-overview-grid .dashboard-balance-hero { min-height: 164px; }
+  .section-head h2 { font-size: 21px; }
+}

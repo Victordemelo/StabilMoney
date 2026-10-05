@@ -161,14 +161,16 @@ class FamilyAccountTest extends TestCase
             ->assertSee('Adicionar dependente');
     }
 
-    public function test_dependent_does_not_see_sidebar_dependents_card(): void
+    public function test_dependent_does_not_see_the_family_menu_item(): void
     {
         $titular = User::factory()->create();
         $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
 
         $this->actingAs($dependent)->get('/accounts')
             ->assertOk()
-            ->assertDontSee('>Dependentes<', false);
+            // A gestão da família é só do titular: o item "Família" do menu não aparece.
+            ->assertDontSee('<span class="nav-label">Família</span>', false)
+            ->assertDontSee(route('dependentes'));
     }
 
     public function test_dependent_sees_family_patrimonio_in_sidebar(): void

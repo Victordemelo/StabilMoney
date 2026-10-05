@@ -55,7 +55,7 @@
                     <span>
                         @if ($dependentes === 0)
                             Você pode dar acesso a alguém da família em
-                            <a href="{{ route('dependentes') }}">Dependentes</a>.
+                            <a href="{{ route('dependentes') }}">Família</a>.
                         @else
                             Compartilham contas, categorias e lançamentos com você.
                             <a href="{{ route('dependentes') }}">Gerenciar</a>.

@@ -29,12 +29,13 @@ class ShellV2Test extends TestCase
 
         $response->assertOk();
 
-        // Menu novo da sidebar (grupos Menu + Preferências)
+        // Menu da sidebar (grupos Seu dinheiro + Organização)
         $response->assertSee('Visão geral');
-        $response->assertSee('Pagar despesas');
+        $response->assertSee('Movimentações');
+        $response->assertSee('Contas e cartões');
         $response->assertSee('Metas');
         $response->assertSee('Investimentos');
-        $response->assertSee('Métodos de Pagamento');
+        $response->assertSee('Contas a pagar');
         $response->assertSee('Categorias');
 
         // Itens removidos no design v2 não aparecem mais
@@ -52,9 +53,9 @@ class ShellV2Test extends TestCase
         // Sem transações não há base de variação => .sb-foot oculto
         $response->assertDontSee('nos últimos 30 dias');
 
-        // Card Dependentes em estado vazio, linkando para a rota
-        $response->assertSee('Dependentes');
-        $response->assertSee('Nenhum dependente');
+        // A gestão familiar fica na navegação principal do titular.
+        $response->assertSee('Família');
+        $response->assertSee(route('dependentes'));
 
         // Popover do perfil (markup presente; abre via shell.js)
         $response->assertSee('id="profilePop"', false);

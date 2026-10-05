@@ -86,7 +86,7 @@ class CreditSettlement extends Model
                 .($excluir ? 'excluída' : 'editada');
 
         return $abertura.': compra e estorno foram quitados juntos, e mexer num lado só deixaria o outro quitado sem '
-            .'contrapartida. Use "Desfazer quitação" no cartão, na tela Pagar despesas — as linhas voltam a ficar em '
+            .'contrapartida. Use "Desfazer quitação" no cartão, na tela Contas a pagar — as linhas voltam a ficar em '
             .'aberto e aí sim podem ser '.($excluir ? 'removidas' : 'corrigidas').'.';
     }
 }
