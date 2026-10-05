@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.088 testes PHP / 50.239 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **343 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.106 testes PHP / 52.064 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **343 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -227,7 +227,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.088 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.106 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -255,7 +255,7 @@ tests/Feature/              # 2.088 testes (PHP): auth, dashboard, CRUD, valida�
   nunca pedimos senha de banco), conta-família, PWA offline, limitação de responsabilidade e
   foro do consumidor. Privacidade traz tabelas de transparência (dado → finalidade → base legal
   da LGPD; cookies com os **nomes reais**: o de sessão sai de `config('session.cookie')` — em
-  produção `stabilmoney-session` —, `remember_web_…` ("Lembrar de mim", 400 dias), `XSRF-TOKEN`,
+  produção `stabilmoney-session` —, `remember_web_…` ("Lembrar de mim", 7 dias), `XSRF-TOKEN`,
   `sm-theme`, `sm-collapsed`, `sm-cookie-consent`, `sm-form-user`, IndexedDB da fila offline),
   operadores (Oracle Cloud, Cloudflare, provedor de e-mail, Have I Been Pwned, Google Fonts — a
   seção 13 lista as transferências internacionais com a base do art. 33), retenção (logs 6 meses —
@@ -263,7 +263,8 @@ tests/Feature/              # 2.088 testes (PHP): auth, dashboard, CRUD, valida�
   **Versão 3.0 (24/09/2026):** a 2.0 afirmava 2FA "ainda não disponível", "sem rotina de backup",
   Google Fonts como "única transferência internacional" e servidor "no Brasil" sem saber a região.
   **3.1 (24/09/2026):** a VPS fica na região **São Paulo** da Oracle (confirmado pelo Victor) — a
-  Política diz que os dados ficam no Brasil; mudou de região, mude as seções 6 e 13 e suba a versão. `PoliticaDescreveOCodigoRealTest` confere a
+  Política diz que os dados ficam no Brasil; mudou de região, mude as seções 6 e 13 e suba a versão.
+  **3.2 e 3.3 (out/2026):** o que mudou em cada uma está em `config('legal.mudancas')`. `PoliticaDescreveOCodigoRealTest` confere a
   Política contra o código (nome dos cookies; todo host externo que o código contata tem de estar
   nomeado) e `VersaoDosDocumentosLegaisTest` falha quando o texto visível muda sem subir a
   `legal.version` (registre a impressão nova que a falha mostra). **Ao mexer no que o app coleta/compartilha, atualizar essas
@@ -278,7 +279,18 @@ tests/Feature/              # 2.088 testes (PHP): auth, dashboard, CRUD, valida�
 - **Prova do aceite (LGPD art. 8º, §1º):** o `RegisteredUserController` grava
   `terms_accepted_at` + `terms_version` + `terms_accepted_ip` no cadastro — validar o checkbox sem
   gravar não comprova consentimento. Fica **nulo para dependentes** (criados pelo titular, não
-  passam pelo `/register`): se um dia dependente precisar aceitar no 1º login, é aqui que entra.
+  passam pelo `/register`) até o primeiro acesso deles — ver o aceite abaixo.
+- **Aceite da versão nova no próximo acesso** (out/2026 — `AceiteDaPoliticaAtualTest`): o
+  middleware `ExigeAceiteDaPoliticaAtual` (no grupo principal do app, depois de `verified`) manda
+  para `/termos/aceitar` (`termos.aceite`, `AceiteDaPoliticaController`, view `legal/aceite`) quem
+  tem `terms_version` diferente da `legal.version` — inclusive o dependente, que nunca aceitou. A
+  tela lista "O que mudou" de `config('legal.mudancas')[versão]` (**suba a versão = escreva a lista**;
+  o teste cobra). Aceitar grava data/versão/IP, a atividade `acesso.termos_aceitos` e volta para onde
+  a pessoa ia (`url.intended`, só GET). JSON recebe 403 com `aceitar`. Livres: `csrf.token`,
+  `avatar.show`, `profile.destroy` e a aba **Conta** das Configurações (quem não concorda sai ou exclui
+  a conta sem aceitar — LGPD). 🚨 `config("legal.mudancas.{$versao}")` NÃO funciona: o ponto de "3.3"
+  vira separador de chave. A `UserFactory` nasce com a versão atual aceita; para testar a tela,
+  `User::factory()->aceitouAVersao('3.1')` (ou `null`).
 - Login/cadastro usam o `layouts/auth.blade.php` (split com vídeo, **sempre claro** — tokens
   fixos no escopo `.auth`); as demais telas de auth (esqueci/redefinir/confirmar senha,
   verificar e-mail) seguem no `layouts/guest.blade.php` com suporte a tema (inconsistência
@@ -1374,6 +1386,8 @@ no `PainelAdminNaoVeValoresTest`).
   ligado/desligado/códigos, sessões encerradas, pedido de troca de e-mail, lembretes, senha do
   dependente, conta criada.
 - **Quem vê:** `Atividade::visivelPara()` — titular vê a família; dependente só o que ele fez.
+  **O IP só aparece na linha de quem fez a ação** (out/2026, decisão do Victor): o titular vê o
+  aparelho dos dependentes, não o endereço deles (`test_o_ip_so_aparece_para_quem_fez_a_acao`).
   Filtro `pessoa` alheio é IGNORADO; `tipo` = `Atividade::GRUPOS` (dinheiro/cadastros/família/
   acesso), período por `Support\PeriodoDoFiltro` (o mesmo das Movimentações). Uma consulta paginada,
   sem N+1. O **painel NUNCA lê** a tabela.
@@ -1964,6 +1978,12 @@ impediria reexibi-los.
   "dispositivo confiável" (Fortify e a maioria dos sites fazem igual), mas note que a tela de
   login deste app deixa a caixa **marcada por padrão**. O 2FA continua protegendo qualquer
   login em aparelho novo, que é o ataque real.
+- **"Lembrar de mim" vale 7 DIAS, não os 400 do framework** (out/2026 — `LembrarDeMimValeSeteDiasTest`).
+  O guard `web` usa o driver `sessao-com-validade` (`App\Auth\GuardaDeSessao`, registrado no
+  `AppServiceProvider::registrarGuardaDeSessao`; `auth.guards.web.remember` = minutos): o prazo
+  viaja DENTRO do valor (`id|token|hash|expira`, cifrado e autenticado pelo EncryptCookies), porque
+  o prazo do cookie é só um pedido ao navegador. Vencido ou no formato antigo (3 pedaços): o cookie
+  é apagado e a senha é pedida. A validade é fixa — entrar pelo cookie não renova.
 - **O `switch` do card é decorativo** (`aria-hidden`). Quem liga/desliga são os formulários —
   um interruptor de um clique não teria onde pedir a senha nem mostrar o QR.
 
@@ -2303,7 +2323,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.088 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.106 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo

@@ -79,7 +79,7 @@
             <label class="check">
                 <input type="checkbox" name="remember" @checked(session()->hasOldInput() ? old('remember') : true) />
                 <span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
-                Lembrar de mim
+                Lembrar de mim por 7 dias
             </label>
 
             @if (Route::has('password.request'))

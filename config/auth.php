@@ -40,7 +40,10 @@ return [
 
     'guards' => [
         'web' => [
-            'driver' => 'session',
+            // Guarda própria: o "Lembrar de mim" vale 7 dias DE VERDADE (a validade vai dentro do
+            // cookie cifrado — App\Auth\GuardaDeSessao), não só no navegador.
+            'driver' => 'sessao-com-validade',
+            'remember' => 7 * 24 * 60,
             'provider' => 'users',
         ],
 

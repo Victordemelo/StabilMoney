@@ -120,11 +120,13 @@
                         <div class="atv-meta">
                             <span>{{ $atividade->autor_nome }}</span>
                             <time datetime="{{ $atividade->created_at->toIso8601String() }}">{{ $atividade->created_at->format('d/m/Y H:i') }}</time>
-                            @if ($atividade->aparelho || $atividade->ip)
+                            @if ($atividade->aparelho)
                                 <span>{{ BrowserSessions::descrever($atividade->aparelho) }}</span>
-                                @if ($atividade->ip)
-                                    <span>IP {{ $atividade->ip }}</span>
-                                @endif
+                            @endif
+                            {{-- O IP só aparece para quem fez a ação (decisão do Victor, out/2026):
+                                 o titular vê o aparelho dos dependentes, não o endereço deles. --}}
+                            @if ($atividade->ip && $atividade->user_id === auth()->id())
+                                <span>IP {{ $atividade->ip }}</span>
                             @endif
                         </div>
                     </div>
@@ -136,7 +138,8 @@
     @endif
 
     <p class="atv-rodape">
-        O registro guarda a data, o aparelho e o IP de cada ação por 6 meses, para a segurança da conta
+        O registro guarda a data, o aparelho e o IP de cada ação por 6 meses (o IP só aparece para quem
+        fez a ação), para a segurança da conta
         e para a família saber quem mexeu em quê. Detalhes na
         <a href="{{ route('privacidade') }}">Política de Privacidade</a>.
     </p>

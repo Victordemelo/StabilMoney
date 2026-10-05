@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Auth\GuardaDeSessao;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Models\Account;
 use App\Models\Category;
@@ -17,6 +18,7 @@ use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
@@ -59,6 +61,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->registrarGuardaDeSessao();
         // Em produção, todo link gerado sai com a raiz do APP_URL, em https — nunca com o
         // Host da requisição (o link do "esqueci a senha" já foi um alvo disso). Fora de
         // produção os links seguem o endereço aberto (localhost ou o IP no Wi-Fi).
@@ -107,6 +110,33 @@ class AppServiceProvider extends ServiceProvider
                     : collect(),
                 'lmFamily' => $ownerId ? User::familyOf($ownerId)->get() : collect(),
             ]);
+        });
+    }
+
+    /**
+     * A guarda `web` (`config/auth.php`, driver `sessao-com-validade`): a mesma montagem do
+     * `AuthManager::createSessionDriver`, com a `GuardaDeSessao`, que põe a validade do
+     * "Lembrar de mim" DENTRO do cookie cifrado.
+     */
+    private function registrarGuardaDeSessao(): void
+    {
+        Auth::extend('sessao-com-validade', function ($app, string $nome, array $config) {
+            $guarda = new GuardaDeSessao(
+                $nome,
+                Auth::createUserProvider($config['provider'] ?? null),
+                $app['session.store'],
+                rehashOnLogin: $app['config']->get('hashing.rehash_on_login', true),
+                timeboxDuration: $app['config']->get('auth.timebox_duration', 200000),
+                hashKey: $app['config']->get('app.key'),
+            );
+            $guarda->setCookieJar($app['cookie']);
+            $guarda->setDispatcher($app['events']);
+            $guarda->setRequest($app->refresh('request', $guarda, 'setRequest'));
+            if (isset($config['remember'])) {
+                $guarda->setRememberDuration((int) $config['remember']);
+            }
+
+            return $guarda;
         });
     }
 

@@ -102,6 +102,7 @@ class Atividade extends Model
         'acesso.lembrado' => 'acesso',
         'acesso.saiu' => 'acesso',
         'acesso.codigo_2fa_errado' => 'acesso',
+        'acesso.termos_aceitos' => 'acesso',
         'senha.trocada' => 'acesso',
         'senha.redefinida' => 'acesso',
         'dois_fatores.ligado' => 'acesso',

@@ -72,6 +72,23 @@ class TelaDeAtividadeTest extends TestCase
             ->assertSee('IP 203.0.113.9');
     }
 
+    public function test_o_ip_so_aparece_para_quem_fez_a_acao(): void
+    {
+        $this->linha($this->titular, 'conta.criada', 'cadastrou o cartão Roxinho')->forceFill(['ip' => '198.51.100.7'])->save();
+        $this->linha($this->maria, 'transacao.criada', 'lançou a despesa “Mercado”')
+            ->forceFill(['ip' => '203.0.113.44', 'aparelho' => 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148 Safari/604.1'])->save();
+
+        // O titular vê o que a Maria fez e de que aparelho — mas não o endereço dela.
+        $this->tela($this->titular)
+            ->assertSee('Maria lançou a despesa “Mercado”')
+            ->assertSee('Safari no iOS')
+            ->assertSee('IP 198.51.100.7')
+            ->assertDontSee('203.0.113.44');
+
+        // A própria Maria vê o dela.
+        $this->tela($this->maria)->assertSee('IP 203.0.113.44')->assertDontSee('198.51.100.7');
+    }
+
     public function test_dependente_ve_so_o_que_ele_mesmo_fez(): void
     {
         $this->linha($this->titular, 'senha.trocada', 'trocou a senha');

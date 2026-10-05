@@ -17,9 +17,33 @@ return [
     |
     */
 
-    'version' => '3.2',
+    'version' => '3.3',
 
-    'updated_at' => '4 de outubro de 2026',
+    'updated_at' => '5 de outubro de 2026',
+
+    /*
+    |--------------------------------------------------------------------------
+    | O que mudou em cada versão (tela de novo aceite)
+    |--------------------------------------------------------------------------
+    |
+    | Quem aceitou uma versão anterior cai, depois do login, na tela de aceite
+    | (`ExigeAceiteDaPoliticaAtual`), que mostra estes itens da versão atual. Ao
+    | subir a `version`, escreva aqui, em linguagem simples, o que mudou.
+    |
+    */
+
+    'mudancas' => [
+        '3.3' => [
+            'O “Lembrar de mim” passa a valer por 7 dias. Depois disso, o aplicativo pede a sua senha de novo.',
+            'Em Configurações › Atividade, o titular continua vendo o que cada pessoa da família fez e de qual aparelho, mas o endereço IP só aparece para a própria pessoa.',
+            'Quando os documentos mudarem, o aplicativo pede o seu aceite da nova versão no próximo acesso — como agora.',
+        ],
+        '3.2' => [
+            'Registro de atividade da família (quem fez o quê, quando e de onde), guardado por 6 meses.',
+            'Opção “Confiar neste aparelho por 7 dias” na verificação em duas etapas.',
+            'Fuso do relógio escolhido em Configurações.',
+        ],
+    ],
 
     /*
     |--------------------------------------------------------------------------

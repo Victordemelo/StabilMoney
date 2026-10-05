@@ -229,8 +229,9 @@
     <h2 id="s15">15. Alterações nestes termos</h2>
     <p>Estes termos podem ser atualizados para refletir mudanças no aplicativo ou na legislação. A data
        e o número da versão no topo da página indicam a vigência. Mudanças relevantes serão comunicadas
-       dentro do aplicativo ou por e-mail. Continuar usando o Stabil Money após a atualização significa
-       concordar com a nova versão; se não concordar, você pode encerrar sua conta.</p>
+       dentro do aplicativo ou por e-mail. No seu próximo acesso depois de uma atualização, o aplicativo
+       mostra o que mudou e pede que você aceite a nova versão antes de continuar; se não concordar, você
+       pode sair ou encerrar sua conta.</p>
 
     <h2 id="s16">16. Lei aplicável e foro</h2>
     <p>Estes termos são regidos pelas leis da <strong>República Federativa do Brasil</strong> — em

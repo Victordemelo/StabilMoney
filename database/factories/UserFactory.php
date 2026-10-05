@@ -30,7 +30,22 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            // Já aceitou a versão atual dos documentos: sem isso, todo teste que entra no
+            // app cairia na tela de aceite (ExigeAceiteDaPoliticaAtual).
+            'terms_accepted_at' => now(),
+            'terms_version' => config('legal.version'),
         ];
+    }
+
+    /**
+     * Aceitou uma versão antiga dos documentos (ou nenhuma, com `null`).
+     */
+    public function aceitouAVersao(?string $versao): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'terms_version' => $versao,
+            'terms_accepted_at' => $versao === null ? null : now()->subMonth(),
+        ]);
     }
 
     /**

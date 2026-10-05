@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\AceiteDaPoliticaController;
 use App\Http\Controllers\AvatarController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Middleware\BloqueiaUsuarioBanido;
+use App\Http\Middleware\ExigeAceiteDaPoliticaAtual;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -85,7 +87,14 @@ Route::view('/privacidade', 'legal.privacidade')->name('privacidade');
 //
 // ⚠️ Ao criar uma rota que precise funcionar ANTES da confirmação (reenviar o link, sair
 // da conta), coloque-a em routes/auth.php, fora deste grupo.
+// Aceite da versão ATUAL dos Termos/Política: fora do grupo abaixo (que exige o aceite), mas
+// com login e e-mail confirmado. Ver `ExigeAceiteDaPoliticaAtual`.
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/termos/aceitar', [AceiteDaPoliticaController::class, 'show'])->name('termos.aceite');
+    Route::post('/termos/aceitar', [AceiteDaPoliticaController::class, 'store'])->name('termos.aceitar');
+});
+
+Route::middleware(['auth', 'verified', ExigeAceiteDaPoliticaAtual::class])->group(function () {
     // Dashboard (tela inicial)
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 

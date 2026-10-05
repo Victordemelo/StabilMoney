@@ -108,7 +108,10 @@ class VerificacaoDeEmailTest extends TestCase
         $this->assertNotNull($dependente->email_verified_at);
         $this->assertSame($titular->id, $dependente->account_owner_id);
 
-        $this->actingAs($dependente)->get(route('dashboard'))->assertOk();
+        // Não fica preso na confirmação de e-mail: o único passo antes do app é aceitar os
+        // Termos/Política, que o dependente (criado pelo titular) nunca aceitou.
+        $this->actingAs($dependente)->get(route('dashboard'))->assertRedirect(route('termos.aceite'));
+        $this->actingAs($dependente)->get(route('termos.aceite'))->assertOk();
     }
 
     /**
@@ -155,7 +158,10 @@ class VerificacaoDeEmailTest extends TestCase
 
         // E, na prática: os dois entram no app.
         $this->actingAs($titular)->get(route('dashboard'))->assertOk();
-        $this->actingAs($dependente)->get(route('dashboard'))->assertOk();
+        // Não fica preso na confirmação de e-mail: o único passo antes do app é aceitar os
+        // Termos/Política, que o dependente (criado pelo titular) nunca aceitou.
+        $this->actingAs($dependente)->get(route('dashboard'))->assertRedirect(route('termos.aceite'));
+        $this->actingAs($dependente)->get(route('termos.aceite'))->assertOk();
     }
 
     /**
@@ -214,7 +220,10 @@ class VerificacaoDeEmailTest extends TestCase
         $this->assertNotNull($dependente->email_verified_at);
         Notification::assertNotSentTo($dependente, VerificacaoDeEmail::class);
 
-        $this->actingAs($dependente)->get(route('dashboard'))->assertOk();
+        // Não fica preso na confirmação de e-mail: o único passo antes do app é aceitar os
+        // Termos/Política, que o dependente (criado pelo titular) nunca aceitou.
+        $this->actingAs($dependente)->get(route('dashboard'))->assertRedirect(route('termos.aceite'));
+        $this->actingAs($dependente)->get(route('termos.aceite'))->assertOk();
     }
 
     /**

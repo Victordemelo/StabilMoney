@@ -94,6 +94,16 @@
                       background: rgba(15,107,71,.07); border: 1px solid var(--line); font-size: 14px; }
         .legal-back { display: inline-block; margin-top: 30px; }
 
+        /* Tela de aceite da versão nova (legal/aceite): estreita, um só caminho adiante. */
+        .aceite { max-width: 640px; margin: 0 auto; }
+        .aceite-form { margin-top: 24px; display: grid; gap: 14px; justify-items: start; }
+        .aceite-check { align-items: flex-start; font-size: 14.5px; line-height: 1.5; color: var(--ink); }
+        .aceite-check .box { margin-top: 2px; }
+        .aceite-check input:focus-visible + .box { outline: 2px solid var(--brand-500); outline-offset: 2px; }
+        .aceite-sair { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line-2);
+                       display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+        .aceite-sair p { flex: 1 1 260px; font-size: 13.5px; color: var(--ink-2); margin: 0; }
+
         /* Tabelas de transparência (dado → finalidade → base legal) — rolam no celular */
         .legal-table { overflow-x: auto; margin: 12px 0 18px; border: 1px solid var(--line); border-radius: 12px; }
         .legal-table table { width: 100%; border-collapse: collapse; min-width: 520px; }

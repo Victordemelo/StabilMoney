@@ -267,7 +267,7 @@
                     <td>Cookie essencial</td>
                     <td>Criado quando o login é feito com "Lembrar de mim" — a caixa já vem marcada;
                         desmarque-a em aparelho compartilhado. Mantém você conectado neste aparelho por até
-                        400 dias. Some quando você sai da conta; trocar a senha ou encerrar as outras
+                        7 dias — depois disso o aplicativo pede a senha de novo. Some quando você sai da conta; trocar a senha ou encerrar as outras
                         sessões o invalida nos outros aparelhos.</td>
                 </tr>
                 <tr>
@@ -381,8 +381,9 @@
             todas as contas, cartões, transações, metas e investimentos da família —
             <strong>inclusive os do titular</strong>. Não existe visão parcial ou privada nesta versão.</li>
         <li><strong>O registro de atividade é a exceção.</strong> Em <em>Configurações › Atividade</em>, o
-            titular vê o que cada pessoa da família fez — inclusive o IP e o aparelho usados —, e cada
-            dependente vê só o que ele mesmo fez.</li>
+            titular vê o que cada pessoa da família fez — inclusive o aparelho usado —, e cada
+            dependente vê só o que ele mesmo fez. O endereço IP fica guardado para a segurança da conta,
+            mas na tela só aparece para a própria pessoa que fez a ação.</li>
         <li><strong>Famílias diferentes são isoladas.</strong> Nenhum usuário de outra família tem qualquer
             acesso aos seus dados. Esse isolamento é aplicado no servidor e coberto por testes
             automatizados.</li>
@@ -567,7 +568,10 @@
     <p>Esta política pode ser atualizada quando o aplicativo mudar ou a legislação exigir. O número da
        versão e a data no topo indicam a vigência. Mudanças relevantes — especialmente novas finalidades
        ou novos compartilhamentos — serão comunicadas dentro do aplicativo ou por e-mail
-       <strong>antes</strong> de entrarem em vigor.</p>
+       <strong>antes</strong> de entrarem em vigor. Quando esta política ou os Termos de Uso mudarem, o
+       aplicativo pede, no seu próximo acesso, que você leia o resumo do que mudou e aceite a nova
+       versão antes de continuar; a data, a versão e o endereço IP desse aceite ficam registrados. Se não
+       concordar, você pode sair ou excluir a sua conta.</p>
 
     <h2 id="s16">16. Contato e Encarregado (DPO)</h2>
     <p>Como o Stabil Money é um projeto pessoal, o próprio controlador atua como
