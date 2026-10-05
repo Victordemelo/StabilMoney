@@ -994,15 +994,25 @@ form[data-type="transfer"] .type-toggle.tt-3 .tt-pill {
 @media (max-width: 480px) { .cookie-bar { flex-direction: column; align-items: stretch; } .cookie-accept { width: 100%; } }
 
 /* ============ Dependentes (portado do styles.css v2) ============ */
-.dep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; align-items: start; }
+.dep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; align-items: stretch; }
+/* Cards da mesma linha com a MESMA altura e o bloco de gasto preso ao pé: o do titular não tem
+   os botões de editar/remover, então o cabeçalho dele era mais baixo e "Gastou no mês", a barra
+   e o rodapé ficavam desalinhados dos cards dos dependentes. */
+.dep-person:not(.pm-add) { display: flex; flex-direction: column; }
+.dep-person:not(.pm-add) .dp-spent { margin-top: auto; }
+.dep-person:not(.pm-add) .dp-top { margin-bottom: 14px; }
 .dep-person { border: 1px solid var(--line); border-radius: var(--r-md); padding: 16px; background: var(--surface-2); transition: box-shadow .2s var(--ease), transform .2s var(--ease); }
 .dep-person:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
 .dp-top { display: flex; align-items: flex-start; gap: 12px; }
 .dp-av { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 15px; color: #fff; font-family: var(--font-head); flex: none; overflow: hidden; }
 .dp-av img { width: 100%; height: 100%; object-fit: cover; }
 .dp-id { min-width: 0; flex: 1; padding-top: 2px; }
-.dp-name { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.dp-name { font-size: 15px; font-weight: 700; letter-spacing: -.01em; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.dp-name .dp-badge { margin-left: 0; vertical-align: 0; }
 .dp-rel { font-size: 12px; color: var(--ink-3); margin-top: 2px; overflow-wrap: anywhere; }
+/* O e-mail do card fica numa linha só (o completo vai no `title`): quebrado no meio
+   ("lucas.demo@sta / bilmoney.test") ele empurrava o resto do card para baixo. */
+.dp-id .dp-rel { margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dp-rel strong { color: var(--brand-600); font-weight: 700; }
 [data-theme="dark"] .dp-rel strong { color: var(--brand-300); }
 .dp-actions { display: flex; gap: 4px; margin-left: auto; flex: none; }
@@ -1128,6 +1138,57 @@ body.pjax-loading #content { opacity: .5; }
 .avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
 .avatar-edit-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .avatar-edit-actions .btn-ghost { cursor: pointer; }
+
+/* Meu perfil (out/2026): cabeçalho de identidade (foto, selos, o que falta preencher) e
+   atalhos de "Segurança e acesso" com o estado de cada coisa. */
+.perfil-hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; align-items: center; padding: 22px; }
+.ph-id { display: flex; gap: 18px; align-items: center; min-width: 0; }
+.ph-id .avatar-preview { width: 92px; height: 92px; font-size: 30px; box-shadow: 0 8px 22px rgba(15,35,27,.14); }
+.ph-text { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; }
+.ph-text h3 { font-family: var(--font-head); font-size: 22px; font-weight: 600; letter-spacing: -.025em; margin: 0; }
+.ph-sub { font-size: 12px; color: var(--ink-3); }
+.ph-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.ph-badges .dp-badge { margin-left: 0; vertical-align: 0; }
+.ph-tag { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--surface-3); color: var(--ink-3); }
+.ph-tag.ok { background: var(--brand-50); color: var(--brand-700); }
+.ph-tag.alerta { background: #FDEFD6; color: #8A5300; }
+[data-theme="dark"] .ph-tag.ok { background: rgba(28,154,112,.14); color: var(--brand-300); }
+[data-theme="dark"] .ph-tag.alerta { background: rgba(240,169,59,.16); color: #F5C778; }
+.ph-foto { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 2px; }
+.ph-foto .btn-ghost { cursor: pointer; }
+.ph-foto .hint { font-size: 11.5px; color: var(--ink-3); }
+.ph-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ph-stat { min-width: 0; padding: 13px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+.ph-stat .lbl { display: block; font-size: 11px; font-weight: 500; color: var(--ink-3); }
+.ph-stat strong { display: block; margin-top: 5px; font-family: var(--font-head); font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+.ph-stat .dp-bar { margin-top: 8px; }
+.ph-falta { display: block; margin-top: 6px; font-size: 10.5px; color: var(--ink-3); }
+
+.perfil-seguranca { margin-top: 16px; }
+.perfil-atalhos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.perfil-atalho {
+  display: flex; align-items: center; gap: 12px; min-width: 0; padding: 14px;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2);
+  color: inherit; text-decoration: none; transition: border-color .2s var(--ease), transform .2s var(--ease);
+}
+.perfil-atalho:hover { border-color: var(--brand-300); transform: translateY(-1px); }
+.pa-ico { width: 38px; height: 38px; flex: none; border-radius: 11px; display: grid; place-items: center; background: var(--brand-50); color: var(--brand-700); }
+.pa-ico svg { width: 19px; height: 19px; stroke-width: 1.8; }
+[data-theme="dark"] .pa-ico { background: rgba(28,154,112,.14); color: var(--brand-300); }
+.pa-txt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pa-txt strong { font-size: 13px; font-weight: 600; }
+.pa-txt span { font-size: 11.5px; color: var(--ink-3); }
+.pa-txt span.alerta { color: #8A5300; font-weight: 600; }
+[data-theme="dark"] .pa-txt span.alerta { color: #F5C778; }
+
+@media (max-width: 1000px) {
+  .perfil-hero { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .ph-id { align-items: flex-start; }
+  .ph-id .avatar-preview { width: 72px; height: 72px; font-size: 24px; }
+  .ph-stats, .perfil-atalhos { grid-template-columns: 1fr; }
+}
 
 /* ============ Configurações ============
    O header, as abas e os cards moram na MESMA coluna, compartilhando a borda

@@ -7,6 +7,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -155,6 +156,9 @@ class DependentesRedesignTest extends TestCase
     public function test_a_foto_do_dependente_aparece_no_card(): void
     {
         $maria = $this->dependente('Maria Silva');
+        // A foto precisa EXISTIR no disco: sem o arquivo, o card cai nas iniciais
+        // (FotoQueOServidorNaoLeCaiNasIniciaisTest).
+        Storage::fake(User::AVATAR_DISK)->put('avatars/maria.jpg', 'jpg');
         $maria->forceFill(['avatar_path' => 'avatars/maria.jpg'])->save();
 
         $this->ver()->assertSee(route('avatar.show', $maria), escape: false);
@@ -174,6 +178,7 @@ class DependentesRedesignTest extends TestCase
         // upload — quem sobe uma foto espera vê-la no shell.
         $this->ver()->assertDontSee(route('avatar.show', $this->titular), escape: false);
 
+        Storage::fake(User::AVATAR_DISK)->put('avatars/victor.jpg', 'jpg');
         $this->titular->forceFill(['avatar_path' => 'avatars/victor.jpg'])->save();
 
         $this->actingAs($this->titular)->get(route('dashboard'))

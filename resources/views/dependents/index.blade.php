@@ -79,7 +79,7 @@
                         </div>
                         <div class="dp-id">
                             <div class="dp-name">{{ $titular->name }}<span class="dp-badge titular">Titular</span></div>
-                            <div class="dp-rel">{{ $titular->email }}</div>
+                            <div class="dp-rel" title="{{ $titular->email }}">{{ $titular->email }}</div>
                         </div>
                     </div>
                     <div class="dp-spent">
@@ -107,7 +107,7 @@
                             </div>
                             <div class="dp-id">
                                 <div class="dp-name">{{ $dep->name }}<span class="dp-badge">{{ $dep->relationshipLabel() ?? 'Dependente' }}</span></div>
-                                <div class="dp-rel">{{ $dep->email }}</div>
+                                <div class="dp-rel" title="{{ $dep->email }}">{{ $dep->email }}</div>
                             </div>
                             <div class="dp-actions">
                                 <button class="dp-edit" type="button" data-edit="{{ $dep->id }}" aria-label="Editar dependente">

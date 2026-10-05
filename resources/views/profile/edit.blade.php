@@ -36,14 +36,10 @@
         @method('patch')
 
         <div class="settings-body">
-            {{-- ---------- Identidade ---------- --}}
-            <div class="card sec-card span6">
-                <div class="card-head">
-                    <h3>Quem é você</h3>
-                    <span class="chip">{{ $user->isTitular() ? 'Titular' : 'Dependente' }}</span>
-                </div>
-
-                <div class="avatar-edit">
+            {{-- ---------- Cabeçalho: quem é a pessoa + o que falta ----------
+                 Dentro do <form> porque "Trocar foto" / "Remover a foto" são campos dele. --}}
+            <div class="card perfil-hero">
+                <div class="ph-id">
                     <span class="avatar-preview" id="avatarPreview" data-iniciais="{{ $iniciais($user->name) }}">
                         @if ($user->avatarUrl())
                             <img src="{{ $user->avatarUrl() }}" alt="Foto de perfil">
@@ -51,24 +47,77 @@
                             {{ $iniciais($user->name) }}
                         @endif
                     </span>
-                    <div class="avatar-edit-actions">
-                        <label class="btn-ghost" for="avatar">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h3l1.5-2h7L18 7h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg>
-                            Trocar foto
-                        </label>
-                        <input type="file" id="avatar" name="avatar" accept="image/*" hidden>
-                        <span class="hint">JPG ou PNG, até 2 MB</span>
-                        {{-- Tirar a foto sem pôr outra (antes só dava para trocar). Só aparece
-                             quando há foto; vale ao salvar, como o resto do formulário. --}}
-                        @if ($user->avatarUrl())
-                            <label class="check">
-                                <input type="checkbox" id="removerFoto" name="remover_foto" value="1" @checked(old('remover_foto'))>
-                                <span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
-                                <span>Remover a foto</span>
+                    <div class="ph-text">
+                        <h3>{{ $user->name }}</h3>
+                        <div class="ph-badges">
+                            @if ($user->isTitular())
+                                <span class="dp-badge titular">Titular</span>
+                            @else
+                                <span class="dp-badge">{{ $user->relationshipLabel() ?? 'Dependente' }}</span>
+                            @endif
+                            @if ($user->pending_email)
+                                <span class="ph-tag alerta">Troca de e-mail pendente</span>
+                            @elseif ($user->hasVerifiedEmail())
+                                <span class="ph-tag ok">E-mail verificado</span>
+                            @endif
+                            <span class="ph-tag {{ $resumo['doisFatores'] ? 'ok' : '' }}">2FA {{ $resumo['doisFatores'] ? 'ligado' : 'desligado' }}</span>
+                        </div>
+                        <span class="ph-sub">Na família desde {{ $user->created_at->translatedFormat('F \\d\\e Y') }}</span>
+                        <div class="ph-foto">
+                            <label class="btn-ghost" for="avatar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h3l1.5-2h7L18 7h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                                {{ $user->avatarUrl() ? 'Trocar foto' : 'Adicionar foto' }}
                             </label>
-                        @endif
+                            <input type="file" id="avatar" name="avatar" accept="image/*" hidden>
+                            <span class="hint">JPG ou PNG, até 2 MB</span>
+                            {{-- Tirar a foto sem pôr outra. Só aparece quando há foto; vale ao
+                                 salvar, como o resto do formulário. --}}
+                            @if ($user->avatarUrl())
+                                <label class="check">
+                                    <input type="checkbox" id="removerFoto" name="remover_foto" value="1" @checked(old('remover_foto'))>
+                                    <span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
+                                    <span>Remover a foto</span>
+                                </label>
+                            @endif
+                        </div>
                     </div>
                 </div>
+
+                <div class="ph-stats">
+                    <div class="ph-stat">
+                        <span class="lbl">Pessoas na família</span>
+                        <strong>{{ $resumo['pessoasNaFamilia'] }}</strong>
+                    </div>
+                    <div class="ph-stat">
+                        <span class="lbl">Seus lançamentos no mês</span>
+                        <strong>{{ $resumo['lancamentosNoMes'] }}</strong>
+                    </div>
+                    <div class="ph-stat">
+                        <span class="lbl">Perfil completo</span>
+                        <strong>{{ $resumo['completo'] }}%</strong>
+                        <div class="dp-bar" role="presentation"><span class="dp-bar-fill" style="--fatia: {{ $resumo['completo'] }}%"></span></div>
+                        <span class="ph-falta">
+                            @if ($resumo['faltando'])
+                                Falta: {{ implode(', ', $resumo['faltando']) }}
+                            @else
+                                Tudo preenchido
+                            @endif
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {{-- ---------- Identidade ---------- --}}
+            <div class="card sec-card span6">
+                <div class="card-head">
+                    <h3>Quem é você</h3>
+                    <span class="chip">{{ $user->isTitular() ? 'Titular' : 'Dependente' }}</span>
+                </div>
+
+                <p class="sec-card-desc">
+                    O nome aparece para a família nos lançamentos que você faz. Nascimento e sexo
+                    são opcionais e ficam só no seu perfil.
+                </p>
 
                 <div class="field">
                     <label for="name">Nome</label>
@@ -142,6 +191,49 @@
             </div>
         </div>
     </form>
+
+    {{-- ---------- Segurança e acesso: o estado de cada coisa + o caminho para mexer ---------- --}}
+    <div class="settings-body perfil-seguranca">
+        <div class="card">
+            <div class="card-head">
+                <h3>Segurança e acesso</h3>
+                <span class="chip">Configurações</span>
+            </div>
+            <div class="perfil-atalhos">
+                <a class="perfil-atalho" href="{{ route('settings', 'seguranca') }}">
+                    <span class="pa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></span>
+                    <span class="pa-txt">
+                        <strong>Senha</strong>
+                        <span>{{ $resumo['senhaTrocadaEm'] ? 'Trocada '.$resumo['senhaTrocadaEm']->diffForHumans() : 'Sem registro de troca' }}</span>
+                    </span>
+                </a>
+                <a class="perfil-atalho" href="{{ route('settings', '2fa') }}">
+                    <span class="pa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3 4.5 6v5.5c0 4.6 3.1 8.3 7.5 9.5 4.4-1.2 7.5-4.9 7.5-9.5V6Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+                    <span class="pa-txt">
+                        <strong>Verificação em duas etapas</strong>
+                        @if ($resumo['doisFatores'])
+                            <span>Ligada neste login</span>
+                        @else
+                            <span class="alerta">Desligada — ligue para proteger o login</span>
+                        @endif
+                    </span>
+                </a>
+                <a class="perfil-atalho" href="{{ route('settings', 'seguranca') }}">
+                    <span class="pa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4.5" width="13" height="10" rx="1.8"/><path d="M6.5 18h6M9.5 14.5V18"/><rect x="17" y="8" width="4.5" height="10" rx="1.2"/></svg></span>
+                    <span class="pa-txt">
+                        <strong>Aparelhos conectados</strong>
+                        <span>
+                            @if ($resumo['aparelhos'] > 0)
+                                {{ $resumo['aparelhos'] }} {{ $resumo['aparelhos'] === 1 ? 'aparelho' : 'aparelhos' }} com sessão aberta
+                            @else
+                                Ver onde a conta está aberta
+                            @endif
+                        </span>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </div>
 </section>
 
 <script nonce="{{ Vite::cspNonce() }}">

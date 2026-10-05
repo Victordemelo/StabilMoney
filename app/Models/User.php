@@ -579,9 +579,36 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function avatarUrl(): ?string
     {
-        return $this->avatar_path
+        return $this->temFotoLegivel()
             ? route('avatar.show', ['membro' => $this, 'v' => $this->versaoDaFoto()])
             : null;
+    }
+
+    /** Caminho conferido por último e o resultado — uma conferência por foto, por requisição. */
+    private ?string $fotoConferida = null;
+
+    private bool $fotoLegivel = false;
+
+    /**
+     * A foto existe E o servidor consegue lê-la? Sem isto, um `avatar_path` que aponta para
+     * arquivo sumido (restauração de banco sem os arquivos) ou ilegível (pasta criada por um
+     * comando rodado como root, com 0700 — o padrão do Flysystem — e o Apache como www-data:
+     * aconteceu no dev em out/2026) virava um `<img>` quebrado em todo o shell: um círculo vazio
+     * no lugar das iniciais, que são o fallback de todas as telas. A rota `avatar.show` faz a
+     * mesma conferência e responderia 404 de qualquer jeito.
+     */
+    public function temFotoLegivel(): bool
+    {
+        if (! $this->avatar_path) {
+            return false;
+        }
+
+        if ($this->fotoConferida !== $this->avatar_path) {
+            $this->fotoConferida = $this->avatar_path;
+            $this->fotoLegivel = Storage::disk(self::AVATAR_DISK)->exists($this->avatar_path);
+        }
+
+        return $this->fotoLegivel;
     }
 
     /**

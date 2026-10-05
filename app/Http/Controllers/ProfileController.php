@@ -6,9 +6,11 @@ use App\Http\Requests\ProfileUpdateRequest;
 use App\Mail\AlertaDeSeguranca;
 use App\Mail\ContaDaFamiliaExcluida;
 use App\Models\Account;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Services\FixedBillService;
 use App\Services\TwoFactorService;
+use App\Support\BrowserSessions;
 use App\Support\ContextoDeSeguranca;
 use App\Support\Mailer;
 use App\Support\Notificador;
@@ -29,9 +31,50 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): View
     {
+        $user = $request->user();
+
         return view('profile.edit', [
-            'user' => $request->user(),
+            'user' => $user,
+            'resumo' => $this->resumoDoPerfil($request, $user),
         ]);
+    }
+
+    /**
+     * O que o cabeçalho e os atalhos de "Meu perfil" mostram, além do formulário: quanto do
+     * cadastro está preenchido (e o que falta), a família, a atividade da pessoa no mês e o
+     * estado do acesso (2FA, idade da senha, aparelhos conectados). Só leitura, só da própria
+     * pessoa e da família dela — nenhum valor em dinheiro.
+     *
+     * @return array{completo: int, faltando: list<string>, pessoasNaFamilia: int, lancamentosNoMes: int, doisFatores: bool, senhaTrocadaEm: ?\Illuminate\Support\Carbon, aparelhos: int}
+     */
+    private function resumoDoPerfil(Request $request, User $user): array
+    {
+        // Nome e e-mail são obrigatórios; os opcionais é que fazem o perfil "completo".
+        $opcionais = [
+            'foto' => $user->temFotoLegivel(),
+            'telefone' => filled($user->phone),
+            'data de nascimento' => $user->birth_date !== null,
+            'sexo' => filled($user->gender),
+        ];
+        $preenchidos = 2 + count(array_filter($opcionais));
+
+        return [
+            'completo' => (int) round($preenchidos / (2 + count($opcionais)) * 100),
+            'faltando' => array_keys(array_filter($opcionais, fn (bool $ok) => ! $ok)),
+            'pessoasNaFamilia' => 1 + User::where('account_owner_id', $user->ownerId())->count(),
+            // Lançamentos que a PESSOA fez no mês: sem a quitação de fatura (é o pagamento de
+            // compras já lançadas) nem as pontas de transferência (mover não é lançar gasto).
+            'lancamentosNoMes' => Transaction::where('user_id', $user->ownerId())
+                ->where('made_by_user_id', $user->id)
+                ->whereNull('settles_account_id')
+                ->whereNull('transfer_group_id')
+                ->where('date', '>=', now()->startOfMonth()->toDateString())
+                ->where('date', '<=', now()->endOfMonth()->toDateString())
+                ->count(),
+            'doisFatores' => $user->temDoisFatores(),
+            'senhaTrocadaEm' => $user->password_changed_at,
+            'aparelhos' => BrowserSessions::forUser($request)->count(),
+        ];
     }
 
     /**
