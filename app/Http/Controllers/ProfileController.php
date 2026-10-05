@@ -18,6 +18,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
@@ -45,7 +46,7 @@ class ProfileController extends Controller
      * estado do acesso (2FA, idade da senha, aparelhos conectados). Só leitura, só da própria
      * pessoa e da família dela — nenhum valor em dinheiro.
      *
-     * @return array{completo: int, faltando: list<string>, pessoasNaFamilia: int, lancamentosNoMes: int, doisFatores: bool, senhaTrocadaEm: ?\Illuminate\Support\Carbon, aparelhos: int}
+     * @return array{completo: int, faltando: list<string>, pessoasNaFamilia: int, lancamentosNoMes: int, doisFatores: bool, senhaTrocadaEm: ?Carbon, aparelhos: int}
      */
     private function resumoDoPerfil(Request $request, User $user): array
     {

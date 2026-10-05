@@ -531,7 +531,7 @@
 {{-- Único form que valida nesta tela é o de lançar despesa → o bag padrão já o identifica. --}}
 @php $reabreLancar = $errors->any(); @endphp
 <div class="modal-scrim" id="lancarModal" data-lancar-modal data-reopen="{{ $reabreLancar ? '1' : '' }}">
-    <div class="modal modal-lg" role="dialog" aria-modal="true"
+    <div class="modal modal-xl" role="dialog" aria-modal="true"
          aria-labelledby="lancarModal-titulo" aria-describedby="lancarModal-descricao">
         <div class="modal-head">
             <span class="modal-ico ico-out" id="lancarIco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7 17 17M17 17h-7M17 17v-7"/></svg></span>
@@ -560,14 +560,31 @@
                         <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
                     </div>
                 @endif
-                {{-- Descrição --}}
-                <div class="field">
-                    <label for="lanc-desc">Descrição</label>
-                    <input class="input" type="text" id="lanc-desc" name="description"
-                           value="{{ $reabreLancar ? old('description') : '' }}" placeholder="Ex.: Supermercado, passagem aérea…" required>
+                {{-- Duas colunas, quatro linhas: o modal é LARGO e baixo para caber sem rolar.
+                     As parcelas ficam ao lado da forma de lançamento, então aparecer/sumir
+                     não muda a altura. --}}
+                <div class="form-row">
+                    {{-- Descrição --}}
+                    <div class="field">
+                        <label for="lanc-desc">Descrição</label>
+                        <input class="input" type="text" id="lanc-desc" name="description"
+                               value="{{ $reabreLancar ? old('description') : '' }}" placeholder="Ex.: Supermercado, passagem aérea…" required>
+                    </div>
+                    {{-- Método de pagamento (todas as contas da família) --}}
+                    <div class="field">
+                        <label for="lanc-method">Método de pagamento</label>
+                        <select class="input" id="lanc-method" name="account_id" required>
+                            @foreach ($accounts as $account)
+                                <option value="{{ $account->id }}"
+                                        data-card="{{ $account->isCard ? '1' : '0' }}"
+                                        @selected($reabreLancar && (int) old('account_id') === $account->id)>
+                                    {{ $account->rotulo ?? $account->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
                 </div>
-
-                <div class="field-row">
+                <div class="form-row">
                     {{-- Valor (total) --}}
                     <div class="field">
                         <label for="lanc-valor">Valor</label>
@@ -581,72 +598,58 @@
                                value="{{ $reabreLancar ? old('date', now()->format('Y-m-d')) : now()->format('Y-m-d') }}" required>
                     </div>
                 </div>
-
-                {{-- Método de pagamento (todas as contas da família) --}}
-                <div class="field">
-                    <label for="lanc-method">Método de pagamento</label>
-                    <select class="input" id="lanc-method" name="account_id" required>
-                        @foreach ($accounts as $account)
-                            <option value="{{ $account->id }}"
-                                    data-card="{{ $account->isCard ? '1' : '0' }}"
-                                    @selected($reabreLancar && (int) old('account_id') === $account->id)>
-                                {{ $account->icon ? $account->icon . '  ' : '' }}{{ $account->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                {{-- Categoria (despesas) --}}
-                <div class="field">
-                    <label for="lanc-cat">Categoria <span class="hint">(opcional)</span></label>
-                    <select class="input" id="lanc-cat" name="category_id">
-                        <option value="">Sem categoria</option>
-                        @foreach ($categories as $categoria)
-                            <option value="{{ $categoria->id }}" @selected($reabreLancar && (int) old('category_id') === $categoria->id)>
-                                {{ $categoria->icon ? $categoria->icon . '  ' : '' }}{{ $categoria->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                {{-- Quem fez a compra (só quando a família tem mais de uma pessoa) --}}
-                @if ($temFamilia)
+                <div class="form-row">
+                    {{-- Categoria (despesas) --}}
                     <div class="field">
-                        <label for="lanc-who">Quem fez essa compra?</label>
-                        <select class="input" id="lanc-who" name="made_by_user_id">
-                            @foreach ($familyMembers as $member)
-                                <option value="{{ $member->id }}"
-                                        @selected((int) old('made_by_user_id', auth()->id()) === $member->id)>
-                                    {{ $member->name }}{{ $member->isTitular() ? ' (Titular)' : '' }}
+                        <label for="lanc-cat">Categoria <span class="hint">(opcional)</span></label>
+                        <select class="input" id="lanc-cat" name="category_id">
+                            <option value="">Sem categoria</option>
+                            @foreach ($categories as $categoria)
+                                <option value="{{ $categoria->id }}" @selected($reabreLancar && (int) old('category_id') === $categoria->id)>
+                                    {{ $categoria->icon ? $categoria->icon . '  ' : '' }}{{ $categoria->name }}
                                 </option>
                             @endforeach
                         </select>
                     </div>
-                @endif
-
-                {{-- Modo (À vista / Parcelado / Recorrente) — habilitado conforme o método.
-                     O JS mostra "parcelas" só em parcelado e força "à vista" se o método não for cartão. --}}
-                <div class="field" data-lanc-modewrap>
-                    <label>Forma de lançamento</label>
-                    <div class="pay-mode" id="lancModes">
-                        <button type="button" class="active" data-m="avista">À vista</button>
-                        <button type="button" data-m="parcelado">Parcelado</button>
-                        <button type="button" data-m="recorrente">Recorrente</button>
-                    </div>
-                    {{-- valor real enviado ao servidor (atualizado pelos botões acima) --}}
-                    <input type="hidden" name="mode" id="lanc-mode" value="{{ old('mode', 'avista') }}">
-                    <small class="field-hint" data-lanc-modehint></small>
+                    {{-- Quem fez a compra (só quando a família tem mais de uma pessoa) --}}
+                    @if ($temFamilia)
+                        <div class="field">
+                            <label for="lanc-who">Quem fez essa compra?</label>
+                            <select class="input" id="lanc-who" name="made_by_user_id">
+                                @foreach ($familyMembers as $member)
+                                    <option value="{{ $member->id }}"
+                                            @selected((int) old('made_by_user_id', auth()->id()) === $member->id)>
+                                        {{ $member->name }}{{ $member->isTitular() ? ' (Titular)' : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
                 </div>
-
-                {{-- Número de parcelas (visível só no modo parcelado) --}}
-                <div class="field" id="lancParcelasField" hidden>
-                    <label for="lanc-parcelas">Número de parcelas</label>
-                    <select class="input" id="lanc-parcelas" name="installments">
-                        @for ($i = 2; $i <= 24; $i++)
-                            <option value="{{ $i }}" @selected((int) old('installments') === $i)>{{ $i }}x</option>
-                        @endfor
-                    </select>
-                    <small class="field-hint" id="lancParcelaHint"></small>
+                <div class="form-row">
+                    {{-- Modo (À vista / Parcelado / Recorrente) — habilitado conforme o método.
+                         O JS mostra "parcelas" só em parcelado e força "à vista" se o método não for cartão. --}}
+                    <div class="field" data-lanc-modewrap>
+                        <label>Forma de lançamento</label>
+                        <div class="pay-mode" id="lancModes">
+                            <button type="button" class="active" data-m="avista">À vista</button>
+                            <button type="button" data-m="parcelado">Parcelado</button>
+                            <button type="button" data-m="recorrente">Recorrente</button>
+                        </div>
+                        {{-- valor real enviado ao servidor (atualizado pelos botões acima) --}}
+                        <input type="hidden" name="mode" id="lanc-mode" value="{{ old('mode', 'avista') }}">
+                        <small class="field-hint" data-lanc-modehint></small>
+                    </div>
+                    {{-- Número de parcelas (visível só no modo parcelado) --}}
+                    <div class="field" id="lancParcelasField" hidden>
+                        <label for="lanc-parcelas">Número de parcelas</label>
+                        <select class="input" id="lanc-parcelas" name="installments">
+                            @for ($i = 2; $i <= 24; $i++)
+                                <option value="{{ $i }}" @selected((int) old('installments') === $i)>{{ $i }}x</option>
+                            @endfor
+                        </select>
+                        <small class="field-hint" id="lancParcelaHint"></small>
+                    </div>
                 </div>
             </div>
             <div class="modal-foot">
@@ -691,7 +694,7 @@
                     <label for="fixa-conta">Pagar com</label>
                     <select class="input" id="fixa-conta" name="account_id" required>
                         @foreach ($accounts as $acc)
-                            <option value="{{ $acc->id }}">{{ $acc->name }}</option>
+                            <option value="{{ $acc->id }}">{{ $acc->rotulo ?? $acc->name }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -743,7 +746,7 @@
                         <select class="input" id="cf-conta" name="account_id">
                             <option value="">Escolher na hora</option>
                             @foreach ($accounts as $acc)
-                                <option value="{{ $acc->id }}">{{ $acc->name }}</option>
+                                <option value="{{ $acc->id }}">{{ $acc->rotulo ?? $acc->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -824,7 +827,7 @@
                         <select class="input" id="cfe-conta" name="account_id">
                             <option value="">Escolher na hora</option>
                             @foreach ($accounts as $acc)
-                                <option value="{{ $acc->id }}">{{ $acc->name }}</option>
+                                <option value="{{ $acc->id }}">{{ $acc->rotulo ?? $acc->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -888,7 +891,7 @@
                         <label for="pay-account">Debitar de</label>
                         <select class="input" id="pay-account" name="pay_account_id" required>
                             @foreach ($cashAccounts as $acc)
-                                <option value="{{ $acc->id }}">{{ $acc->name }}</option>
+                                <option value="{{ $acc->id }}">{{ $acc->rotulo ?? $acc->name }}</option>
                             @endforeach
                         </select>
                     </div>

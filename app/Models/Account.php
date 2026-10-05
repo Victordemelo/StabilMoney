@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Fluent;
+use Illuminate\Support\Str;
 
 class Account extends Model
 {
@@ -297,6 +298,7 @@ class Account extends Model
                     return new Fluent([
                         'id' => $conta->id,
                         'name' => $conta->name,
+                        'rotulo' => $conta->rotulo,
                         'icon' => $conta->icon,
                         'type' => $conta->type,
                         'isCard' => $conta->isCard(),
@@ -321,6 +323,7 @@ class Account extends Model
                 return new Fluent([
                     'id' => $destino->id,
                     'name' => $conta->name.' → '.$destino->name,
+                    'rotulo' => $conta->rotulo.' → '.$destino->name,
                     'icon' => $conta->icon,
                     'type' => $conta->type,
                     'isCard' => false,
@@ -374,6 +377,40 @@ class Account extends Model
     {
         return self::TYPES[$this->type] ?? $this->type;
     }
+
+    /**
+     * Como o método aparece num SELECT: o apelido que a pessoa deu (o `name`) e, entre
+     * parênteses, o tipo e o banco — só o que o apelido ainda não diz. "Nubank Roxinho
+     * (Crédito)", "Conta Corrente (Nubank)", "Poupança (Caixa)", "Débito Nubank". Antes a
+     * lista mostrava só o nome, e "Nubank Roxinho" não dizia se era crédito ou débito.
+     */
+    public function getRotuloAttribute(): string
+    {
+        $normalizar = fn (string $texto) => Str::lower(Str::ascii($texto));
+        $nome = trim((string) $this->name);
+        $nomeNormalizado = $normalizar($nome);
+
+        $extras = [];
+        [$tipo, $palavra] = self::TIPO_NO_ROTULO[$this->type] ?? [null, null];
+        if ($tipo && ! str_contains($nomeNormalizado, $palavra)) {
+            $extras[] = $tipo;
+        }
+        $banco = $this->bankLabel();
+        if ($banco && ! str_contains($nomeNormalizado, $normalizar($banco))) {
+            $extras[] = $banco;
+        }
+
+        return $extras ? $nome.' ('.implode(' · ', $extras).')' : $nome;
+    }
+
+    /** Tipo curto do rótulo do select e a palavra que, já no apelido, o dispensa. */
+    private const TIPO_NO_ROTULO = [
+        'checking' => ['Conta corrente', 'corrente'],
+        'savings' => ['Poupança', 'poupanca'],
+        'debit_card' => ['Débito', 'debito'],
+        'credit_card' => ['Crédito', 'credito'],
+        'pix' => ['Pix', 'pix'],
+    ];
 
     /** Rótulo PT-BR do banco, ou null se não houver. */
     public function bankLabel(): ?string

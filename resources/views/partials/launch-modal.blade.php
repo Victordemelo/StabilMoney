@@ -14,7 +14,7 @@
      que o leitor de tela anuncia ao abrir. Foco, Tab preso, Esc e a página inerte
      vêm do sm/dialogo.js. --}}
 <div class="modal-scrim" id="launchModal" data-close>
-    <div class="modal modal-wide" data-type="income"
+    <div class="modal modal-xl" data-type="income"
          role="dialog" aria-modal="true" aria-labelledby="launchModal-titulo" aria-describedby="launchModal-descricao">
         <div class="modal-head">
             <span class="modal-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span>
@@ -110,7 +110,7 @@
                                             data-cash="{{ in_array($conta->type, ['checking', 'savings'], true) ? '1' : '0' }}"
                                             data-saldo="{{ \App\Support\Brl::format($conta->saldo ?? 0) }}"
                                             data-saldo-rotulo="{{ $conta->saldoRotulo ?? 'disponível' }}"
-                                            data-negativo="{{ ($conta->saldo ?? 0) < 0 ? '1' : '0' }}">{{ $conta->name }}</option>
+                                            data-negativo="{{ ($conta->saldo ?? 0) < 0 ? '1' : '0' }}">{{ $conta->rotulo ?? $conta->name }}</option>
                                 @endforeach
                             </select>
                             {{-- Quanto ainda dá para gastar por este método, atualizado ao
@@ -127,7 +127,7 @@
                                 <label for="lm-to-account">Para</label>
                                 <select class="input" id="lm-to-account" name="to_account_id" disabled>
                                     @foreach ($lmContasCaixa as $conta)
-                                        <option value="{{ $conta->id }}">{{ $conta->name }}</option>
+                                        <option value="{{ $conta->id }}">{{ $conta->rotulo ?? $conta->name }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -150,20 +150,28 @@
                         </div>
                     </div>
 
-                    @if ($lmFamily->count() > 1)
-                        <div class="field">
-                            <label for="lm-author">Quem fez a compra</label>
-                            <select class="input" id="lm-author" name="made_by_user_id">
-                                @foreach ($lmFamily as $membro)
-                                    <option value="{{ $membro->id }}" @selected($membro->id === auth()->id())>{{ $membro->name }}{{ $membro->isTitular() ? ' (titular)' : '' }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    @endif
+                    {{-- Quem + descrição lado a lado: o modal é LARGO e baixo, e tem a MESMA
+                         altura nos três tipos (o saldo reserva a linha dele em receita) — antes
+                         ele crescia e encolhia a cada troca de tipo e a rolagem ia e vinha. --}}
+                    <div class="form-row">
+                        @if ($lmFamily->count() > 1)
+                            <div class="field">
+                                {{-- O rótulo acompanha o tipo (launch.js). Já abre em quem está
+                                     LOGADO: o dependente que lança a própria compra não precisa
+                                     trocar nada. --}}
+                                <label for="lm-author" data-lm-author-label>Quem recebeu</label>
+                                <select class="input" id="lm-author" name="made_by_user_id">
+                                    @foreach ($lmFamily as $membro)
+                                        <option value="{{ $membro->id }}" @selected($membro->id === auth()->id())>{{ $membro->name }}{{ $membro->isTitular() ? ' (titular)' : '' }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endif
 
-                    <div class="field">
-                        <label for="lm-description">Descrição <span class="hint">(opcional)</span></label>
-                        <input class="input" type="text" id="lm-description" name="description" maxlength="255" placeholder="Ex.: Supermercado, salário, aluguel…">
+                        <div class="field">
+                            <label for="lm-description">Descrição <span class="hint">(opcional)</span></label>
+                            <input class="input" type="text" id="lm-description" name="description" maxlength="255" placeholder="Ex.: Supermercado, salário, aluguel…">
+                        </div>
                     </div>
                 </div>
 

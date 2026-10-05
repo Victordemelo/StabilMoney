@@ -38,7 +38,7 @@
                     <select class="input" id="f-account" name="account">
                         <option value="">Todas</option>
                         @foreach ($accounts as $conta)
-                            <option value="{{ $conta->id }}" @selected((int) request('account') === $conta->id)>{{ $conta->name }}</option>
+                            <option value="{{ $conta->id }}" @selected((int) request('account') === $conta->id)>{{ $conta->rotulo ?? $conta->name }}</option>
                         @endforeach
                     </select>
                 </div>

@@ -190,10 +190,10 @@
                             </div>
                             <div>
                                 <div class="tx-name">{{ $transaction->description ?: ($transaction->category->name ?? ($isIncome ? 'Receita' : 'Despesa')) }}</div>
-                                <div class="tx-meta">{{ $transaction->category->name ?? 'Sem categoria' }} · {{ $transaction->date_human }}@if (! empty($showAuthor)) · {{ $transaction->madeBy?->name ?? 'Removido' }}@endif</div>
+                                <div class="tx-meta">{{ $transaction->category->name ?? 'Sem categoria' }} · {{ $transaction->date_human }}@if ((int) $transaction->installments > 1) · em {{ $transaction->installments }}x @endif @if (! empty($showAuthor)) · {{ $transaction->madeBy?->name ?? 'Removido' }}@endif</div>
                             </div>
                             {{-- O sinal aqui é o do TIPO (entrou/saiu); o valor é sempre positivo --}}
-                            <div class="tx-amt {{ $isIncome ? 'pos' : '' }}">{{ $isIncome ? '+' : '−' }} @brl($transaction->amount)</div>
+                            <div class="tx-amt {{ $isIncome ? 'pos' : '' }}">{{ $isIncome ? '+' : '−' }} @brl($transaction->valor_exibido ?? $transaction->amount)</div>
                         </div>
                     @endforeach
                 </div>

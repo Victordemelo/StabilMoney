@@ -416,6 +416,16 @@ class TransactionController extends Controller
                 ->get(),
             'familyMembers' => $this->familyMembers($userId),
             'ofereceEncerrarRecorrencia' => $this->ofereceEncerrarRecorrencia($transaction),
+            // Painel "Detalhes" ao lado do formulário: o que trava a edição desta linha (a
+            // MESMA regra que o `update` aplica — dita antes, e não só depois do Salvar) e,
+            // na compra parcelada, todas as parcelas dela.
+            'travaDeEdicao' => $this->travaDeEdicao($transaction, null),
+            'parcelas' => $transaction->group_id && (int) $transaction->installments > 1
+                ? Transaction::where('user_id', $userId)
+                    ->where('group_id', $transaction->group_id)
+                    ->orderBy('installment_no')
+                    ->get(['id', 'installment_no', 'installments', 'amount', 'date', 'paid_at'])
+                : collect(),
         ]);
     }
 

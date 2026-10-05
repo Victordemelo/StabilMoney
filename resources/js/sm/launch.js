@@ -167,6 +167,8 @@ export function initLaunch() {
     const foraTransfer = form.querySelectorAll('[data-lm-not-transfer]');
     const rotuloConta = form.querySelector('[data-lm-account-label]');
     const subtitulo = modal.querySelector('[data-lm-subtitle]');
+    const rotuloAutor = form.querySelector('[data-lm-author-label]');
+    const ROTULO_DO_AUTOR = { income: 'Quem recebeu', expense: 'Quem fez a compra', transfer: 'Quem fez a transferência' };
 
     /**
      * Mostra o saldo do método escolhido embaixo do select.
@@ -183,10 +185,16 @@ export function initLaunch() {
         const opt = contaSel.selectedOptions[0];
 
         if (!opt || (marcado && marcado.value === 'income')) {
-            alvo.hidden = true;
+            // A linha some, mas o ESPAÇO fica: sem ele o modal mudava de altura a cada
+            // troca de tipo (receita × despesa × transferência) e a rolagem ia e vinha.
+            alvo.textContent = '';
+            alvo.classList.remove('neg');
+            alvo.classList.add('reservado');
+            alvo.hidden = false;
             return;
         }
 
+        alvo.classList.remove('reservado');
         alvo.textContent = `${opt.dataset.saldo} ${opt.dataset.saldoRotulo}`;
         alvo.classList.toggle('neg', opt.dataset.negativo === '1');
         alvo.hidden = false;
@@ -197,6 +205,7 @@ export function initLaunch() {
         const tipo = marcado ? marcado.value : 'expense';
         form.dataset.type = tipo;
         if (card) card.dataset.type = tipo;
+        if (rotuloAutor) rotuloAutor.textContent = ROTULO_DO_AUTOR[tipo] || ROTULO_DO_AUTOR.expense;
 
         if (select) {
             select.querySelectorAll('optgroup').forEach((g) => {

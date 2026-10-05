@@ -50,14 +50,38 @@
            (no mobile a media query de 920px já devolve o overflow). */
         .legal-body { height: auto; min-height: 100%; overflow-y: auto; overflow-x: hidden; }
 
-        .legal-wrap { max-width: 760px; margin: 0 auto; padding: 34px 20px 80px; }
-        .legal-head { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 28px; text-decoration: none; }
+        /* Barra do topo, presa ao rolar: a pessoa nunca fica sem saída num documento longo. */
+        .legal-topo { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 86%, transparent);
+                      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+        .legal-topo-in { max-width: 1140px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+        .legal-docs { display: flex; gap: 4px; padding: 4px; margin-left: auto; border-radius: 12px;
+                      background: var(--surface-3); border: 1px solid var(--line); }
+        .legal-docs a { padding: 7px 14px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--ink-3); text-decoration: none; white-space: nowrap; }
+        .legal-docs a.ativo { background: var(--surface); color: var(--brand-700); box-shadow: var(--shadow-sm); }
+        [data-theme="dark"] .legal-docs a.ativo { color: var(--brand-300); }
+        .legal-voltar { font-size: 13px; font-weight: 600; color: var(--ink-2); text-decoration: none; padding: 8px 14px;
+                        border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+        .legal-voltar::before { content: "← "; }
+
+        .legal-wrap { max-width: 1140px; margin: 0 auto; padding: 28px 20px 80px; }
+        /* O documento num card legível; com sumário, o sumário vira uma coluna FIXA à
+           esquerda (só no desktop) — os itens continuam na mesma ordem do HTML. */
+        .legal { background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
+                 padding: 34px 40px 40px; box-shadow: var(--shadow-card, var(--shadow-sm)); }
+        @media (min-width: 1000px) {
+            .legal:has(.legal-toc) { display: grid; grid-template-columns: 250px minmax(0, 1fr); column-gap: 44px; }
+            .legal:has(.legal-toc) > * { grid-column: 2; }
+            .legal:has(.legal-toc) > .legal-toc { grid-column: 1; grid-row: 1 / span 300; align-self: start;
+                position: sticky; top: 86px; max-height: calc(100vh - 110px); overflow-y: auto; margin: 0; }
+        }
+        .legal-head { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
         .legal-head img { width: 30px; height: 30px; display: block; }
         .legal-head .bn { font: 700 18px/1 var(--font-head); color: var(--ink); }
         .legal-head .bn b { color: var(--brand-600); }
-        .legal h1 { font: 700 26px/1.2 var(--font-head); color: var(--ink); letter-spacing: -.01em; }
+        .legal h1 { font: 700 30px/1.15 var(--font-head); color: var(--ink); letter-spacing: -.02em; }
         .legal .upd { color: var(--ink-3); font-size: 13px; margin: 6px 0 24px; }
-        .legal h2 { font: 600 17px/1.3 var(--font-head); color: var(--ink); margin: 26px 0 8px; }
+        .legal h2 { font: 600 18px/1.3 var(--font-head); color: var(--ink); margin: 32px 0 10px; padding-top: 18px;
+                    border-top: 1px solid var(--line-2); scroll-margin-top: 86px; }
         .legal h3 { font: 600 15px/1.35 var(--font-head); color: var(--ink); margin: 18px 0 6px; }
         .legal p, .legal li { color: var(--ink); font-size: 15px; line-height: 1.65; }
         .legal a { color: var(--brand-600); font-weight: 600; }
@@ -81,16 +105,37 @@
         .legal-toc strong { display: block; font: 600 13px/1.4 var(--font-head); color: var(--ink-2);
                             text-transform: uppercase; letter-spacing: .03em; margin-bottom: 8px; }
         .legal-toc ol { margin: 0 0 0 20px; }
-        .legal-toc li { font-size: 14px; margin-bottom: 3px; }
+        .legal-toc li { font-size: 13.5px; margin-bottom: 4px; }
+        .legal-toc a { font-weight: 500; text-decoration: none; }
+        .legal-toc a:hover { text-decoration: underline; }
+        @media (max-width: 720px) {
+            .legal { padding: 22px 18px 28px; border-radius: 16px; }
+            .legal-topo-in { flex-wrap: wrap; gap: 10px; }
+            .legal-docs { order: 3; width: 100%; margin-left: 0; }
+            .legal-docs a { flex: 1; text-align: center; padding: 7px 8px; }
+            .legal-voltar { margin-left: auto; }
+        }
     </style>
 </head>
 <body class="legal-body">
-    <div class="legal-wrap">
-        <a class="legal-head" href="{{ url('/') }}">
-            <img src="{{ asset('assets/stabilmoney-mark.png') }}" alt="StabilMoney" />
-            <span class="bn">Stabil<b>Money</b></span>
-        </a>
+    {{-- Barra do topo: marca, os dois documentos lado a lado e o caminho de volta. O texto
+         jurídico mora SÓ nas views de legal/ (é delas a impressão que o
+         VersaoDosDocumentosLegaisTest confere); mudar este layout não muda o documento. --}}
+    <header class="legal-topo">
+        <div class="legal-topo-in">
+            <a class="legal-head" href="{{ url('/') }}">
+                <img src="{{ asset('assets/stabilmoney-mark.png') }}" alt="StabilMoney" />
+                <span class="bn">Stabil<b>Money</b></span>
+            </a>
+            <nav class="legal-docs" aria-label="Documentos">
+                <a href="{{ route('termos') }}" @class(['ativo' => request()->routeIs('termos')]) @if (request()->routeIs('termos')) aria-current="page" @endif>Termos de Uso</a>
+                <a href="{{ route('privacidade') }}" @class(['ativo' => request()->routeIs('privacidade')]) @if (request()->routeIs('privacidade')) aria-current="page" @endif>Política de Privacidade</a>
+            </nav>
+            <a class="legal-voltar" href="{{ url('/') }}" data-voltar>Voltar</a>
+        </div>
+    </header>
 
+    <div class="legal-wrap">
         <main class="legal">
             @yield('content')
         </main>

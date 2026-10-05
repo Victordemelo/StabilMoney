@@ -105,10 +105,11 @@
 
     {{-- Nome --}}
     <div class="field">
-        <label for="name-{{ $uid }}">Nome da conta</label>
+        <label for="name-{{ $uid }}">Apelido</label>
         <input class="input @error('name') input-error @enderror" type="text" id="name-{{ $uid }}" name="name"
-               maxlength="255" placeholder="Ex.: Nubank, Conta principal, Poupança…" required
+               maxlength="255" placeholder="Ex.: Nubank Roxinho, Cartão da Maria, Conta principal…" required
                value="{{ old('name', $account->name ?? '') }}">
+        <span class="hint">É como o método aparece nas listas. O tipo e o banco entram sozinhos ao lado: "Nubank Roxinho (Crédito)".</span>
         @error('name')<div class="field-error">{{ $message }}</div>@enderror
     </div>
 
@@ -201,7 +202,7 @@
                 <select class="input @error('checking_account_id') input-error @enderror" id="checking_account_id-{{ $uid }}" name="checking_account_id">
                     <option value="">Nenhuma</option>
                     @foreach ($checkingAccounts as $c)
-                        <option value="{{ $c->id }}" @selected($checkingAtual === $c->id)>{{ $c->name }}</option>
+                        <option value="{{ $c->id }}" @selected($checkingAtual === $c->id)>{{ $c->rotulo ?? $c->name }}</option>
                     @endforeach
                 </select>
                 @error('checking_account_id')<div class="field-error">{{ $message }}</div>@enderror
@@ -236,7 +237,7 @@
                 @if ($checkingAccounts->isNotEmpty())
                     <optgroup label="Conta Corrente">
                         @foreach ($checkingAccounts as $c)
-                            <option value="{{ $c->id }}" @selected($pixAtual === $c->id)>{{ $c->name }}</option>
+                            <option value="{{ $c->id }}" @selected($pixAtual === $c->id)>{{ $c->rotulo ?? $c->name }}</option>
                         @endforeach
                     </optgroup>
                 @endif

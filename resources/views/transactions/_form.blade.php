@@ -124,7 +124,7 @@
                             <option value="{{ $conta->id }}" data-card="{{ $conta->isCard ? '1' : '0' }}"
                                     data-cash="{{ in_array($conta->type, ['checking', 'savings'], true) ? '1' : '0' }}"
                                     @selected((int) old('account_id', $transaction->account_id ?? 0) === $conta->id)>
-                                {{ trim(($conta->icon ?? '') . ' ' . $conta->name) }}
+                                {{ $conta->rotulo ?? $conta->name }}
                             </option>
                         @endforeach
                     </select>
@@ -141,7 +141,7 @@
                         <label for="to_account_id">Para</label>
                         <select class="input @error('to_account_id') input-error @enderror" id="to_account_id" name="to_account_id">
                             @foreach ($contasCaixa as $conta)
-                                <option value="{{ $conta->id }}" @selected((int) old('to_account_id', 0) === $conta->id)>{{ $conta->name }}</option>
+                                <option value="{{ $conta->id }}" @selected((int) old('to_account_id', 0) === $conta->id)>{{ $conta->rotulo ?? $conta->name }}</option>
                             @endforeach
                         </select>
                         @error('to_account_id')<div class="field-error">{{ $message }}</div>@enderror

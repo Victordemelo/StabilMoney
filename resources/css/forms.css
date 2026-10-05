@@ -554,7 +554,8 @@ a.tx { text-decoration: none; color: inherit; }
   width: 172px; text-align: center; text-indent: .3em; letter-spacing: .3em;
   font-family: var(--font-head); font-size: 18px; font-weight: 600;
 }
-.tfa-cancelar { margin-top: 18px; }
+.tfa-cancelar { display: none; } /* só o form; o botão dele mora ao lado do "Confirmar" (atributo `form`) */
+.tfa-acoes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 
 /* Aviso antes de ligar (perder o celular sem os códigos = perder a conta) */
 .tfa-aviso {
@@ -933,3 +934,8 @@ a.tx { text-decoration: none; color: inherit; }
 .tfa-selo.off { color: var(--warn, #C98A16); }
 
 .tfa-familia-nota { margin-top: 10px; font-size: 12px; color: var(--ink-3); line-height: 1.5; }
+/* Quem não tem foto aparece pelas iniciais (antes: `<img src="">`, imagem quebrada). */
+.tfa-familia-foto.iniciais {
+  display: grid; place-items: center; color: #fff; font: 700 12px/1 var(--font-head);
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
+}

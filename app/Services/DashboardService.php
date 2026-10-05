@@ -194,15 +194,34 @@ class DashboardService
         $cats = $this->categoryBreakdown($userId, $monthStart, $monthEnd, $creditCardIds);
 
         // ----- Transações recentes (server-rendered) -----
+        // Compra parcelada aparece UMA vez, pela 1ª parcela, com o valor TOTAL e "em Nx".
+        // Antes cada parcela era uma linha — e as futuras, com data mais nova, abriam a
+        // lista: uma compra em 12x virava doze "teste victor − R$ 16,66" no topo.
+        // Recorrência continua linha a linha: cada ocorrência é uma cobrança de verdade.
         $recent = Transaction::with(['account', 'category', 'madeBy'])
             ->where('user_id', $userId)
+            ->where(fn ($q) => $q->whereNull('installments')
+                ->orWhere('installments', '<=', 1)
+                ->orWhere('installment_no', 1))
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->limit(8)
             ->get();
 
+        $grupos = $recent->filter(fn (Transaction $t) => $t->group_id && (int) $t->installments > 1)
+            ->pluck('group_id')->unique()->values();
+        $totaisDosGrupos = $grupos->isEmpty() ? collect() : Transaction::where('user_id', $userId)
+            ->whereIn('group_id', $grupos)
+            ->groupBy('group_id')
+            ->selectRaw('group_id, SUM(amount) AS total')
+            ->pluck('total', 'group_id');
+
         foreach ($recent as $transaction) {
             $transaction->date_human = $this->humanDate(CarbonImmutable::parse($transaction->date), $today);
+            // Valor exibido: o da compra inteira quando é parcelada (soma das parcelas).
+            $transaction->valor_exibido = isset($totaisDosGrupos[$transaction->group_id]) && (int) $transaction->installments > 1
+                ? round((float) $totaisDosGrupos[$transaction->group_id], 2)
+                : (float) $transaction->amount;
         }
 
         $payload = [

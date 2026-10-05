@@ -133,17 +133,21 @@
                             <p class="field-error">{{ $message }}</p>
                         @enderror
                     </div>
-                    <button type="submit" class="btn-primary">Confirmar e ativar</button>
+                    <div class="tfa-acoes">
+                        <button type="submit" class="btn-primary">Confirmar e ativar</button>
+                        {{-- Ao lado do "Confirmar", mas envia o formulário de CANCELAR (abaixo)
+                             pelo atributo `form` — sem JS, e sem um <form> dentro do outro. --}}
+                        <button type="submit" class="btn-ghost" form="tfaCancelarForm">Cancelar configuração</button>
+                    </div>
                 </form>
             </li>
         </ol>
 
         {{-- Cancelar não pede senha: nada está protegido ainda (o login só cobra o código
              depois da confirmação), e a senha acabou de ser digitada para chegar aqui. --}}
-        <form method="POST" action="{{ route('settings.2fa.desativar') }}" class="tfa-cancelar">
+        <form method="POST" action="{{ route('settings.2fa.desativar') }}" class="tfa-cancelar" id="tfaCancelarForm">
             @csrf
             @method('delete')
-            <button type="submit" class="btn-ghost">Cancelar configuração</button>
         </form>
 
     {{-- ========================= ESTADO 2: ativada ========================= --}}
@@ -340,4 +344,25 @@
             </div>
         </li>
     </ul>
+
+    {{-- Situações comuns: as dúvidas que aparecem DEPOIS de ligar — e o card deixa de ter
+         um vazio embaixo ao lado do card de ação. --}}
+    <div class="tfa-faq">
+        <h4>Situações comuns</h4>
+        <details>
+            <summary>Troquei de celular</summary>
+            <p>Desative a verificação aqui e ative de novo, escaneando o código com o celular novo.
+                O código do aparelho antigo deixa de valer.</p>
+        </details>
+        <details>
+            <summary>Perdi o celular</summary>
+            <p>Na tela do código, no login, toque em "Não consigo acessar o aplicativo" e use um dos
+                códigos de recuperação. Depois, configure o aparelho novo.</p>
+        </details>
+        <details>
+            <summary>O código não é aceito</summary>
+            <p>Confira se a data e a hora do celular estão no automático: o código depende do relógio.
+                Ele também vale uma vez só — espere o próximo aparecer.</p>
+        </details>
+    </div>
 </div>

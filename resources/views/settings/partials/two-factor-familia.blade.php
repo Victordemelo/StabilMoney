@@ -22,7 +22,18 @@
     <ul class="tfa-familia-lista">
         @foreach ($totpDaFamilia as $membro)
             <li class="{{ $membro->ativo ? 'is-on' : '' }}">
-                <img class="tfa-familia-foto" src="{{ $membro->avatar }}" alt="" />
+                {{-- Sem foto, as INICIAIS: `src=""` era um ícone de imagem quebrada. --}}
+                @if ($membro->avatar)
+                    <img class="tfa-familia-foto" src="{{ $membro->avatar }}" alt="" />
+                @else
+                    @php
+                        $partes = preg_split('/\s+/', trim($membro->nome), -1, PREG_SPLIT_NO_EMPTY) ?: ['?'];
+                        $iniciaisDoMembro = mb_strtoupper(count($partes) >= 2
+                            ? mb_substr($partes[0], 0, 1).mb_substr(end($partes), 0, 1)
+                            : mb_substr($partes[0], 0, 2));
+                    @endphp
+                    <span class="tfa-familia-foto iniciais" aria-hidden="true">{{ $iniciaisDoMembro }}</span>
+                @endif
 
                 <div class="tfa-familia-txt">
                     <strong>

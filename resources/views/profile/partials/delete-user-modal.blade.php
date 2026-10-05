@@ -36,7 +36,7 @@
 <div id="confirm-user-deletion"
      class="modal-scrim {{ $errors->userDeletion->isNotEmpty() ? 'open' : '' }}">
 
-    <div class="modal" role="dialog" aria-modal="true"
+    <div class="modal modal-xl" role="dialog" aria-modal="true"
          aria-labelledby="confirm-user-deletion-title" aria-describedby="confirm-user-deletion-desc">
         <div class="modal-head">
             <div class="modal-ico perigo" aria-hidden="true">
@@ -74,7 +74,11 @@
                  pode fazer a pessoa desistir. Não bloqueiam a exclusão (ver o
                  porquê em ProfileController::pendenciasDe) — mas passam a exigir
                  um segundo aceite, validado no servidor. --}}
+            {{-- Os dois avisos ficam LADO A LADO (cada um com o seu aceite embaixo): um
+                 abaixo do outro, o modal ficava comprido e rolava antes da senha. --}}
+            <div class="excl-grid">
             @if ($pendencias['tem'])
+                <div class="excl-col">
                 <div class="flash-error" style="margin-bottom: 0;" role="alert">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <path d="M12 9v4.5M12 17h.01"/><path d="M10.3 3.9 2.4 17.1A2 2 0 0 0 4.1 20h15.8a2 2 0 0 0 1.7-2.9L13.7 3.9a2 2 0 0 0-3.4 0Z"/>
@@ -107,6 +111,7 @@
                 @error('confirmo_pendencias', 'userDeletion')
                     <p class="field-error" style="margin-top: -10px;">{{ $message }}</p>
                 @enderror
+                </div>
             @endif
 
             {{-- Dependentes: excluir o titular apaga o login de cada um (hook `deleting`
@@ -115,6 +120,7 @@
                  sempre {{ }}, escapados. O aviso por e-mail só é prometido quando o app
                  consegue enviar — sem mailer, a tela diz a verdade e passa a tarefa. --}}
             @if ($dependentes->isNotEmpty())
+                <div class="excl-col">
                 <div class="flash-error" style="margin-bottom: 0;" role="alert">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M17 6.2a3.2 3.2 0 0 1 0 6M18.5 20a6.4 6.4 0 0 0-2-4.6"/></svg>
                     <div>
@@ -151,7 +157,10 @@
                 @error('confirmo_dependentes', 'userDeletion')
                     <p class="field-error" style="margin-top: -10px;">{{ $message }}</p>
                 @enderror
+                </div>
             @endif
+            </div>
+
 
             {{-- Senha de confirmação --}}
             <div class="field">

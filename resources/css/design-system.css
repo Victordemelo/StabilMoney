@@ -913,7 +913,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .fatura-estorno { display: inline-flex; }
 .fatura-estorno .btn { padding: 7px 12px; font-size: 12.5px; border-radius: 10px; }
 /* Saldo do método escolhido, sob o select do modal de lançar. */
-.lm-saldo { display: block; margin-top: 6px; font-size: 12px; color: var(--ink-3); }
+.lm-saldo { display: block; margin-top: 6px; font-size: 12px; color: var(--ink-3); min-height: 1.5em; }
+.lm-saldo.reservado { visibility: hidden; }
 .lm-saldo.neg { color: var(--neg); font-weight: 600; }
 
 /* ----- Transferência entre contas (modal "Lançar" + Histórico) -----
@@ -1110,6 +1111,12 @@ form[data-type="transfer"] .type-toggle.tt-3 .tt-pill {
 .modal-lg { max-width: 620px; }
 /* Modal amplo (ex.: "Lançar" nova transação): mais largo p/ 2 colunas respirarem */
 .modal-wide { max-width: 620px; }
+/* Formulários longos e confirmações com muito aviso: LARGO e baixo, campos em duas colunas,
+   para caber sem rolar numa tela de notebook (lançar, lançar despesa, excluir conta). */
+.modal-xl { max-width: 780px; }
+.excl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: stretch; }
+.excl-col > .flash-error { flex: 1 1 auto; } /* avisos da mesma altura: os aceites ficam na mesma linha */
+.excl-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 
 /* Botão .btn.primary com spinner de carregamento (modais) */
 .btn.primary { position: relative; }
@@ -1890,3 +1897,49 @@ body.pjax-loading #content { opacity: .5; }
   .dashboard-overview-grid .dashboard-balance-hero { min-height: 164px; }
   .section-head h2 { font-size: 21px; }
 }
+
+/* ============ Editar transação (out/2026): formulário + painel "Detalhes" ============
+   O formulário era uma coluna estreita (640px) no meio da tela, com vazio dos dois lados.
+   Agora ocupa a coluna da esquerda, e a direita diz o que a linha É: valor, situação
+   (paga? em aberto na fatura?), parcelas, fonte do dinheiro e o que trava a edição. */
+.tx-edit { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; max-width: 1180px; margin: 0 auto; }
+.tx-edit .form-card { max-width: none; }
+.tx-edit-form > .grid { display: block; }
+.tx-detalhe { padding: 20px; position: sticky; top: 16px; display: flex; flex-direction: column; gap: 14px; }
+.tx-d-tipo { align-self: flex-start; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; background: var(--surface-3); color: var(--ink-3); }
+.tx-d-tipo.pos { background: color-mix(in srgb, var(--pos) 13%, transparent); color: var(--pos); }
+.tx-d-tipo.neg { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.tx-d-tipo.transf { background: var(--brand-50); color: var(--brand-700); }
+[data-theme="dark"] .tx-d-tipo.transf { background: rgba(28,154,112,.14); color: var(--brand-300); }
+.tx-d-valor { font-family: var(--font-head); font-size: 30px; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; }
+.tx-d-valor.pos { color: var(--pos); }
+.tx-d-sub { margin-top: -8px; font-size: 12px; color: var(--ink-3); }
+.tx-d-lista { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.tx-d-lista > div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-2); font-size: 12.5px; }
+.tx-d-lista dt { color: var(--ink-3); flex: none; }
+.tx-d-lista dd { margin: 0; text-align: right; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.tx-d-parcelas h4 { font-size: 12.5px; font-weight: 600; margin: 0 0 8px; }
+.tx-d-parcelas h4 span { font-weight: 500; color: var(--ink-3); }
+.tx-d-parcelas ol { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; }
+.tx-d-parcelas li { display: grid; grid-template-columns: 44px 1fr auto 70px; gap: 8px; align-items: center; padding: 7px 10px; font-size: 12px; border-bottom: 1px solid var(--line-2); }
+.tx-d-parcelas li:last-child { border-bottom: 0; }
+.tx-d-parcelas li.atual { background: var(--brand-50); font-weight: 600; }
+[data-theme="dark"] .tx-d-parcelas li.atual { background: rgba(28,154,112,.12); }
+.tx-d-parcelas .st { text-align: right; font-size: 11px; color: var(--ink-3); }
+.tx-d-parcelas .st.paga { color: var(--pos); }
+.tx-d-aviso { margin: 0; padding: 12px 14px; border-radius: 12px; font-size: 12.5px; line-height: 1.5; background: #FDEFD6; color: #7A4A00; }
+[data-theme="dark"] .tx-d-aviso { background: rgba(240,169,59,.14); color: #F5C778; }
+@media (max-width: 1000px) {
+  .tx-edit { grid-template-columns: 1fr; }
+  .tx-detalhe { position: static; order: -1; }
+}
+
+/* 2FA — "Situações comuns" no card "Como funciona" (out/2026). */
+.tfa-faq { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.tfa-faq h4 { font-size: 13px; font-weight: 600; margin: 0 0 4px; }
+.tfa-faq details { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.tfa-faq summary { cursor: pointer; list-style: none; padding: 10px 12px; font-size: 12.5px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+.tfa-faq summary::-webkit-details-marker { display: none; }
+.tfa-faq summary::after { content: "+"; color: var(--ink-3); font-weight: 500; font-size: 16px; line-height: 1; }
+.tfa-faq details[open] summary::after { content: "−"; }
+.tfa-faq p { margin: 0; padding: 0 12px 11px; font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
