@@ -25,6 +25,29 @@ sm_lista_contem() { # <lista> <ip>
   return 1
 }
 
+# Domínio de um e-mail, em minúsculas ("Nao-Responda@Exemplo.com.br" → "exemplo.com.br"); vazio
+# quando não é e-mail.
+sm_dominio_do_email() { # <e-mail>
+  case "$1" in
+    *@*) sm_minusculas "${1##*@}" ;;
+  esac
+}
+
+# O e-mail tem cara de e-mail? (algo@dominio.tld, sem espaço e com um @ só.)
+sm_email_valido() { # <e-mail>
+  printf '%s' "$1" | grep -Eq '^[^@[:space:]"]+@[^@[:space:]"]+\.[A-Za-z]{2,}$'
+}
+
+# O domínio <dominio> é o host <host> ou um domínio acima dele? ("victordemelo.com.br" serve
+# a "stabilmoney.victordemelo.com.br"; "stabilmoney.com.br" não.)
+sm_dominio_cobre_host() { # <dominio> <host>
+  [ -n "$1" ] && [ -n "$2" ] || return 1
+  case "$2" in
+    "$1" | *".$1") return 0 ;;
+  esac
+  return 1
+}
+
 # Confere o .env contra os bloqueadores do docs/checklist-de-publicacao.md e imprime
 # uma linha por problema, prefixada com "erro: " (impede o deploy) ou "aviso: "
 # (segue, mas mostra). Não imprime nada quando está tudo certo.
@@ -32,7 +55,14 @@ sm_lista_contem() { # <lista> <ip>
 # Não executa o .env (lê com sm_ler_env): um `source .env` rodaria qualquer comando
 # que estivesse lá dentro.
 sm_conferir_env_de_producao() { # <arquivo .env>
-  local env="$1" v host chave
+  local env="$1" v host chave app_host senha senha_root nome remetente dominio usuario
+
+  # O nome do app aparece no remetente dos e-mails, no app autenticador do 2FA (a conta fica
+  # listada com ele) e no nome do cookie de sessão. "Laravel" é o que vem num .env cru.
+  nome="$(sm_ler_env "$env" APP_NAME)"
+  case "$(sm_minusculas "$nome")" in
+    '' | laravel) echo "erro: APP_NAME=${nome:-(vazio)} — use StabilMoney: é o nome que aparece no remetente dos e-mails, no app autenticador do 2FA e no cookie de sessão" ;;
+  esac
 
   v="$(sm_ler_env "$env" APP_ENV)"
   [ "$v" = "production" ] || echo "erro: APP_ENV=${v:-(vazio)} — precisa ser production (checklist, item 2)"
@@ -51,6 +81,7 @@ sm_conferir_env_de_producao() { # <arquivo .env>
 
   v="$(sm_ler_env "$env" APP_URL)"
   host="$(printf '%s' "$v" | sed -n 's#^https://\([^/:]*\).*#\1#p')"
+  app_host="$(sm_minusculas "$host")"
   if [ -z "$host" ]; then
     echo "erro: APP_URL=${v:-(vazio)} — precisa ser o endereço público em https (ex.: https://stabilmoney.victordemelo.com.br). É dele que saem os links dos e-mails e o único Host que o app aceita"
   else
@@ -86,14 +117,25 @@ sm_conferir_env_de_producao() { # <arquivo .env>
   v="$(sm_ler_env "$env" DB_HOST)"
   [ "$v" = "db" ] || echo "erro: DB_HOST=${v:-(vazio)} — precisa ser db (o nome do serviço do banco no docker-compose.prod.yml)"
 
-  v="$(sm_ler_env "$env" DB_PASSWORD)"
-  case "$v" in
-    '' | password | secret | root) echo "erro: DB_PASSWORD vazia ou de exemplo — gere com: openssl rand -hex 32 (checklist, item 6)" ;;
-  esac
-  v="$(sm_ler_env "$env" DB_ROOT_PASSWORD)"
-  case "$v" in
-    '' | password | secret | root) echo "erro: DB_ROOT_PASSWORD vazia ou de exemplo — gere com: openssl rand -hex 32 (checklist, item 6)" ;;
-  esac
+  # Senhas do banco: nada de exemplo, no mínimo 24 caracteres (o guia gera 64 com
+  # `openssl rand -hex 32`) e DIFERENTES entre si — a do app só alcança o banco do app; se
+  # for a mesma do root, quem a obtiver (ela fica no .env que o app lê) manda no MySQL inteiro.
+  senha="$(sm_ler_env "$env" DB_PASSWORD)"
+  senha_root="$(sm_ler_env "$env" DB_ROOT_PASSWORD)"
+  for chave in DB_PASSWORD DB_ROOT_PASSWORD; do
+    if [ "$chave" = DB_PASSWORD ]; then v="$senha"; else v="$senha_root"; fi
+    case "$v" in
+      '' | password | secret | root) echo "erro: $chave vazia ou de exemplo — gere com: openssl rand -hex 32 (checklist, item 6)" ;;
+      *)
+        if [ "${#v}" -lt 24 ]; then
+          echo "erro: $chave tem ${#v} caracteres — use pelo menos 24; gere com: openssl rand -hex 32 (checklist, item 6)"
+        fi
+        ;;
+    esac
+  done
+  if [ -n "$senha" ] && [ "$senha" = "$senha_root" ]; then
+    echo "erro: DB_PASSWORD e DB_ROOT_PASSWORD são iguais — a do app fica no .env que o site lê; igual à do root, quem a obtiver manda no MySQL inteiro. Gere uma para cada (openssl rand -hex 32)"
+  fi
 
   # O Compose lê este mesmo .env e SUBSTITUI "$ALGO" e "${ALGO}" dentro dos valores
   # (o Laravel não). Uma senha "abc$def" chegaria ao MySQL como "abc" e ao Laravel
@@ -129,6 +171,37 @@ sm_conferir_env_de_producao() { # <arquivo .env>
             echo "erro: MAIL_HOST=${host:-(vazio)} com MAIL_MAILER=smtp — é o e-mail de DESENVOLVIMENTO, que não existe na VPS: nada sai, e o app, achando que envia, promete o link do 'Esqueci a senha'. Sem provedor ainda, use MAIL_MAILER=log (o app avisa que não envia); com provedor, o MAIL_HOST dele (docs/deploy-oracle-cloudflare.md, passo 9)" ;;
         esac
       fi
+      ;;
+  esac
+
+  # Remetente — só quando o e-mail SAI de verdade (com log/null/array nada é enviado).
+  case "$(sm_ler_env "$env" MAIL_MAILER log)" in
+    log | null | array) ;;
+    *)
+      remetente="$(sm_ler_env "$env" MAIL_FROM_ADDRESS)"
+      dominio="$(sm_dominio_do_email "$remetente")"
+      if [ -z "$remetente" ] || ! sm_email_valido "$remetente"; then
+        echo "erro: MAIL_FROM_ADDRESS=${remetente:-(vazio)} — precisa ser o endereço que envia (ex.: nao-responda@victordemelo.com.br); sem ele vale hello@example.com, que todo provedor recusa"
+      else
+        case "$dominio" in
+          example.com | example.org | example.net | *.example.com | *.test | *.local | localhost)
+            echo "erro: MAIL_FROM_ADDRESS=$remetente — é endereço de exemplo/desenvolvimento; o provedor recusa ou o e-mail cai no spam" ;;
+          *)
+            # O domínio do remetente precisa ser um que você controla (SPF/DKIM/DMARC) — o do
+            # site, um acima dele, ou o da própria caixa que autentica (hospedagem cPanel exige
+            # remetente IGUAL ao usuário). Fora disso pode ser de propósito: só avisa.
+            usuario="$(sm_ler_env "$env" MAIL_USERNAME)"
+            if ! sm_dominio_cobre_host "$dominio" "$app_host" \
+              && [ "$dominio" != "$(sm_dominio_do_email "$usuario")" ]; then
+              echo "aviso: MAIL_FROM_ADDRESS=$remetente — o domínio $dominio não é o do site (${app_host:-sem APP_URL}) nem o da caixa do MAIL_USERNAME; sem SPF/DKIM/DMARC dele, os e-mails tendem a cair no spam ou ser recusados"
+            fi
+            ;;
+        esac
+      fi
+      v="$(sm_ler_env "$env" MAIL_FROM_NAME)"
+      case "$(sm_minusculas "$v")" in
+        laravel) echo "erro: MAIL_FROM_NAME=$v — é o nome que aparece no e-mail; use \"\${APP_NAME}\" ou StabilMoney" ;;
+      esac
       ;;
   esac
 

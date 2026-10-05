@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.150 testes PHP / 52.405 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **355 testes JS** (Vitest) + **211 checagens dos scripts** (backup 83, deploy 87, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.150 testes PHP / 52.405 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **355 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -2480,8 +2480,10 @@ visitante → Cloudflare (proxy, SSL Full strict) → nginx do HOST (:443, Let's
   reload nginx"`** — nunca `certbot --nginx`, que reescreveria o arquivo e duplicaria as diretivas SSL.
 - **`scripts/deploy.sh`** (+ `scripts/lib/deploy-comum.sh`): o `git pull && docker compose up -d
   --build` dos outros apps não basta aqui (vendor, migrations, caches e assets não acompanham). Confere
-  o `.env` contra os bloqueadores (APP_ENV/DEBUG/KEY/URL, SESSION_*, TRUSTED_PROXIES, COMPOSE_FILE,
-  senhas sem `$` — o Compose interpola o `.env`) e **recusa porta publicada fora de 127.0.0.1**
+  o `.env` contra os bloqueadores (APP_NAME, APP_ENV/DEBUG/KEY/URL, SESSION_*, TRUSTED_PROXIES, COMPOSE_FILE,
+  senhas do banco sem `$` — o Compose interpola o `.env` —, com 24+ caracteres e DIFERENTES entre si; e,
+  com e-mail saindo, `MAIL_FROM_ADDRESS` válido e não de exemplo — domínio fora do site e da caixa
+  autenticada só avisa) e **recusa porta publicada fora de 127.0.0.1**
   (`docker compose config`); backup → manutenção → pull → up → `composer install --no-dev` →
   permissões (www-data + grupo do deploy, 2770/660, `storage/backups` fora, `.env` 640) → migrate →
   caches → `view:cache` ANTES do build → apaga `public/hot` → sai da manutenção → confere o `/up` e

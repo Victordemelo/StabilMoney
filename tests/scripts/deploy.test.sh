@@ -226,7 +226,9 @@ TRUSTED_PROXIES=172.16.80.1
 COMPOSE_FILE=docker-compose.prod.yml
 HTTP_PORT=8081
 MAIL_MAILER=smtp
-MAIL_HOST=smtp.exemplo.com.br'
+MAIL_HOST=smtp.exemplo.com.br
+MAIL_FROM_ADDRESS="nao-responda@victordemelo.com.br"
+MAIL_FROM_NAME="${APP_NAME}"'
 
 U="$T/unidade"
 mkdir -p "$U"
@@ -267,6 +269,23 @@ afirmar ".env: senha de exemplo do banco é recusada" recusa_env senha "$(com DB
 afirmar ".env: senha de root vazia é recusada" recusa_env root "$(com DB_ROOT_PASSWORD '')" "DB_ROOT_PASSWORD"
 afirmar ".env: '\$' na senha do banco é recusado (o Compose interpolaria)" \
   recusa_env dolar "$(com DB_PASSWORD 'abc$def')" "tem '\$'"
+# Senha do banco: tamanho mínimo e uma para cada (out/2026).
+afirmar ".env: senha do banco curta (menos de 24 caracteres) é recusada" \
+  recusa_env curta "$(com DB_PASSWORD abc123def456)" "DB_PASSWORD tem 12 caracteres"
+afirmar ".env: senha de root curta é recusada" \
+  recusa_env root-curta "$(com DB_ROOT_PASSWORD 9f1e3d5c7b9a)" "DB_ROOT_PASSWORD tem 12 caracteres"
+afirmar ".env: senha do app igual à do root é recusada" \
+  recusa_env iguais "$(com DB_ROOT_PASSWORD 5d2c8e0f4b7a9d1c3e6f8a0b2d4c6e8f)" "DB_PASSWORD e DB_ROOT_PASSWORD são iguais"
+# Nome e remetente (out/2026): o nome do app vai no remetente, no autenticador do 2FA e no cookie.
+afirmar ".env: APP_NAME=Laravel (o de um .env cru) é recusado" recusa_env nome "$(com APP_NAME Laravel)" "APP_NAME=Laravel"
+afirmar ".env: APP_NAME ausente é recusado" recusa_env nome-vazio "$(com APP_NAME '')" "APP_NAME=(vazio)"
+afirmar ".env: MAIL_FROM_ADDRESS ausente com e-mail saindo é recusado (valeria hello@example.com)" \
+  recusa_env remetente "$(com MAIL_FROM_ADDRESS '')" "MAIL_FROM_ADDRESS=(vazio)"
+afirmar ".env: MAIL_FROM_ADDRESS de exemplo é recusado" \
+  recusa_env remetente-exemplo "$(com MAIL_FROM_ADDRESS hello@example.com)" "endereço de exemplo"
+afirmar ".env: MAIL_FROM_ADDRESS que não é e-mail é recusado" \
+  recusa_env remetente-invalido "$(com MAIL_FROM_ADDRESS nao-responda)" "MAIL_FROM_ADDRESS=nao-responda"
+afirmar ".env: MAIL_FROM_NAME=Laravel é recusado" recusa_env remetente-nome "$(com MAIL_FROM_NAME Laravel)" "MAIL_FROM_NAME=Laravel"
 afirmar ".env: HTTP_PORT que não é número é recusada" recusa_env porta "$(com HTTP_PORT 127.0.0.1:8081)" "HTTP_PORT"
 # O .env.example traz o SMTP de desenvolvimento (o Mailpit do docker-compose.yml). Na VPS ele
 # não existe: nada sai, e com `smtp` o app acha que sai — promete o link do "Esqueci a senha".
@@ -284,6 +303,23 @@ avisa_env() { # <descrição> <conteúdo> <trecho esperado numa linha "aviso:">
 afirmar ".env: MAIL_MAILER=log só avisa (os e-mails não saem)" avisa_env mail "$(com MAIL_MAILER log)" "MAIL_MAILER=log"
 afirmar ".env: MAIL_MAILER=log com o MAIL_HOST do Mailpit só avisa (o app diz que não envia)" \
   avisa_env mail-log-mailpit "$(com MAIL_MAILER log | awk -F= '$1 == "MAIL_HOST" { print "MAIL_HOST=mailpit"; next } { print }')" "MAIL_MAILER=log"
+afirmar ".env: remetente de outro domínio (nem o do site nem o da caixa) só avisa" \
+  avisa_env remetente-dominio "$(com MAIL_FROM_ADDRESS nao-responda@stabilmoney.com.br)" "o domínio stabilmoney.com.br não é o do site"
+remetente_da_caixa_passa() {
+  local r
+  # Hospedagem cPanel: o remetente é a PRÓPRIA caixa autenticada, num domínio que não é o do site.
+  r="$(conferir "$(com MAIL_FROM_ADDRESS victor@caixa.exemplo.com.br; echo 'MAIL_USERNAME=victor@caixa.exemplo.com.br')")"
+  [ -z "$r" ] || { DETALHE="$r"; return 1; }
+}
+afirmar ".env: remetente igual à caixa do MAIL_USERNAME passa calado" remetente_da_caixa_passa
+remetente_sem_envio_passa() {
+  local r
+  # Com MAIL_MAILER=log nada sai: o remetente não importa (só o aviso de que nada sai).
+  r="$(conferir "$(com MAIL_MAILER log | grep -v '^MAIL_FROM_')")"
+  printf '%s\n' "$r" | grep -q 'MAIL_FROM' && { DETALHE="$r"; return 1; }
+  return 0
+}
+afirmar ".env: sem envio (MAIL_MAILER=log) o remetente não é cobrado" remetente_sem_envio_passa
 afirmar ".env: HTTP_PORT ausente só avisa (vale o 8081 do compose)" avisa_env porta "$(com HTTP_PORT '')" "HTTP_PORT"
 
 css() {

@@ -167,7 +167,11 @@ openssl rand -hex 32     # DB_ROOT_PASSWORD
   guardada: **trocar depois tranca todo mundo que tem 2FA** (só os códigos de recuperação salvam).
 - **Senhas só com letras e números** (`openssl rand -hex 32`): o `docker compose` lê este mesmo
   `.env` e troca `$ALGO` pelo valor de outra variável — uma senha com `$` chegaria cortada ao
-  MySQL, inteira ao Laravel, e o app não conectaria.
+  MySQL, inteira ao Laravel, e o app não conectaria. O `deploy.sh` também recusa senha com
+  **menos de 24 caracteres** e **`DB_PASSWORD` igual a `DB_ROOT_PASSWORD`** (a do app fica no `.env`
+  que o site lê; igual à do root, quem a obtivesse mandaria no MySQL inteiro).
+- **`APP_NAME=StabilMoney`** — vazio ou "Laravel" é recusado: o nome vai no remetente dos e-mails,
+  no app autenticador do 2FA e no cookie de sessão.
 - **`TRUSTED_PROXIES=172.16.80.1`** — o gateway fixo da rede do `docker-compose.prod.yml`, por
   onde o nginx chega ao container. Sem ele, o app enxerga todo mundo com o MESMO IP: os limites de
   tentativa por IP (login, cadastro, "esqueci a senha") virariam um limite para o site inteiro, e
@@ -385,6 +389,10 @@ seu domínio (ex.: `nao-responda@victordemelo.com.br`), senão Gmail e Outlook m
 - Depois, no `.env`: `MAIL_MAILER=smtp` (no lugar do `log` do passo 3), `MAIL_HOST`, `MAIL_PORT`,
   `MAIL_SCHEME` (**465 → `smtps`**, **587 → `smtp`** — trocados, a conexão morre sem mensagem
   útil), `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`, e `bash scripts/deploy.sh --sem-git`.
+- O `deploy.sh` confere o remetente quando o e-mail sai: `MAIL_FROM_ADDRESS` vazio, que não é e-mail
+  ou de exemplo (`example.com`, `.test`) é **recusado**, e `MAIL_FROM_NAME=Laravel` também; um
+  remetente cujo domínio não é o do site (nem um acima dele) nem o da caixa do `MAIL_USERNAME` só
+  gera **aviso** — pode ser de propósito, mas sem SPF/DKIM/DMARC daquele domínio cai no spam.
 
 ---
 
