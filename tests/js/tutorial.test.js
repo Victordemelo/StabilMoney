@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PASSOS, retomarTutorial } from '../../resources/js/sm/tutorial.js';
+import { PASSOS, posicaoDoBalao, retomarTutorial } from '../../resources/js/sm/tutorial.js';
 
 /**
  * Tutorial guiado (out/2026): passa por todas as telas destacando cada botão. O passo atual
@@ -69,6 +69,45 @@ describe('tutorial guiado', () => {
         topo = 120;
         document.dispatchEvent(new Event('scroll'));
         expect(foco.style.top).toBe('114px');
+    });
+
+    it('o balão nunca cobre o alvo: embaixo, em cima, ao lado — ou no canto, se o alvo é enorme', () => {
+        const [vw, vh, bw, bh] = [1440, 900, 360, 200];
+        const cobre = (p, a) => !(p.left + bw <= a.left || p.left >= a.right || p.top + bh <= a.top || p.top >= a.bottom);
+
+        const botao = { top: 90, left: 1240, bottom: 140, right: 1420 }; // "Nova conta", no alto à direita
+        const embaixo = posicaoDoBalao(botao, bw, bh, vw, vh);
+        expect(embaixo.top).toBe(140 + 14);
+        expect(cobre(embaixo, botao)).toBe(false);
+        expect(embaixo.left + bw).toBeLessThanOrEqual(vw - 12);
+        // Alinhado pela direita do alvo (o lado que costuma estar livre).
+        expect(embaixo.left).toBe(1420 - bw);
+
+        // Cabeçalho largo do grupo "Contas": embaixo, mas no canto direito — não em cima dos cartões.
+        const cabecalho = { top: 145, left: 254, bottom: 184, right: 1418 };
+        expect(posicaoDoBalao(cabecalho, bw, bh, vw, vh).left).toBe(1418 - bw);
+
+        const rodape = { top: 760, left: 400, bottom: 860, right: 800 };
+        const emCima = posicaoDoBalao(rodape, bw, bh, vw, vh);
+        expect(emCima.top + bh).toBe(760 - 14);
+
+        // O grupo "Contas" inteiro (largo e alto): o balão vai para o lado livre, à direita.
+        const grupo = { top: 120, left: 340, bottom: 880, right: 1000 };
+        const lado = posicaoDoBalao(grupo, bw, bh, vw, vh);
+        expect(lado.left).toBe(1000 + 14);
+        expect(cobre(lado, grupo)).toBe(false);
+
+        // Alvo do tamanho da tela: nenhum lado livre, vai para o canto.
+        const tela = { top: 4, left: 4, bottom: 896, right: 1436 };
+        expect(posicaoDoBalao(tela, bw, bh, vw, vh)).toEqual({ top: vh - bh - 12, left: vw - bw - 12 });
+    });
+
+    it('os alvos grandes demais foram trocados por partes que cabem na tela', () => {
+        const alvos = PASSOS.flatMap((p) => p.alvo || []);
+        expect(alvos).toContain('.fatura-card .fatura-head');
+        expect(alvos).toContain('.acct-grupo-head');
+        expect(alvos).toContain('.cat-col-head');
+        expect(alvos).toContain('.tx-list .tx:first-child');
     });
 
     it('Esc encerra e esquece o passo', () => {

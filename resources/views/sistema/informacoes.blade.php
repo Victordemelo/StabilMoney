@@ -38,7 +38,17 @@
                 <h3>Quem fez</h3>
                 <span class="chip">Autor</span>
             </div>
-            <p class="sis-autor">{{ config('sistema.autor.nome') }}</p>
+            @php
+                $partes = preg_split('/\s+/', trim(config('sistema.autor.nome')));
+                $iniciais = mb_strtoupper(mb_substr($partes[0], 0, 1).mb_substr(end($partes), 0, 1));
+            @endphp
+            <div class="sis-autor-head">
+                <span class="sis-autor-av" aria-hidden="true">{{ $iniciais }}</span>
+                <div>
+                    <p class="sis-autor">{{ config('sistema.autor.nome') }}</p>
+                    <span class="sis-sub">Criador e desenvolvedor do Stabil Money</span>
+                </div>
+            </div>
             <div class="sis-links">
                 <a class="btn-ghost" href="{{ config('sistema.autor.site') }}" target="_blank" rel="noopener noreferrer">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3Z"/></svg>
@@ -52,6 +62,7 @@
             <dl class="sis-lista">
                 <div><dt>Contato</dt><dd><a href="mailto:{{ config('legal.contact_email') }}">{{ config('legal.contact_email') }}</a></dd></div>
                 <div><dt>Encontrou um problema?</dt><dd>Escreva para o contato acima contando a tela e o que aconteceu.</dd></div>
+                <div><dt>Sugestões</dt><dd>Ideias de melhoria são bem-vindas pelo mesmo contato.</dd></div>
             </dl>
         </div>
 

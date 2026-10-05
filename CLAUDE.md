@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.150 testes PHP / 52.405 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **356 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.150 testes PHP / 52.405 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **358 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -1292,7 +1292,7 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   pelo id. O modal de pagar fatura virou `.modal-lg` (o select cortava o nome da conta).
 - **Menu do perfil**: Meu perfil · Configurações · **Tutorial** (`/tutorial`, tour guiado em `sm/tutorial.js` —
   passos com tela + seletores; alvo ausente vira passo centralizado; o passo atravessa telas pelo sessionStorage;
-  Esc encerra; rola até o alvo com `behavior: 'instant'` — o `.content` tem `scroll-behavior: smooth` e o `auto` media no meio da animação — e reposiciona a cada rolagem; `tests/js/tutorial.test.js`) · **Informações do sistema** (`/sistema`, valores de
+  Esc encerra; rola até o alvo com `behavior: 'instant'` — o `.content` tem `scroll-behavior: smooth` e o `auto` media no meio da animação — e reposiciona a cada rolagem e ao fim de cada animação de entrada (cards sobem 18px); o contorno fica preso à tela; o balão (`posicaoDoBalao`) vai embaixo/em cima/ao lado sem cobrir o alvo, alinhado pela DIREITA dele, ou ao canto; alvos grandes demais foram trocados por partes deles (cabeçalho do grupo, 1ª linha); `tests/js/tutorial.test.js`) · **Informações do sistema** (`/sistema`, valores de
   `config/sistema.php` — versão **1.0.0**, autor, site, LinkedIn — e da `config/legal.php`; sem versão de PHP/
   Laravel de propósito). Função nova: suba a `sistema.versao` (MAIOR.MENOR.CORREÇÃO). `MenuDoPerfilTutorialEInformacoesTest`.
 - **`.gitignore`** cobre `.env.*` (menos o exemplo) e `*.sql`/`*.sql.gz`; o `.env.example` traz `APP_NAME=StabilMoney`

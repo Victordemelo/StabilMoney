@@ -27,15 +27,15 @@ export const PASSOS = [
     { tela: '/', alvo: ['#profileBtn'], titulo: 'Seu perfil', texto: 'Aqui ficam Meu perfil, Configurações, este Tutorial, as Informações do sistema e o botão de sair.' },
 
     { tela: '/transactions', alvo: ['.filter-bar'], titulo: 'Movimentações: filtros', texto: 'Filtre por tipo, conta, categoria e período. Os filtros ficam no endereço da página, então dá para voltar a eles depois.' },
-    { tela: '/transactions', alvo: ['.tx-list', '.empty-state'], titulo: 'Lista de movimentações', texto: 'Tudo o que entrou e saiu, do mais novo ao mais antigo. Clique numa linha para ver os detalhes. O que já foi pago ou recebido não muda de valor: para corrigir, exclua e lance de novo.' },
+    { tela: '/transactions', alvo: ['.tx-list .tx:first-child', '.empty-state'], titulo: 'Lista de movimentações', texto: 'Tudo o que entrou e saiu, do mais novo ao mais antigo. Clique numa linha para ver os detalhes. O que já foi pago ou recebido não muda de valor: para corrigir, exclua e lance de novo.' },
 
-    { tela: '/faturas', alvo: ['.fatura-card'], titulo: 'Contas a pagar', texto: 'No topo, as contas fixas do mês (aluguel, condomínio…) com o botão Pagar. O lápis ajusta o valor previsto; o "x" exclui, pedindo a sua senha.' },
+    { tela: '/faturas', alvo: ['.fatura-card .fatura-head', '.fatura-card'], titulo: 'Contas a pagar', texto: 'No topo, as contas fixas do mês (aluguel, condomínio…) com o botão Pagar. O lápis ajusta o valor previsto; o "x" exclui, pedindo a sua senha.' },
     { tela: '/faturas', alvo: ['#lancarBtn'], titulo: 'Lançar despesa', texto: 'Registra uma compra no cartão — à vista, parcelada ou recorrente — ou uma despesa por débito, Pix ou TED.' },
 
     { tela: '/metas', alvo: ['#metaNovaBtn'], titulo: 'Metas', texto: 'Crie um objetivo (viagem, reserva de emergência) e guarde dinheiro nele com "Aportar". O valor guardado sai do disponível, para não ser gasto sem querer.' },
     { tela: '/investimentos', alvo: ['#invNovoBtn'], titulo: 'Investimentos', texto: 'Registre aplicações (CDI, Selic, IPCA+, prefixado) e acompanhe a projeção do rendimento, já com a estimativa de IR e IOF.' },
-    { tela: '/accounts', alvo: ['.acct-grupo', '.section-head .btn-primary'], titulo: 'Contas e cartões', texto: 'Suas contas de banco, cartões de crédito e débito, Pix e TED. Receita entra em conta; despesa sai por um cartão, Pix ou TED.' },
-    { tela: '/categories', alvo: ['.cat-cols'], titulo: 'Categorias', texto: 'Receitas de um lado, despesas do outro. Arraste para reordenar ou para trocar o tipo; clique para editar.' },
+    { tela: '/accounts', alvo: ['.acct-grupo-head', '.section-head .btn-primary'], titulo: 'Contas e cartões', texto: 'Suas contas de banco, cartões de crédito e débito, Pix e TED. Receita entra em conta; despesa sai por um cartão, Pix ou TED.' },
+    { tela: '/categories', alvo: ['.cat-col-head', '.cat-cols'], titulo: 'Categorias', texto: 'Receitas de um lado, despesas do outro. Arraste para reordenar ou para trocar o tipo; clique para editar.' },
     { tela: '/dependentes', alvo: ['.dep-grid'], titulo: 'Família', texto: 'Quem usa a conta com você: cada pessoa tem login próprio e vê o dinheiro da família. Aqui você também vê quanto cada um gastou no mês.' },
     { tela: '/configuracoes', alvo: ['.settings-tabs'], titulo: 'Configurações', texto: 'Senha, verificação em duas etapas, conta, histórico de atividade e a instalação no celular.' },
     { tela: '/configuracoes', titulo: 'Pronto!', texto: 'Esse foi o tour. Você pode refazê-lo quando quiser, no menu do seu perfil › Tutorial.' },
@@ -70,6 +70,8 @@ function encerrar() {
     }
     document.removeEventListener('keydown', aoTeclar, true);
     document.removeEventListener('scroll', reposicionar, true);
+    document.removeEventListener('animationend', reposicionar, true);
+    document.removeEventListener('transitionend', reposicionar, true);
     window.removeEventListener('resize', reposicionar);
 }
 
@@ -99,24 +101,48 @@ function reposicionar() {
 
     camada.classList.remove('sem-alvo');
     foco.hidden = false;
-    const r = alvo.getBoundingClientRect();
-    const folga = 6;
-    Object.assign(foco.style, {
-        top: `${r.top - folga}px`, left: `${r.left - folga}px`,
-        width: `${r.width + folga * 2}px`, height: `${r.height + folga * 2}px`,
-    });
-
-    // O balão vai embaixo do alvo; sem espaço, em cima; e nunca sai da tela.
-    const bw = balao.offsetWidth;
-    const bh = balao.offsetHeight;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    let top = r.bottom + 14;
-    if (top + bh > vh - 12) top = r.top - bh - 14;
-    if (top < 12) top = Math.max(12, Math.min(vh - bh - 12, r.top + 12));
-    const left = Math.max(12, Math.min(vw - bw - 12, r.left + r.width / 2 - bw / 2));
-    balao.style.top = `${top}px`;
-    balao.style.left = `${left}px`;
+    const r = alvo.getBoundingClientRect();
+    const folga = 6;
+    // O contorno nunca sai da tela: num alvo maior que ela, ele fica preso às bordas
+    // (antes o contorno inteiro ficava fora e parecia que nada tinha sido destacado).
+    const topo = Math.max(4, r.top - folga);
+    const esq = Math.max(4, r.left - folga);
+    const base = Math.min(vh - 4, r.bottom + folga);
+    const dir = Math.min(vw - 4, r.right + folga);
+    Object.assign(foco.style, {
+        top: `${topo}px`, left: `${esq}px`,
+        width: `${Math.max(0, dir - esq)}px`, height: `${Math.max(0, base - topo)}px`,
+    });
+
+    const pos = posicaoDoBalao({ top: topo, left: esq, bottom: base, right: dir }, balao.offsetWidth, balao.offsetHeight, vw, vh);
+    balao.style.top = `${pos.top}px`;
+    balao.style.left = `${pos.left}px`;
+}
+
+/**
+ * Onde o balão fica sem cobrir o alvo: embaixo, em cima, à direita ou à esquerda — o primeiro
+ * lado em que ele cabe inteiro na tela. Sem lado livre (alvo enorme), vai para o canto de
+ * baixo à direita da tela.
+ */
+export function posicaoDoBalao(alvo, bw, bh, vw, vh) {
+    const m = 12;
+    const gap = 14;
+    // Embaixo/em cima, o balão se alinha pela DIREITA do alvo (pedido do Victor): o lado direito
+    // costuma estar livre, e centralizado ele caía em cima dos cartões da lista.
+    const centroX = Math.max(m, Math.min(vw - bw - m, alvo.right - bw));
+    const centroY = Math.max(m, Math.min(vh - bh - m, alvo.top + (alvo.bottom - alvo.top) / 2 - bh / 2));
+    const candidatos = [
+        { top: alvo.bottom + gap, left: centroX },
+        { top: alvo.top - gap - bh, left: centroX },
+        { top: centroY, left: alvo.right + gap },
+        { top: centroY, left: alvo.left - gap - bw },
+    ];
+    const cabe = (c) => c.top >= m && c.left >= m && c.top + bh <= vh - m && c.left + bw <= vw - m;
+    const cruza = (c) => !(c.left + bw <= alvo.left || c.left >= alvo.right || c.top + bh <= alvo.top || c.top >= alvo.bottom);
+    const livre = candidatos.find((c) => cabe(c) && !cruza(c));
+    return livre || { top: Math.max(m, vh - bh - m), left: Math.max(m, vw - bw - m) };
 }
 
 function irPara(indice) {
@@ -158,6 +184,10 @@ function montarCamada() {
     document.addEventListener('keydown', aoTeclar, true);
     // Qualquer rolagem (o #content rola por dentro) move o alvo: o destaque acompanha.
     document.addEventListener('scroll', reposicionar, true);
+    // As telas entram animadas (cards sobem 18px): medido no começo, o destaque ficava
+    // deslocado do botão. Ao fim de cada animação, mede de novo.
+    document.addEventListener('animationend', reposicionar, true);
+    document.addEventListener('transitionend', reposicionar, true);
     window.addEventListener('resize', reposicionar);
     return c;
 }
@@ -178,6 +208,8 @@ function mostrar(indice) {
     // medida saía no meio do caminho — o destaque ficava longe do botão.
     if (alvo) alvo.scrollIntoView({ block: 'center', behavior: 'instant' });
     reposicionar();
+    // Rede de segurança para o que muda de lugar sem disparar evento (fontes, imagens).
+    [150, 450, 800].forEach((ms) => setTimeout(reposicionar, ms));
     camada.querySelector('.tour-proximo').focus();
 }
 

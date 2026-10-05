@@ -98,7 +98,7 @@
 .auth .ac-brand span b { color: var(--brand-600); }
 
 .auth .ac-head { margin-bottom: 26px; }
-.auth .ac-head h1 { font-family: var(--font-head); font-size: 27px; font-weight: 600; letter-spacing: -.02em; }
+.auth .ac-head h1 { font-family: var(--font-head); font-size: 27px; font-weight: 600; letter-spacing: -.02em; text-wrap: balance; }
 .auth .ac-head p { font-size: 14.5px; color: var(--ink-3); margin-top: 7px; }
 .auth .ac-head p a { color: var(--brand-600); font-weight: 600; text-decoration: none; }
 .auth .ac-head p a:hover { text-decoration: underline; }
@@ -145,6 +145,8 @@
 .auth .strength-txt { font-size: 11.5px; color: var(--ink-3); margin-top: 6px; min-height: 14px; }
 
 .auth .row-between { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 22px; }
+/* "Instalar o app" centralizado embaixo do "Cadastre-se grátis" (out/2026). */
+.auth .instalar-app { justify-content: center; text-align: center; }
 .auth .check { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--ink-2); cursor: pointer; user-select: none; }
 .auth .check input { position: absolute; opacity: 0; width: 0; height: 0; }
 .auth .check .box { width: 19px; height: 19px; border-radius: 6px; border: 1.5px solid var(--line); display: grid; place-items: center; transition: all .16s; flex: none; }

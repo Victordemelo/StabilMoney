@@ -24,7 +24,7 @@
 {{-- Card do formulário --}}
 @section('card')
     <div class="ac-head">
-        <h1>Bem-vindo de volta 👋</h1>
+        <h1>Seja bem-vindo ao Stabil Money 👋</h1>
     </div>
 
     {{-- Status da sessão (ex.: senha redefinida com sucesso) --}}

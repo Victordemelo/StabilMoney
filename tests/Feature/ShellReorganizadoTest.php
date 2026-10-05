@@ -93,7 +93,10 @@ class ShellReorganizadoTest extends TestCase
 
     public function test_instalar_o_app_no_login_e_nas_configuracoes(): void
     {
-        $this->get(route('login'))->assertOk()->assertSee('data-instalar-app hidden', false)->assertSee('data-instalar-ios hidden', false);
+        $this->get(route('login'))->assertOk()->assertSee('data-instalar-app hidden', false)->assertSee('data-instalar-ios hidden', false)
+            ->assertSee('Seja bem-vindo ao Stabil Money');
+        // Centralizado embaixo do "Cadastre-se grátis".
+        $this->assertStringContainsString('.auth .instalar-app { justify-content: center;', file_get_contents(resource_path('css/auth.css')));
 
         // Aba própria desde out/2026 (antes era um card no pé da aba Conta).
         $this->actingAs(User::factory()->create())->get(route('settings', 'celular'))->assertOk()
