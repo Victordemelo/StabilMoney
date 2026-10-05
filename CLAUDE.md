@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.154 testes PHP / 52.420 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **358 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.157 testes PHP / 52.440 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **358 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -229,7 +229,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.154 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.157 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -2144,8 +2144,15 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   `purgeForUser($admin->id)` derrubaria o cliente de mesmo id. A linha sai inteira (um navegador
   logado nos dois perde também o app). Até reconfigurar, a senha sozinha leva ao setup — se ela
   pode ter vazado, troque com `admin:criar --email=…`.
-- **Sem protótipo do Claude Design**: as views seguem os tokens do design system, mas não
-  passaram por handoff. Se quiser o padrão pixel-fiel do resto, é uma rodada no Design.
+- **No padrão do app desde out/2026** (`PainelAdminNoPadraoDoAppTest`): as telas de entrada
+  (`layouts/admin-auth`) usam o split do login do app (`.auth`, sempre claro, selo vermelho "Painel
+  administrativo · acesso restrito"; o setup do autenticador é largo — QR ao lado das instruções, sem
+  rolagem — com `@section('largo')`), e o painel (`layouts/admin`) usa o SHELL do app: menu lateral,
+  barra de cima com tema claro/escuro, gaveta no celular e conteúdo que rola em `#content` (os ids são os
+  do app, então `sm/shell.js`/`sm/theme.js` ligam tudo sozinhos). Antes não rolava (`body` com
+  `overflow: hidden` sem `#content`). As views ainda usam `--text/--muted/--card` em linha: `.painel`
+  os mapeia para os tokens. A faixa vermelha "você está vendo dados de outras pessoas" fica sempre.
+  Sem SEO, PWA nem aviso de cookies nas telas do painel.
 
 ---
 
@@ -2366,7 +2373,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.154 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.157 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo

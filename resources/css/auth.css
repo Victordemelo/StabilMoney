@@ -281,3 +281,38 @@
 @media (prefers-reduced-motion: reduce) {
   .auth, .auth *, .auth *::before, .auth *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ============ Painel administrativo — telas de entrada (out/2026) ============
+   O mesmo desenho do login do app (layouts/admin-auth). O selo vermelho diz que aqui não é o
+   app do cliente; o resto segue os tokens claros do `.auth`. */
+.auth.painel-auth .painel-selo { background: rgba(229, 96, 77, .18); border-color: rgba(255, 180, 170, .35); color: #FFD9D3; }
+.auth.painel-auth .painel-selo .pulse { background: #FF8A78; }
+.auth .painel-rodape { margin-top: 26px; text-align: center; font-size: 12px; color: var(--ink-3); }
+.auth .input input.painel-codigo { padding-left: 14px; text-align: center; letter-spacing: .3em; font-size: 20px; font-weight: 600; }
+.auth .painel-sair { margin-top: 14px; text-align: center; }
+.auth .painel-sair .link { background: none; border: 0; cursor: pointer; }
+.auth .painel-botao-link { display: flex; align-items: center; justify-content: center; text-decoration: none; color: #fff; }
+.auth .painel-codigos {
+  list-style: none; margin: 0 0 6px; padding: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2);
+}
+.auth .painel-codigos li { text-align: center; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; letter-spacing: .06em; color: var(--ink); }
+
+/* Configurar o autenticador: formulário largo, QR AO LADO das instruções — cabe sem rolar. */
+.auth.painel-auth-largo { grid-template-columns: .8fr 1.2fr; }
+.auth.painel-auth-largo .auth-card { max-width: 680px; }
+.auth .painel-setup { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 26px; align-items: start; }
+.auth .painel-qr { padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+.auth .painel-qr svg { display: block; width: 100%; height: auto; }
+.auth .painel-chave { margin-bottom: 16px; font-size: 13px; color: var(--ink-2); }
+.auth .painel-chave summary { cursor: pointer; font-weight: 600; color: var(--brand-600); }
+.auth .painel-chave p { margin: 10px 0 6px; }
+.auth .painel-chave code { display: block; padding: 10px 12px; border-radius: 10px; background: var(--surface-3); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; letter-spacing: .08em; word-break: break-all; color: var(--ink); }
+@media (max-width: 980px) {
+  .auth.painel-auth-largo { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .auth .painel-setup { grid-template-columns: minmax(0, 1fr); }
+  .auth .painel-qr { max-width: 220px; margin: 0 auto; }
+  .auth .painel-codigos { grid-template-columns: minmax(0, 1fr); }
+}

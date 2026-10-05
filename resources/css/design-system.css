@@ -2238,3 +2238,25 @@ body.pjax-loading #content { opacity: .5; }
 .tut-tela h3 { margin: 0 0 6px; font-size: 15px; }
 @media (max-width: 560px) { .sis-lista > div { grid-template-columns: minmax(0, 1fr); } }
 [data-theme="dark"] .sis-lista a { color: var(--brand-300); }
+
+/* ============ Painel administrativo — shell (out/2026, layouts/admin) ============
+   O mesmo esqueleto do app. As telas do painel ainda usam --text/--muted/--card nos estilos
+   em linha: aqui elas viram os tokens do design system (e acompanham o tema claro/escuro). */
+.painel { --text: var(--ink); --muted: var(--ink-3); --card: var(--surface); --brand-ink: #fff; }
+.painel-faixa {
+  margin: -4px 0 18px; padding: 8px 14px; border-radius: 10px; text-align: center;
+  background: #8A1C1C; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+}
+.painel-conteudo { max-width: 1180px; }
+.painel .painel-aviso { margin-top: auto; display: grid; gap: 4px; padding: 14px; border-radius: 14px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); }
+.painel .painel-aviso strong { font-size: 12.5px; color: #fff; }
+.painel .painel-aviso span { font-size: 11.5px; line-height: 1.45; color: var(--side-muted, #A9C4B8); }
+.painel .painel-foot { cursor: default; }
+.painel .painel-foot form { margin: 0 0 0 auto; }
+.painel .painel-foot .icon-btn { width: 36px; height: 36px; color: #CFE3D9; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); }
+.painel .painel-foot .icon-btn:hover { color: #fff; background: rgba(255,255,255,.12); }
+.collapsed .painel-aviso { display: none; }
+/* Iniciais nas listas do painel (Pessoas, ficha): o `.ab` só tinha estilo dentro de `.acct`
+   e saía espremido numa faixa fina. */
+.painel .ab { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; font-weight: 800; font-size: 14px; color: #fff; font-family: var(--font-head); }

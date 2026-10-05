@@ -1,40 +1,44 @@
 @extends('layouts.admin-auth')
 @section('title', 'Configurar o autenticador')
+{{-- Formulário largo: o QR fica AO LADO das instruções, e a tela cabe sem rolagem. --}}
+@section('largo', '1')
 
 @section('content')
-    <h2 style="font-family:Sora,sans-serif;font-size:17px;margin:0 0 8px;color:var(--text)">Configure o autenticador</h2>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 18px;line-height:1.55">
-        O painel não abre sem segundo fator. Escaneie o código no Google Authenticator,
-        Authy ou 1Password e digite os 6 dígitos para confirmar.
-    </p>
+    <div class="ac-head">
+        <h1>Configure o autenticador</h1>
+        <p>O painel não abre sem segundo fator. Escaneie o código no Google Authenticator, Authy ou 1Password e digite os 6 dígitos para confirmar.</p>
+    </div>
 
-    @if ($qr)
-        <div style="background:#fff;padding:14px;border-radius:12px;display:grid;place-items:center;margin-bottom:16px">
-            {!! $qr !!}
+    <div class="painel-setup">
+        @if ($qr)
+            <div class="painel-qr">{!! $qr !!}</div>
+        @endif
+
+        <div class="painel-setup-form">
+            <details class="painel-chave">
+                <summary>Não consigo escanear</summary>
+                <p>Cadastre manualmente com esta chave:</p>
+                <code>{{ $segredo }}</code>
+            </details>
+
+            @if ($errors->any())
+                <div class="auth-error" role="alert">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                    <span>{{ $errors->first() }}</span>
+                </div>
+            @endif
+
+            <form method="POST" action="{{ route('painel.2fa.confirmar') }}">
+                @csrf
+                <div class="field">
+                    <label for="codigo">Código do autenticador</label>
+                    <div class="input">
+                        <input class="painel-codigo" type="text" id="codigo" name="codigo" required autofocus
+                               inputmode="numeric" autocomplete="one-time-code" maxlength="7" data-no-money placeholder="000000">
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary spaced"><span class="btn-label">Confirmar</span></button>
+            </form>
         </div>
-    @endif
-
-    <details style="margin-bottom:18px">
-        <summary style="font-size:13px;color:var(--muted);cursor:pointer">Não consigo escanear</summary>
-        <p style="font-size:13px;color:var(--text);margin:10px 0 0;line-height:1.6">
-            Cadastre manualmente com esta chave:
-            <code style="display:block;margin-top:6px;font-family:ui-monospace,monospace;font-size:13px;
-                         letter-spacing:.08em;word-break:break-all">{{ $segredo }}</code>
-        </p>
-    </details>
-
-    @if ($errors->any())
-        <div class="flash-error" role="alert" style="margin-bottom:14px">{{ $errors->first() }}</div>
-    @endif
-
-    <form method="POST" action="{{ route('painel.2fa.confirmar') }}">
-        @csrf
-        <div class="field">
-            <label for="codigo">Código do autenticador</label>
-            <input class="input" type="text" id="codigo" name="codigo" required autofocus
-                   inputmode="numeric" autocomplete="one-time-code" maxlength="7"
-                   data-no-money style="letter-spacing:.3em;text-align:center;font-size:19px">
-        </div>
-        <button type="submit" class="btn-primary" style="width:100%">Confirmar</button>
-    </form>
+    </div>
 @endsection
