@@ -48,9 +48,17 @@
         <a data-pjax class="nav-item {{ request()->routeIs('faturas.*') ? 'active' : '' }}" href="{{ route('faturas.index') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2 3-2V6Z"/><path d="M14 2v4h5"/><path d="M8 9h6M8 13h7"/></svg>
             <span class="nav-txt"><span class="nav-label">Contas a pagar</span><span class="nav-desc">Pague faturas e contas</span></span>
-            {{-- Quantas vencidas: o mesmo cálculo do sino (uma consulta por requisição). O
-                 pjax traz o número novo a cada troca de página (`data-pjax-atualizar`). --}}
-            <span class="nav-badge-wrap" id="navContasAPagar" data-pjax-atualizar>@if (($vencidasNoMenu ?? 0) > 0)<span class="badge late" title="Contas vencidas">{{ $vencidasNoMenu }}</span>@endif</span>
+            {{-- Quantas vencidas + quantas vencem HOJE: o mesmo cálculo do sino (uma consulta por
+                 requisição), num selo vermelho de notificação. O pjax traz o número novo a cada
+                 troca de página (`data-pjax-atualizar`). --}}
+            @php
+                $pedemAtencao = ($vencidasNoMenu ?? 0) + ($venceHojeNoMenu ?? 0);
+                $tituloDoSelo = collect([
+                    ($vencidasNoMenu ?? 0) > 0 ? ($vencidasNoMenu === 1 ? '1 conta vencida' : $vencidasNoMenu.' contas vencidas') : null,
+                    ($venceHojeNoMenu ?? 0) > 0 ? ($venceHojeNoMenu === 1 ? '1 vence hoje' : $venceHojeNoMenu.' vencem hoje') : null,
+                ])->filter()->implode(' · ');
+            @endphp
+            <span class="nav-badge-wrap" id="navContasAPagar" data-pjax-atualizar>@if ($pedemAtencao > 0)<span class="badge late" title="{{ $tituloDoSelo }}" aria-label="{{ $tituloDoSelo }}">{{ $pedemAtencao }}</span>@endif</span>
         </a>
     </nav>
 
@@ -162,6 +170,14 @@
         <a class="pp-item" href="{{ route('settings') }}" role="menuitem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.5M12 19v2.5M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2.5 12H5M19 12h2.5M4.2 19.8 6 18M18 6l1.8-1.8"/></svg>
             <span>Configurações</span>
+        </a>
+        <a class="pp-item" href="{{ route('tutorial') }}" role="menuitem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.4M12 16.8h.01"/></svg>
+            <span>Tutorial</span>
+        </a>
+        <a class="pp-item" href="{{ route('sistema') }}" role="menuitem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6h.01"/></svg>
+            <span>Informações do sistema</span>
         </a>
     </div>
     <div class="pp-sep"></div>

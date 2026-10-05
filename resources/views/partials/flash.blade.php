@@ -1,4 +1,5 @@
-{{-- Flash de sessão: banner discreto no topo do conteúdo (auto-dismiss em shell.js) --}}
+{{-- Flash de sessão: vira um BALÃO flutuante no canto superior direito (sm/balao.js; sem JS,
+     o próprio .flash já é fixo no canto). Some sozinho. --}}
 @php
     // Mapeia os slugs padrão do Breeze para mensagens em PT-BR;
     // qualquer outra string flasheada é exibida como veio.
@@ -22,7 +23,7 @@
 @if ($flash)
     <div class="flash" data-flash role="status">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg>
-        {{ $flash }}
+        <span class="sm-balao-txt">{{ $flash }}</span>
     </div>
 @endif
 {{-- Falha de uma ação que NÃO é erro de campo (ex.: "Não conseguimos remover... nada foi

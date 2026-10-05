@@ -29,6 +29,8 @@
             @include('settings.partials.conta')
         @elseif ($tab === 'atividade')
             @include('settings.partials.atividade')
+        @elseif ($tab === 'celular')
+            @include('settings.partials.celular')
         @endif
     </div>
 </section>

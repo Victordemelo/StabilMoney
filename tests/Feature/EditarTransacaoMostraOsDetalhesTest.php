@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\TransactionController;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Models\User;
@@ -38,16 +39,38 @@ class EditarTransacaoMostraOsDetalhesTest extends TestCase
         $this->assertStringContainsString('Roxinho (Crédito · Nubank)', $html);
     }
 
-    public function test_despesa_na_conta_diz_que_saiu_da_conta_e_nao_mostra_trava(): void
+    /**
+     * Despesa na conta já paga (data de hoje): desde out/2026 o valor de movimentação já
+     * paga/recebida não muda — `MovimentacaoPagaNaoMudaDeValorTest` —, e o painel diz isso
+     * antes do Salvar, com a mesma mensagem que o `update` devolveria.
+     */
+    public function test_despesa_na_conta_diz_que_saiu_da_conta_e_avisa_que_o_valor_nao_muda(): void
     {
         $user = User::factory()->create(['name' => 'Ana']);
         $conta = Account::factory()->for($user)->create(['type' => 'checking', 'initial_balance' => 500]);
         $linha = Transaction::factory()->for($user)->expense()->create([
-            'account_id' => $conta->id, 'amount' => 30, 'made_by_user_id' => $user->id, 'paid_at' => now(),
+            'account_id' => $conta->id, 'amount' => 30, 'made_by_user_id' => $user->id,
+            'date' => now()->toDateString(), 'paid_at' => now(),
         ]);
 
         $this->actingAs($user)->get(route('transactions.edit', $linha))->assertOk()
             ->assertSee('Paga — saiu da conta')
+            ->assertSee('<dt>Quem fez</dt><dd>Ana</dd>', false)
+            ->assertSee('<p class="tx-d-aviso" role="note">', false)
+            ->assertSee(TransactionController::mensagemDoValorTravado($linha));
+    }
+
+    /** Agendada (data futura): nada trava, o painel não mostra aviso nenhum. */
+    public function test_despesa_agendada_nao_mostra_trava(): void
+    {
+        $user = User::factory()->create(['name' => 'Ana']);
+        $conta = Account::factory()->for($user)->create(['type' => 'checking', 'initial_balance' => 500]);
+        $linha = Transaction::factory()->for($user)->expense()->create([
+            'account_id' => $conta->id, 'amount' => 30, 'made_by_user_id' => $user->id,
+            'date' => now()->addDays(5)->toDateString(),
+        ]);
+
+        $this->actingAs($user)->get(route('transactions.edit', $linha))->assertOk()
             ->assertSee('<dt>Quem fez</dt><dd>Ana</dd>', false)
             ->assertDontSee('tx-d-aviso');
     }

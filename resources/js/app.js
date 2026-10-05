@@ -19,6 +19,8 @@ import { initDialogos, liberarDialogosOrfaos } from './sm/dialogo';
 import { initConfirmar } from './sm/confirmar';
 import { initRelogio } from './sm/relogio';
 import { initInstalar, aplicarEstadoDeInstalacao } from './sm/instalar';
+import { initBaloes, promoverFlashes } from './sm/balao';
+import { initTutorial, tutorialAposTrocarDeTela } from './sm/tutorial';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -38,6 +40,8 @@ function initContent() {
     // voltar a responder antes de qualquer outra coisa. O Lançar, que vive no shell e
     // sobrevive à troca, continua aberto e continua dono da página.
     liberarDialogosOrfaos();
+    promoverFlashes(); // aviso de sucesso que veio com a tela vira balão no canto
+    tutorialAposTrocarDeTela();
     initDashboard();
     initCategories();
     initMetas();
@@ -52,6 +56,7 @@ function initContent() {
 // elementos persistem entre navegações pjax.
 function init() {
     initTheme();
+    initBaloes();
     initShell();
     initRelogio();
     initAuth();
@@ -67,6 +72,7 @@ function init() {
     initOfflineQueue();
 
     initContent();          // primeira renderização
+    initTutorial();         // tour guiado: retoma o passo desta tela, se houver
     initNav(initContent);   // pjax: reusa initContent após cada troca de #content
 }
 

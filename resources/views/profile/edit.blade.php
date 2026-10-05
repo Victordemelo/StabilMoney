@@ -83,20 +83,28 @@
                     </div>
                 </div>
 
+                {{-- Resumo (out/2026, 2ª versão): UM painel com três colunas iguais — rótulo curto,
+                     número grande e uma linha de contexto, tudo alinhado no topo. Antes eram três
+                     caixas de alturas de conteúdo diferentes, com o número solto no meio. --}}
+                @php
+                    $outrasPessoas = $resumo['pessoasNaFamilia'] - 1;
+                @endphp
                 <div class="ph-stats">
-                    <div class="ph-stat ph-stat-num">
+                    <div class="ph-stat">
                         <span class="lbl">Pessoas na família</span>
                         <strong>{{ $resumo['pessoasNaFamilia'] }}</strong>
+                        <span class="ph-ctx">{{ $outrasPessoas === 0 ? 'Só você por enquanto' : 'Você e mais '.$outrasPessoas }}</span>
                     </div>
-                    <div class="ph-stat ph-stat-num">
-                        <span class="lbl">Seus lançamentos no mês</span>
+                    <div class="ph-stat">
+                        <span class="lbl">Lançamentos</span>
                         <strong>{{ $resumo['lancamentosNoMes'] }}</strong>
+                        <span class="ph-ctx">seus em {{ now()->translatedFormat('F') }}</span>
                     </div>
                     <div class="ph-stat">
                         <span class="lbl">Perfil completo</span>
                         <strong>{{ $resumo['completo'] }}%</strong>
                         <div class="dp-bar" role="presentation"><span class="dp-bar-fill" style="--fatia: {{ $resumo['completo'] }}%"></span></div>
-                        <span class="ph-falta">
+                        <span class="ph-ctx ph-falta">
                             @if ($resumo['faltando'])
                                 Falta: {{ implode(', ', $resumo['faltando']) }}
                             @else

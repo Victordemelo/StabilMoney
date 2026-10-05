@@ -227,6 +227,10 @@ class EscolhaDeFonteNaTelaTest extends TestCase
      * Editar uma transação é PATCH; se o formulário de escolha postar POST puro na rota
      * de update, a resposta é 405 e o usuário fica sem saída — o mesmo beco sem saída que
      * esta feature veio resolver.
+     *
+     * A transação é AGENDADA: desde out/2026 o valor de movimentação já paga/recebida
+     * não muda — `MovimentacaoPagaNaoMudaDeValorTest` —, e só mudando o valor a edição
+     * chega à escolha de fonte.
      */
     public function test_fallback_preserva_o_metodo_original_da_requisicao(): void
     {
@@ -242,7 +246,7 @@ class EscolhaDeFonteNaTelaTest extends TestCase
             'category_id' => $categoria->id,
             'type' => 'expense',
             'amount' => 10,
-            'date' => now()->toDateString(),
+            'date' => now()->addDays(5)->toDateString(),
         ]);
 
         // PATCH que estoura o disponível e precisa de escolha de fonte.
@@ -251,7 +255,7 @@ class EscolhaDeFonteNaTelaTest extends TestCase
             ->patch(route('transactions.update', $transacao), [
                 'type' => 'expense',
                 'amount' => '300,00',
-                'date' => now()->toDateString(),
+                'date' => now()->addDays(5)->toDateString(),
                 'account_id' => $conta->id,
                 'category_id' => $categoria->id,
             ]);

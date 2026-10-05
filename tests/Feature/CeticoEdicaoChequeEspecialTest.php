@@ -17,6 +17,10 @@ use Tests\TestCase;
  * Reproduz o cenário pelo caminho HTTP real (PUT /transactions/{id}) em dois
  * mundos: com a lógica do HEAD (guard injetado abaixo, cópia fiel do commit
  * 9997f07) e com a lógica atual do working tree.
+ *
+ * A despesa é AGENDADA (data futura): desde out/2026 o valor de movimentação já
+ * paga/recebida não muda — `MovimentacaoPagaNaoMudaDeValorTest`. Com ela já paga, a
+ * recusa viria da trava do valor e não do guard, e o teste do HEAD passaria sem medir nada.
  */
 class CeticoEdicaoChequeEspecialTest extends TestCase
 {
@@ -42,7 +46,7 @@ class CeticoEdicaoChequeEspecialTest extends TestCase
             'type' => 'expense',
             'amount' => 1400,
             'description' => 'digitou errado',
-            'date' => now()->toDateString(),
+            'date' => now()->addDays(5)->toDateString(),
         ]);
 
         return [$u, $conta->fresh(), $cat, $t];
@@ -55,7 +59,7 @@ class CeticoEdicaoChequeEspecialTest extends TestCase
             'amount' => $amount,
             'account_id' => $conta->id,
             'category_id' => $cat->id,
-            'date' => now()->toDateString(),
+            'date' => now()->addDays(5)->toDateString(),
             'description' => 'corrigido',
             'funding_source' => $fonte,
         ]);
@@ -100,6 +104,7 @@ class CeticoEdicaoChequeEspecialTest extends TestCase
         fwrite(STDERR, '[HEAD] valor gravado='.$t->fresh()->amount."\n");
 
         $r->assertSessionHasErrors('amount');
+        $this->assertStringNotContainsString('já foi', (string) $erro, 'a recusa tem de ser a do guard, não a do valor travado');
         $this->assertSame(1400.0, (float) $t->fresh()->amount, 'o valor errado continua gravado');
 
         // Nem escolhendo o cheque especial explicitamente ele passa.

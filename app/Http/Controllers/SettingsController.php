@@ -32,6 +32,8 @@ class SettingsController extends Controller
         '2fa' => '2FA',
         'conta' => 'Conta',
         'atividade' => 'Atividade',
+        // Instalar o app (PWA) — aba própria desde out/2026 (antes era um card da aba Conta).
+        'celular' => 'Instalar no celular',
     ];
 
     /** Linhas por página na aba Atividade. */

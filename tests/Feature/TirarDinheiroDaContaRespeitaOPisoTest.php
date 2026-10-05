@@ -37,10 +37,19 @@ use Tests\TestCase;
  *
  * A correção segue a escolha do F-4: recusa só o que deixaria a conta ABAIXO do piso; o
  * resto (inclusive entrar no cheque especial) passa como antes.
+ *
+ * Desde out/2026 o valor (e o tipo) de movimentação já paga/recebida não muda —
+ * `MovimentacaoPagaNaoMudaDeValorTest`. Nos cenários que mudam VALOR ou TIPO da receita,
+ * ela é AGENDADA (`AGENDADA`, depois do "hoje" travado): o saldo não olha a data (D-4),
+ * então o dinheiro dela sustenta a despesa do mesmo jeito, e a conferência do piso que
+ * estes testes cobram continua alcançável.
  */
 class TirarDinheiroDaContaRespeitaOPisoTest extends TestCase
 {
     use RefreshDatabase;
+
+    /** Depois do "hoje" travado (20/09): receita agendada, valor ainda editável. */
+    private const AGENDADA = '2026-09-25';
 
     private User $user;
 
@@ -69,11 +78,11 @@ class TirarDinheiroDaContaRespeitaOPisoTest extends TestCase
         ]);
     }
 
-    private function receita(Account $conta, string $valor): Transaction
+    private function receita(Account $conta, string $valor, string $data = '2026-09-05'): Transaction
     {
         $this->post(route('transactions.store'), [
             'type' => 'income', 'amount' => $valor, 'account_id' => $conta->id,
-            'date' => '2026-09-05', 'description' => 'Salário',
+            'date' => $data, 'description' => 'Salário',
         ])->assertSessionHasNoErrors();
 
         return Transaction::where('type', 'income')->latest('id')->firstOrFail();
@@ -92,7 +101,7 @@ class TirarDinheiroDaContaRespeitaOPisoTest extends TestCase
     {
         return $this->from(route('transactions.edit', $receita))->put(route('transactions.update', $receita), [
             'type' => $tipo, 'amount' => $valor, 'account_id' => ($conta ?? $receita->account)->id,
-            'date' => '2026-09-05', 'description' => 'Salário',
+            'date' => $receita->date->toDateString(), 'description' => 'Salário',
         ]);
     }
 
@@ -164,7 +173,7 @@ class TirarDinheiroDaContaRespeitaOPisoTest extends TestCase
     public function test_baixar_o_valor_da_receita_ja_gasta_nao_fura_o_piso(): void
     {
         $conta = $this->conta();
-        $salario = $this->receita($conta, '1.000,00');
+        $salario = $this->receita($conta, '1.000,00', self::AGENDADA);
         $this->despesa($conta, '900,00');
 
         $erro = $this->erro($this->editarReceita($salario, '100,00'));
@@ -193,7 +202,7 @@ class TirarDinheiroDaContaRespeitaOPisoTest extends TestCase
     {
         $conta = $this->conta(nome: 'Corrente');
         $outra = $this->conta(5000, 'Poupança');
-        $salario = $this->receita($conta, '1.000,00');
+        $salario = $this->receita($conta, '1.000,00', self::AGENDADA);
         $this->despesa($conta, '1.000,00');
 
         $this->erro($this->editarReceita($salario, '50,00', $outra, 'expense'));
@@ -345,7 +354,7 @@ class TirarDinheiroDaContaRespeitaOPisoTest extends TestCase
     public function test_aumentar_a_receita_ou_baixar_sem_passar_do_piso_passa(): void
     {
         $conta = $this->conta();
-        $salario = $this->receita($conta, '1.000,00');
+        $salario = $this->receita($conta, '1.000,00', self::AGENDADA);
         $this->despesa($conta, '900,00');
 
         $this->editarReceita($salario, '1.500,00')->assertSessionHasNoErrors();
@@ -375,9 +384,11 @@ class TirarDinheiroDaContaRespeitaOPisoTest extends TestCase
     public function test_virar_despesa_na_mesma_conta_segue_pela_trava_de_despesa(): void
     {
         $conta = $this->conta(100);
-        $salario = $this->receita($conta, '500,00');
+        $salario = $this->receita($conta, '500,00', self::AGENDADA);
 
         $this->editarReceita($salario, '600,00', tipo: 'expense')->assertSessionHasErrors('amount');
+        // A recusa é a da trava de despesa, não a do valor travado (a receita é agendada).
+        $this->assertStringNotContainsString('já foi', (string) session('errors')->first('amount'));
 
         $this->assertSame('income', $salario->fresh()->type);
         $this->assertSame(600.0, $this->disponivel($conta));

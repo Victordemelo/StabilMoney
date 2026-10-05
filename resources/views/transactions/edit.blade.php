@@ -57,6 +57,8 @@
             $conta?->isCard() && $t->paid_at === null => 'Em aberto na fatura do '.$conta->name,
             $conta?->isCard() && $t->credit_settlement_id !== null => 'Quitada pelo crédito de um estorno',
             $conta?->isCard() => 'Paga com a fatura em '.$t->paid_at->format('d/m/Y'),
+            // Agendada (data futura): ainda não aconteceu — e o valor ainda pode mudar.
+            ! $t->jaFoiPagaOuRecebida() => ($entrada ? 'Agendada — entra na conta em ' : 'Agendada — sai da conta em ').$t->date->format('d/m/Y'),
             $entrada => 'Recebida na conta',
             default => 'Paga — saiu da conta',
         };
@@ -115,6 +117,8 @@
 
             @if ($travaDeEdicao)
                 <p class="tx-d-aviso" role="note">{{ $travaDeEdicao }}</p>
+            @elseif ($valorTravado)
+                <p class="tx-d-aviso" role="note">{{ \App\Http\Controllers\TransactionController::mensagemDoValorTravado($transaction) }}</p>
             @endif
         </aside>
     </div>

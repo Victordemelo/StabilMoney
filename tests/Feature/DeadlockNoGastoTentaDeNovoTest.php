@@ -194,6 +194,9 @@ class DeadlockNoGastoTentaDeNovoTest extends TestCase
      * a repetição rodava o `$transaction->update()` num model que já se dava por gravado
      * (sem UPDATE nenhum) e gravava o resgate de novo — a despesa ficava em R$ 50 com um
      * resgate de R$ 200 pendurado nela, e a tela respondia "Transação atualizada".
+     *
+     * A despesa é AGENDADA: desde out/2026 o valor de movimentação já paga/recebida não
+     * muda — `MovimentacaoPagaNaoMudaDeValorTest`.
      */
     public function test_deadlock_depois_do_write_nao_repete_e_nao_grava_pela_metade(): void
     {
@@ -208,7 +211,8 @@ class DeadlockNoGastoTentaDeNovoTest extends TestCase
         ]);
 
         // Uma despesa de R$ 50, sem fonte. Editá-la para R$ 300 pede resgate de R$ 200.
-        $despesa = $this->despesa(50);
+        $agendada = CarbonImmutable::today()->addDays(5)->toDateString();
+        $despesa = $this->despesa(50, ['date' => $agendada]);
 
         $falhas = 0;
         InvestmentContribution::creating(function (InvestmentContribution $movimento) use (&$falhas) {
@@ -221,7 +225,7 @@ class DeadlockNoGastoTentaDeNovoTest extends TestCase
             'type' => 'expense',
             'amount' => '300,00',
             'account_id' => $this->conta->id,
-            'date' => CarbonImmutable::today()->toDateString(),
+            'date' => $agendada,
             'funding_source' => FundingSource::RESGATE_INVESTIMENTO,
             'funding_investment_id' => $cdb->id,
         ];

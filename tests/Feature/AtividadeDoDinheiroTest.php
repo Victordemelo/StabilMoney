@@ -76,17 +76,22 @@ class AtividadeDoDinheiroTest extends TestCase
         $this->assertSame('Transaction', $linha->alvo_tipo);
     }
 
+    /**
+     * A despesa é AGENDADA: desde out/2026 o valor de movimentação já paga/recebida não
+     * muda — `MovimentacaoPagaNaoMudaDeValorTest`.
+     */
     public function test_editar_registra_o_antes_e_o_depois_so_do_que_mudou(): void
     {
+        $agendada = now()->addDays(5)->toDateString();
         $despesa = Transaction::factory()->for($this->titular)->create([
             'account_id' => $this->corrente->id, 'type' => 'expense', 'amount' => 100,
-            'description' => 'Mercado', 'date' => $this->hoje(), 'made_by_user_id' => $this->titular->id,
+            'description' => 'Mercado', 'date' => $agendada, 'made_by_user_id' => $this->titular->id,
         ]);
         Atividade::query()->delete();
 
         $this->actingAs($this->titular)->put(route('transactions.update', $despesa), [
             'type' => 'expense', 'amount' => '150,00', 'description' => 'Mercado',
-            'account_id' => $this->corrente->id, 'date' => $this->hoje(),
+            'account_id' => $this->corrente->id, 'date' => $agendada,
             'made_by_user_id' => $this->titular->id,
         ])->assertSessionHasNoErrors();
 

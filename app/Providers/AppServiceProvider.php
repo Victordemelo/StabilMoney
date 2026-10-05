@@ -85,9 +85,11 @@ class AppServiceProvider extends ServiceProvider
             $user = auth()->user();
             // Escopo por família: o patrimônio é o do titular (ownerId), visível também aos dependentes.
             $view->with('patrimonio', $user ? app(SidebarService::class)->build($user->ownerId()) : null);
-            // Contas vencidas no item "Contas a pagar" do menu: a MESMA lista do sino.
-            $view->with('vencidasNoMenu', $this->vencimentosDaRequisicao()
-                ->filter(fn ($v) => (int) $v['diasRestantes'] < 0)->count());
+            // Contas vencidas E as que vencem HOJE no item "Contas a pagar" do menu (out/2026: o
+            // que vence hoje também pede atenção agora). A MESMA lista do sino.
+            $vencimentos = $this->vencimentosDaRequisicao();
+            $view->with('vencidasNoMenu', $vencimentos->filter(fn ($v) => (int) $v['diasRestantes'] < 0)->count());
+            $view->with('venceHojeNoMenu', $vencimentos->filter(fn ($v) => (int) $v['diasRestantes'] === 0)->count());
         });
 
         // Notificações da topbar: contas a vencer nos próximos 7 dias (faturas de

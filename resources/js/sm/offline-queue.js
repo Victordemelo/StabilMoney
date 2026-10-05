@@ -29,6 +29,7 @@
 //    nunca edição.
 
 import { pedirFonte } from './funding';
+import { mostrarBalao } from './balao';
 
 const DB_NAME = 'sm-offline';
 const STORE = 'lancamentos';
@@ -260,17 +261,8 @@ function requestBackgroundSync() {
 // ---- Toast simples ---------------------------------------------------------
 
 function showToast(msg) {
-    const t = document.createElement('div');
-    t.textContent = msg;
-    t.style.cssText = [
-        'position:fixed', 'left:50%', 'transform:translateX(-50%)',
-        'bottom:calc(120px + env(safe-area-inset-bottom,0px))', 'z-index:70',
-        'max-width:90vw', 'padding:12px 18px', 'border-radius:12px',
-        'font:500 14px/1.4 system-ui,sans-serif', 'color:#fff', 'background:#0C3D2B',
-        'box-shadow:0 10px 30px rgba(0,0,0,.3)', 'text-align:center',
-    ].join(';');
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 4200);
+    // Mesmo balão do resto do app (canto superior direito — sm/balao.js).
+    mostrarBalao(msg, { tipo: 'info' });
 }
 
 // ---- Captura do submit do formulário de lançamento -------------------------

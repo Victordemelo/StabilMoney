@@ -79,7 +79,7 @@ class MeuPerfilMostraOResumoDaContaTest extends TestCase
 
         $html = $this->pagina($titular);
 
-        $this->assertMatchesRegularExpression('#Seus lançamentos no mês</span>\s*<strong>3</strong>#', $html);
+        $this->assertMatchesRegularExpression('#Lançamentos</span>\s*<strong>3</strong>#', $html);
         $this->assertMatchesRegularExpression('#Pessoas na família</span>\s*<strong>2</strong>#', $html);
     }
 

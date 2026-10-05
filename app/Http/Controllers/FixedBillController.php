@@ -15,6 +15,7 @@ use App\Support\Texto;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -79,9 +80,18 @@ class FixedBillController extends Controller
         return redirect()->route('faturas.index')->with('status', $status);
     }
 
-    public function destroy(FixedBill $conta, FixedBillService $service)
+    public function destroy(Request $request, FixedBill $conta, FixedBillService $service)
     {
         $this->authorize('delete', $conta);
+
+        // Excluir a conta fixa pede a SENHA, como remover uma despesa (out/2026 —
+        // `ExcluirContaFixaPedeASenhaTest`): o mesmo modal da tela, a mesma bag.
+        $request->validateWithBag('remocao', [
+            'password' => ['required', 'current_password'],
+        ], [
+            'password.required' => 'Digite a sua senha para excluir.',
+            'password.current_password' => 'Senha incorreta. Nada foi excluído.',
+        ]);
 
         // Desativar/excluir tira as competências VENCIDAS EM ABERTO do bloco de
         // /faturas e do sino — a dívida some do radar sem que nada tenha sido

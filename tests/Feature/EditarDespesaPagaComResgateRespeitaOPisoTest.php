@@ -28,6 +28,11 @@ use Tests\TestCase;
  * Corrente com R$ 1.000 num CDB (disponível zero) e cheque especial de R$ 500: cheque de
  * 100 (−100), despesa de 300 paga com RESGATE — que traz 400: os 300 e os 100 do
  * vermelho — e mais 500 de cheque (−500, o limite todo).
+ *
+ * Desde out/2026 o valor e o tipo de movimentação já paga/recebida não mudam —
+ * `MovimentacaoPagaNaoMudaDeValorTest`. Transformar em receita, então, só é alcançável
+ * com a despesa AGENDADA (o saldo não olha a data, então o cenário é o mesmo); mudar só
+ * de conta continua valendo para a despesa de hoje.
  */
 class EditarDespesaPagaComResgateRespeitaOPisoTest extends TestCase
 {
@@ -77,7 +82,7 @@ class EditarDespesaPagaComResgateRespeitaOPisoTest extends TestCase
     }
 
     /** A despesa de 300 paga com o resgate de 400 (o disponível termina em zero). */
-    private function despesaPagaComResgateQueCobriuOVermelho(): Transaction
+    private function despesaPagaComResgateQueCobriuOVermelho(string $data = '2026-08-05'): Transaction
     {
         $this->actingAs($this->user)->post(route('investimentos.store'), [
             'name' => 'CDB', 'classe' => 'renda_fixa', 'valor_inicial' => '1000', 'account_id' => $this->corrente->id,
@@ -85,6 +90,7 @@ class EditarDespesaPagaComResgateRespeitaOPisoTest extends TestCase
 
         $this->lancar(100, ['funding_source' => FundingSource::CHEQUE_ESPECIAL, 'funding_max_amount' => '100.00'])->assertCreated();
         $this->lancar(300, [
+            'date' => $data,
             'funding_source' => FundingSource::RESGATE_INVESTIMENTO,
             'funding_investment_id' => Investment::firstOrFail()->id,
             'funding_max_amount' => '400.00',
@@ -115,7 +121,8 @@ class EditarDespesaPagaComResgateRespeitaOPisoTest extends TestCase
 
     public function test_transformar_em_receita_nao_fura_o_piso(): void
     {
-        $despesa = $this->despesaPagaComResgateQueCobriuOVermelho();
+        // Agendada para depois de hoje (05/08): só assim o tipo ainda pode mudar.
+        $despesa = $this->despesaPagaComResgateQueCobriuOVermelho('2026-08-10');
         $this->lancar(500, ['funding_source' => FundingSource::CHEQUE_ESPECIAL, 'funding_max_amount' => '500.00'])->assertCreated();
 
         // ANTES: −500 + 300 (a despesa sai) − 400 (o resgate volta) + 10 (a receita) = −590.

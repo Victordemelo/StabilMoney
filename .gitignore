@@ -1,8 +1,12 @@
 *.log
 .DS_Store
+# Qualquer variante do .env (cópia da VPS, backup manual…) fica fora do git; só o exemplo entra.
 .env
-.env.backup
-.env.production
+.env.*
+!.env.example
+# Dumps de banco tirados à mão fora de storage/backups.
+*.sql
+*.sql.gz
 .phpactor.json
 .phpunit.result.cache
 /.fleet

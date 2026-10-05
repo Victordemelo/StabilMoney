@@ -26,10 +26,19 @@ use Tests\TestCase;
  * `$transaction->update()` cru, sem passar pelo FundingService — bastava
  * transformar a despesa em receita para escapar de tudo. Por isso as guardas
  * ficam no TOPO do método, antes dos dois ramos de gravação.
+ *
+ * Desde out/2026 o valor (e o tipo) de movimentação já paga/recebida não muda —
+ * `MovimentacaoPagaNaoMudaDeValorTest`. A máquina de reconciliação que estes
+ * testes exercitam (estorno do resgate, nova pergunta da fonte, auditoria do
+ * cheque especial) continua valendo para lançamentos AGENDADOS: por isso as
+ * despesas dos cenários de valor/tipo nascem com data futura (`AGENDADA`).
  */
 class GuardsDeEdicaoNoHistoricoTest extends TestCase
 {
     use RefreshDatabase;
+
+    /** Depois do "hoje" travado (05/08): lançamento agendado, valor ainda editável. */
+    private const AGENDADA = '2026-08-10';
 
     private User $user;
 
@@ -111,6 +120,12 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
             ->patch(route('transactions.update', $transaction), $this->edicao($overrides));
     }
 
+    /** Edição de um lançamento agendado que continua agendado. */
+    private function editarAgendada(Transaction $transaction, array $overrides = [])
+    {
+        return $this->editar($transaction, array_merge(['date' => self::AGENDADA], $overrides));
+    }
+
     /**
      * Compra de R$ 300 no cartão + fatura paga pela corrente.
      *
@@ -183,7 +198,7 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
             'type' => 'expense',
             'amount' => '500,00',
             'account_id' => $this->conta->id,
-            'date' => '2026-08-05',
+            'date' => self::AGENDADA,
             'description' => 'Conserto do carro',
             'funding_source' => FundingSource::RESGATE_INVESTIMENTO,
             'funding_investment_id' => $inv->id,
@@ -229,16 +244,17 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
 
     public function test_bypass_despesa_comum_continua_podendo_virar_receita(): void
     {
+        // Agendada: o tipo de movimentação já paga não muda mais (out/2026).
         $despesa = Transaction::factory()->for($this->user)->for($this->conta)->expense()
-            ->create(['amount' => 200, 'date' => '2026-08-01']);
+            ->create(['amount' => 200, 'date' => self::AGENDADA]);
 
         $this->assertSame(800.0, $this->conta->fresh()->available);
 
-        $this->editar($despesa, ['type' => 'income', 'amount' => '200,00'])
+        $this->editarAgendada($despesa, ['type' => 'income', 'amount' => '200,00'])
             ->assertSessionHasNoErrors();
 
         // A guarda não pode travar o caso legítimo: corrigir o tipo de um
-        // lançamento comum segue sendo edição normal.
+        // lançamento comum (ainda agendado) segue sendo edição normal.
         $this->assertSame('income', $despesa->fresh()->type);
         $this->assertSame(1200.0, $this->conta->fresh()->available);
     }
@@ -262,19 +278,37 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
         $this->assertSame(1, $bill->payments()->count());
     }
 
-    public function test_caso2_corrigir_o_valor_pago_da_conta_fixa_continua_permitido(): void
+    public function test_caso2_corrigir_o_valor_pago_da_conta_fixa_e_excluir_e_pagar_de_novo(): void
     {
         [$bill, $pagamento] = $this->condominioPago();
 
-        // Conta de luz varia: o valor REAL é editável; o vínculo com a
-        // competência (fixed_bill_id + competence) não sai do Form Request.
+        // Desde out/2026 o pagamento já feito não muda de valor pela edição
+        // (`MovimentacaoPagaNaoMudaDeValorTest`): o dinheiro já saiu da conta.
         $this->editar($pagamento, ['amount' => '850,00'])
-            ->assertSessionHasNoErrors();
+            ->assertSessionHasErrors('amount');
 
         $atual = $pagamento->fresh();
-        $this->assertSame('850.00', (string) $atual->amount);
+        $this->assertSame('800.00', (string) $atual->amount);
         $this->assertSame($bill->id, $atual->fixed_bill_id);
         $this->assertSame('2026-08-01', $atual->competence->toDateString());
+        $this->assertSame(200.0, $this->conta->fresh()->available);
+
+        // Conta de luz varia: o valor REAL continua corrigível pelo caminho que a
+        // mensagem indica — excluir o pagamento e pagar a competência de novo.
+        $this->actingAs($this->user)->from(route('transactions.index'))
+            ->delete(route('transactions.destroy', $pagamento))
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($this->user)
+            ->post(route('contas-fixas.pagar', [$bill, '2026-08']), [
+                'account_id' => $this->conta->id,
+                'amount' => '850,00',
+            ])->assertSessionHasNoErrors();
+
+        $novo = Transaction::where('fixed_bill_id', $bill->id)->firstOrFail();
+        $this->assertSame('850.00', (string) $novo->amount);
+        $this->assertSame('2026-08-01', $novo->competence->toDateString());
+        $this->assertSame(1, $bill->payments()->count());
         $this->assertSame(150.0, $this->conta->fresh()->available);
     }
 
@@ -393,7 +427,7 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
         $this->assertSame(500.0, $inv->fresh()->aplicado);
         $this->assertSame(0.0, $this->conta->fresh()->available);
 
-        $resposta = $this->editar($despesa, ['amount' => '100,00'])
+        $resposta = $this->editarAgendada($despesa, ['amount' => '100,00'])
             ->assertSessionHasNoErrors();
 
         // ANTES: `estornarFonte` só rodava no delete, então o resgate de R$ 300
@@ -425,7 +459,7 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
         // R$ 400 ainda não cabe nos R$ 200 livres: o app PERGUNTA (409), nunca
         // decide sozinho de onde tirar o dinheiro.
         $this->actingAs($this->user)
-            ->patchJson(route('transactions.update', $despesa), $this->edicao(['amount' => '400,00']))
+            ->patchJson(route('transactions.update', $despesa), $this->edicao(['amount' => '400,00', 'date' => self::AGENDADA]))
             ->assertStatus(409)
             ->assertJsonPath('precisa_fonte', true);
 
@@ -436,7 +470,7 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
 
         // Escolhendo o resgate de novo, o valor é recalculado do ZERO: 200
         // (o que falta), e não 300 + 200 acumulados.
-        $this->editar($despesa, [
+        $this->editarAgendada($despesa, [
             'amount' => '400,00',
             'funding_source' => FundingSource::RESGATE_INVESTIMENTO,
             'funding_investment_id' => $inv->id,
@@ -456,7 +490,7 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
     {
         [$despesa, $inv] = $this->despesaComResgate();
 
-        $resposta = $this->editar($despesa, [
+        $resposta = $this->editarAgendada($despesa, [
             'amount' => '700,00',
             'funding_source' => FundingSource::RESGATE_INVESTIMENTO,
             'funding_investment_id' => $inv->id,
@@ -479,7 +513,7 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
     {
         [$despesa, $inv] = $this->despesaComResgate();
 
-        $this->editar($despesa, ['type' => 'income', 'amount' => '500,00'])
+        $this->editarAgendada($despesa, ['type' => 'income', 'amount' => '500,00'])
             ->assertSessionHasNoErrors();
 
         // ANTES (bypass + caso 5 juntos): o ramo de receita gravava direto, o
@@ -507,7 +541,7 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
             'type' => 'expense',
             'amount' => '600,00',
             'account_id' => $magra->id,
-            'date' => '2026-08-05',
+            'date' => self::AGENDADA,
             'description' => 'Digitou errado',
             'funding_source' => FundingSource::CHEQUE_ESPECIAL,
         ])->assertSessionHasNoErrors();
@@ -518,7 +552,7 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
         // Corrigido para um valor que cabe no disponível: a auditoria some.
         // ANTES, `spend` devolvia auditoria vazia e as colunas antigas sobreviviam
         // — uma despesa de R$ 50 marcada como "cheque especial R$ 500".
-        $this->editar($despesa, ['account_id' => $magra->id, 'amount' => '50,00'])
+        $this->editarAgendada($despesa, ['account_id' => $magra->id, 'amount' => '50,00'])
             ->assertSessionHasNoErrors();
 
         $atual = $despesa->fresh();
@@ -531,10 +565,11 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
 
     public function test_edicao_comum_de_despesa_continua_passando(): void
     {
+        // Agendada: o valor de movimentação já paga não muda mais (out/2026).
         $despesa = Transaction::factory()->for($this->user)->for($this->conta)->expense()
-            ->create(['amount' => 200, 'date' => '2026-08-01']);
+            ->create(['amount' => 200, 'date' => self::AGENDADA]);
 
-        $this->editar($despesa, ['amount' => '150,00'])
+        $this->editarAgendada($despesa, ['amount' => '150,00'])
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('transactions.index'));
 

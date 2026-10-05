@@ -989,3 +989,7 @@ a.tx { text-decoration: none; color: inherit; }
 .atv-mudancas li strong { font-weight: 600; color: var(--ink); }
 .atv-mudancas .de { text-decoration: line-through; color: var(--ink-3); }
 .atv-rodape { margin-top: 12px; font-size: 12px; color: var(--ink-3); line-height: 1.5; }
+
+/* Movimentação já paga ou recebida (out/2026): valor e tipo travados na edição. */
+.input[readonly] { background: var(--surface-3); color: var(--ink-2); cursor: not-allowed; }
+.type-toggle[data-travado] { opacity: .65; pointer-events: none; }

@@ -167,8 +167,10 @@
                             aria-label="Editar a conta fixa {{ $bill->name }}" title="Editar conta fixa">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg>
                     </button>
+                    {{-- Pede a SENHA (out/2026), pelo mesmo modal do "Remover despesa". --}}
                     <form method="POST" action="{{ route('contas-fixas.destroy', $bill) }}"
-                          data-confirmar="Excluir a conta fixa “{{ $bill->name }}”? As competências em aberto deixam de aparecer aqui; os pagamentos já feitos continuam no histórico.">
+                          data-remover-despesa data-remover-tipo="fixa" data-titulo="Excluir conta fixa"
+                          data-pergunta="Excluir a conta fixa “{{ $bill->name }}”? As competências em aberto deixam de aparecer aqui; os pagamentos já feitos continuam no histórico.">
                         @csrf
                         @method('DELETE')
                         <button class="fi-rm" type="submit" aria-label="Excluir a conta fixa {{ $bill->name }}" title="Excluir conta fixa">
@@ -537,25 +539,32 @@
      ação é remontada no servidor a partir do id (`_alvo`), nunca de uma URL vinda do form. --}}
 @php
     $reabreRemocao = $errors->remocao->isNotEmpty() && ctype_digit((string) old('_alvo'));
+    // Conta fixa (out/2026) usa o MESMO modal; `_tipo` diz de quem é o id. A ação é
+    // remontada aqui, nunca vinda do formulário.
+    $remocaoFixa = old('_tipo') === 'fixa';
+    $acaoDaRemocao = ! $reabreRemocao ? ''
+        : ($remocaoFixa ? route('contas-fixas.destroy', (int) old('_alvo')) : route('faturas.compra.destroy', (int) old('_alvo')));
+    $tituloDaRemocao = $reabreRemocao && $remocaoFixa ? 'Excluir conta fixa' : 'Remover despesa';
 @endphp
 <div class="modal-scrim" id="removerDespesaModal" data-remover-modal
-     data-reabrir-acao="{{ $reabreRemocao ? route('faturas.compra.destroy', (int) old('_alvo')) : '' }}">
+     data-reabrir-acao="{{ $acaoDaRemocao }}">
     <div class="modal modal-md" role="dialog" aria-modal="true"
          aria-labelledby="removerDespesaModal-titulo" aria-describedby="removerDespesaModal-pergunta">
         <div class="modal-head">
             <span class="modal-ico perigo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg></span>
             <div>
-                <h3 id="removerDespesaModal-titulo">Remover despesa</h3>
+                <h3 id="removerDespesaModal-titulo" data-rd-titulo>{{ $tituloDaRemocao }}</h3>
                 <p id="removerDespesaModal-pergunta" data-rd-pergunta>{{ $reabreRemocao ? old('_pergunta', 'Remover esta despesa?') : 'Remover esta despesa?' }}</p>
             </div>
             <button class="modal-x" type="button" data-remover-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
         </div>
-        <form method="POST" action="{{ $reabreRemocao ? route('faturas.compra.destroy', (int) old('_alvo')) : '' }}" data-rd-form>
+        <form method="POST" action="{{ $acaoDaRemocao }}" data-rd-form>
             @csrf
             @method('DELETE')
             <input type="hidden" name="_alvo" value="{{ $reabreRemocao ? (int) old('_alvo') : '' }}" data-rd-alvo>
+            <input type="hidden" name="_tipo" value="{{ $reabreRemocao && $remocaoFixa ? 'fixa' : 'despesa' }}" data-rd-tipo>
             <input type="hidden" name="_pergunta" value="{{ $reabreRemocao ? old('_pergunta') : '' }}" data-rd-pergunta-campo>
             <div class="modal-body">
                 <div class="field">
@@ -567,7 +576,7 @@
             </div>
             <div class="modal-foot">
                 <button class="btn ghost" type="button" data-remover-close>Cancelar</button>
-                <button class="btn-danger" type="submit">Remover</button>
+                <button class="btn-danger" type="submit" data-rd-botao>{{ $reabreRemocao && $remocaoFixa ? 'Excluir' : 'Remover' }}</button>
             </div>
         </form>
     </div>
@@ -923,7 +932,8 @@
 {{-- ============================ MODAL: PAGAR FATURA ============================ --}}
 @if ($cashAccounts->isNotEmpty())
 <div class="modal-scrim" id="payInvoiceModal" data-pay-scrim>
-    <div class="modal" role="dialog" aria-modal="true"
+    {{-- `.modal-lg` (620px): no de 440px o select "Debitar de" cortava o nome da conta. --}}
+    <div class="modal modal-lg" role="dialog" aria-modal="true"
          aria-labelledby="payInvoiceModal-titulo" aria-describedby="payInvoiceModal-descricao">
         <div class="modal-head">
             <span class="modal-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg></span>

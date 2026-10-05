@@ -24,10 +24,18 @@ use Tests\TestCase;
  * acontecido no banco de verdade. Regra nova: reconciliar APENAS quando valor,
  * conta ou tipo mudarem. Campo neutro (descrição, categoria, data, autor) grava
  * direto e preserva `funding_*` e o resgate ligado.
+ *
+ * Desde out/2026 o valor (e o tipo) de movimentação já paga/recebida não muda —
+ * `MovimentacaoPagaNaoMudaDeValorTest`. As edições neutras abaixo continuam sobre a
+ * despesa de HOJE (já paga: é o caso real); os cenários que mudam valor ou tipo
+ * usam a mesma despesa AGENDADA (`agendarDespesa()`), onde a reconciliação segue.
  */
 class EdicaoNeutraPreservaResgateTest extends TestCase
 {
     use RefreshDatabase;
+
+    /** Depois do "hoje" travado (05/08): despesa agendada, valor ainda editável. */
+    private const AGENDADA = '2026-08-10';
 
     private User $user;
 
@@ -107,6 +115,17 @@ class EdicaoNeutraPreservaResgateTest extends TestCase
             ->patch(route('transactions.update', $this->despesa), $this->edicao($overrides));
     }
 
+    /**
+     * A mesma despesa, agendada para depois de hoje. O resgate ligado continua com a
+     * data de hoje — é a que `FundingService::dataDoResgate` daria a uma despesa
+     * criada já agendada (a menor entre a data dela e hoje).
+     */
+    private function agendarDespesa(): void
+    {
+        Transaction::whereKey($this->despesa->id)->update(['date' => self::AGENDADA]);
+        $this->despesa->refresh();
+    }
+
     private function resgateLigado(): int
     {
         return $this->inv->contributions()
@@ -182,7 +201,9 @@ class EdicaoNeutraPreservaResgateTest extends TestCase
 
     public function test_mudar_o_valor_continua_reconciliando(): void
     {
-        $resposta = $this->editar(['amount' => '100,00'])->assertSessionHasNoErrors();
+        $this->agendarDespesa();
+
+        $resposta = $this->editar(['amount' => '100,00', 'date' => self::AGENDADA])->assertSessionHasNoErrors();
 
         // 100 cabe nos 200 livres: o resgate inteiro volta.
         $this->assertSame(800.0, $this->inv->fresh()->aplicado);
@@ -330,8 +351,10 @@ class EdicaoNeutraPreservaResgateTest extends TestCase
     /** Sem troca de conta, só UMA conta é travada (a própria) — nada de lock a mais. */
     public function test_mudar_so_o_valor_trava_uma_conta_so(): void
     {
+        $this->agendarDespesa();
+
         $ids = $this->contasTravadasAntesDoEstorno(
-            fn () => $this->editar(['amount' => '100,00'])->assertSessionHasNoErrors(),
+            fn () => $this->editar(['amount' => '100,00', 'date' => self::AGENDADA])->assertSessionHasNoErrors(),
         );
 
         $this->assertSame([$this->conta->id], $ids);
@@ -339,7 +362,9 @@ class EdicaoNeutraPreservaResgateTest extends TestCase
 
     public function test_virar_receita_continua_reconciliando(): void
     {
-        $this->editar(['type' => 'income'])->assertSessionHasNoErrors();
+        $this->agendarDespesa();
+
+        $this->editar(['type' => 'income', 'date' => self::AGENDADA])->assertSessionHasNoErrors();
 
         $this->assertSame(800.0, $this->inv->fresh()->aplicado);
         $this->assertSame(0, $this->resgateLigado());

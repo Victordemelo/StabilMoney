@@ -17,6 +17,7 @@ use App\Http\Controllers\PwaController;
 use App\Http\Controllers\SecurityController;
 use App\Http\Controllers\SeoController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\SistemaController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Middleware\BloqueiaUsuarioBanido;
@@ -159,6 +160,10 @@ Route::middleware(['auth', 'verified', ExigeAceiteDaPoliticaAtual::class])->grou
         ->name('profile.email.confirm');
 
     // Configurações (subabas: Segurança / Conta)
+    // Menu do perfil (out/2026): o tour guiado e as informações do sistema.
+    Route::get('/tutorial', [SistemaController::class, 'tutorial'])->name('tutorial');
+    Route::get('/sistema', [SistemaController::class, 'informacoes'])->name('sistema');
+
     Route::get('/configuracoes/{tab?}', [SettingsController::class, 'index'])->name('settings');
 
     // Conta: liga/desliga o lembrete de vencimento por e-mail (só o titular recebe,
@@ -271,7 +276,9 @@ Route::middleware(['auth', 'verified', ExigeAceiteDaPoliticaAtual::class])->grou
     // rota própria: as ocorrências aparecem como um bloco de /faturas.
     Route::post('/contas-fixas', [FixedBillController::class, 'store'])->name('contas-fixas.store');
     Route::patch('/contas-fixas/{conta}', [FixedBillController::class, 'update'])->name('contas-fixas.update');
-    Route::delete('/contas-fixas/{conta}', [FixedBillController::class, 'destroy'])->name('contas-fixas.destroy');
+    Route::delete('/contas-fixas/{conta}', [FixedBillController::class, 'destroy'])
+        ->middleware('throttle:senha')
+        ->name('contas-fixas.destroy');
     // Paga UMA competência (mês), no formato AAAA-MM.
     Route::post('/contas-fixas/{conta}/pagar/{competencia}', [FixedBillController::class, 'pay'])
         // Mês 01..12 de verdade: `\d{4}-\d{2}` aceitava 2026-13 e 2026-00, que o Carbon

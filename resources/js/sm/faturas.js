@@ -158,20 +158,31 @@ export function initFaturas() {
         const rdAlvo = remover.querySelector('[data-rd-alvo]');
         const rdPerguntaCampo = remover.querySelector('[data-rd-pergunta-campo]');
         const senha = remover.querySelector('#rd-senha');
+        const rdTitulo = remover.querySelector('[data-rd-titulo]');
+        const rdTipo = remover.querySelector('[data-rd-tipo]');
+        const rdBotao = remover.querySelector('[data-rd-botao]');
         ligarFechamento(remover, '[data-remover-close]');
 
-        const abrirRemocao = (acao, pergunta, gatilho) => {
+        // O mesmo modal serve à despesa e à conta fixa (out/2026): `tipo` troca o título e
+        // o botão, e vai num hidden para o servidor reabrir o modal certo depois de um erro.
+        const abrirRemocao = (acao, pergunta, gatilho, { tipo = 'despesa', titulo = '' } = {}) => {
             rdForm.setAttribute('action', acao);
             rdAlvo.value = (acao.match(/\/(\d+)$/) || [])[1] || '';
             rdPergunta.textContent = pergunta || 'Remover esta despesa?';
             rdPerguntaCampo.value = pergunta || '';
+            if (rdTipo) rdTipo.value = tipo;
+            if (rdTitulo) rdTitulo.textContent = titulo || 'Remover despesa';
+            if (rdBotao) rdBotao.textContent = tipo === 'fixa' ? 'Excluir' : 'Remover';
             senha.value = '';
             abrirDialogo(remover, { foco: '#rd-senha', retorno: gatilho });
         };
 
         $$('form[data-remover-despesa]').forEach((form) => form.addEventListener('submit', (e) => {
             e.preventDefault();
-            abrirRemocao(form.getAttribute('action'), form.dataset.pergunta, form.querySelector('button'));
+            abrirRemocao(form.getAttribute('action'), form.dataset.pergunta, form.querySelector('button'), {
+                tipo: form.dataset.removerTipo || 'despesa',
+                titulo: form.dataset.titulo || '',
+            });
         }));
 
         // Senha errada: o servidor volta com o erro e a ação remontada pelo id.

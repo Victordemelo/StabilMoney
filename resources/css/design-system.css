@@ -1174,17 +1174,14 @@ body.pjax-loading #content { opacity: .5; }
 .ph-foto { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 2px; }
 .ph-foto .btn-ghost { cursor: pointer; }
 .ph-foto .hint { font-size: 11.5px; color: var(--ink-3); }
-.ph-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.ph-stat { min-width: 0; padding: 13px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
-.ph-stat .lbl { display: block; font-size: 11px; font-weight: 500; color: var(--ink-3); }
-.ph-stat strong { display: block; margin-top: 5px; font-family: var(--font-head); font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
-.ph-stat .dp-bar { margin-top: 8px; }
-.ph-falta { display: block; margin-top: 6px; font-size: 10.5px; color: var(--ink-3); }
-/* Os dois quadrinhos só com número: o número ocupa o espaço que sobra, centralizado e
-   maior — antes ficava colado no rótulo, com um vazio embaixo (o terceiro, com barra e
-   "Falta:", é mais alto e estica a linha). */
-.ph-stat-num { display: flex; flex-direction: column; }
-.ph-stat-num strong { flex: 1; display: flex; align-items: center; justify-content: center; margin-top: 4px; font-size: 34px; line-height: 1; }
+.ph-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 16px; background: var(--surface-2); }
+.ph-stat { min-width: 0; padding: 16px 18px; display: flex; flex-direction: column; align-items: flex-start; }
+.ph-stat + .ph-stat { border-left: 1px solid var(--line); }
+.ph-stat .lbl { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.ph-stat strong { margin-top: 8px; font-family: var(--font-head); font-size: 32px; line-height: 1; font-weight: 600; letter-spacing: -.03em; }
+.ph-ctx { margin-top: 8px; font-size: 12px; color: var(--ink-3); line-height: 1.4; }
+.ph-stat .dp-bar { width: 100%; margin-top: 10px; }
+.ph-stat .dp-bar + .ph-ctx { margin-top: 7px; }
 
 /* Meu perfil › Seus dados: um card, duas colunas casadas linha a linha. */
 .perfil-dados {
@@ -1227,6 +1224,7 @@ body.pjax-loading #content { opacity: .5; }
   .ph-id { align-items: flex-start; }
   .ph-id .avatar-preview { width: 72px; height: 72px; font-size: 24px; }
   .ph-stats, .perfil-atalhos { grid-template-columns: 1fr; }
+  .ph-stat + .ph-stat { border-left: 0; border-top: 1px solid var(--line); }
 }
 
 /* ============ Configurações ============
@@ -1637,20 +1635,46 @@ body.pjax-loading #content { opacity: .5; }
 /* ----- Trend neutro (sem período anterior para comparar) ----- */
 .trend.neutral { color: var(--ink-3); background: var(--surface-3); }
 
-/* ----- Flash de sessão (toast/banner no topo do conteúdo) ----- */
-.flash {
-  background: var(--brand-100); color: var(--brand-700);
-  border: 1px solid var(--brand-200); border-radius: var(--r-sm);
-  padding: 12px 16px; font-size: 13.5px; font-weight: 600;
-  margin-bottom: 18px; box-shadow: var(--shadow-sm);
-  display: flex; align-items: center; gap: 10px;
-  transition: opacity .35s var(--ease), transform .35s var(--ease);
+/* ----- Balões de aviso (out/2026) -----
+   "Salvo", "Atualizado" e afins aparecem num balão FLUTUANTE no canto superior direito, por
+   cima da tela — antes era uma faixa verde no topo do conteúdo, que empurrava a página. O
+   sm/balao.js leva os `.flash` do servidor para a pilha `.sm-baloes` (no body) e cria os do
+   JavaScript; sem JS, o próprio `.flash` já fica fixo no canto. Acima dos modais (90): o
+   aviso de "salvo" chega no instante em que o modal fecha. */
+.sm-baloes {
+  position: fixed; z-index: 95; top: calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+  width: min(380px, calc(100vw - 32px)); pointer-events: none;
 }
-.flash svg { width: 18px; height: 18px; flex: none; stroke-width: 2; }
-.flash.hide { opacity: 0; transform: translateY(-6px); }
-[data-theme="dark"] .flash {
-  background: rgba(28,154,112,.16); color: var(--brand-300);
-  border-color: rgba(28,154,112,.3);
+.flash, .sm-balao {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; pointer-events: auto;
+  padding: 12px 12px 12px 14px; border-radius: 14px; font-size: 13.5px; font-weight: 600; line-height: 1.45;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+  border-left: 4px solid var(--brand-500); box-shadow: 0 14px 34px rgba(15,35,27,.18);
+  animation: sm-balao-entra .32s var(--ease) both;
+}
+/* Sem JS o `.flash` não sai do #content — então ele mesmo é fixo no canto. */
+.flash:not(.sm-balao) { position: fixed; z-index: 95; top: calc(16px + env(safe-area-inset-top, 0px)); right: 16px; width: min(380px, calc(100vw - 32px)); }
+.flash svg, .sm-balao svg { width: 18px; height: 18px; flex: none; stroke-width: 2; margin-top: 1px; color: var(--brand-600); }
+.sm-balao-txt { flex: 1; min-width: 0; }
+.sm-balao.info { border-left-color: var(--ink-3); }
+.sm-balao.erro { border-left-color: var(--neg); }
+.sm-balao-x {
+  flex: none; position: relative; width: 22px; height: 22px; margin: -2px -2px 0 auto; border-radius: 7px;
+  display: grid; place-items: center; font-size: 18px; line-height: 1; color: var(--ink-3); background: none; border: 0; cursor: pointer;
+}
+.sm-balao-x::after { content: ""; position: absolute; inset: -6px; } /* alvo de toque de 34px */
+.sm-balao-x:hover { background: var(--surface-3); color: var(--ink); }
+.sm-balao.saindo { animation: sm-balao-sai .3s var(--ease) both; }
+@keyframes sm-balao-entra { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes sm-balao-sai { to { opacity: 0; transform: translateX(18px); } }
+@media (prefers-reduced-motion: reduce) { .flash, .sm-balao, .sm-balao.saindo { animation: none; } }
+[data-theme="dark"] .flash, [data-theme="dark"] .sm-balao { box-shadow: 0 14px 34px rgba(0,0,0,.45); }
+[data-theme="dark"] .flash svg, [data-theme="dark"] .sm-balao svg { color: var(--brand-300); }
+/* No celular a barra de cima é a `.mobile-top`: o balão desce para não cobri-la. */
+@media (max-width: 920px) {
+  .sm-baloes, .flash:not(.sm-balao) { top: calc(68px + env(safe-area-inset-top, 0px)); }
 }
 
 /* ----- Telas de autenticação (layout guest) ----- */
@@ -2017,7 +2041,7 @@ body.pjax-loading #content { opacity: .5; }
 .nav-item.active .nav-desc { color: #B7DCCD; }
 .nav-badge-wrap { margin-left: auto; display: flex; }
 .nav-badge-wrap:empty { display: none; }
-.nav-item .badge.late { background: rgba(229,96,77,.24); color: #FFC9C0; }
+.nav-item .badge.late { background: #E5604D; color: #fff; box-shadow: 0 0 0 3px rgba(229,96,77,.22); }
 .collapsed .nav-txt { width: 0; overflow: hidden; opacity: 0; }
 @media (max-width: 920px) {
   .collapsed .nav-txt { width: auto; overflow: visible; opacity: 1; }
@@ -2152,3 +2176,61 @@ body.pjax-loading #content { opacity: .5; }
   /* Botões das telas de entrada ("Enviar link de recuperação"): quebram em vez de vazar. */
   .auth .btn-primary { flex-wrap: wrap; text-align: center; }
 }
+
+/* Configurações › Instalar no celular (out/2026) */
+.celular-vantagens { margin: 16px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.celular-vantagens li { position: relative; padding-left: 22px; font-size: 13px; color: var(--ink-2); }
+.celular-vantagens li::before { content: "✓"; position: absolute; left: 0; color: var(--brand-600); font-weight: 700; }
+.celular-passos { margin: 4px 0 14px; padding: 0; list-style: none; display: grid; gap: 12px; counter-reset: passo; }
+.celular-passos li { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 10px; counter-increment: passo; }
+.celular-passos li::before { content: counter(passo); grid-row: span 2; width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--brand-50); color: var(--brand-700); }
+.celular-passos strong { font-size: 13.5px; }
+.celular-passos span { font-size: 12.5px; color: var(--ink-3); }
+[data-theme="dark"] .celular-passos li::before { background: rgba(28,154,112,.14); color: var(--brand-300); }
+
+/* ============ Tutorial guiado (out/2026 — sm/tutorial.js) ============
+   O foco é um recorte sobre o elemento (a sombra gigante escurece o resto); o balão explica.
+   Acima de tudo (modais 90, balões de aviso 95). Sem alvo na tela, o balão vai ao centro. */
+.tour { position: fixed; inset: 0; z-index: 97; pointer-events: none; }
+.tour.sem-alvo { background: rgba(7, 20, 14, .55); pointer-events: auto; }
+.tour-foco {
+  position: fixed; border-radius: 14px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(7, 20, 14, .55), 0 0 0 3px var(--brand-400, #3FB98A);
+  transition: top .25s var(--ease), left .25s var(--ease), width .25s var(--ease), height .25s var(--ease);
+}
+.tour-balao {
+  position: fixed; width: min(360px, calc(100vw - 24px)); padding: 18px; border-radius: 16px; pointer-events: auto;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 18px 44px rgba(0,0,0,.28);
+}
+.tour.sem-alvo .tour-balao { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.tour-passo { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--brand-600); }
+.tour-balao h3 { margin: 6px 0 6px; font-family: var(--font-head); font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+.tour-balao p { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+.tour-acoes { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.tour-espaco { flex: 1; }
+.tour-acoes .btn { padding: 8px 14px; font-size: 13px; }
+[data-theme="dark"] .tour-passo { color: var(--brand-300); }
+@media (prefers-reduced-motion: reduce) { .tour-foco { transition: none; } }
+
+/* ============ Informações do sistema e Tutorial (out/2026) ============ */
+.sis-marca { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.sis-marca img { width: 56px; height: 56px; border-radius: 14px; }
+.sis-versao { display: block; font-family: var(--font-head); font-size: 22px; font-weight: 600; letter-spacing: -.02em; }
+.sis-sub { font-size: 12.5px; color: var(--ink-3); }
+.sis-lista { margin: 0; display: grid; gap: 12px; }
+.sis-lista > div { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr); gap: 4px 14px; }
+.sis-lista dt { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.sis-lista dd { margin: 0; font-size: 13px; color: var(--ink-3); }
+.sis-lista a { color: var(--brand-600); font-weight: 600; }
+.sis-autor { margin: 0 0 12px; font-family: var(--font-head); font-size: 18px; font-weight: 600; }
+.sis-links { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.sis-links .btn-ghost { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+.sis-links svg { width: 17px; height: 17px; }
+.tut-inicio { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+.tut-inicio .btn-primary { display: inline-flex; align-items: center; gap: 8px; }
+.tut-inicio .btn-primary svg { width: 16px; height: 16px; }
+.tut-tela { color: inherit; text-decoration: none; transition: border-color .2s var(--ease), transform .2s var(--ease); }
+.tut-tela:hover { border-color: var(--brand-300); transform: translateY(-1px); }
+.tut-tela h3 { margin: 0 0 6px; font-size: 15px; }
+@media (max-width: 560px) { .sis-lista > div { grid-template-columns: minmax(0, 1fr); } }
+[data-theme="dark"] .sis-lista a { color: var(--brand-300); }

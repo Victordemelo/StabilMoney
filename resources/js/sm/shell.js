@@ -118,11 +118,5 @@ export function initShell() {
         if (e.key === 'Escape') popovers.forEach((p) => p.fechar());
     });
 
-    // --- Flash de sessão: some sozinho após 4s ---
-    document.querySelectorAll('[data-flash]').forEach((el) => {
-        setTimeout(() => {
-            el.classList.add('hide');
-            setTimeout(() => el.remove(), 400); // espera a transição de saída
-        }, 4000);
-    });
+    // (O aviso de sucesso do servidor virou balão no canto — sm/balao.js.)
 }

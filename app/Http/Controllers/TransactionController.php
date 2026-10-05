@@ -430,6 +430,8 @@ class TransactionController extends Controller
             // MESMA regra que o `update` aplica — dita antes, e não só depois do Salvar) e,
             // na compra parcelada, todas as parcelas dela.
             'travaDeEdicao' => $this->travaDeEdicao($transaction, null),
+            // Já paga ou recebida: o formulário trava valor e tipo (a mesma regra do `update`).
+            'valorTravado' => ! $transaction->isTransferencia() && $transaction->jaFoiPagaOuRecebida(),
             'parcelas' => $transaction->group_id && (int) $transaction->installments > 1
                 ? Transaction::where('user_id', $userId)
                     ->where('group_id', $transaction->group_id)
@@ -514,6 +516,13 @@ class TransactionController extends Controller
 
             return redirect()->route('transactions.index')
                 ->with('status', 'Transferência atualizada nas duas contas.');
+        }
+
+        // JÁ PAGA OU RECEBIDA: valor e tipo não mudam mais (out/2026 — regra do Victor). O
+        // dinheiro já saiu ou entrou de verdade; corrigir é excluir e lançar de novo. Antes de
+        // qualquer ramo de gravação, como as outras guardas (a de receita grava cru).
+        if ($motivo = $this->travaDoValor($transaction, $data)) {
+            return back()->withErrors(['amount' => $motivo])->withInput();
         }
 
         // Escolha da fonte é instrução, não coluna. `funding_max_amount` é o teto
@@ -722,6 +731,37 @@ class TransactionController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Movimentação já paga ou recebida (`Transaction::jaFoiPagaOuRecebida`) não muda de valor
+     * nem de tipo. Devolve a mensagem PT-BR, ou null quando nada disso mudou.
+     */
+    private function travaDoValor(Transaction $transaction, array $data): ?string
+    {
+        if (! $transaction->jaFoiPagaOuRecebida()) {
+            return null;
+        }
+
+        $valorMudou = isset($data['amount'])
+            && (int) round((float) $data['amount'] * 100) !== (int) round((float) $transaction->amount * 100);
+        $tipoMudou = isset($data['type']) && $data['type'] !== $transaction->type;
+
+        if (! $valorMudou && ! $tipoMudou) {
+            return null;
+        }
+
+        return self::mensagemDoValorTravado($transaction);
+    }
+
+    /** O porquê da trava, para o `update` e para o painel "Detalhes" da edição. */
+    public static function mensagemDoValorTravado(Transaction $transaction): string
+    {
+        $o_que = $transaction->type === 'income' ? 'recebida' : 'paga';
+
+        return 'Esta movimentação já foi '.$o_que.', então o valor e o tipo não mudam mais. '
+            .'Descrição, categoria, data e quem fez continuam editáveis; para corrigir o valor, '
+            .'exclua a movimentação e lance de novo.';
     }
 
     /**

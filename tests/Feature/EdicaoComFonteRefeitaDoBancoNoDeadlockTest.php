@@ -74,13 +74,13 @@ class EdicaoComFonteRefeitaDoBancoNoDeadlockTest extends TestCase
         return $conta;
     }
 
-    private function lancarComResgate(Account $conta, string $valor): Transaction
+    private function lancarComResgate(Account $conta, string $valor, ?string $data = null): Transaction
     {
         $this->actingAs($this->user)->post(route('transactions.store'), [
             'type' => 'expense',
             'amount' => $valor,
             'account_id' => $conta->id,
-            'date' => CarbonImmutable::today()->toDateString(),
+            'date' => $data ?? CarbonImmutable::today()->toDateString(),
             'description' => 'Conserto do carro',
             'funding_source' => FundingSource::RESGATE_INVESTIMENTO,
             'funding_investment_id' => $this->cdb->id,
@@ -112,11 +112,15 @@ class EdicaoComFonteRefeitaDoBancoNoDeadlockTest extends TestCase
      *
      * Sem recarregar o model, a repetição tratava os R$ 300 como já gravados: a despesa
      * ficava em R$ 150, o resgate voltava a R$ 50, e a tela dizia "Transação atualizada".
+     *
+     * A despesa é AGENDADA: desde out/2026 o valor de movimentação já paga/recebida não
+     * muda — `MovimentacaoPagaNaoMudaDeValorTest`.
      */
     public function test_deadlock_depois_do_update_refaz_a_edicao_inteira_com_o_valor_novo(): void
     {
+        $agendada = CarbonImmutable::today()->addDays(5)->toDateString();
         $conta = $this->contaComAplicado('Corrente', 1100, 1000);
-        $despesa = $this->lancarComResgate($conta, '150,00');
+        $despesa = $this->lancarComResgate($conta, '150,00', $agendada);
         $this->assertSame(50.0, (float) $despesa->funding_amount);
 
         $falhas = $this->deadlockNoPrimeiroResgate();
@@ -125,7 +129,7 @@ class EdicaoComFonteRefeitaDoBancoNoDeadlockTest extends TestCase
             'type' => 'expense',
             'amount' => '300,00',
             'account_id' => $conta->id,
-            'date' => CarbonImmutable::today()->toDateString(),
+            'date' => $agendada,
             'description' => 'Conserto do carro',
             'funding_source' => FundingSource::RESGATE_INVESTIMENTO,
             'funding_investment_id' => $this->cdb->id,

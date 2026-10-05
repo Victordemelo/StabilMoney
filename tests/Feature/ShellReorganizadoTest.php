@@ -35,7 +35,15 @@ class ShellReorganizadoTest extends TestCase
         $this->assertStringNotContainsString('side-lancar', $html);
         $this->assertStringContainsString('data-launch-open', $html);
         // Aluguel venceu dia 5: o item "Contas a pagar" mostra 1 vencida.
-        $this->assertMatchesRegularExpression('#id="navContasAPagar" data-pjax-atualizar><span class="badge late" title="Contas vencidas">1</span>#', $html);
+        $this->assertMatchesRegularExpression('#id="navContasAPagar" data-pjax-atualizar><span class="badge late" title="1 conta vencida" aria-label="1 conta vencida">1</span>#', $html);
+
+        // O que vence HOJE também entra no selo (out/2026).
+        FixedBill::create([
+            'user_id' => $user->id, 'made_by_user_id' => $user->id, 'name' => 'Internet', 'amount' => 100,
+            'due_day' => 15, 'account_id' => $conta->id, 'starts_on' => '2026-10-01', 'active' => true,
+        ]);
+        $html = $this->actingAs($user)->get(route('dashboard'))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('#id="navContasAPagar" data-pjax-atualizar><span class="badge late" title="1 conta vencida · 1 vence hoje" aria-label="1 conta vencida · 1 vence hoje">2</span>#', $html);
     }
 
     public function test_relogio_em_brasilia_por_padrao_e_no_fuso_escolhido(): void
@@ -87,8 +95,11 @@ class ShellReorganizadoTest extends TestCase
     {
         $this->get(route('login'))->assertOk()->assertSee('data-instalar-app hidden', false)->assertSee('data-instalar-ios hidden', false);
 
-        $this->actingAs(User::factory()->create())->get(route('settings', 'conta'))->assertOk()
+        // Aba própria desde out/2026 (antes era um card no pé da aba Conta).
+        $this->actingAs(User::factory()->create())->get(route('settings', 'celular'))->assertOk()
+            ->assertSee('>Instalar no celular</a>', false)
             ->assertSee('Aplicativo no celular')
+            ->assertSee('Como instalar')
             ->assertSee('data-instalar-app hidden', false);
     }
 }

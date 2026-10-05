@@ -55,10 +55,13 @@ class AjustesDeTelaMetasFamiliaPerfilCartoesTest extends TestCase
         $this->assertStringContainsString('<h4>Quem é você</h4>', $html);
         $this->assertStringContainsString('<h4>Como falamos com você</h4>', $html);
         $this->assertSame(1, substr_count($html, '>Salvar alterações</button>'));
-        $this->assertSame(2, substr_count($html, 'class="ph-stat ph-stat-num"'));
+        // Resumo num painel só, três colunas iguais, cada uma com uma linha de contexto.
+        $this->assertSame(3, substr_count($html, '<div class="ph-stat">'));
+        $this->assertStringContainsString('Só você por enquanto', $html);
 
         $css = file_get_contents(resource_path('css/design-system.css'));
-        $this->assertMatchesRegularExpression('/\.ph-stat-num strong\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*font-size:\s*34px;/', $css);
+        $this->assertMatchesRegularExpression('/\.ph-stat \+ \.ph-stat \{ border-left: 1px solid var\(--line\); \}/', $css);
+        $this->assertMatchesRegularExpression('/\.ph-stat strong \{[^}]*font-size: 32px;/', $css);
         $this->assertMatchesRegularExpression('/grid-template-areas:\s*"quem contato" "nome email" "nasc tel"/', $css);
     }
 

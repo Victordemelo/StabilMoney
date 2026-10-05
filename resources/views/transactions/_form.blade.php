@@ -9,6 +9,9 @@
     // para as DUAS pontas. Valor, conta e tipo viajam em hidden (o servidor recusa
     // qualquer mudança neles); categoria nem existe aqui.
     $transferencia = $editando && $transaction->isTransferencia();
+    // Já paga ou recebida (out/2026): valor e tipo travados — a mesma regra do `update`
+    // (`Transaction::jaFoiPagaOuRecebida`). O tipo vai num hidden; o valor fica só-leitura.
+    $valorTravado = $editando && ($valorTravado ?? false);
     $outraPonta = $transferencia ? $transaction->contrapartida() : null;
     // Terceiro segmento (só na CRIAÇÃO): transferir entre contas de CAIXA da
     // família. `$accounts` é `paymentOptions()` (Fluent): os métodos espelho
@@ -58,14 +61,17 @@
             {{-- Tipo (Receita/Despesa/Transferência) --}}
             <div class="field">
                 <label>Tipo</label>
-                <div class="type-toggle {{ $podeTransferir ? 'tt-3' : '' }}">
+                @if ($valorTravado)
+                    <input type="hidden" name="type" value="{{ $transaction->type }}">
+                @endif
+                <div class="type-toggle {{ $podeTransferir ? 'tt-3' : '' }}" @if ($valorTravado) data-travado @endif>
                     <span class="tt-pill" aria-hidden="true"></span>
-                    <input type="radio" id="tt-income" name="type" value="income" @checked($tipoAtual === 'income')>
+                    <input type="radio" id="tt-income" name="type" value="income" @checked($tipoAtual === 'income') @disabled($valorTravado)>
                     <label class="tt-income" for="tt-income">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 17 17 7M17 7h-7M17 7v7"/></svg>
                         Receita
                     </label>
-                    <input type="radio" id="tt-expense" name="type" value="expense" @checked($tipoAtual === 'expense')>
+                    <input type="radio" id="tt-expense" name="type" value="expense" @checked($tipoAtual === 'expense') @disabled($valorTravado)>
                     <label class="tt-expense" for="tt-expense">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7 17 17M17 17h-7M17 17v-7"/></svg>
                         Despesa
@@ -92,7 +98,11 @@
                     <label for="amount">Valor (R$)</label>
                     <input class="input @error('amount') input-error @enderror" type="text" inputmode="decimal"
                            id="amount" name="amount" placeholder="0,00" required
-                           value="{{ old('amount', $editando ? number_format((float) $transaction->amount, 2, ',', '.') : '') }}">
+                           @if ($valorTravado) readonly aria-describedby="amount-travado" @endif
+                           value="{{ $valorTravado ? number_format((float) $transaction->amount, 2, ',', '.') : old('amount', $editando ? number_format((float) $transaction->amount, 2, ',', '.') : '') }}">
+                    @if ($valorTravado)
+                        <small class="field-hint" id="amount-travado">Já {{ $transaction->type === 'income' ? 'recebida' : 'paga' }}: o valor não muda mais. Para corrigir, exclua e lance de novo.</small>
+                    @endif
                     @error('amount')<div class="field-error">{{ $message }}</div>@enderror
                 </div>
                 @endif
@@ -195,7 +205,7 @@
                         $semAutorNaLista = $editando && ($autorAtual === null || ! $familyMembers->contains('id', $autorAtual));
                     @endphp
                     <div class="field">
-                        <label for="made_by_user_id">Quem fez a compra</label>
+                        <label for="made_by_user_id">{{ $tipoAtual === 'income' ? 'Quem recebeu' : 'Quem fez a compra' }}</label>
                         <select class="input" id="made_by_user_id" name="made_by_user_id">
                             @if ($semAutorNaLista)
                                 <option value="" selected>Não informado</option>

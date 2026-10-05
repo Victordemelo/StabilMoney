@@ -188,10 +188,16 @@ class ResgateAcompanhaADataDaDespesaTest extends TestCase
         $this->assertSame('2026-08-12', $this->resgateDe($despesa)->date->toDateString());
     }
 
-    /** A reconciliação (valor mudou) recria o resgate — e ele também não nasce no futuro. */
+    /**
+     * A reconciliação (valor mudou) recria o resgate — e ele também não nasce no futuro.
+     *
+     * A despesa já nasce AGENDADA (20/08, depois do "hoje" de 12/08): desde out/2026 o
+     * valor de movimentação já paga/recebida não muda — `MovimentacaoPagaNaoMudaDeValorTest`.
+     */
     public function test_reconciliar_com_data_futura_tambem_nao_grava_resgate_no_futuro(): void
     {
-        $despesa = $this->lancarComResgate('2026-08-10');
+        $despesa = $this->lancarComResgate('2026-08-20');
+        $this->assertSame('2026-08-12', $this->resgateDe($despesa)->date->toDateString());
 
         $this->editar($despesa, [
             'amount' => '600,00',

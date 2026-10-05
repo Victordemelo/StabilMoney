@@ -128,19 +128,6 @@
     @include('profile.partials.delete-user-form')
 </div>
 
-{{-- Instalar o app (PWA) — o mesmo botão da tela de login. --}}
-<div class="card sec-card span12">
-    <div class="card-head">
-        <h3>Aplicativo no celular</h3>
-        <span class="chip">PWA</span>
-    </div>
-    <p class="sec-card-desc">
-        Instale o Stabil Money na tela inicial: abre como um aplicativo e deixa lançar sem internet
-        (os lançamentos sincronizam quando a conexão volta).
-    </p>
-    @include('partials.instalar-app')
-</div>
-
 {{-- Relógio da topbar: o fuso é só de EXIBIÇÃO. Preferência como o tema — sem senha. --}}
 <div class="card sec-card span12" id="relogio">
     <div class="card-head">

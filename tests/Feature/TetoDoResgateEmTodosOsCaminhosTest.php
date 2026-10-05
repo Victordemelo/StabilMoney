@@ -96,7 +96,12 @@ class TetoDoResgateEmTodosOsCaminhosTest extends TestCase
 
     // ================= transactions.update =================
 
-    /** Despesa de R$ 100 já gravada (disponível 0); editar para 300 → faltante 200. */
+    /**
+     * Despesa de R$ 100 já gravada (disponível 0); editar para 300 → faltante 200.
+     *
+     * AGENDADA (10/08, depois do "hoje" travado): desde out/2026 o valor de
+     * movimentação já paga/recebida não muda — `MovimentacaoPagaNaoMudaDeValorTest`.
+     */
     private function despesaExistente(): Transaction
     {
         return Transaction::factory()->for($this->user)->create([
@@ -104,7 +109,7 @@ class TetoDoResgateEmTodosOsCaminhosTest extends TestCase
             'category_id' => $this->categoria->id,
             'type' => 'expense',
             'amount' => 100,
-            'date' => '2026-08-05',
+            'date' => '2026-08-10',
             'description' => 'Mercado',
         ]);
     }
@@ -116,7 +121,7 @@ class TetoDoResgateEmTodosOsCaminhosTest extends TestCase
             'amount' => '300,00',
             'account_id' => $this->conta->id,
             'category_id' => $this->categoria->id,
-            'date' => '2026-08-05',
+            'date' => '2026-08-10',
             'description' => 'Mercado',
         ], $extra);
     }

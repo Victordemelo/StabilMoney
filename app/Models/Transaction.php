@@ -95,6 +95,25 @@ class Transaction extends Model
     }
 
     /**
+     * Já foi PAGA ou RECEBIDA? (out/2026 — `MovimentacaoPagaNaoMudaDeValorTest`.) Então o valor e
+     * o tipo não mudam mais: o dinheiro já saiu ou entrou de verdade, e corrigir é excluir e
+     * lançar de novo.
+     *
+     * - compra de CARTÃO: quando a fatura dela foi paga (`paid_at`); antes disso a dívida ainda
+     *   está em aberto e o valor pode ser corrigido;
+     * - o resto (conta corrente/poupança, pagamento de conta fixa): quando a data já chegou. Um
+     *   lançamento agendado para o futuro ainda não aconteceu.
+     */
+    public function jaFoiPagaOuRecebida(): bool
+    {
+        if ($this->account?->isCard()) {
+            return $this->paid_at !== null;
+        }
+
+        return $this->date !== null && $this->date->toDateString() <= now()->toDateString();
+    }
+
+    /**
      * É uma das duas pontas de uma transferência entre contas?
      *
      * Pergunte por isto, nunca por `type`: as pontas continuam `income`/`expense`

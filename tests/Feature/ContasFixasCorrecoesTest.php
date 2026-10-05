@@ -397,7 +397,7 @@ class ContasFixasCorrecoesTest extends TestCase
         ]);
 
         $this->actingAs($this->user)
-            ->delete(route('contas-fixas.destroy', $bill))
+            ->delete(route('contas-fixas.destroy', $bill), ['password' => 'password'])
             ->assertRedirect(route('faturas.index'));
 
         $this->assertFalse((bool) $bill->fresh()->active);
