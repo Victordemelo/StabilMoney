@@ -43,12 +43,18 @@ return [
     //
     // Página fora desta lista não recebe meta de prévia e sai com noindex. Para abrir
     // uma página nova aos buscadores, é aqui — e ela entra sozinha no sitemap.xml.
+    //
+    // `titulo` (opcional) é o <title> INTEIRO da página para o buscador e a prévia de link —
+    // o login é a porta de entrada do domínio, e "Entrar · StabilMoney" não dizia o que o
+    // app é. Sem `titulo`, vale o título da própria tela.
     'paginas' => [
         'login' => [
+            'titulo' => 'Stabil Money — controle financeiro pessoal e da família, grátis',
             'descricao' => 'Controle financeiro pessoal e da família: receitas, despesas, cartões, contas fixas, metas e investimentos num só lugar. Gratuito.',
             'aplicativo' => true,
         ],
         'register' => [
+            'titulo' => 'Criar conta grátis no Stabil Money — organize o dinheiro da família',
             'descricao' => 'Crie sua conta grátis no Stabil Money e organize o dinheiro da família: cartões com fatura, contas fixas, metas e investimentos.',
             'aplicativo' => true,
         ],
@@ -59,5 +65,40 @@ return [
             'descricao' => 'Política de Privacidade do Stabil Money: quais dados coletamos, para quê, por quanto tempo e como exercer seus direitos pela LGPD.',
         ],
     ],
+
+    // Data da última mudança das páginas do app (login/cadastro) no sitemap.xml. Os
+    // documentos legais usam a data da versão deles (config/legal.php, `updated_at_iso`).
+    'atualizado_em' => '2026-10-05',
+
+    // Robôs de busca e citação das IAs (ChatGPT, Claude, Perplexity, Gemini, Apple). O
+    // `User-agent: *` já libera todo mundo; o grupo explícito no robots.txt deixa a escolha
+    // clara — e um bloqueio genérico adicionado no futuro não os pega por engano. O resumo
+    // que eles leem é o /llms.txt.
+    'robos_de_ia' => [
+        'GPTBot', 'OAI-SearchBot', 'ChatGPT-User',
+        'ClaudeBot', 'Claude-SearchBot', 'Claude-User',
+        'PerplexityBot', 'Perplexity-User',
+        'Google-Extended', 'Applebot-Extended',
+    ],
+
+    // Verificação de posse no Google Search Console e no Bing Webmaster Tools (meta tag nas
+    // páginas públicas). Opcional: o registro TXT no DNS da Cloudflare também serve.
+    'verificacao' => [
+        'google' => env('SEO_GOOGLE_VERIFICACAO'),
+        'bing' => env('SEO_BING_VERIFICACAO'),
+    ],
+
+    // O que o /llms.txt conta sobre o app (o resumo para assistentes de IA).
+    'resumo' => 'Controle financeiro pessoal e da família, gratuito e em português: receitas, despesas, cartões de crédito com fatura, contas fixas, metas e investimentos — num app web que também funciona instalado no celular, inclusive sem internet.',
+    'recursos' => [
+        'Visão geral do mês: saldo disponível, receitas, despesas e quanto sobrou, com gráficos por categoria.',
+        'Cartões de crédito com ciclo e fatura: compras à vista, parceladas e recorrentes, e o limite que volta ao pagar.',
+        'Contas fixas mensais (aluguel, condomínio, energia) com aviso de vencimento.',
+        'Metas de economia e investimentos (CDI, Selic, IPCA+, prefixado) com projeção e estimativa de IR e IOF.',
+        'Conta-família: dependentes com login próprio, vendo o mesmo dinheiro, e quanto cada um gastou no mês.',
+        'Cheque especial, transferência entre contas e escolha de onde sai o dinheiro quando o saldo acaba.',
+        'Segurança: verificação em duas etapas opcional, checagem de senha vazada e registro de atividade.',
+    ],
+    'o_que_nao_e' => 'O Stabil Money não é banco nem instituição financeira: não movimenta dinheiro, não se conecta à sua conta bancária e nunca pede senha de banco. Os valores são os que a própria pessoa lança.',
 
 ];

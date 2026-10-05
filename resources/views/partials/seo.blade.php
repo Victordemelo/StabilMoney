@@ -16,6 +16,12 @@
         $seoImagem = \App\Support\Seo::url(config('seo.imagem'));
     @endphp
     <meta name="description" content="{{ $seoPagina['descricao'] }}" />
+    @if (config('seo.verificacao.google'))
+        <meta name="google-site-verification" content="{{ config('seo.verificacao.google') }}" />
+    @endif
+    @if (config('seo.verificacao.bing'))
+        <meta name="msvalidate.01" content="{{ config('seo.verificacao.bing') }}" />
+    @endif
     <link rel="canonical" href="{{ $seoUrl }}" />
 
     <meta property="og:type" content="website" />

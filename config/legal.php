@@ -20,6 +20,8 @@ return [
     'version' => '3.3',
 
     'updated_at' => '5 de outubro de 2026',
+    // A mesma data em AAAA-MM-DD (o <lastmod> do sitemap.xml). Mude junto com a de cima.
+    'updated_at_iso' => '2026-10-05',
 
     /*
     |--------------------------------------------------------------------------

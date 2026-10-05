@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.157 testes PHP / 52.440 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **358 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.163 testes PHP / 52.500 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **358 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -229,7 +229,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.157 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.163 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1464,8 +1464,23 @@ uma). Página nova entra lá e aparece sozinha no sitemap.
   mostrar acima de ~300 KB): é o painel visual do login do design v2. Fonte e comando para gerar de novo
   (Chrome headless + `sips`) em `resources/og/og-stabilmoney.html`. Trocou o conteúdo? Troque o NOME do
   arquivo: as redes guardam a prévia pela URL.
-- Pendente (fora do código): verificar o domínio no Google Search Console (TXT na Cloudflare) e enviar o
-  `/sitemap.xml`; o vídeo do login (1,5 MB, `preload="auto"`, sem `poster`) pesa no LCP do celular.
+- **Out/2026 (`SeoDasPaginasPublicasTest`):**
+  - **IA:** o robots.txt de produção tem um grupo explícito liberando os robôs de busca/citação de IA
+    (`config('seo.robos_de_ia')`: GPTBot, OAI-SearchBot, ChatGPT-User, ClaudeBot, Claude-SearchBot,
+    Claude-User, PerplexityBot, Perplexity-User, Google-Extended, Applebot-Extended) e aponta o
+    **`/llms.txt`** (`seo.llms`, llmstxt.org, Markdown): resumo, o que o app NÃO é, as páginas públicas
+    (as do sitemap) e o contato — gerado de `config/seo.php` (`resumo`, `recursos`, `o_que_nao_e`).
+    Fora de produção, só "Ambiente de testes". Nada privado: nunca o painel nem telas do app.
+  - **sitemap.xml** com `<lastmod>`: documentos legais = `legal.updated_at_iso` (mude junto com
+    `updated_at`); login/cadastro = `seo.atualizado_em`.
+  - **Títulos de SEO:** `titulo` por página no config (login: "Stabil Money — controle financeiro pessoal
+    e da família, grátis"), usado no `<title>` e no og:title pelo `layouts/auth`.
+  - **Verificação** do Google/Bing por meta tag opcional (`SEO_GOOGLE_VERIFICACAO`, `SEO_BING_VERIFICACAO`).
+  - **Vídeo do login** com `poster` (a imagem de prévia) e `preload="metadata"` (era `auto` sem capa: pesava no LCP).
+  - Dados estruturados: autor com `sameAs` (site e LinkedIn, de `config/sistema.php`) e `featureList`.
+- Pendente (fora do código): verificar o domínio no Google Search Console e no Bing (TXT na Cloudflare
+  ou as metas acima) e enviar o `/sitemap.xml`. Uma página inicial pública com conteúdo (hoje `/`
+  manda quem não entrou para o login) seria o maior ganho de SEO — é uma tela nova, a desenhar.
 
 ## 🔒 Segurança (pentest de 27/07/2026 — ondas 1, 2 e 3 aplicadas)
 
@@ -2373,7 +2388,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.157 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.163 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo

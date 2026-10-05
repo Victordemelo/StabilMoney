@@ -78,8 +78,14 @@ final class Seo
                 ."Disallow: /\n";
         }
 
+        $robosDeIa = implode('', array_map(fn (string $robo) => "User-agent: {$robo}\n", config('seo.robos_de_ia', [])));
+
         return '# '.config('seo.site').' — '.self::url()."\n"
             ."User-agent: *\n"
+            ."Allow: /\n"
+            ."\n"
+            .'# Assistentes de IA: podem ler e citar as páginas públicas. Resumo do app: '.self::url('llms.txt')."\n"
+            .$robosDeIa
             ."Allow: /\n"
             ."\n"
             .'Sitemap: '.self::url('sitemap.xml')."\n";
@@ -93,7 +99,8 @@ final class Seo
     {
         $urls = app()->isProduction()
             ? array_map(
-                fn (string $rota) => '  <url><loc>'.e(self::url(route($rota, absolute: false))).'</loc></url>',
+                fn (string $rota) => '  <url><loc>'.e(self::url(route($rota, absolute: false))).'</loc>'
+                    .'<lastmod>'.e(self::atualizadaEm($rota)).'</lastmod></url>',
                 array_keys(config('seo.paginas')),
             )
             : [];
@@ -102,6 +109,44 @@ final class Seo
             .'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n"
             .implode("\n", $urls).($urls ? "\n" : '')
             .'</urlset>'."\n";
+    }
+
+    /** Data (AAAA-MM-DD) da última mudança da página: a da versão, nos documentos legais. */
+    private static function atualizadaEm(string $rota): string
+    {
+        return in_array($rota, ['termos', 'privacidade'], true)
+            ? (string) config('legal.updated_at_iso')
+            : (string) config('seo.atualizado_em');
+    }
+
+    /**
+     * O /llms.txt (llmstxt.org): o resumo do app para assistentes de IA — o que é, o que faz,
+     * o que NÃO é, e só as páginas públicas (as do sitemap). Em Markdown, como pede o formato.
+     * Fora de produção, só diz que é um ambiente de testes (coerente com o robots.txt).
+     */
+    public static function llmsTxt(): string
+    {
+        $site = (string) config('seo.site');
+
+        if (! app()->isProduction()) {
+            return "# {$site}\n\n> Ambiente de testes — nada daqui deve ser lido nem citado.\n";
+        }
+
+        $nomes = ['login' => 'Entrar', 'register' => 'Criar conta grátis', 'termos' => 'Termos de Uso', 'privacidade' => 'Política de Privacidade'];
+        $paginas = '';
+        foreach (config('seo.paginas') as $rota => $pagina) {
+            $paginas .= '- ['.($nomes[$rota] ?? $rota).']('.self::url(route($rota, absolute: false)).'): '.$pagina['descricao']."\n";
+        }
+        $recursos = implode('', array_map(fn (string $r) => "- {$r}\n", config('seo.recursos', [])));
+
+        return "# {$site}\n\n"
+            .'> '.config('seo.resumo')."\n\n"
+            .config('seo.o_que_nao_e')."\n\n"
+            ."## Páginas\n\n".$paginas."\n"
+            ."## O que o app faz\n\n".$recursos."\n"
+            ."## Contato\n\n"
+            .'- E-mail: '.config('legal.contact_email')."\n"
+            .'- Autor: '.config('legal.controller').' ('.config('seo.autor_url').")\n";
     }
 
     /**
@@ -128,7 +173,9 @@ final class Seo
                 '@type' => 'Person',
                 'name' => config('legal.controller'),
                 'url' => config('seo.autor_url'),
+                'sameAs' => array_values(array_filter([config('sistema.autor.site'), config('sistema.autor.linkedin')])),
             ],
+            'featureList' => config('seo.recursos', []),
         ];
     }
 }

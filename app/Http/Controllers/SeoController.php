@@ -6,7 +6,7 @@ use App\Support\Seo;
 use Illuminate\Http\Response;
 
 /**
- * robots.txt e sitemap.xml gerados pelo app (23/09/2026).
+ * robots.txt, sitemap.xml (23/09/2026) e llms.txt (out/2026) gerados pelo app.
  *
  * Gerados, e não arquivos em public/: o conteúdo depende do APP_URL (o endereço do
  * sitemap é absoluto) e do ambiente — fora de produção o robots.txt fecha tudo. Um
@@ -25,6 +25,14 @@ class SeoController extends Controller
     {
         return response(Seo::robotsTxt(), 200, [
             'Content-Type' => 'text/plain; charset=UTF-8',
+            'Cache-Control' => self::CACHE,
+        ]);
+    }
+
+    public function llms(): Response
+    {
+        return response(Seo::llmsTxt(), 200, [
+            'Content-Type' => 'text/markdown; charset=UTF-8',
             'Cache-Control' => self::CACHE,
         ]);
     }

@@ -64,6 +64,8 @@ Route::withoutMiddleware([
     // busca é o robô, a cada visita, e não há sessão a abrir para ele.
     Route::get('/robots.txt', [SeoController::class, 'robots'])->name('seo.robots');
     Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('seo.sitemap');
+    // Resumo do app para assistentes de IA (llmstxt.org) — out/2026.
+    Route::get('/llms.txt', [SeoController::class, 'llms'])->name('seo.llms');
 });
 
 // Páginas legais (Termos / Privacidade) — PÚBLICAS: o cadastro e o aviso de

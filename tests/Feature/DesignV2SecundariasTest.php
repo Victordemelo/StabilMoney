@@ -224,15 +224,17 @@ class DesignV2SecundariasTest extends TestCase
     {
         $html = $this->get($rota)->assertOk()->getContent();
 
-        $this->assertStringContainsString('<title>'.$esperado.' · StabilMoney</title>', $html);
+        $this->assertStringContainsString('<title>'.$esperado.'</title>', $html);
     }
 
     public static function telasComTitulo(): array
     {
         return [
-            'login' => ['/login', 'Entrar'],
-            'cadastro' => ['/register', 'Criar conta'],
-            'esqueci a senha' => ['/forgot-password', 'Recuperar senha'],
+            // Login e cadastro levam o título de SEO (config/seo.php, out/2026): são a porta
+            // de entrada do domínio nos buscadores.
+            'login' => ['/login', 'Stabil Money — controle financeiro pessoal e da família, grátis'],
+            'cadastro' => ['/register', 'Criar conta grátis no Stabil Money — organize o dinheiro da família'],
+            'esqueci a senha' => ['/forgot-password', 'Recuperar senha · StabilMoney'],
         ];
     }
 

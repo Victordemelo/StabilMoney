@@ -183,7 +183,8 @@ class SeoDasPaginasPublicasTest extends TestCase
         $this->assertSame('website', $this->meta($doc, 'property', 'og:type'));
         $this->assertSame('Stabil Money', $this->meta($doc, 'property', 'og:site_name'));
         $this->assertSame('pt_BR', $this->meta($doc, 'property', 'og:locale'));
-        $this->assertSame('Entrar · StabilMoney', $this->meta($doc, 'property', 'og:title'));
+        $this->assertSame('Stabil Money — controle financeiro pessoal e da família, grátis', $this->meta($doc, 'property', 'og:title'));
+        $this->assertSame('Stabil Money — controle financeiro pessoal e da família, grátis', $doc->querySelector('title')?->textContent);
         $this->assertSame($descricao, $this->meta($doc, 'property', 'og:description'));
         $this->assertSame(self::APP_URL.'/login', $this->meta($doc, 'property', 'og:url'));
         $this->assertSame(self::APP_URL.'/assets/og-stabilmoney.jpg', $this->meta($doc, 'property', 'og:image'));
@@ -264,5 +265,85 @@ class SeoDasPaginasPublicasTest extends TestCase
         $this->assertSame([1200, 630], [$largura, $altura]);
         // O WhatsApp costuma não mostrar prévia de imagem acima de ~300 KB.
         $this->assertLessThan(300 * 1024, filesize($arquivo));
+    }
+
+    // ── IA, sitemap com data, verificação e velocidade (out/2026) ────────────
+
+    public function test_robots_libera_os_robos_de_ia_e_aponta_o_llms_txt(): void
+    {
+        $this->emProducao();
+        $texto = $this->get($this->endereco('/robots.txt'))->assertOk()->getContent();
+
+        foreach (['GPTBot', 'OAI-SearchBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended'] as $robo) {
+            $this->assertStringContainsString("User-agent: {$robo}\n", $texto);
+        }
+        $this->assertMatchesRegularExpression('/User-agent: Applebot-Extended\nAllow: \/\n/', $texto);
+        $this->assertStringContainsString(self::APP_URL.'/llms.txt', $texto);
+        $this->assertStringNotContainsString('Disallow', $texto);
+        $this->assertStringNotContainsStringIgnoringCase('painel', $texto);
+    }
+
+    public function test_llms_txt_resume_o_app_so_com_as_paginas_publicas(): void
+    {
+        $this->emProducao();
+        $resposta = $this->get($this->endereco('/llms.txt'))->assertOk()
+            ->assertHeader('Content-Type', 'text/markdown; charset=UTF-8')
+            ->assertHeaderMissing('X-Robots-Tag');
+        $texto = $resposta->getContent();
+
+        $this->assertStringStartsWith("# Stabil Money\n\n> ", $texto);
+        $this->assertStringContainsString('## Páginas', $texto);
+        $this->assertStringContainsString('- [Entrar]('.self::APP_URL.'/login)', $texto);
+        $this->assertStringContainsString('- [Criar conta grátis]('.self::APP_URL.'/register)', $texto);
+        $this->assertStringContainsString('não movimenta dinheiro', $texto);
+        // Nada privado: nem o painel, nem telas do app.
+        $this->assertStringNotContainsStringIgnoringCase('painel', $texto);
+        $this->assertStringNotContainsString(config('admin.path'), $texto);
+        $this->assertStringNotContainsString('/transactions', $texto);
+        $this->assertEmpty($resposta->headers->getCookies());
+    }
+
+    public function test_llms_txt_fora_de_producao_nao_conta_nada(): void
+    {
+        $texto = $this->get('/llms.txt')->assertOk()->getContent();
+
+        $this->assertStringContainsString('Ambiente de testes', $texto);
+        $this->assertStringNotContainsString('## Páginas', $texto);
+    }
+
+    public function test_sitemap_diz_quando_cada_pagina_mudou(): void
+    {
+        $this->emProducao();
+        $xml = simplexml_load_string($this->get($this->endereco('/sitemap.xml'))->assertOk()->getContent());
+
+        $datas = [];
+        foreach ($xml->url as $url) {
+            $datas[(string) $url->loc] = (string) $url->lastmod;
+        }
+        $this->assertSame(config('legal.updated_at_iso'), $datas[self::APP_URL.'/privacidade']);
+        $this->assertSame(config('seo.atualizado_em'), $datas[self::APP_URL.'/login']);
+        foreach ($datas as $data) {
+            $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}$/', $data);
+        }
+    }
+
+    public function test_meta_de_verificacao_do_google_e_do_bing_quando_configuradas(): void
+    {
+        $sem = $this->documento($this->get('/login')->assertOk());
+        $this->assertNull($this->meta($sem, 'name', 'google-site-verification'));
+
+        config(['seo.verificacao.google' => 'codigo-do-google', 'seo.verificacao.bing' => 'codigo-do-bing']);
+        $com = $this->documento($this->get('/login')->assertOk());
+        $this->assertSame('codigo-do-google', $this->meta($com, 'name', 'google-site-verification'));
+        $this->assertSame('codigo-do-bing', $this->meta($com, 'name', 'msvalidate.01'));
+    }
+
+    public function test_o_video_do_login_tem_capa_e_nao_e_baixado_inteiro_antes(): void
+    {
+        $doc = $this->documento($this->get('/login')->assertOk());
+        $video = $doc->querySelector('video#authVideo');
+
+        $this->assertSame('metadata', $video?->getAttribute('preload'));
+        $this->assertStringEndsWith('/assets/og-stabilmoney.jpg', (string) $video?->getAttribute('poster'));
     }
 }
