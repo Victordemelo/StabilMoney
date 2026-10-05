@@ -32,6 +32,12 @@ class TransactionController extends Controller
     use AuthorizesRequests;
     use RespondsToAjax;
 
+    /**
+     * Movimentações por página: a lista cresce até aqui, sem rolagem interna, e depois pagina
+     * (out/2026 — `MovimentacoesPaginamDeQuinzeEmQuinzeTest`).
+     */
+    public const POR_PAGINA = 15;
+
     public function index(Request $request)
     {
         $userId = $request->user()->ownerId();
@@ -98,7 +104,7 @@ class TransactionController extends Controller
         $transactions = $query
             ->orderByDesc('date')
             ->orderByDesc('id')
-            ->paginate(30)
+            ->paginate(self::POR_PAGINA)
             ->withQueryString();
 
         // Exibe "quem fez a compra" só quando a família tem dependentes.

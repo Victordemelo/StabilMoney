@@ -446,6 +446,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   overflow-y: auto;
   overscroll-behavior: contain; /* a rolagem não "vaza" para a página */
 }
+/* Movimentações: a lista inteira da página (15 itens) cresce para baixo, sem rolagem
+   interna — quem pagina é o servidor. */
+.tx-list.tx-list-cheia { max-height: none; overflow: visible; }
 .tx {
   display: flex; align-items: center; gap: 14px; padding: 12px 8px;
   border-radius: 12px; transition: background .18s var(--ease); cursor: pointer;

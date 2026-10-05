@@ -105,7 +105,7 @@
                     @endif
                 </div>
             @else
-                <div class="tx-list">
+                <div class="tx-list tx-list-cheia">
                     @foreach ($transactions as $transacao)
                         @php
                             $receita = $transacao->type === 'income';
