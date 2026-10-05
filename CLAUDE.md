@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.150 testes PHP / 52.405 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **358 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.154 testes PHP / 52.420 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **358 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -55,9 +55,11 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | **Painel administrativo** (guard próprio, 2FA obrigatório, banir/excluir, sem ver valores) | ✅ **Implementado** (02/09/2026) — **desligado por padrão**, ver seção própria |
 | Deploy (VPS) / domínio | 🟡 **Pacote pronto** (23/09/2026) — falta executar na VPS: `docs/deploy-oracle-cloudflare.md` (ver "🚀 Publicação") |
 
-**Para subir o ambiente:** seção "Fluxo de trabalho" abaixo. **Login de dev:** o usuário do
-seeder vem das variáveis `SEED_USER_*` no `.env` (e-mail `victor.rosa.system@gmail.com`;
-a senha está **só no `.env`**, nunca no código/git).
+**Para subir o ambiente:** seção "Fluxo de trabalho" abaixo. **Login de dev:** a conta do Victor
+(`victor.rosa.system@gmail.com`) já existe no banco de dev, com a senha só como hash. As chaves
+`SEED_USER_*` **saíram do `.env`** (out/2026, pedido do Victor): são opcionais e temporárias — ver
+o `DatabaseSeeder` abaixo. **Painel admin ligado no dev** (`ADMIN_PANEL_ENABLED=true`, `/painel_admin`,
+1 admin criado pelo Victor com `admin:criar`). O `.env` de dev fica com permissão **600**.
 
 **Repositório:** `github.com/Victordemelo/StabilMoney` — **privado** (conta `Victordemelo`).
 ⚠️ O `gh` CLI **não** está instalado nesta máquina (conferido em 22/09/2026 — nem no PATH, nem em
@@ -227,7 +229,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.150 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.154 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -297,10 +299,12 @@ tests/Feature/              # 2.150 testes (PHP): auth, dashboard, CRUD, valida�
   visual aceita até ganharem design v2).
 - Registro dispara o listener `SeedDefaultCategoriesForNewUser` → cria as categorias padrão
   (9 despesas + 5 receitas, cores da paleta) via `App\Support\DefaultCategories::seedFor()`.
-- `DatabaseSeeder` roda **só em ambiente `local`** e lê as credenciais do `.env`:
-  `SEED_USER_NAME`, `SEED_USER_EMAIL`, `SEED_USER_PASSWORD` (usa `updateOrCreate`, então
-  rodar o seed de novo re-sincroniza nome/senha com o `.env`). **Senha real jamais vai
-  para o código/git** — fica só no `.env` (gitignorado).
+- `DatabaseSeeder` roda **só em ambiente `local`** e lê as credenciais de `config/seed.php`
+  (`SEED_USER_NAME`, `SEED_USER_EMAIL`, `SEED_USER_PASSWORD`; `updateOrCreate`, então rodar o seed
+  re-sincroniza nome/senha). **Sem e-mail E senha, não cria usuário nenhum** — antes caía num
+  `victor@stabilmoney.test` com senha "password" (`DatabaseSeederSemCredenciaisTest`). As chaves são
+  temporárias: defina só para semear um banco zerado e apague do `.env` depois. **Senha real jamais
+  vai para o código/git.** (A prévia descartável, `.git/stabil-patches/previa`, põe as suas próprias.)
 - **Verificação de e-mail LIGADA** (06/08/2026): `User` implementa `MustVerifyEmail` e as
   rotas do app estão sob `['auth', 'verified']`. Ver "📧 E-mail" abaixo — inclusive por que
   isso **não tranca ninguém** quando o app não consegue enviar e-mail.
@@ -2287,7 +2291,7 @@ docker compose exec app chmod -R 777 storage bootstrap/cache   # evita erro 500
 # 3. .env + chave (já configurado para MySQL)
 docker compose exec app php artisan key:generate
 
-# 4. Tabelas + usuário de dev (seeder só roda em APP_ENV=local; credenciais nas SEED_USER_* do .env)
+# 4. Tabelas + usuário de dev (seeder só roda em APP_ENV=local; defina SEED_USER_* só para este passo e apague depois)
 docker compose exec app php artisan migrate --seed
 
 # 5. Symlink p/ servir uploads (fotos de perfil/dependentes via disco public).
@@ -2362,7 +2366,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.150 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.154 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo

@@ -15,8 +15,10 @@ use Illuminate\Support\Facades\Hash;
  * Cria o usuário principal de desenvolvimento com categorias padrão e uma
  * conta "Carteira" para usar o app sem passar pelo fluxo de cadastro.
  *
- * As credenciais vêm do .env (NUNCA commitar senha real no código):
- *   SEED_USER_NAME, SEED_USER_EMAIL, SEED_USER_PASSWORD
+ * As credenciais vêm de config/seed.php, que lê do .env (NUNCA commitar senha real no
+ * código): SEED_USER_NAME, SEED_USER_EMAIL, SEED_USER_PASSWORD. São OPCIONAIS: sem e-mail E
+ * senha, nenhum usuário é criado — antes caía num "victor@stabilmoney.test" com senha
+ * "password" (`DatabaseSeederSemCredenciaisTest`).
  *
  * Em qualquer ambiente que não seja `local`, ele não faz nada (proteção
  * contra rodar `migrate --seed` em produção por engano).
@@ -40,15 +42,23 @@ class DatabaseSeeder extends Seeder
 
     private function semear(): void
     {
-        $email = env('SEED_USER_EMAIL', 'victor@stabilmoney.test');
+        $email = (string) config('seed.usuario.email');
+        $senha = (string) config('seed.usuario.senha');
+
+        if ($email === '' || $senha === '') {
+            $this->command?->warn('Sem SEED_USER_EMAIL e SEED_USER_PASSWORD no .env: nenhum usuário de dev foi criado. '
+                .'Cadastre-se em /register, ou defina as duas chaves só para rodar o seed e apague-as depois.');
+
+            return;
+        }
 
         // Usuário principal de dev. Se já existir, atualiza nome/senha para
         // os valores do .env (garante que o login do seed sempre funciona).
         $user = User::updateOrCreate(
             ['email' => $email],
             [
-                'name' => env('SEED_USER_NAME', 'Victor'),
-                'password' => Hash::make(env('SEED_USER_PASSWORD', 'password')),
+                'name' => config('seed.usuario.nome') ?: 'Victor',
+                'password' => Hash::make($senha),
                 'is_admin' => true,
                 // O usuário de dev não passa pelo /register, então ninguém marca
                 // isto por ele — e no dia em que uma rota ganhar `verified`, ele
