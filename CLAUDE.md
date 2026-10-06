@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.191 testes PHP / 51.667 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **371 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.191 testes PHP** (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **371 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -1371,9 +1371,28 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
     `env()`); a marca do login (link da página inicial) também respeita a área segura.
   - Para rodar os e2e na prévia: `E2E_BASE_URL=http://127.0.0.1:8092` e `SEED_EMAIL`/`SEED_PASSWORD`
     lidos do `.env` descartável da prévia (`depois/.env`) — nunca contra o app de dev (SMTP real).
+- **Revisão independente de out/2026** (três revisores: dados, telas, segurança — nada grave):
+  - O select de contas do modal Lançar leva `data-pjax-atualizar` (o modal mora no SHELL): sem isso
+    o "Saldo atual" do resumo ficava o de quando a aba abriu, mesmo depois de lançar ou pagar.
+  - `aria-live` só no aviso do resumo (o grupo falava os três números a cada tecla); o aviso de
+    saldo negativo distingue gasto novo (recusado sem fonte) de obrigação (`obrigacao`: fatura sempre,
+    conta fixa só vencida — `data-obrigacao` no botão, a mesma régua do `FixedBillController::pay`);
+    `reservar` guarda a altura do Lançar sem conta válida; coluna em ≤ 600px.
+  - `areaSegura('top'|'bottom')` mede a ALTURA da sonda (medir a largura dava sempre 0).
+  - Sessão expirada DENTRO do app (pjax `X-Pjax`, ou JSON) na `/` segue para o `auth` → login/401,
+    não para a apresentação pública (`PaginaInicialParaVisitante`).
+  - `ordenar` numera TODAS as fixas da coluna lidas do banco (lista parcial empatava posições).
+  - Movimentações: `type` desconhecido vale "todos"; a origem desempata a ordenação da união (ids se
+    repetem entre as três tabelas).
+  - A migration das receitas fixas ordena pelo nome sem caixa/acento (no MySQL "salário" casa com
+    "Salário"; teste só-MySQL no `ReceitasFixasNasCategoriasTest`).
+  - Aceito, não corrigido: no cartão o resumo usa o limite livre CLAMPADO em 0 (com o limite já
+    estourado mostra "0 − 100"); excluir meta/investimento leva junto o histórico de aportes dela
+    (cascade de `goal_id`/`investment_id`).
 - **Rodapé de autoria** (`partials/rodape-autoria`, dentro do `#content` do `layouts/app`): logo,
-  versão, "Desenvolvido com ♥ por" `config('sistema.autor.nome')` (link para o site), © 2026 (vira
-  intervalo nos anos seguintes) — sem links (os Termos/Privacidade já estão no menu do perfil e nas telas públicas) — `RodapeDeAutoriaTest`.
+  versão, "Desenvolvido com ♥ por" `config('sistema.autor.nome')` (o nome é link para o site), © 2026
+  (vira intervalo nos anos seguintes). Sem a fileira de links Sobre/Termos/Privacidade (saiu por
+  ficar grande; estão no menu do perfil e nas telas públicas) — `RodapeDeAutoriaTest`.
 
 ## 📱 Responsividade (out/2026) — não regredir
 
