@@ -2299,6 +2299,12 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   nada pulou de major e que o framework segue na 12.x; suíte verde; commitar o lock. Sem correção
   publicada: `config.audit.ignore` no `composer.json` com `{"ID": "motivo e data"}` — nunca
   desligar o job.
+  **Out/2026:** laravel/framework 12.69.3, commonmark 2.10.3 e flysystem 3.36.0 zeraram o
+  `composer audit`. No npm, o **axios saiu** (o `bootstrap.js` do esqueleto o punha em toda página
+  sem uso — o app faz tudo com `fetch`; o JS caiu de 137 para 93 kB): não o traga de volta só por
+  hábito. Fica **um aviso baixo aceito** no esbuild 0.27 (leitura de arquivo pelo servidor de dev
+  no **Windows**): o vite 7.3 trava a faixa 0.27 e a correção saiu fora dela. Some quando o vite
+  subir; não force com `overrides`.
 - **Scripts de backup: o job `scripts` do CI está LIGADO** (22/09/2026). Roda
   `tests/scripts/backup-restore.test.sh`, que executa os scripts DE VERDADE contra um `docker`
   falso (`tests/scripts/docker-falso.sh`) — sem Docker nem MySQL. No Ubuntu de propósito (mawk e
