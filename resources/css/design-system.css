@@ -2262,7 +2262,7 @@ body.pjax-loading #content { opacity: .5; }
 .painel .ab { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; font-weight: 800; font-size: 14px; color: #fff; font-family: var(--font-head); }
 
 /* Rodapé de autoria (out/2026 — partials/rodape-autoria): fim de toda tela do app. */
-.rodape-autoria { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 36px; padding: 22px 12px 4px; border-top: 1px solid var(--line); text-align: center; color: var(--ink-3); font-size: 12px; }
+.rodape-autoria { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 28px; padding: 16px 12px 2px; border-top: 1px solid var(--line); text-align: center; color: var(--ink-3); font-size: 12px; }
 .ra-marca { display: inline-flex; align-items: center; gap: 8px; }
 .ra-marca img { width: 22px; height: 22px; border-radius: 6px; }
 .ra-nome { font-family: 'Sora', sans-serif; font-size: 13px; font-weight: 600; color: var(--ink-2); }
@@ -2272,7 +2272,3 @@ body.pjax-loading #content { opacity: .5; }
 .ra-assinatura a { color: var(--ink-2); font-weight: 600; text-decoration: none; }
 .ra-assinatura a:hover { color: var(--brand-600); text-decoration: underline; }
 .ra-coracao { color: var(--brand-500); }
-.ra-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; }
-.ra-links a { color: var(--ink-3); text-decoration: none; min-height: 24px; display: inline-flex; align-items: center; }
-.ra-links a:hover { color: var(--ink); text-decoration: underline; }
-@media (max-width: 767px) { .ra-links a { min-height: 32px; } }

@@ -18,9 +18,4 @@
         <a href="{{ config('sistema.autor.site') }}" target="_blank" rel="noopener noreferrer">{{ config('sistema.autor.nome') }}</a>
         · © {{ $anos }}
     </p>
-    <nav class="ra-links" aria-label="Links do rodapé">
-        <a href="{{ route('sistema') }}">Sobre o sistema</a>
-        <a href="{{ route('termos') }}">Termos</a>
-        <a href="{{ route('privacidade') }}">Privacidade</a>
-    </nav>
 </footer>

@@ -26,6 +26,8 @@ class RodapeDeAutoriaTest extends TestCase
             $this->assertStringContainsString(config('sistema.autor.nome'), $html);
             $this->assertStringContainsString('© 2026', $html);
             $this->assertStringContainsString('assets/stabilmoney-mark.png', $html);
+            // Enxuto (pedido do Victor): sem a fileira de links, que deixava o rodapé grande.
+            $this->assertStringNotContainsString('ra-links', $html);
             // Dentro do #content: rola com a tela e o pjax o traz junto.
             $this->assertLessThan(strpos($html, '</main>'), strpos($html, '<footer class="rodape-autoria"'));
         }

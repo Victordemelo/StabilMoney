@@ -1357,7 +1357,7 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   `data-saldo-*` na option e inclua o partial.
 - **Rodapé de autoria** (`partials/rodape-autoria`, dentro do `#content` do `layouts/app`): logo,
   versão, "Desenvolvido com ♥ por" `config('sistema.autor.nome')` (link para o site), © 2026 (vira
-  intervalo nos anos seguintes) e links Sobre o sistema/Termos/Privacidade — `RodapeDeAutoriaTest`.
+  intervalo nos anos seguintes) — sem links (os Termos/Privacidade já estão no menu do perfil e nas telas públicas) — `RodapeDeAutoriaTest`.
 
 ## 📱 Responsividade (out/2026) — não regredir
 
