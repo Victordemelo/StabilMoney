@@ -11,6 +11,8 @@ use App\Models\Atividade;
 use App\Models\Category;
 use App\Models\CreditSettlement;
 use App\Models\EndedRecurrence;
+use App\Models\GoalContribution;
+use App\Models\InvestmentContribution;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\FundingService;
@@ -67,6 +69,8 @@ class TransactionController extends Controller
             $query->where('type', $type)->whereNull('transfer_group_id');
         } elseif ($type === 'transfer') {
             $query->whereNotNull('transfer_group_id');
+        } elseif ($type === 'reserva') {
+            $query->whereRaw('1 = 0'); // só os aportes e resgates (abaixo)
         }
 
         $accountId = (int) $request->query('account');
@@ -116,15 +120,52 @@ class TransactionController extends Controller
                 ->whereColumn('parcela.group_id', 'transactions.group_id')
                 ->whereColumn('parcela.user_id', 'transactions.user_id')));
 
-        $transactions = $query
-            ->orderByDesc('date')
+        // Aportes e resgates de metas e investimentos entram na MESMA lista (out/2026 — pedido
+        // do Victor: "aportei, saiu do meu saldo e não apareceu em Movimentações"). Não são
+        // lançamentos — o aporte não é despesa, só carimba o dinheiro (`Account::reserved`) —,
+        // então ficam fora de "Receitas"/"Despesas"/"Transferências" e de qualquer filtro de
+        // categoria, e têm filtro próprio. A paginação é UMA só, sobre a união dos três, por
+        // data (`AportesEResgatesEmMovimentacoesTest`).
+        $comReservas = ($type === null || $type === '' || $type === 'reserva') && ! ($categoryId && $idsDeCategoria->contains($categoryId));
+        $contaFiltrada = $accountId && $accounts->contains('id', $accountId) ? $accountId : null;
+
+        $linhas = (clone $query)->toBase()
+            ->selectRaw("'t' as origem, transactions.id as id, transactions.date as data, transactions.created_at as criado");
+
+        if ($comReservas) {
+            foreach ([['goal_contributions', 'goals', 'goal_id', 'gc'], ['investment_contributions', 'investments', 'investment_id', 'ic']] as [$tabela, $pai, $fk, $origem]) {
+                $linhas->unionAll(DB::table($tabela)
+                    ->join($pai, "{$pai}.id", '=', "{$tabela}.{$fk}")
+                    ->where("{$pai}.user_id", $userId)
+                    ->when($contaFiltrada, fn ($q) => $q->where("{$tabela}.account_id", $contaFiltrada))
+                    ->when($de, fn ($q) => $q->where("{$tabela}.date", '>=', $de->toDateString()))
+                    ->when($ate, fn ($q) => $q->where("{$tabela}.date", '<=', $ate->toDateString()))
+                    ->selectRaw("'{$origem}' as origem, {$tabela}.id as id, {$tabela}.date as data, {$tabela}.created_at as criado"));
+            }
+        }
+
+        $transactions = $linhas
+            ->orderByDesc('data')
+            ->orderByDesc('criado')
             ->orderByDesc('id')
             ->paginate(self::POR_PAGINA)
             ->withQueryString();
 
+        // A página traz só (origem, id): os registros vêm agora, com as relações, na mesma ordem.
+        $daPagina = collect($transactions->items())->groupBy('origem')->map(fn ($l) => $l->pluck('id')->all());
+        $carregados = [
+            't' => Transaction::with(['account', 'category', 'madeBy'])->whereIn('id', $daPagina['t'] ?? [])->get()->keyBy('id'),
+            'gc' => GoalContribution::with(['goal', 'account', 'madeBy'])->whereIn('id', $daPagina['gc'] ?? [])->get()->keyBy('id'),
+            'ic' => InvestmentContribution::with(['investment', 'account', 'madeBy'])->whereIn('id', $daPagina['ic'] ?? [])->get()->keyBy('id'),
+        ];
+        $transactions->setCollection(collect($transactions->items())
+            ->map(fn ($linha) => $carregados[$linha->origem][(int) $linha->id] ?? null)
+            ->filter()
+            ->values());
+
         // Valor exibido: o da compra inteira quando é parcelada (soma das parcelas que existem).
         $grupos = $transactions->getCollection()
-            ->filter(fn (Transaction $t) => $t->group_id && (int) $t->installments > 1)
+            ->filter(fn ($t) => $t instanceof Transaction && $t->group_id && (int) $t->installments > 1)
             ->pluck('group_id')->unique()->values();
         $totaisDosGrupos = $grupos->isEmpty() ? collect() : Transaction::where('user_id', $userId)
             ->whereIn('group_id', $grupos)
@@ -132,6 +173,9 @@ class TransactionController extends Controller
             ->selectRaw('group_id, SUM(amount) AS total')
             ->pluck('total', 'group_id');
         foreach ($transactions as $transacao) {
+            if (! $transacao instanceof Transaction) {
+                continue;
+            }
             $transacao->valor_exibido = (int) $transacao->installments > 1 && isset($totaisDosGrupos[$transacao->group_id])
                 ? round((float) $totaisDosGrupos[$transacao->group_id], 2)
                 : (float) $transacao->amount;

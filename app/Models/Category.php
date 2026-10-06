@@ -25,20 +25,18 @@ class Category extends Model
     ];
 
     /**
-     * "Trilho de estreia" das categorias fixas: elas nascem em 0,1,2… e por
-     * isso aparecem no topo da coluna, que é como a tela sempre se comportou
-     * (as fixas são as de uso recorrente).
+     * Trilho das categorias fixas: 0,1,2… — o topo da coluna, SEMPRE.
      */
     public const TRILHO_FIXA = 0;
 
     /**
-     * "Trilho de estreia" das categorias livres: nascem em 1000,1001,1002…,
-     * logo depois de qualquer fixa.
+     * Trilho das categorias livres: 1000,1001,1002…, sempre depois de qualquer fixa.
      *
-     * O trilho só decide a ordem de ESTREIA. Assim que o usuário arrasta um
-     * chip, `CategoryController::ordenar` renumera a coluna inteira em 0..n-1
-     * e o trilho deixa de importar — quem manda passa a ser a ordem escolhida
-     * por ele, inclusive pondo uma categoria livre acima de uma fixa.
+     * Até out/2026 o trilho só valia na estreia: reordenar renumerava a coluna em 0..n-1
+     * e uma livre podia subir acima de uma fixa — que descia sozinha, sem ninguém ter
+     * mexido nela (o defeito que o Victor achou). Hoje `CategoryController::ordenar`
+     * numera as fixas no trilho delas e as livres neste, e a tela não oferece subir uma
+     * livre acima de uma fixa (`OrdemDasCategoriasTest`).
      */
     public const TRILHO_LIVRE = 1000;
 

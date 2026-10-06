@@ -59,7 +59,7 @@ class DefaultCategories
     ];
 
     /**
-     * Categorias FIXAS (is_locked): as de uso recorrente, sempre de despesa.
+     * Categorias FIXAS (is_locked) de despesa: as de uso recorrente.
      * Não podem ser excluídas nem mudar de tipo — só renomeadas/repintadas.
      * "Farmácia" está coberta por Saúde, por isso não existe categoria própria.
      *
@@ -68,12 +68,23 @@ class DefaultCategories
     private const LOCKED_EXPENSES = ['Alimentação', 'Moradia', 'Saúde', 'Transporte', 'Contas'];
 
     /**
+     * Receitas FIXAS (out/2026 — pedido do Victor): o salário e os dois vales que quase
+     * todo mundo que trabalha de carteira assinada recebe. Mesmas regras das despesas
+     * fixas: sempre no topo da coluna, não saem e não mudam de tipo.
+     *
+     * @var list<string>
+     */
+    private const LOCKED_INCOMES = ['Salário', 'Vale alimentação', 'Vale transporte'];
+
+    /**
      * Categorias padrão de receita: [nome, ícone, cor].
      *
      * @var list<array{0: string, 1: string, 2: string}>
      */
     private const INCOMES = [
         ['Salário', '💰', '#1FA06E'],       // verde
+        ['Vale alimentação', '🍽️', '#F0A93B'], // âmbar
+        ['Vale transporte', '🚗', '#3B82C4'],  // azul
         ['Freelance', '💼', '#59C497'],     // verde claro
         ['Investimentos', '📈', '#0EA5B5'], // ciano
         ['Presente', '🎁', '#EC4899'],      // rosa
@@ -100,8 +111,8 @@ class DefaultCategories
      */
     public static function seedFor(User $user): void
     {
-        // Sem registro de atividade: as 14 categorias padrão nascem com a conta (o cadastro
-        // já tem a linha dele), e 14 linhas "criou a categoria" que ninguém criou seriam ruído.
+        // Sem registro de atividade: as 16 categorias padrão nascem com a conta (o cadastro
+        // já tem a linha dele), e 16 linhas "criou a categoria" que ninguém criou seriam ruído.
         Atividade::semRegistrar(function () use ($user) {
             self::seedType($user, 'expense', self::EXPENSES);
             self::seedType($user, 'income', self::INCOMES);
@@ -120,6 +131,33 @@ class DefaultCategories
     }
 
     /**
+     * Nomes das receitas fixas, na ordem em que aparecem no topo da coluna.
+     *
+     * @return list<string>
+     */
+    public static function lockedIncomeNames(): array
+    {
+        return self::LOCKED_INCOMES;
+    }
+
+    /**
+     * Ícone e cor padrão de uma categoria, pelo nome + tipo (null se não for das padrão).
+     * Usado pela migration que cria as receitas fixas nas famílias que já existiam.
+     *
+     * @return array{icon: string, color: string}|null
+     */
+    public static function padraoDe(string $name, string $type): ?array
+    {
+        foreach ($type === 'income' ? self::INCOMES : self::EXPENSES as [$n, $icone, $cor]) {
+            if ($n === $name) {
+                return ['icon' => $icone, 'color' => $cor];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Cria as categorias de um tipo, cada uma com a sua cor própria.
      *
      * @param  list<array{0: string, 1: string, 2: string}>  $items
@@ -127,7 +165,7 @@ class DefaultCategories
     private static function seedType(User $user, string $type, array $items): void
     {
         foreach ($items as [$name, $icon, $color]) {
-            $fixa = $type === 'expense' && in_array($name, self::LOCKED_EXPENSES, true);
+            $fixa = in_array($name, $type === 'expense' ? self::LOCKED_EXPENSES : self::LOCKED_INCOMES, true);
 
             $categoria = $user->categories()->firstOrCreate(
                 ['name' => $name, 'type' => $type],

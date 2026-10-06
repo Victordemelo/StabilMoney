@@ -51,8 +51,8 @@ class CategoryController extends Controller
         // PATCH de ordenar falhar no meio de um arraste entre colunas — e aí
         // vale a regra antiga: fixas primeiro, depois alfabética.
         $categories = Category::where('user_id', $request->user()->ownerId())
+            ->orderByDesc('is_locked') // fixas no topo, sempre — os trilhos já garantem; isto é o cinto
             ->orderBy('position')
-            ->orderByDesc('is_locked')
             ->orderBy('name')
             ->get();
 
@@ -66,9 +66,13 @@ class CategoryController extends Controller
     /**
      * Grava a ordem dos chips de UMA coluna (recebe os ids na ordem final).
      *
-     * Renumera em 0..n-1 em vez de "empurrar" vizinhos: é uma coluna de ~10
+     * Renumera a coluna inteira em vez de "empurrar" vizinhos: é uma coluna de ~10
      * itens, e reescrever tudo elimina de vez a chance de empate — que é o que
      * faria a lista alternar de ordem entre um refresh e outro.
+     *
+     * 🔒 As FIXAS ficam sempre no topo e na ordem que já tinham: a lista do cliente só
+     * decide a ordem das LIVRES (trilho `TRILHO_LIVRE`). Antes uma livre levada ao topo
+     * empurrava uma fixa para baixo — e a fixa nem tem botão de mover.
      *
      * A validação mora aqui (e não num Form Request) porque o corpo é só uma
      * lista de ids; e é de propósito que NÃO exista uma regra `exists`: id
@@ -95,27 +99,28 @@ class CategoryController extends Controller
         // reordenaria (ou embaralharia) a tela dele — IDOR clássico.
         $daFamilia = Category::where('user_id', $ownerId)
             ->whereIn('id', $ids)
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
+            ->orderBy('position')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get(['id', 'is_locked'])
+            ->keyBy('id');
 
-        $posicao = 0;
-        $vistos = [];
+        // Alheio, inexistente ou repetido: fica de fora sem numerar.
+        $livres = collect($ids)->unique()->filter(fn ($id) => $daFamilia->has($id) && ! $daFamilia[$id]->is_locked)->values();
+        // As fixas mantêm a ordem gravada, venha a lista como vier.
+        $fixas = $daFamilia->filter(fn ($c) => $c->is_locked)->keys();
 
-        DB::transaction(function () use ($ids, $daFamilia, $ownerId, &$posicao, &$vistos) {
-            foreach ($ids as $id) {
-                // Alheio, inexistente ou repetido: pula sem numerar.
-                if (! in_array($id, $daFamilia, true) || isset($vistos[$id])) {
-                    continue;
-                }
+        $novasPosicoes = $fixas->values()->mapWithKeys(fn ($id, $i) => [$id => Category::TRILHO_FIXA + $i])
+            ->union($livres->mapWithKeys(fn ($id, $i) => [$id => Category::TRILHO_LIVRE + $i]));
+        $posicao = $novasPosicoes->count();
 
-                $vistos[$id] = true;
-
+        DB::transaction(function () use ($novasPosicoes, $ownerId, $posicao) {
+            foreach ($novasPosicoes as $id => $nova) {
                 // O `user_id` no WHERE é cinto de segurança: mesmo que a lista
                 // acima escapasse, o UPDATE não alcança outra família.
                 Category::where('user_id', $ownerId)
                     ->where('id', $id)
-                    ->update(['position' => $posicao++]);
+                    ->update(['position' => $nova]);
             }
 
             // Update em massa não dispara o evento do registro de atividade: uma linha

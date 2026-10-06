@@ -75,10 +75,11 @@ class FaturaService
             // Titular + dependentes (seletor "quem fez a compra").
             'familyMembers' => $this->familyMembers($userId),
             // Contas de caixa (corrente/poupança) que podem PAGAR uma fatura.
-            'cashAccounts' => Account::where('user_id', $userId)
+            // Com o disponível de cada uma (o resumo "saldo atual − fatura = depois" do modal).
+            'cashAccounts' => tap(Account::where('user_id', $userId)
                 ->whereIn('type', ['checking', 'savings'])
                 ->orderBy('name')
-                ->get(['id', 'name', 'type', 'bank']),
+                ->get(), fn ($contas) => Account::preloadMoney($contas)),
             // Contas fixas mensais: competência do mês + as atrasadas.
             'contasFixas' => $contasFixas,
             // Cadastro/edição de conta fixa (select de categoria de despesa).

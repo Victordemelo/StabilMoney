@@ -321,6 +321,7 @@
                                     data-action="{{ route('faturas.fatura.pagar', $card->account) }}"
                                     data-name="{{ $card->account->name }}"
                                     data-amount="{{ $brl($fechada['valor']) }}"
+                                    data-amount-valor="{{ number_format((float) $fechada['valor'], 2, '.', '') }}"
                                     data-ciclo="fechado"
                                     data-min="{{ $card->payFloor }}">
                                 {{ $fechada['vencida'] ? 'Pagar fatura vencida' : 'Pagar fatura fechada' }}
@@ -347,6 +348,7 @@
                                     data-action="{{ route('faturas.fatura.pagar', $card->account) }}"
                                     data-name="{{ $card->account->name }}"
                                     data-amount="{{ $brl($card->invoiceDue) }}"
+                                    data-amount-valor="{{ number_format((float) $card->invoiceDue, 2, '.', '') }}"
                                     data-ciclo="aberto"
                                     data-min="{{ $card->payFloor }}">
                                 Marcar como paga
@@ -637,6 +639,7 @@
                                     @foreach ($grupo['opcoes'] as $account)
                                         <option value="{{ $account->id }}"
                                                 data-card="{{ $account->isCard ? '1' : '0' }}"
+                                                data-saldo-valor="{{ number_format((float) ($account->saldo ?? 0), 2, '.', '') }}" data-saldo-rotulo="{{ $account->saldoRotulo ?? 'disponível' }}"
                                                 @selected($reabreLancar && (int) old('account_id') === $account->id)>
                                             {{ $account->rotulo ?? $account->name }}
                                         </option>
@@ -716,6 +719,7 @@
                         <small class="field-hint" id="lancParcelaHint"></small>
                     </div>
                 </div>
+                @include('partials.resumo-de-saldo', ['rotuloValor' => 'Esta despesa'])
             </div>
             <div class="modal-foot">
                 <button class="btn ghost" type="button" data-lancar-close>Cancelar</button>
@@ -759,10 +763,11 @@
                     <label for="fixa-conta">Pagar com</label>
                     <select class="input" id="fixa-conta" name="account_id" required>
                         @foreach ($accounts as $acc)
-                            <option value="{{ $acc->id }}">{{ $acc->rotulo ?? $acc->name }}</option>
+                            <option value="{{ $acc->id }}" data-card="{{ $acc->isCard ? '1' : '0' }}" data-saldo-valor="{{ number_format((float) ($acc->saldo ?? 0), 2, '.', '') }}" data-saldo-rotulo="{{ $acc->saldoRotulo ?? 'disponível' }}">{{ $acc->rotulo ?? $acc->name }}</option>
                         @endforeach
                     </select>
                 </div>
+                @include('partials.resumo-de-saldo', ['rotuloValor' => 'Esta conta'])
             </div>
             <div class="modal-foot">
                 <button class="btn ghost" type="button" data-fixa-close>Cancelar</button>
@@ -957,7 +962,7 @@
                         <label for="pay-account">Debitar de</label>
                         <select class="input" id="pay-account" name="pay_account_id" required>
                             @foreach ($cashAccounts as $acc)
-                                <option value="{{ $acc->id }}">{{ $acc->rotulo ?? $acc->name }}</option>
+                                <option value="{{ $acc->id }}" data-saldo-valor="{{ number_format((float) $acc->available, 2, '.', '') }}" data-saldo-rotulo="disponível">{{ $acc->rotulo ?? $acc->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -972,6 +977,7 @@
                         <small class="field-hint">Pagou em outro dia? Ajuste aqui.</small>
                     </div>
                 </div>
+                @include('partials.resumo-de-saldo', ['rotuloValor' => 'Esta fatura'])
             </div>
             <div class="modal-foot">
                 <button class="btn ghost" type="button" data-pay-close>Cancelar</button>

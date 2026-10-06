@@ -38,16 +38,20 @@ function recusaDeTipo() {
     return resposta(422, { message: MSG_DO_SERVIDOR, errors: { type: [MSG_DO_SERVIDOR] } });
 }
 
-function chip(id, nome, tipo) {
-    return `
-        <div class="cat-chip" draggable="true" data-id="${id}" data-name="${nome}" data-color="#0F6B47"
-             data-icon="🛒" data-type="${tipo}" data-locked="0" data-update-url="/categories/${id}">
-            <span class="cc-name">${nome}</span>
-            <a class="cc-act" href="/categories/${id}/edit" data-cat-open="edit">Editar</a>
-            <span class="cc-mover">
+function chip(id, nome, tipo, fixa = false) {
+    // A fixa é como a view a desenha: sem arrastar e sem os botões ▲▼.
+    const mover = fixa
+        ? '<span class="cc-mover" aria-hidden="true"></span>'
+        : `<span class="cc-mover">
                 <button type="button" class="cc-mv" data-cat-mover="-1" aria-label="Mover ${nome} para cima">▲</button>
                 <button type="button" class="cc-mv" data-cat-mover="1" aria-label="Mover ${nome} para baixo">▼</button>
-            </span>
+            </span>`;
+    return `
+        <div class="cat-chip${fixa ? ' is-locked' : ''}" draggable="${fixa ? 'false' : 'true'}" data-id="${id}" data-name="${nome}" data-color="#0F6B47"
+             data-icon="🛒" data-type="${tipo}" data-locked="${fixa ? '1' : '0'}" data-update-url="/categories/${id}">
+            <span class="cc-name">${nome}</span>
+            <a class="cc-act" href="/categories/${id}/edit" data-cat-open="edit">Editar</a>
+            ${mover}
         </div>`;
 }
 
@@ -75,7 +79,7 @@ function montarPagina(despesas = DESPESAS_PADRAO) {
         <p class="sr-only" id="catAnuncio" role="status"></p>
         <div class="cat-cols" id="catCols" data-ordenar-url="/categories/ordenar">
             ${coluna('income', [chip(1, 'Salário', 'income')])}
-            ${coluna('expense', despesas.map(([id, nome]) => chip(id, nome, 'expense')))}
+            ${coluna('expense', despesas.map(([id, nome, fixa]) => chip(id, nome, 'expense', fixa)))}
         </div>
         <div class="modal-scrim" id="catModal">
             <div class="modal modal-lg" data-type="income" role="dialog" aria-modal="true" aria-labelledby="catModal-titulo">
@@ -382,5 +386,62 @@ describe('o modal de categoria é um diálogo (A-2)', () => {
         expect(modal.classList.contains('open')).toBe(false);
         expect(document.activeElement).toBe(lapis);
         expect(document.querySelectorAll('[inert]')).toHaveLength(0);
+    });
+});
+
+/**
+ * Fixas sempre no topo (out/2026): subir uma livre até o topo empurrava uma fixa para
+ * baixo — e a fixa nem tem botão de mover. A livre para logo abaixo das fixas, pelos
+ * botões e pelo arraste.
+ */
+describe('as fixas ficam no topo da coluna', () => {
+    const botao = (id, direcao) => chipDe(id).querySelector(`[data-cat-mover="${direcao}"]`);
+    const ordem = (tipo) => Array.from(drop(tipo).querySelectorAll('.cat-chip')).map((c) => Number(c.dataset.id));
+
+    beforeEach(() => montarPagina([[9, 'Moradia', true], [2, 'Mercado'], [3, 'Lazer']]));
+
+    it('a primeira livre não sobe: ▲ dela nasce desligado e só avisa por quê', async () => {
+        expect(botao(2, -1).getAttribute('aria-disabled')).toBe('true');
+        expect(botao(3, -1).hasAttribute('aria-disabled')).toBe(false);
+
+        botao(2, -1).click();
+        await flush();
+
+        expect(ordem('expense')).toEqual([9, 2, 3]);
+        expect(chamadas).toHaveLength(0);
+        expect(document.getElementById('catAnuncio').textContent)
+            .toBe('Mercado já está logo abaixo das categorias fixas de Despesas, que ficam sempre no topo.');
+    });
+
+    it('subir a última livre troca só com a livre de cima', async () => {
+        respostas = [resposta(200, { ok: true })];
+
+        botao(3, -1).click();
+        await flush();
+
+        expect(ordem('expense')).toEqual([9, 3, 2]);
+        expect(JSON.parse(chamadas[0].body)).toEqual({ ids: [9, 3, 2] });
+    });
+
+    it('arrastar uma livre para cima da fixa a deixa logo abaixo dela', async () => {
+        respostas = [resposta(200, { ok: true })];
+        // O jsdom não calcula layout: cada chip ganha 40px de altura, um embaixo do outro.
+        Array.from(drop('expense').querySelectorAll('.cat-chip')).forEach((c, i) => {
+            c.getBoundingClientRect = () => ({ top: i * 40, height: 40, bottom: i * 40 + 40, left: 0, right: 0, width: 0 });
+        });
+        const noTopo = (tipo) => {
+            const e = new Event(tipo, { bubbles: true, cancelable: true });
+            Object.defineProperty(e, 'dataTransfer', { value: { effectAllowed: '', dropEffect: '', setData() {} } });
+            Object.defineProperty(e, 'clientY', { value: 5 }); // em cima da metade da fixa
+            return e;
+        };
+
+        chipDe(3).dispatchEvent(noTopo('dragstart'));
+        drop('expense').dispatchEvent(noTopo('dragover'));
+        drop('expense').dispatchEvent(noTopo('drop'));
+        chipDe(3).dispatchEvent(noTopo('dragend'));
+        await flush();
+
+        expect(ordem('expense')).toEqual([9, 3, 2]);
     });
 });

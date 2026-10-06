@@ -12,6 +12,7 @@
 import { pedirFonte } from './funding';
 import { enfileirarLancamento, refreshCsrfToken } from './offline-queue';
 import { abrirDialogo, fecharDialogo } from './dialogo';
+import { desenharResumo, lerValorDoCampo, saldoDaOpcao } from './resumo-saldo';
 
 // FormData → objeto simples, que é o formato que a fila reenvia (JSON).
 // `_token`/`_method` ficam de fora: são controle do Laravel, não do lançamento —
@@ -177,12 +178,34 @@ export function initLaunch() {
      * nada sobre dinheiro entrando — deixá-lo visível só confundiria. Em
      * TRANSFERÊNCIA fica: é o quanto a origem tem para mandar.
      */
+    const ROTULO_DO_VALOR = { income: 'Esta receita', expense: 'Esta despesa', transfer: 'Esta transferência' };
+
     const mostrarSaldo = () => {
         const alvo = modal.querySelector('[data-lm-saldo]');
         if (!alvo || !contaSel) return;
 
         const marcado = form.querySelector('input[name="type"]:checked');
         const opt = contaSel.selectedOptions[0];
+
+        // Com o resumo "saldo atual ± valor = depois" (out/2026), a linha de saldo só fala
+        // quando falta o método — o número dela já está no resumo. O resumo aparece nos três
+        // tipos (na receita, somando), e o modal não muda de altura entre eles.
+        const resumo = modal.querySelector('[data-resumo-saldo]');
+        if (resumo) {
+            const tipo = marcado ? marcado.value : 'expense';
+            const semMetodo = (!opt || opt.disabled) && tipo === 'expense';
+            alvo.classList.remove('reservado', 'neg');
+            alvo.textContent = semMetodo ? 'Para lançar uma despesa, cadastre um cartão, Pix ou TED em Contas e cartões.' : '';
+            alvo.hidden = !semMetodo;
+            desenharResumo(resumo, {
+                saldo: saldoDaOpcao(contaSel)?.saldo ?? null,
+                valor: lerValorDoCampo(form.querySelector('#lm-amount')),
+                sinal: tipo === 'income' ? 1 : -1,
+                rotuloValor: ROTULO_DO_VALOR[tipo],
+                cartao: opt?.dataset.card === '1',
+            });
+            return;
+        }
 
         // Despesa sem método nenhum cadastrado: a linha explica o que falta, em vez de um
         // select vazio sem motivo.
@@ -304,6 +327,9 @@ export function initLaunch() {
             if (valida) destinoSel.value = valida.value;
         }
     };
+
+    // Digitar o valor refaz o resumo do saldo.
+    form.querySelector('#lm-amount')?.addEventListener('input', mostrarSaldo);
 
     // Trocar o método atualiza o saldo mostrado (e, em transferência, o destino).
     if (contaSel) {

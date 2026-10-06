@@ -115,9 +115,7 @@ class OrdemDasCategoriasTest extends TestCase
 
     public function test_as_categorias_fixas_estreiam_antes_das_livres(): void
     {
-        // Regra antiga da tela, agora expressa em `position` (trilho de estreia):
-        // as fixas são as de uso recorrente e nascem no topo — mas o usuário
-        // pode arrastar uma livre para cima delas depois.
+        // As fixas são as de uso recorrente e moram no topo (trilho TRILHO_FIXA).
         $novo = User::factory()->create();
         DefaultCategories::seedFor($novo);
 
@@ -144,25 +142,59 @@ class OrdemDasCategoriasTest extends TestCase
             'ids' => [$presente->id, $salario->id, $freela->id],
         ])->assertOk()->assertJson(['ok' => true, 'ordenadas' => 3]);
 
-        $this->assertSame(0, $presente->fresh()->position);
-        $this->assertSame(1, $salario->fresh()->position);
-        $this->assertSame(2, $freela->fresh()->position);
+        // Livres numeradas no trilho delas (as fixas moram em 0,1,2…).
+        $this->assertSame(Category::TRILHO_LIVRE, $presente->fresh()->position);
+        $this->assertSame(Category::TRILHO_LIVRE + 1, $salario->fresh()->position);
+        $this->assertSame(Category::TRILHO_LIVRE + 2, $freela->fresh()->position);
 
         $this->assertSame(['Presente', 'Salário', 'Freelance'], $this->colunaNaTela('income'));
     }
 
-    public function test_reordenar_pode_por_uma_categoria_livre_acima_de_uma_fixa(): void
+    public function test_uma_livre_levada_ao_topo_nao_empurra_as_fixas_para_baixo(): void
     {
-        // É o ponto da feature: a posição escolhida pelo usuário manda mais do
-        // que o "fixas primeiro", que só vale como ordem de estreia.
-        $fixa = $this->categoria('Alimentação', 'expense', 0, fixa: true);
-        $livre = $this->categoria('Lazer', 'expense', 1);
+        // O defeito que o Victor achou (out/2026): subir uma livre até o topo descia
+        // uma fixa — que nem tem botão de mover. As fixas ficam no topo, na ordem delas.
+        $alimentacao = $this->categoria('Alimentação', 'expense', 0, fixa: true);
+        $moradia = $this->categoria('Moradia', 'expense', 1, fixa: true);
+        $lazer = $this->categoria('Lazer', 'expense', 1000);
+        $compras = $this->categoria('Compras', 'expense', 1001);
 
         $this->actingAs($this->user)->patchJson(route('categories.ordenar'), [
-            'ids' => [$livre->id, $fixa->id],
-        ])->assertOk();
+            'ids' => [$compras->id, $moradia->id, $lazer->id, $alimentacao->id],
+        ])->assertOk()->assertJson(['ordenadas' => 4]);
 
-        $this->assertSame(['Lazer', 'Alimentação'], $this->colunaNaTela('expense'));
+        $this->assertSame(['Alimentação', 'Moradia', 'Compras', 'Lazer'], $this->colunaNaTela('expense'));
+        $this->assertSame(0, $alimentacao->fresh()->position);
+        $this->assertSame(1, $moradia->fresh()->position);
+        $this->assertSame(Category::TRILHO_LIVRE, $compras->fresh()->position);
+    }
+
+    public function test_categoria_fixa_nova_entra_no_fim_das_fixas_e_antes_das_livres_reordenadas(): void
+    {
+        // Os trilhos continuam valendo depois de reordenar: era o furo do 0..n-1, em que
+        // uma fixa criada depois caía no meio das livres.
+        $lazer = $this->categoria('Lazer', 'expense');
+        $compras = $this->categoria('Compras', 'expense');
+        $this->actingAs($this->user)->patchJson(route('categories.ordenar'), ['ids' => [$compras->id, $lazer->id]])->assertOk();
+
+        $this->categoria('Moradia', 'expense', fixa: true);
+
+        $this->assertSame(['Moradia', 'Compras', 'Lazer'], $this->colunaNaTela('expense'));
+    }
+
+    public function test_a_tela_nao_oferece_subir_a_primeira_livre_acima_das_fixas(): void
+    {
+        $this->categoria('Salário', 'income', 0, fixa: true);
+        $this->categoria('Freelance', 'income', 1000);
+        $this->categoria('Presente', 'income', 1001);
+
+        $html = $this->actingAs($this->user)->get(route('categories.index'))->getContent();
+
+        $this->assertMatchesRegularExpression('/aria-label="Mover Freelance para cima"\s*aria-disabled="true"/', $html);
+        $this->assertDoesNotMatchRegularExpression('/aria-label="Mover Presente para cima"\s*aria-disabled="true"/', $html);
+        $this->assertMatchesRegularExpression('/aria-label="Mover Presente para baixo"\s*aria-disabled="true"/', $html);
+        // A fixa não arrasta nem tem botões.
+        $this->assertStringNotContainsString('Mover Salário para', $html);
     }
 
     public function test_reordenar_exige_a_lista_de_ids(): void
@@ -200,9 +232,9 @@ class OrdemDasCategoriasTest extends TestCase
         $this->assertSame(7, $alheia->position);
         $this->assertSame($estranho->id, $alheia->user_id);
 
-        // E as minhas foram numeradas ignorando o intruso (0 e 1, sem buraco).
-        $this->assertSame(0, $meuSegundo->fresh()->position);
-        $this->assertSame(1, $meuPrimeiro->fresh()->position);
+        // E as minhas foram numeradas ignorando o intruso (sem buraco).
+        $this->assertSame(Category::TRILHO_LIVRE, $meuSegundo->fresh()->position);
+        $this->assertSame(Category::TRILHO_LIVRE + 1, $meuPrimeiro->fresh()->position);
     }
 
     public function test_id_inexistente_no_payload_nao_estoura(): void
@@ -213,7 +245,7 @@ class OrdemDasCategoriasTest extends TestCase
             'ids' => [999999, $categoria->id, 123456],
         ])->assertOk()->assertJson(['ordenadas' => 1]);
 
-        $this->assertSame(0, $categoria->fresh()->position);
+        $this->assertSame(Category::TRILHO_LIVRE, $categoria->fresh()->position);
     }
 
     public function test_id_repetido_nao_duplica_posicao(): void
@@ -225,8 +257,8 @@ class OrdemDasCategoriasTest extends TestCase
             'ids' => [$b->id, $b->id, $a->id],
         ])->assertOk();
 
-        $this->assertSame(0, $b->fresh()->position);
-        $this->assertSame(1, $a->fresh()->position, 'o id repetido não pode consumir uma posição');
+        $this->assertSame(Category::TRILHO_LIVRE, $b->fresh()->position);
+        $this->assertSame(Category::TRILHO_LIVRE + 1, $a->fresh()->position, 'o id repetido não pode consumir uma posição');
     }
 
     public function test_dependente_reordena_as_categorias_da_familia(): void
@@ -244,7 +276,7 @@ class OrdemDasCategoriasTest extends TestCase
             'ids' => [$b->id, $a->id],
         ])->assertOk();
 
-        $this->assertSame(0, $b->fresh()->position);
+        $this->assertSame(Category::TRILHO_LIVRE, $b->fresh()->position);
     }
 
     // ================= Entre colunas =================
@@ -270,7 +302,7 @@ class OrdemDasCategoriasTest extends TestCase
         ])->assertOk();
 
         $this->assertSame('income', $viajante->fresh()->type);
-        $this->assertSame(1, $viajante->fresh()->position, 'a posição precisa ser a do destino, não a antiga');
+        $this->assertSame(Category::TRILHO_LIVRE + 1, $viajante->fresh()->position, 'a posição precisa ser a do destino, não a antiga');
 
         $this->assertSame(['Salário', 'Bicos', 'Freelance'], $this->colunaNaTela('income'));
         $this->assertSame([], $this->colunaNaTela('expense'));

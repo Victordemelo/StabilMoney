@@ -31,6 +31,9 @@
                         {{-- Pontas de transferência têm filtro próprio: em "Receitas"/"Despesas"
                              elas NÃO aparecem (o dinheiro só trocou de conta). --}}
                         <option value="transfer" @selected(request('type') === 'transfer')>Transferências</option>
+                        {{-- Aportes e resgates: tiram/devolvem dinheiro do saldo disponível sem ser
+                             receita nem despesa, por isso têm opção própria. --}}
+                        <option value="reserva" @selected(request('type') === 'reserva')>Metas e investimentos</option>
                     </select>
                 </div>
                 <div class="field">
@@ -107,6 +110,30 @@
             @else
                 <div class="tx-list tx-list-cheia">
                     @foreach ($transactions as $transacao)
+                        @if (! $transacao instanceof \App\Models\Transaction)
+                            {{-- Aporte/resgate de meta ou investimento: não é lançamento (não se edita
+                                 aqui), e o link leva à tela de onde ele é feito. Aporte tira do saldo
+                                 disponível da conta; resgate devolve. --}}
+                            @php
+                                $eMeta = $transacao instanceof \App\Models\GoalContribution;
+                                $resgate = $transacao->type === 'resgate';
+                                $pai = $eMeta ? $transacao->goal : $transacao->investment;
+                                $rotuloPai = $eMeta ? 'Meta' : 'Investimento';
+                            @endphp
+                            <a class="tx tx-reserva" href="{{ route($eMeta ? 'metas.index' : 'investimentos.index') }}">
+                                <div class="tx-ico" style="background: color-mix(in srgb, {{ $eMeta ? ($pai?->color ?: '#0F6B47') : '#0EA5B5' }} 16%, transparent)">
+                                    {{ $eMeta ? ($pai?->emoji ?: '🎯') : '📈' }}
+                                </div>
+                                <div>
+                                    <div class="tx-name">{{ $resgate ? 'Resgate de' : 'Aporte em' }} {{ $pai?->name ?? $rotuloPai }} <span class="tx-tag">{{ $rotuloPai }}</span></div>
+                                    <div class="tx-meta">{{ $resgate ? 'Voltou para' : 'Saiu de' }} {{ $transacao->account?->name ?? 'conta removida' }} · {{ $transacao->date->format('d/m/Y') }}@if (! empty($showAuthor)) · {{ $transacao->madeBy?->name ?? 'Removido' }}@endif</div>
+                                </div>
+                                <div class="tx-amt {{ $resgate ? 'pos' : '' }}">
+                                    {{ $resgate ? '+' : '−' }} R$ {{ number_format((float) $transacao->amount, 2, ',', '.') }}
+                                </div>
+                            </a>
+                            @continue
+                        @endif
                         @php
                             $receita = $transacao->type === 'income';
                             $transferencia = $transacao->isTransferencia();

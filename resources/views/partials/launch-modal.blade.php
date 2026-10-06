@@ -113,6 +113,7 @@
                                                     data-card="{{ $conta->isCard ? '1' : '0' }}"
                                                     data-cash="{{ in_array($conta->type, ['checking', 'savings'], true) ? '1' : '0' }}"
                                                     data-saldo="{{ \App\Support\Brl::format($conta->saldo ?? 0) }}"
+                                                    data-saldo-valor="{{ number_format((float) ($conta->saldo ?? 0), 2, '.', '') }}"
                                                     data-saldo-rotulo="{{ $conta->saldoRotulo ?? 'disponível' }}"
                                                     data-negativo="{{ ($conta->saldo ?? 0) < 0 ? '1' : '0' }}">{{ $conta->rotulo ?? $conta->name }}</option>
                                         @endforeach
@@ -155,6 +156,9 @@
                             </select>
                         </div>
                     </div>
+
+                    {{-- Saldo atual ± valor = saldo depois, nos três tipos (launch.js). --}}
+                    @include('partials.resumo-de-saldo', ['rotuloValor' => 'Esta despesa'])
 
                     {{-- Quem + descrição lado a lado: o modal é LARGO e baixo, e tem a MESMA
                          altura nos três tipos (o saldo reserva a linha dele em receita) — antes

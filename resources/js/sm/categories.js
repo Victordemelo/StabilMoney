@@ -76,6 +76,10 @@ export function initCategories() {
     let origem = null;  // { chip, drop, next, type } — de onde ele saiu (rollback)
     let soltou = false; // houve um `drop` válido? Se não, o dragend desfaz
 
+    // As LIVRES da coluna: as fixas moram no topo e nenhuma livre passa acima delas —
+    // nem pelos botões ▲▼, nem arrastando (o servidor também as mantém no topo).
+    const livresDe = (drop) => $$('.cat-chip:not(.is-locked)', drop);
+
     // Ids na ordem da tela — o corpo do PATCH categories.ordenar.
     const idsDe = (drop) => $$('.cat-chip', drop)
         .map((c) => Number(c.dataset.id))
@@ -108,7 +112,7 @@ export function initCategories() {
      */
     const atualizarBotoesDeMover = () => {
         $$('.cat-drop', cols).forEach((drop) => {
-            const chips = $$('.cat-chip', drop);
+            const chips = livresDe(drop);
             chips.forEach((chip, i) => {
                 const limites = { '-1': i === 0, 1: i === chips.length - 1 };
                 $$('[data-cat-mover]', chip).forEach((botao) => {
@@ -142,7 +146,8 @@ export function initCategories() {
      * não é desta rodada.
      */
     const posicionar = (drop, chip, y) => {
-        const alvo = $$('.cat-chip', drop).find((outro) => {
+        // Só entre as livres: soltar por cima de uma fixa põe o chip logo depois delas.
+        const alvo = livresDe(drop).find((outro) => {
             if (outro === chip) return false;
             const r = outro.getBoundingClientRect();
             return y < r.top + r.height / 2; // ponteiro acima da metade: entra antes dele
@@ -315,7 +320,7 @@ export function initCategories() {
      */
     const trocarComVizinho = (chip, direcao) => {
         const drop = chip.parentElement;
-        const chips = $$('.cat-chip', drop);
+        const chips = livresDe(drop);
         const vizinho = chips[chips.indexOf(chip) + direcao];
         if (!vizinho) return false;
 
@@ -370,7 +375,12 @@ export function initCategories() {
 
         // Na ponta: nada a mover, mas quem aperta ouve por quê.
         if (botao.getAttribute('aria-disabled') === 'true' || !trocarComVizinho(chip, direcao)) {
-            anunciar(`${chip.dataset.name || 'Categoria'} já está ${direcao < 0 ? 'no topo' : 'no fim'} de ${nomeDaColuna(drop)}.`);
+            const nome = chip.dataset.name || 'Categoria';
+            if (direcao < 0 && drop.querySelector('.cat-chip.is-locked')) {
+                anunciar(`${nome} já está logo abaixo das categorias fixas de ${nomeDaColuna(drop)}, que ficam sempre no topo.`);
+            } else {
+                anunciar(`${nome} já está ${direcao < 0 ? 'no topo' : 'no fim'} de ${nomeDaColuna(drop)}.`);
+            }
             return;
         }
 

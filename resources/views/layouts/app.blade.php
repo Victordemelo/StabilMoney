@@ -90,6 +90,8 @@
             @else
                 {{ $slot ?? '' }}
             @endif
+
+            @include('partials.rodape-autoria')
         </main>
     </div>
 

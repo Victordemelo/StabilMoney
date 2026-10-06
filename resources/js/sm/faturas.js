@@ -20,6 +20,7 @@
 
 import { abrirDialogo, fecharDialogo } from './dialogo';
 import { enviarComFonte, respostaOk } from './funding';
+import { desenharResumo, lerValorDoCampo, saldoDaOpcao } from './resumo-saldo';
 
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
@@ -258,6 +259,22 @@ export function initFaturas() {
     if (parcelasSel) parcelasSel.addEventListener('change', syncHint);
     if (valorInput) valorInput.addEventListener('input', syncHint);
 
+    // Resumo "saldo atual − esta despesa = depois" (no cartão, o limite livre). Parcelada,
+    // a compra inteira sai do limite na hora — o valor é o total.
+    const lancResumo = modal.querySelector('[data-resumo-saldo]');
+    const syncResumoLanc = () => {
+        const conta = saldoDaOpcao(methodSel);
+        desenharResumo(lancResumo, {
+            saldo: conta?.saldo ?? null,
+            valor: lerValorDoCampo(valorInput),
+            rotuloValor: 'Esta despesa',
+            cartao: metodoEhCartao(),
+        });
+    };
+    if (methodSel) methodSel.addEventListener('change', syncResumoLanc);
+    if (valorInput) valorInput.addEventListener('input', syncResumoLanc);
+    syncResumoLanc();
+
     // Estado inicial (respeita old() após erro de validação).
     syncMethod();
 
@@ -270,6 +287,15 @@ export function initFaturas() {
         // Qual fatura: "aberto" (a do mês) ou "fechado" (a que já fechou/venceu).
         const payCiclo = payModal.querySelector('[data-pay-ciclo]');
         const payData = payModal.querySelector('#pay-data');
+        const payConta = payModal.querySelector('#pay-account');
+        const payResumo = payModal.querySelector('[data-resumo-saldo]');
+        let valorDaFatura = 0;
+        const syncResumoPay = () => desenharResumo(payResumo, {
+            saldo: saldoDaOpcao(payConta)?.saldo ?? null,
+            valor: valorDaFatura,
+            rotuloValor: 'Esta fatura',
+        });
+        if (payConta) payConta.addEventListener('change', syncResumoPay);
         const fecharPay = ligarFechamento(payModal, '[data-pay-close]');
 
         ligarPagamentoAjax(payForm, payModal, fecharPay);
@@ -290,6 +316,8 @@ export function initFaturas() {
                 else payData.removeAttribute('min');
                 payData.value = payData.max || payData.value;
             }
+            valorDaFatura = Number(btn.dataset.amountValor) || 0;
+            syncResumoPay();
             // O foco entra em "Debitar de", o primeiro campo.
             abrirDialogo(payModal, { retorno: btn });
         }));
@@ -302,6 +330,18 @@ export function initFaturas() {
         const fixaNome = fixaModal.querySelector('[data-fixa-nome]');
         const fixaValor = fixaModal.querySelector('#fixa-valor');
         const fixaConta = fixaModal.querySelector('#fixa-conta');
+        const fixaResumo = fixaModal.querySelector('[data-resumo-saldo]');
+        const syncResumoFixa = () => {
+            const opt = fixaConta?.selectedOptions?.[0];
+            desenharResumo(fixaResumo, {
+                saldo: saldoDaOpcao(fixaConta)?.saldo ?? null,
+                valor: lerValorDoCampo(fixaValor),
+                rotuloValor: 'Esta conta',
+                cartao: opt?.dataset.card === '1',
+            });
+        };
+        if (fixaConta) fixaConta.addEventListener('change', syncResumoFixa);
+        if (fixaValor) fixaValor.addEventListener('input', syncResumoFixa);
         const fecharFixa = ligarFechamento(fixaModal, '[data-fixa-close]');
 
         ligarPagamentoAjax(fixaForm, fixaModal, fecharFixa);
@@ -318,6 +358,7 @@ export function initFaturas() {
             // anterior à competência (senão a despesa sumia do fluxo de caixa).
             const fixaData = fixaModal.querySelector('#fixa-data');
             if (fixaData && btn.dataset.min) fixaData.min = btn.dataset.min;
+            syncResumoFixa();
             // O foco entra no "Valor pago" — é o que mais muda de um mês para outro.
             abrirDialogo(fixaModal, { foco: fixaValor, retorno: btn });
         }));

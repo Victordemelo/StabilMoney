@@ -211,7 +211,7 @@ class CategoryCrudTest extends TestCase
 
         DefaultCategories::seedFor($novo);
 
-        $fixas = Category::where('user_id', $novo->id)->where('is_locked', true)->pluck('name');
+        $fixas = Category::where('user_id', $novo->id)->where('type', 'expense')->where('is_locked', true)->pluck('name');
 
         $this->assertEqualsCanonicalizing(
             ['Alimentação', 'Moradia', 'Saúde', 'Transporte', 'Contas'],
@@ -222,9 +222,15 @@ class CategoryCrudTest extends TestCase
             $fixas->all(),
         );
 
-        // As demais (inclusive todas as receitas) continuam livres
+        // Receitas fixas (out/2026): o salário e os dois vales; as demais continuam livres.
+        $this->assertSame(
+            ['Salário', 'Vale alimentação', 'Vale transporte'],
+            Category::where('user_id', $novo->id)->where('type', 'income')->where('is_locked', true)
+                ->orderBy('position')->pluck('name')->all(),
+        );
+        $this->assertSame(DefaultCategories::lockedIncomeNames(), ['Salário', 'Vale alimentação', 'Vale transporte']);
         $this->assertFalse(
-            Category::where('user_id', $novo->id)->where('type', 'income')->where('is_locked', true)->exists(),
+            Category::where('user_id', $novo->id)->where('name', 'Freelance')->value('is_locked'),
         );
         $this->assertFalse(
             Category::where('user_id', $novo->id)->where('name', 'Lazer')->value('is_locked'),

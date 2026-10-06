@@ -993,3 +993,23 @@ a.tx { text-decoration: none; color: inherit; }
 /* Movimentação já paga ou recebida (out/2026): valor e tipo travados na edição. */
 .input[readonly] { background: var(--surface-3); color: var(--ink-2); cursor: not-allowed; }
 .type-toggle[data-travado] { opacity: .65; pointer-events: none; }
+
+/* Resumo do saldo nas janelas de pagamento (out/2026 — partials/resumo-de-saldo, sm/resumo-saldo.js):
+   saldo atual − o que sai = saldo depois, numa linha; no celular, um recibo em pé. */
+.resumo-saldo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.resumo-saldo[hidden] { display: none; }
+/* Último item do corpo do modal (que não tem respiro embaixo): sem isto a borda encostava na barra dos botões. */
+.modal-body > .resumo-saldo:last-child { margin-bottom: 8px; }
+.rs-item { display: flex; flex-direction: column; gap: 2px; flex: 1 1 0; min-width: 0; }
+.rs-rotulo { font-size: 11.5px; color: var(--ink-3); }
+.rs-valor { font-family: 'Sora', sans-serif; font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rs-depois .rs-valor { color: var(--brand-600); }
+.rs-valor.neg, .rs-depois .rs-valor.neg { color: var(--neg); }
+.rs-op { font-size: 16px; font-weight: 600; color: var(--ink-3); }
+.rs-aviso { flex-basis: 100%; margin: 0; font-size: 12px; line-height: 1.45; color: var(--neg); }
+@media (max-width: 480px) {
+    .resumo-saldo { flex-direction: column; align-items: stretch; gap: 6px; }
+    .rs-item { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 10px; }
+    .rs-op { display: none; }
+    .rs-depois { border-top: 1px dashed var(--line); padding-top: 6px; }
+}

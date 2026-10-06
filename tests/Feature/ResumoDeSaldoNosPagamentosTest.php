@@ -1,0 +1,76 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Account;
+use App\Models\FixedBill;
+use App\Models\Goal;
+use App\Models\Transaction;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * Resumo "saldo atual − o que sai = saldo depois" nas janelas de pagamento (out/2026 — pedido
+ * do Victor). O JS desenha (`sm/resumo-saldo.js`, testado no Vitest); aqui se confere que o
+ * servidor entrega os números certos: o DISPONÍVEL de cada conta (já fora o que está guardado
+ * em metas), cru, na `<option>`, e o valor de cada fatura no botão que abre o modal.
+ */
+class ResumoDeSaldoNosPagamentosTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $user;
+
+    private Account $corrente;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->user = User::factory()->create();
+        $this->corrente = Account::factory()->for($this->user)->create([
+            'name' => 'Corrente', 'type' => 'checking', 'bank' => 'nubank', 'initial_balance' => 1000, 'overdraft_limit' => 0,
+        ]);
+        // R$ 200 guardados numa meta: o saldo do resumo é o disponível, 800.
+        $meta = Goal::factory()->for($this->user)->create();
+        $meta->contributions()->create(['account_id' => $this->corrente->id, 'type' => 'aporte', 'amount' => 200, 'date' => now()->toDateString()]);
+    }
+
+    public function test_pagar_fatura_conta_fixa_e_lancar_despesa_trazem_o_resumo_com_o_disponivel(): void
+    {
+        $cartao = Account::factory()->for($this->user)->create([
+            'name' => 'Roxinho', 'type' => 'credit_card', 'bank' => 'nubank', 'credit_limit' => 3000, 'closing_day' => 28, 'due_day' => 5, 'initial_balance' => null,
+        ]);
+        Transaction::factory()->for($this->user)->create([
+            'account_id' => $cartao->id, 'type' => 'expense', 'amount' => 350.25, 'date' => now()->toDateString(),
+        ]);
+        FixedBill::create([
+            'user_id' => $this->user->id, 'name' => 'Aluguel', 'amount' => 900, 'due_day' => 10,
+            'account_id' => $this->corrente->id, 'starts_on' => now()->startOfMonth()->toDateString(), 'active' => true,
+        ]);
+
+        $html = $this->actingAs($this->user)->get(route('faturas.index'))->assertOk()->getContent();
+
+        // Os três modais de pagamento da tela têm o resumo — e o Lançar do shell, o quarto.
+        $this->assertSame(4, substr_count($html, 'data-resumo-saldo'));
+        $this->assertStringContainsString('data-rs-rotulo-valor>Esta fatura<', $html);
+        $this->assertStringContainsString('data-rs-rotulo-valor>Esta conta<', $html);
+        $this->assertStringContainsString('data-rs-rotulo-valor>Esta despesa<', $html);
+
+        // "Debitar de": disponível da corrente, já fora a meta.
+        $this->assertMatchesRegularExpression('/<option value="'.$this->corrente->id.'" data-saldo-valor="800.00" data-saldo-rotulo="disponível">/', $html);
+        // O botão de pagar a fatura leva o valor cru.
+        $this->assertStringContainsString('data-amount-valor="350.25"', $html);
+        // Cartão nos selects de método: o limite livre.
+        $this->assertStringContainsString('data-saldo-valor="2649.75" data-saldo-rotulo="limite livre"', $html);
+    }
+
+    public function test_o_modal_lancar_traz_o_resumo_e_o_saldo_cru_de_cada_metodo(): void
+    {
+        $html = $this->actingAs($this->user)->get(route('transactions.index'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('data-resumo-saldo', $html);
+        $this->assertStringContainsString('data-saldo-valor="800.00"', $html);
+    }
+}

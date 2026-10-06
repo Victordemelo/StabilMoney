@@ -53,6 +53,13 @@
                     <span class="cch-count" data-count-for="{{ $grupo['tipo'] }}">{{ $grupo['lista']->count() }}</span>
                 </div>
                 <div class="cat-drop" data-type="{{ $grupo['tipo'] }}" aria-label="Categorias de {{ mb_strtolower($grupo['titulo']) }}">
+                    @php
+                        // As pontas dos botões ▲▼ contam só as LIVRES: as fixas moram no topo e
+                        // nenhuma livre sobe acima delas (o servidor também não deixa).
+                        $livresDaColuna = $grupo['lista']->reject(fn ($c) => $c->isLocked());
+                        $primeiraLivre = $livresDaColuna->first()?->id;
+                        $ultimaLivre = $livresDaColuna->last()?->id;
+                    @endphp
                     @foreach ($grupo['lista'] as $categoria)
                         {{-- Categoria fixa: não arrasta (não pode mudar de tipo) e não tem
                              botão de excluir — o cadeado explica o porquê. --}}
@@ -106,12 +113,12 @@
                                 <span class="cc-mover">
                                     <button type="button" class="cc-mv" data-cat-mover="-1"
                                             aria-label="Mover {{ $categoria->name }} para cima"
-                                            @if ($loop->first) aria-disabled="true" @endif>
+                                            @if ($categoria->id === $primeiraLivre) aria-disabled="true" @endif>
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
                                     </button>
                                     <button type="button" class="cc-mv" data-cat-mover="1"
                                             aria-label="Mover {{ $categoria->name }} para baixo"
-                                            @if ($loop->last) aria-disabled="true" @endif>
+                                            @if ($categoria->id === $ultimaLivre) aria-disabled="true" @endif>
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                                     </button>
                                 </span>
