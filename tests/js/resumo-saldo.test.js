@@ -60,6 +60,37 @@ describe('desenharResumo', () => {
         expect(document.querySelector('[data-resumo-saldo]').hidden).toBe(true);
     });
 
+    it('gasto novo não promete passar; obrigação (fatura, conta fixa vencida) diz que fica negativo', () => {
+        const el = document.querySelector('[data-resumo-saldo]');
+        desenharResumo(el, { saldo: 100, valor: 300 });
+        expect(texto('aviso')).toContain('Sem nenhum dos dois, o lançamento não é aceito');
+
+        desenharResumo(el, { saldo: 100, valor: 300, obrigacao: true });
+        expect(texto('aviso')).toContain('O saldo fica negativo');
+    });
+
+    it('sem conta, `reservar` esconde o conteúdo mas guarda o espaço', () => {
+        const el = document.querySelector('[data-resumo-saldo]');
+        desenharResumo(el, { saldo: null, valor: 0, reservar: true });
+        expect(el.hidden).toBe(false);
+        expect(el.classList.contains('reservado')).toBe(true);
+
+        desenharResumo(el, { saldo: 10, valor: 0 });
+        expect(el.classList.contains('reservado')).toBe(false);
+    });
+
+    it('só reescreve o que mudou (não refaz o texto igual a cada tecla)', () => {
+        const el = document.querySelector('[data-resumo-saldo]');
+        desenharResumo(el, { saldo: 1000, valor: 1 });
+        const atual = document.querySelector('[data-rs-atual]').firstChild;
+        desenharResumo(el, { saldo: 1000, valor: 2 });
+        expect(document.querySelector('[data-rs-atual]').firstChild).toBe(atual);
+    });
+
+    it('lê o campo com o mesmo teto de 14 dígitos da máscara', () => {
+        expect(lerValorDoCampo({ value: '999.999.999.999,999' })).toBe(999999999999.99);
+    });
+
     it('lê o campo mascarado como centavos e formata negativo como o @brl', () => {
         expect(lerValorDoCampo({ value: '1.234,56' })).toBe(1234.56);
         expect(lerValorDoCampo({ value: '' })).toBe(0);

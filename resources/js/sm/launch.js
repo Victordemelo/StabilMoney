@@ -203,6 +203,7 @@ export function initLaunch() {
                 sinal: tipo === 'income' ? 1 : -1,
                 rotuloValor: ROTULO_DO_VALOR[tipo],
                 cartao: opt?.dataset.card === '1',
+                reservar: true, // sem conta válida o resumo some mas guarda o espaço (altura fixa)
             });
             return;
         }

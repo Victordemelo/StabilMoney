@@ -146,6 +146,9 @@
                                 data-nome="{{ $bill->name }}"
                                 data-valor="{{ number_format($oc['valor'], 2, ',', '.') }}"
                                 data-conta="{{ $bill->account_id }}"
+                                {{-- Já venceu = obrigação (passa mesmo deixando a conta negativa); antes
+                                     disso é gasto novo. A mesma régua do FixedBillController::pay. --}}
+                                data-obrigacao="{{ $oc['vencimento']->lessThanOrEqualTo(today()) ? '1' : '0' }}"
                                 {{-- Piso da data de pagamento = 1º dia do mês anterior à
                                      competência (o mesmo do PayFixedBillRequest). --}}
                                 data-min="{{ $oc['competence']->subMonthNoOverflow()->startOfMonth()->format('Y-m-d') }}">

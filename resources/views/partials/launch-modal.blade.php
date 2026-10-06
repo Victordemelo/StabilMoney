@@ -101,7 +101,10 @@
                                  receita e transferência só em conta de banco; despesa só por um
                                  método (crédito, débito, Pix, TED). O launch.js esconde os grupos
                                  cujo `data-para` não inclui o tipo escolhido. --}}
-                            <select class="input" id="lm-account" name="account_id" required>
+                            {{-- `data-pjax-atualizar`: o modal mora no SHELL, que o pjax não troca. Sem isto o saldo
+                                 de cada opção (o resumo "saldo atual − valor") ficava o de quando a
+                                 aba abriu, mesmo depois de lançar ou pagar algo. --}}
+                            <select class="input" id="lm-account" name="account_id" required data-pjax-atualizar>
                                 @foreach (\App\Models\Account::gruposDeLancamento($lmAccounts) as $grupo)
                                     <optgroup label="{{ $grupo['rotulo'] }}" data-para="{{ $grupo['para'] }}">
                                         @foreach ($grupo['opcoes'] as $conta)

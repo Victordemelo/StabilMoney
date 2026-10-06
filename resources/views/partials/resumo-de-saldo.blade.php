@@ -3,7 +3,7 @@
     conta fica. Quem preenche é o `sm/resumo-saldo.js` (desenharResumo); sem JS ele fica
     escondido, e o pagamento funciona igual. `$id` só serve para o aria-describedby de quem usa.
 --}}
-<div class="resumo-saldo" data-resumo-saldo @isset($id) id="{{ $id }}" @endisset role="group" aria-label="Resumo do saldo" aria-live="polite" hidden>
+<div class="resumo-saldo" data-resumo-saldo @isset($id) id="{{ $id }}" @endisset role="group" aria-label="Resumo do saldo" hidden>
     <div class="rs-item">
         <span class="rs-rotulo" data-rs-rotulo-atual>Saldo atual</span>
         <b class="rs-valor" data-rs-atual></b>
@@ -18,5 +18,6 @@
         <span class="rs-rotulo" data-rs-rotulo-depois>Saldo depois</span>
         <b class="rs-valor" data-rs-depois></b>
     </div>
-    <p class="rs-aviso" data-rs-aviso hidden></p>
+    {{-- Só o aviso é anunciado: o grupo inteiro em `aria-live` falava os três números a cada tecla. --}}
+    <p class="rs-aviso" data-rs-aviso role="status" aria-live="polite" hidden></p>
 </div>

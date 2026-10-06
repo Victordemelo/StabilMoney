@@ -998,6 +998,8 @@ a.tx { text-decoration: none; color: inherit; }
    saldo atual − o que sai = saldo depois, numa linha; no celular, um recibo em pé. */
 .resumo-saldo { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 2px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
 .resumo-saldo[hidden] { display: none; }
+/* Sem conta válida no Lançar: some mas guarda a altura (o modal não pula ao trocar de tipo). */
+.resumo-saldo.reservado { visibility: hidden; }
 /* Último item do corpo do modal (que não tem respiro embaixo): sem isto a borda encostava na barra dos botões. */
 .modal-body > .resumo-saldo:last-child { margin-bottom: 8px; }
 /* Coluna do tamanho do conteúdo + space-between: o espaço é igual dos dois lados de cada
@@ -1010,7 +1012,9 @@ a.tx { text-decoration: none; color: inherit; }
 /* O − e o = ficam na linha dos VALORES (mesma altura de linha), não no meio do bloco rótulo+valor. */
 .rs-op { font-size: 16px; line-height: 20px; font-weight: 600; color: var(--ink-3); }
 .rs-aviso { flex-basis: 100%; margin: 0; font-size: 12px; line-height: 1.45; color: var(--neg); }
-@media (max-width: 480px) {
+/* 600px e não 480: entre um e outro, valores na casa dos R$ 100 mil não cabiam numa linha e
+   o "=" ficava sozinho no fim dela. */
+@media (max-width: 600px) {
     .resumo-saldo { flex-direction: column; align-items: stretch; gap: 6px; }
     .rs-item { flex-direction: row; justify-content: space-between; align-items: baseline; gap: 10px; }
     .rs-op { display: none; }

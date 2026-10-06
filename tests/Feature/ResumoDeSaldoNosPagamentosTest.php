@@ -60,6 +60,8 @@ class ResumoDeSaldoNosPagamentosTest extends TestCase
 
         // "Debitar de": disponível da corrente, já fora a meta.
         $this->assertMatchesRegularExpression('/<option value="'.$this->corrente->id.'" data-saldo-valor="800.00" data-saldo-rotulo="disponível">/', $html);
+        // A conta fixa diz se já venceu (obrigação): muda o aviso do resumo, como muda a regra no servidor.
+        $this->assertMatchesRegularExpression('/data-fixa-pagar[^>]*data-obrigacao="[01]"/s', $html);
         // O botão de pagar a fatura leva o valor cru.
         $this->assertStringContainsString('data-amount-valor="350.25"', $html);
         // Cartão nos selects de método: o limite livre.
@@ -72,6 +74,13 @@ class ResumoDeSaldoNosPagamentosTest extends TestCase
 
         $this->assertStringContainsString('data-resumo-saldo', $html);
         $this->assertStringContainsString('data-saldo-valor="800.00"', $html);
+
+        // O modal mora no shell: o select de contas acompanha o pjax, senão o "Saldo atual" ficava
+        // o de quando a aba abriu, mesmo depois de lançar ou pagar algo.
+        $this->assertMatchesRegularExpression('/<select class="input" id="lm-account"[^>]*data-pjax-atualizar/', $html);
+        // Só o aviso é anunciado ao leitor de tela; o grupo inteiro falava a cada tecla.
+        $this->assertDoesNotMatchRegularExpression('/<div class="resumo-saldo"[^>]*aria-live/', $html);
+        $this->assertMatchesRegularExpression('/<p class="rs-aviso"[^>]*aria-live="polite"/', $html);
     }
 
     public function test_o_menos_e_o_igual_ficam_na_linha_dos_valores(): void

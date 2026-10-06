@@ -294,6 +294,7 @@ export function initFaturas() {
             saldo: saldoDaOpcao(payConta)?.saldo ?? null,
             valor: valorDaFatura,
             rotuloValor: 'Esta fatura',
+            obrigacao: true, // fatura já é dívida: passa mesmo deixando a conta negativa
         });
         if (payConta) payConta.addEventListener('change', syncResumoPay);
         const fecharPay = ligarFechamento(payModal, '[data-pay-close]');
@@ -331,12 +332,14 @@ export function initFaturas() {
         const fixaValor = fixaModal.querySelector('#fixa-valor');
         const fixaConta = fixaModal.querySelector('#fixa-conta');
         const fixaResumo = fixaModal.querySelector('[data-resumo-saldo]');
+        let fixaObrigacao = false;
         const syncResumoFixa = () => {
             const opt = fixaConta?.selectedOptions?.[0];
             desenharResumo(fixaResumo, {
                 saldo: saldoDaOpcao(fixaConta)?.saldo ?? null,
                 valor: lerValorDoCampo(fixaValor),
                 rotuloValor: 'Esta conta',
+                obrigacao: fixaObrigacao,
                 cartao: opt?.dataset.card === '1',
             });
         };
@@ -358,6 +361,7 @@ export function initFaturas() {
             // anterior à competência (senão a despesa sumia do fluxo de caixa).
             const fixaData = fixaModal.querySelector('#fixa-data');
             if (fixaData && btn.dataset.min) fixaData.min = btn.dataset.min;
+            fixaObrigacao = btn.dataset.obrigacao === '1';
             syncResumoFixa();
             // O foco entra no "Valor pago" — é o que mais muda de um mês para outro.
             abrirDialogo(fixaModal, { foco: fixaValor, retorno: btn });
