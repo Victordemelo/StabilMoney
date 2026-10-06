@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.187 testes PHP / 55.768 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **368 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.191 testes PHP / 51.667 asserções** (38 mil delas do teste de invariantes por sequência) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **371 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -229,7 +229,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.187 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.191 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -2434,7 +2434,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.187 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.191 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
