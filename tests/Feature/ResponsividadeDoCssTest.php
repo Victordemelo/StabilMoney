@@ -115,6 +115,8 @@ class ResponsividadeDoCssTest extends TestCase
         $shell = file_get_contents(resource_path('js/sm/shell.js'));
         $this->assertStringContainsString("areaSegura('left')", $shell);
         $this->assertStringContainsString("areaSegura('bottom')", $shell);
+        // Em cima/embaixo o padding da sonda mexe na ALTURA (medir a largura dava sempre 0).
+        $this->assertStringContainsString("lado === 'top' || lado === 'bottom' ? caixa.height : caixa.width", $shell);
 
         $auth = $this->semComentarios('auth.css');
         $this->assertSame(2, preg_match_all('/\.auth \.auth-visual \{[^}]*env\(safe-area-inset-left/', $auth));

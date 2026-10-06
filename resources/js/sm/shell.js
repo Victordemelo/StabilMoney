@@ -98,7 +98,9 @@ export function initShell() {
         sonda.style.cssText = `position:fixed;top:0;${lado}:0;width:0;height:0;visibility:hidden;pointer-events:none;`
             + `padding-${lado}:env(safe-area-inset-${lado}, 0px)`;
         document.body.appendChild(sonda);
-        const valor = sonda.getBoundingClientRect().width || 0;
+        // O padding de cima/baixo mexe na ALTURA da sonda, o dos lados na largura.
+        const caixa = sonda.getBoundingClientRect();
+        const valor = (lado === 'top' || lado === 'bottom' ? caixa.height : caixa.width) || 0;
         sonda.remove();
         return valor;
     };
