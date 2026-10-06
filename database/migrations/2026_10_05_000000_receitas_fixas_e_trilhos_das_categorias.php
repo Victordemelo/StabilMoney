@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Categorias fixas de receita + fixas sempre no topo (out/2026 — pedido do Victor).
@@ -14,6 +15,11 @@ use Illuminate\Support\Facades\DB;
  *
  * Os dados ficam AQUI (e não lidos de `DefaultCategories`): migration é retrato do dia
  * em que roda, e mudar a lista do cadastro depois não pode mudar o que ela faz.
+ *
+ * ⚠️ O `where('name', …)` compara diferente nos dois bancos: no MySQL (utf8mb4_unicode_ci)
+ * "salario" e "SALÁRIO" casam com "Salário" e ganham o cadeado; no sqlite da suíte, não (nasce
+ * uma categoria nova). Em produção é o MySQL que vale — e uma receita que a pessoa chamou de
+ * "salario" virar a fixa "Salário" é o comportamento desejado.
  */
 return new class extends Migration
 {
@@ -60,17 +66,20 @@ return new class extends Migration
                 }
             });
 
-        $ordemDasReceitasFixas = array_flip(array_keys(self::RECEITAS_FIXAS));
+        // Pelo nome sem caixa e sem acento, como o MySQL compara: a "salário" que ganhou o cadeado
+        // tem de ir para o 1º lugar, não para depois dos vales.
+        $normalizar = fn (string $nome) => Str::lower(Str::ascii($nome));
+        $ordemDasReceitasFixas = array_flip(array_map($normalizar, array_keys(self::RECEITAS_FIXAS)));
 
         DB::table('categories')
             ->select('id', 'user_id', 'type', 'name', 'is_locked', 'position')
             ->orderBy('user_id')->orderBy('type')->orderBy('position')->orderBy('name')->orderBy('id')
             ->get()
             ->groupBy(fn ($c) => $c->user_id.'|'.$c->type)
-            ->each(function ($coluna) use ($ordemDasReceitasFixas) {
+            ->each(function ($coluna) use ($ordemDasReceitasFixas, $normalizar) {
                 // `sortBy` é estável: dentro de cada grupo, vale a ordem que a pessoa já via.
                 $fixas = $coluna->filter(fn ($c) => (bool) $c->is_locked)
-                    ->sortBy(fn ($c) => $c->type === 'income' ? ($ordemDasReceitasFixas[$c->name] ?? 99) : 0)
+                    ->sortBy(fn ($c) => $c->type === 'income' ? ($ordemDasReceitasFixas[$normalizar($c->name)] ?? 99) : 0)
                     ->values();
                 $livres = $coluna->reject(fn ($c) => (bool) $c->is_locked)->values();
 

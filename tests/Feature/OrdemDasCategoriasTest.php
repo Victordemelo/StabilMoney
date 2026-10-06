@@ -169,6 +169,23 @@ class OrdemDasCategoriasTest extends TestCase
         $this->assertSame(Category::TRILHO_LIVRE, $compras->fresh()->position);
     }
 
+    public function test_lista_com_so_parte_das_fixas_nao_empata_posicoes(): void
+    {
+        // A tela manda a coluna inteira; um pedido montado à mão pode mandar só uma fixa.
+        // Antes ela era renumerada para 0 e empatava com a fixa que ficou de fora.
+        $alimentacao = $this->categoria('Alimentação', 'expense', 0, fixa: true);
+        $moradia = $this->categoria('Moradia', 'expense', 1, fixa: true);
+        $lazer = $this->categoria('Lazer', 'expense', 1000);
+
+        $this->actingAs($this->user)->patchJson(route('categories.ordenar'), [
+            'ids' => [$lazer->id, $moradia->id],
+        ])->assertOk();
+
+        $this->assertSame(0, $alimentacao->fresh()->position);
+        $this->assertSame(1, $moradia->fresh()->position);
+        $this->assertSame(['Alimentação', 'Moradia', 'Lazer'], $this->colunaNaTela('expense'));
+    }
+
     public function test_categoria_fixa_nova_entra_no_fim_das_fixas_e_antes_das_livres_reordenadas(): void
     {
         // Os trilhos continuam valendo depois de reordenar: era o furo do 0..n-1, em que

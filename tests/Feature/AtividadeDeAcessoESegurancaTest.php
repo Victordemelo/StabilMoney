@@ -52,7 +52,7 @@ class AtividadeDeAcessoESegurancaTest extends TestCase
         $ana = User::where('email', 'ana@exemplo.test')->sole();
         $linha = Atividade::sole();
 
-        // Nem as 14 categorias padrão, nem um "entrou" logo depois: o cadastro é UMA linha.
+        // Nem as 16 categorias padrão, nem um "entrou" logo depois: o cadastro é UMA linha.
         $this->assertSame('app.conta_criada', $linha->acao);
         $this->assertSame('Ana criou a conta no Stabil Money', $linha->descricao);
         $this->assertSame($ana->id, $linha->owner_id);

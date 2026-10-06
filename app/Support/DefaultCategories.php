@@ -141,23 +141,6 @@ class DefaultCategories
     }
 
     /**
-     * Ícone e cor padrão de uma categoria, pelo nome + tipo (null se não for das padrão).
-     * Usado pela migration que cria as receitas fixas nas famílias que já existiam.
-     *
-     * @return array{icon: string, color: string}|null
-     */
-    public static function padraoDe(string $name, string $type): ?array
-    {
-        foreach ($type === 'income' ? self::INCOMES : self::EXPENSES as [$n, $icone, $cor]) {
-            if ($n === $name) {
-                return ['icon' => $icone, 'color' => $cor];
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Cria as categorias de um tipo, cada uma com a sua cor própria.
      *
      * @param  list<array{0: string, 1: string, 2: string}>  $items

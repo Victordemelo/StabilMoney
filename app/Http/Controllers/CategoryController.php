@@ -102,16 +102,30 @@ class CategoryController extends Controller
             ->orderBy('position')
             ->orderBy('name')
             ->orderBy('id')
-            ->get(['id', 'is_locked'])
+            ->get(['id', 'is_locked', 'type'])
             ->keyBy('id');
 
         // Alheio, inexistente ou repetido: fica de fora sem numerar.
         $livres = collect($ids)->unique()->filter(fn ($id) => $daFamilia->has($id) && ! $daFamilia[$id]->is_locked)->values();
-        // As fixas mantêm a ordem gravada, venha a lista como vier.
-        $fixas = $daFamilia->filter(fn ($c) => $c->is_locked)->keys();
+        // As fixas mantêm a ordem gravada, venha a lista como vier — e são TODAS as da coluna,
+        // lidas do banco: numerar só as que vieram na lista empataria uma delas com a que ficou
+        // de fora (achado da revisão de out/2026).
+        $fixasPorTipo = Category::where('user_id', $ownerId)
+            ->whereIn('type', $daFamilia->pluck('type')->unique()->values())
+            ->where('is_locked', true)
+            ->orderBy('position')->orderBy('name')->orderBy('id')
+            ->get(['id', 'type'])
+            ->groupBy('type');
 
-        $novasPosicoes = $fixas->values()->mapWithKeys(fn ($id, $i) => [$id => Category::TRILHO_FIXA + $i])
-            ->union($livres->mapWithKeys(fn ($id, $i) => [$id => Category::TRILHO_LIVRE + $i]));
+        $novasPosicoes = collect();
+        foreach ($fixasPorTipo as $fixas) {
+            foreach ($fixas->values() as $i => $fixa) {
+                $novasPosicoes[(int) $fixa->id] = Category::TRILHO_FIXA + $i;
+            }
+        }
+        foreach ($livres as $i => $id) {
+            $novasPosicoes[$id] = Category::TRILHO_LIVRE + $i;
+        }
         $posicao = $novasPosicoes->count();
 
         DB::transaction(function () use ($novasPosicoes, $ownerId, $posicao) {

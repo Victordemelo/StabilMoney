@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\User;
 use App\Support\DefaultCategories;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -105,5 +106,22 @@ class ReceitasFixasNasCategoriasTest extends TestCase
 
         $this->assertFalse(Category::where('user_id', $user->id)->where('type', 'income')->where('is_locked', true)->exists());
         $this->assertTrue(Category::where('user_id', $user->id)->where('name', 'Moradia')->value('is_locked'));
+    }
+
+    public function test_no_mysql_o_salario_escrito_diferente_ganha_o_cadeado_e_vai_para_o_topo(): void
+    {
+        // O MySQL (utf8mb4_unicode_ci) acha "salário" ao procurar "Salário"; o sqlite, não.
+        if (DB::getDriverName() !== 'mysql') {
+            $this->markTestSkipped('Comparação sem caixa/acento é do MySQL (job `mysql` do CI).');
+        }
+
+        $titular = User::factory()->create();
+        $salario = Category::factory()->income()->for($titular)->create(['name' => 'salário', 'position' => 5]);
+
+        $this->migration()->up();
+
+        $this->assertTrue($salario->fresh()->isLocked());
+        $this->assertSame(0, $salario->fresh()->position);
+        $this->assertSame(1, Category::where('user_id', $titular->id)->where('type', 'income')->where('name', 'Salário')->count());
     }
 }
