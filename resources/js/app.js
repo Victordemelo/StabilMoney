@@ -1,5 +1,3 @@
-import './bootstrap';
-
 import { initTheme } from './sm/theme';
 import { initShell } from './sm/shell';
 import { initDashboard } from './sm/dashboard';
