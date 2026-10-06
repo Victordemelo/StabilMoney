@@ -363,7 +363,13 @@
                 <span class="modal-ico ico-out" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg></span>
                 <div>
                     <h3 id="metaDeleteModal-{{ $goal->id }}-titulo">Excluir meta</h3>
-                    <p id="metaDeleteModal-{{ $goal->id }}-descricao">Tem certeza que deseja excluir “{{ $goal->name }}”? Esta ação não pode ser desfeita.</p>
+                    {{-- Com dinheiro guardado a meta não sai (o servidor recusa): a tela diz por quê e
+                         o botão vem desligado, em vez de deixar clicar para só então avisar. --}}
+                    @if ((float) $goal->saved > 0.001)
+                        <p id="metaDeleteModal-{{ $goal->id }}-descricao" data-meta-com-dinheiro>“{{ $goal->name }}” ainda tem <b>@brl($goal->saved)</b> guardados. Para excluir, resgate todo o dinheiro dela primeiro.</p>
+                    @else
+                        <p id="metaDeleteModal-{{ $goal->id }}-descricao">Tem certeza que deseja excluir “{{ $goal->name }}”? Esta ação não pode ser desfeita.</p>
+                    @endif
                 </div>
                 <button class="modal-x" type="button" data-meta-close aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -374,7 +380,7 @@
                 @method('DELETE')
                 <div class="modal-foot">
                     <button class="btn ghost" type="button" data-meta-close>Cancelar</button>
-                    <button class="btn-danger" type="submit">Excluir meta</button>
+                    <button class="btn-danger" type="submit" @disabled((float) $goal->saved > 0.001)>Excluir meta</button>
                 </div>
             </form>
         </div>

@@ -231,17 +231,18 @@ class ExclusaoComDividaTest extends TestCase
         $this->assertSame(-1300.0, $this->conta->fresh()->available);
     }
 
-    public function test_meta_com_aporte_pode_ser_excluida_com_a_conta_no_azul(): void
+    public function test_meta_com_aporte_nao_pode_ser_excluida_nem_com_a_conta_no_azul(): void
     {
+        // Out/2026 (decisão do Victor): meta só sai zerada, com a conta no azul ou não —
+        // ver ExclusaoDeMetaSoZeradaTest.
         $meta = $this->metaCom(800);
 
         $this->actingAs($this->user)
             ->delete(route('metas.destroy', $meta))
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('metas.index'));
+            ->assertSessionHasErrors('meta');
 
-        $this->assertDatabaseMissing('goals', ['id' => $meta->id]);
-        $this->assertSame(1000.0, $this->conta->fresh()->available);
+        $this->assertDatabaseHas('goals', ['id' => $meta->id]);
+        $this->assertSame(200.0, $this->conta->fresh()->available);
     }
 
     public function test_meta_vazia_pode_ser_excluida_mesmo_com_a_conta_no_vermelho(): void
