@@ -14,12 +14,19 @@ use Symfony\Component\HttpFoundation\Response;
  * Na raiz, e não num `/inicio`: é o endereço que os buscadores mais valorizam, e antes ele só
  * redirecionava para o login (que tem pouco texto para o buscador entender o que o app é).
  * Roda ANTES do `auth` na rota `/` (routes/web.php declara a ordem).
+ *
+ * Navegação de DENTRO do app (pjax, `X-Pjax`) e pedido de JSON seguem para o `auth` mesmo sem
+ * usuário: é a sessão que expirou com a aba aberta. Sem isto, clicar em "Visão geral" com a
+ * sessão vencida jogava a pessoa na apresentação pública (200) em vez do login — e o service
+ * worker, que limpa o HTML guardado quando o `/login` responde 200, não ficava sabendo.
  */
 class PaginaInicialParaVisitante
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user() === null) {
+        $deDentroDoApp = $request->hasHeader('X-Pjax') || $request->expectsJson();
+
+        if ($request->user() === null && ! $deDentroDoApp) {
             return response()->view('inicio');
         }
 

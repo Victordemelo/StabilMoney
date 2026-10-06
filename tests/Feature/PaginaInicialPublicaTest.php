@@ -82,6 +82,18 @@ class PaginaInicialPublicaTest extends TestCase
         $this->actingAs(User::factory()->create())->get('/login')->assertRedirect(route('dashboard'));
     }
 
+    public function test_sessao_expirada_dentro_do_app_vai_ao_login_e_nao_a_apresentacao(): void
+    {
+        // O pjax do menu ("Visão geral") com a sessão vencida: segue o `auth`, que manda ao
+        // login — o nav.js navega para o endereço final do redirecionamento.
+        $this->get('/', ['X-Pjax' => '1', 'X-Requested-With' => 'XMLHttpRequest'])
+            ->assertRedirect(route('login'));
+        // E quem pede JSON recebe o 401 de sempre, não o HTML da apresentação.
+        $this->getJson('/')->assertUnauthorized();
+        // O visitante que digita o endereço continua vendo a apresentação.
+        $this->get('/')->assertOk()->assertSee('id="quem-fez"', false);
+    }
+
     public function test_a_marca_do_login_leva_a_pagina_inicial(): void
     {
         $this->get(route('login'))->assertOk()
