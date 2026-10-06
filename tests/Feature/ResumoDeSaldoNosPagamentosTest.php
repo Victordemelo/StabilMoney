@@ -81,6 +81,9 @@ class ResumoDeSaldoNosPagamentosTest extends TestCase
         $css = file_get_contents(resource_path('css/forms.css'));
 
         $this->assertMatchesRegularExpression('/\.resumo-saldo \{[^}]*align-items: flex-end;/', $css);
+        // E no meio dos dois números, na horizontal: colunas do tamanho do conteúdo, espaço igual.
+        $this->assertMatchesRegularExpression('/\.resumo-saldo \{[^}]*justify-content: space-between;/', $css);
+        $this->assertMatchesRegularExpression('/\.rs-item \{[^}]*flex: 0 1 auto;/', $css);
         preg_match('/\.rs-valor \{[^}]*line-height: (\d+px)/', $css, $valor);
         preg_match('/\.rs-op \{[^}]*line-height: (\d+px)/', $css, $operador);
         $this->assertNotEmpty($valor);
