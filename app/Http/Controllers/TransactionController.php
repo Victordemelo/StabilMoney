@@ -139,8 +139,12 @@ class TransactionController extends Controller
                     ->where("{$pai}.user_id", $userId)
                     ->when($contaFiltrada, fn ($q) => $q->where("{$tabela}.account_id", $contaFiltrada))
                     ->when($de, fn ($q) => $q->where("{$tabela}.date", '>=', $de->toDateString()))
-                    ->when($ate, fn ($q) => $q->where("{$tabela}.date", '<=', $ate->toDateString()))
-                    ->selectRaw("'{$origem}' as origem, {$tabela}.id as id, {$tabela}.date as data, {$tabela}.created_at as criado"));
+                    // "Antes do dia seguinte", e não `<= ate`: a data do aporte tem cast `date` sem
+                    // formato, e no sqlite fica gravada com a hora — `<=` deixaria o próprio dia de fora.
+                    ->when($ate, fn ($q) => $q->where("{$tabela}.date", '<', $ate->addDay()->toDateString()))
+                    // `date(...)` existe nos dois bancos; no sqlite tira a hora que o cast gravou,
+                    // senão o aporte venceria o desempate com qualquer lançamento do mesmo dia.
+                    ->selectRaw("'{$origem}' as origem, {$tabela}.id as id, date({$tabela}.date) as data, {$tabela}.created_at as criado"));
             }
         }
 

@@ -105,10 +105,16 @@ test('smoke: todas as telas renderizam sem erro', async ({ page }) => {
     await expect(page).toHaveURL(/\/accounts$/);
 
     await page.goto('/transactions/create');
+    // RECEITA: desde out/2026 despesa só sai por um MÉTODO (cartão, Pix, débito ou TED), e
+    // aqui só existe a conta corrente — em despesa o select "Onde" ficaria vazio e o
+    // navegador seguraria o envio (`required`).
+    await page.locator('label[for="tt-income"]').click();
     await page.fill('#amount', '100,00');
-    await page.fill('#description', 'Despesa smoke');
+    await page.fill('#description', 'Receita smoke');
     await page.click('.form-card button[type=submit]');
-    await expect(page).toHaveURL(/\/transactions$/);
+    // 15 s, não os 5 padrão: o envio passa pela fila offline (fetch + navegação), e com a
+    // máquina carregada os 5 s estouravam sem defeito nenhum.
+    await expect(page).toHaveURL(/\/transactions$/, { timeout: 15_000 });
 
     const screens = [
         ['dashboard', '/'],

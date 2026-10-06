@@ -34,6 +34,9 @@ class AportesEResgatesEmMovimentacoesTest extends TestCase
     {
         parent::setUp();
 
+        // Meio-dia: os testes andam o relógio alguns minutos, e perto da meia-noite o "hoje" viraria.
+        $this->travelTo(now()->setTime(12, 0));
+
         $this->titular = User::factory()->create(['name' => 'Victor']);
         $this->corrente = Account::factory()->for($this->titular)->create([
             'name' => 'Conta Corrente', 'type' => 'checking', 'bank' => 'nubank',
@@ -81,6 +84,8 @@ class AportesEResgatesEmMovimentacoesTest extends TestCase
         Transaction::factory()->for($this->titular)->create([
             'account_id' => $this->corrente->id, 'type' => 'income', 'amount' => 50, 'description' => 'Pix recebido', 'date' => $this->dia(1),
         ]);
+        // No mesmo dia, quem desempata é a hora em que foi feito: o aporte veio depois do Pix.
+        $this->travel(5)->minutes();
         $tesouro->contributions()->create(['account_id' => $this->corrente->id, 'type' => 'aporte', 'amount' => 900, 'date' => $this->dia(1)]);
         $tesouro->contributions()->create(['account_id' => $this->corrente->id, 'type' => 'resgate', 'amount' => 100, 'date' => $this->dia(0)]);
 
@@ -162,5 +167,33 @@ class AportesEResgatesEmMovimentacoesTest extends TestCase
 
         $this->actingAs($maria)->get(route('transactions.index', ['page' => 2]))->assertOk()
             ->assertSee('Gasto 9')->assertDontSee('Aporte em Tesouro');
+    }
+
+    public function test_o_ate_inclui_o_aporte_feito_no_proprio_dia(): void
+    {
+        // A data do aporte tem cast `date` (sem formato): no sqlite ela é gravada com a hora
+        // ("Y-m-d 00:00:00"), e comparar `<= 'Y-m-d'` como texto deixava de fora o próprio dia.
+        $tesouro = Investment::factory()->for($this->titular)->create(['name' => 'Tesouro']);
+        $tesouro->contributions()->create(['account_id' => $this->corrente->id, 'type' => 'aporte', 'amount' => 70, 'date' => $this->dia(3)]);
+
+        $this->actingAs($this->titular)->get(route('transactions.index', ['de' => $this->dia(3), 'ate' => $this->dia(3)]))->assertOk()
+            ->assertSee('Aporte em Tesouro');
+        $this->actingAs($this->titular)->get(route('transactions.index', ['ate' => $this->dia(4)]))->assertOk()
+            ->assertDontSee('Aporte em Tesouro');
+    }
+
+    public function test_no_mesmo_dia_vale_a_ordem_em_que_foram_feitos(): void
+    {
+        $tesouro = Investment::factory()->for($this->titular)->create(['name' => 'Tesouro']);
+        $this->travelTo(now()->setTime(9, 0));
+        $tesouro->contributions()->create(['account_id' => $this->corrente->id, 'type' => 'aporte', 'amount' => 70, 'date' => $this->dia(2)]);
+        $this->travelTo(now()->setTime(10, 0));
+        Transaction::factory()->for($this->titular)->create([
+            'account_id' => $this->corrente->id, 'type' => 'expense', 'amount' => 10, 'description' => 'Padaria', 'date' => $this->dia(2),
+        ]);
+
+        $html = $this->actingAs($this->titular)->get(route('transactions.index'))->assertOk()->getContent();
+
+        $this->assertLessThan(strpos($html, 'Aporte em Tesouro'), strpos($html, 'Padaria'), 'o lançamento feito depois vem antes');
     }
 }

@@ -265,13 +265,21 @@
   /* `minmax(0, 1fr)` e não `1fr` (= minmax(auto, 1fr)): a trilha não encolhia abaixo
      do conteúdo mais largo e, abaixo de ~240px, a página inteira rolava para o lado. */
   .auth { grid-template-columns: minmax(0, 1fr); }
-  .auth .auth-visual { min-height: 300px; padding: 30px; justify-content: space-between; }
+  /* As laterais e o topo somam a área segura: no app instalado com o celular deitado, o
+     notch cobria a marca (que é o link para a página inicial). */
+  .auth .auth-visual {
+    min-height: 300px; justify-content: space-between;
+    padding: max(30px, env(safe-area-inset-top, 0px)) max(30px, env(safe-area-inset-right, 0px)) 30px max(30px, env(safe-area-inset-left, 0px));
+  }
   .auth .av-body { display: none; }
   .auth .av-features { display: none; }
   .auth .av-foot { margin-top: auto; }
 }
 @media (max-width: 600px) {
-  .auth .auth-visual { min-height: 180px; padding: 22px; }
+  .auth .auth-visual {
+    min-height: 180px;
+    padding: max(22px, env(safe-area-inset-top, 0px)) max(22px, env(safe-area-inset-right, 0px)) 22px max(22px, env(safe-area-inset-left, 0px));
+  }
   .auth .av-foot { display: none; }
   .auth .auth-panel { padding: 26px 20px 40px; align-items: flex-start; }
   .auth .ac-brand { display: flex; }
@@ -318,4 +326,4 @@
 }
 
 /* A marca do painel visual é um link para a página inicial pública (out/2026). */
-.auth a.av-top { text-decoration: none; color: inherit; }
+.auth a.av-top { text-decoration: none; color: inherit; align-self: flex-start; }

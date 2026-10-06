@@ -109,8 +109,10 @@ test('lançamento offline entra na fila e sincroniza sem duplicar', async ({ pag
     await page.goto('/transactions/create');
     await expect(page.locator('form[data-offline-queue]')).toBeVisible();
 
-    // 4. Fica OFFLINE e lança.
+    // 4. Fica OFFLINE e lança — uma RECEITA: desde out/2026 despesa só sai por um método
+    // (cartão, Pix, débito ou TED), e aqui só existe a conta corrente.
     await context.setOffline(true);
+    await page.locator('label[for="tt-income"]').click();
     await page.fill('#amount', '42,50');
     await page.fill('#description', descricao);
     await page.click('.form-card button[type=submit]');

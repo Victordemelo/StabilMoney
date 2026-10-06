@@ -106,6 +106,20 @@ class ResponsividadeDoCssTest extends TestCase
             'Com o iPhone deitado no PWA, o notch vira margem lateral.');
     }
 
+    public function test_menu_do_perfil_e_marca_do_login_respeitam_a_tela_e_o_notch(): void
+    {
+        // Achados da varredura de out/2026: a 200px o "Informações do sistema" saía pela borda
+        // (largura fixa de 256px), e no app instalado deitado o notch cobria o menu e a marca.
+        $ds = $this->semComentarios('design-system.css');
+        $this->assertMatchesRegularExpression('/\.profile-pop \{[^}]*width: min\(256px, calc\(100vw - 24px\)\)[^}]*max-height:/', $ds);
+        $shell = file_get_contents(resource_path('js/sm/shell.js'));
+        $this->assertStringContainsString("areaSegura('left')", $shell);
+        $this->assertStringContainsString("areaSegura('bottom')", $shell);
+
+        $auth = $this->semComentarios('auth.css');
+        $this->assertSame(2, preg_match_all('/\.auth \.auth-visual \{[^}]*env\(safe-area-inset-left/', $auth));
+    }
+
     public function test_todo_layout_pede_viewport_fit_cover(): void
     {
         foreach (glob(resource_path('views/layouts/*.blade.php')) as $layout) {

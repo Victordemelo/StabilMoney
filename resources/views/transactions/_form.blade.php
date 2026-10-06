@@ -328,7 +328,11 @@
                 contaSel.querySelectorAll('optgroup[data-para]').forEach(function (g) {
                     g.hidden = g.dataset.para.split(' ').indexOf(tipo) === -1;
                 });
-                if (trocar) {
+                // Também sem escolha nenhuma: abrindo em despesa sem método cadastrado, nada vale e
+                // o select fica vazio — ao trocar para receita a conta volta a valer, e sem isto
+                // continuava sem seleção e o `required` segurava o envio (achado do e2e, out/2026).
+                var atual = contaSel.selectedOptions[0];
+                if (trocar || !atual || atual.disabled) {
                     var valida = Array.prototype.find.call(contaSel.options, function (o) { return !o.disabled; });
                     if (valida) valida.selected = true;
                     else contaSel.selectedIndex = -1;

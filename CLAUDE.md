@@ -1355,6 +1355,22 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   decide continua sendo o servidor. No Lançar, a linha `.lm-saldo` só fala quando falta o método.
   `cashAccounts` do `FaturaService` passa por `preloadMoney`. Select novo de pagamento: ponha os dois
   `data-saldo-*` na option e inclua o partial.
+- O "−" e o "=" alinham pela BASE com os valores (`align-items: flex-end` + mesma `line-height`;
+  sentinela no `ResumoDeSaldoNosPagamentosTest`).
+- **Varredura de out/2026 (bateria completa pedida pelo Victor):**
+  - Página cheia de lançamento: abrindo em despesa SEM método cadastrado o select "Onde" fica vazio,
+    e ao trocar para receita a conta voltava a valer mas seguia sem seleção — o `required` segurava
+    o envio sem dizer por quê. O script inline agora reescolhe também quando nada está escolhido ou a
+    escolha ficou desabilitada, como o `launch.js` (`tests/js/formulario-lancamento.test.js` executa
+    o script REAL da view). Achado pelos e2e, que também foram atualizados: lançam RECEITA, porque
+    despesa só sai por um método desde out/2026.
+  - Movimentações: o "Até" dos aportes compara com "antes do dia seguinte" e a ordenação usa
+    `date(...)` — no sqlite a data do aporte (cast `date` sem formato) vem com a hora.
+  - Menu do perfil: largura `min(256px, 100vw − 24px)`, rola por dentro em tela baixa, e a posição
+    (`shell.js`) desconta a área segura do notch e da barra de gestos (`areaSegura`, uma sonda com
+    `env()`); a marca do login (link da página inicial) também respeita a área segura.
+  - Para rodar os e2e na prévia: `E2E_BASE_URL=http://127.0.0.1:8092` e `SEED_EMAIL`/`SEED_PASSWORD`
+    lidos do `.env` descartável da prévia (`depois/.env`) — nunca contra o app de dev (SMTP real).
 - **Rodapé de autoria** (`partials/rodape-autoria`, dentro do `#content` do `layouts/app`): logo,
   versão, "Desenvolvido com ♥ por" `config('sistema.autor.nome')` (link para o site), © 2026 (vira
   intervalo nos anos seguintes) — sem links (os Termos/Privacidade já estão no menu do perfil e nas telas públicas) — `RodapeDeAutoriaTest`.

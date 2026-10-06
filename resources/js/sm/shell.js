@@ -89,6 +89,20 @@ export function initShell() {
         return api;
     };
 
+    /**
+     * Quanto o `env(safe-area-inset-*)` daquele lado mede agora (0 fora do app instalado).
+     * O JS não lê `env()` direto: uma sonda invisível com o padding dele diz o valor.
+     */
+    const areaSegura = (lado) => {
+        const sonda = document.createElement('div');
+        sonda.style.cssText = `position:fixed;top:0;${lado}:0;width:0;height:0;visibility:hidden;pointer-events:none;`
+            + `padding-${lado}:env(safe-area-inset-${lado}, 0px)`;
+        document.body.appendChild(sonda);
+        const valor = sonda.getBoundingClientRect().width || 0;
+        sonda.remove();
+        return valor;
+    };
+
     // Perfil: posição fixa ancorada no botão (reposiciona em resize/scroll)
     const profileBtn = document.getElementById('profileBtn');
     const profilePop = document.getElementById('profilePop');
@@ -96,9 +110,14 @@ export function initShell() {
         if (!profileBtn || !profilePop) return;
         const r = profileBtn.getBoundingClientRect();
         const w = profilePop.offsetWidth || 256;
-        const left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12));
+        // No app instalado com o celular deitado, o notch fica na lateral: a margem de 12px
+        // conta a partir da ÁREA SEGURA, senão o menu abre embaixo do notch.
+        const esq = 12 + areaSegura('left');
+        const dir = 12 + areaSegura('right');
+        const left = Math.max(esq, Math.min(r.left, window.innerWidth - w - dir));
         profilePop.style.left = left + 'px';
-        profilePop.style.bottom = (window.innerHeight - r.top + 10) + 'px';
+        // Embaixo, a barra de gestos (celular deitado no app instalado): nunca abaixo dela.
+        profilePop.style.bottom = Math.max(window.innerHeight - r.top + 10, 12 + areaSegura('bottom')) + 'px';
     };
     const perfilPop = makePopover(profileBtn, profilePop, posicionarPerfil);
     if (perfilPop) {
