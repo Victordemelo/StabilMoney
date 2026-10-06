@@ -45,6 +45,14 @@ describe('desenharResumo', () => {
         expect(document.querySelector('[data-rs-aviso]').hidden).toBe(false);
     });
 
+    it('no cartão o limite livre para em zero, e o aviso diz quanto a compra passa', () => {
+        desenharResumo(document.querySelector('[data-resumo-saldo]'), { saldo: 7597.10, valor: 15000, cartao: true });
+
+        expect(texto('depois')).toBe('R$ 0,00');
+        expect(document.querySelector('[data-rs-depois]').classList.contains('neg')).toBe(true);
+        expect(texto('aviso')).toBe('Passa do limite livre em R$ 7.402,90: o cartão não aceita esta compra.');
+    });
+
     it('no cartão fala em limite livre; receita soma', () => {
         desenharResumo(document.querySelector('[data-resumo-saldo]'), { saldo: 2000, valor: 500, cartao: true });
         expect(texto('rotulo-atual')).toBe('Limite livre agora');

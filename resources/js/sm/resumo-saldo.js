@@ -44,7 +44,8 @@ export function saldoDaOpcao(select) {
  * Desenha o resumo. `sinal` −1 = sai dinheiro (pagamento, despesa, transferência);
  * +1 = entra (receita). `saldo` null esconde o resumo inteiro (sem conta escolhida).
  *
- * No cartão de crédito o "saldo" é o limite livre — os rótulos acompanham.
+ * No cartão de crédito o "saldo" é o limite livre — os rótulos acompanham, e o "depois"
+ * para em R$ 0,00 (o limite não fica negativo): o excesso vai para o aviso.
  */
 export function desenharResumo(el, { saldo, valor, sinal = -1, rotuloValor, cartao = false, obrigacao = false, reservar = false }) {
     if (!el) return;
@@ -58,7 +59,11 @@ export function desenharResumo(el, { saldo, valor, sinal = -1, rotuloValor, cart
     el.classList.remove('reservado');
 
     const centavos = (n) => Math.round(n * 100);
-    const depois = (centavos(saldo) + sinal * centavos(valor || 0)) / 100;
+    const depoisReal = (centavos(saldo) + sinal * centavos(valor || 0)) / 100;
+    // O limite livre do cartão vai até 0, nunca abaixo (decisão do Victor): o que passar
+    // dele não vira "limite negativo" — o servidor recusa a compra, e o aviso diz quanto falta.
+    const passaDoLimite = cartao && depoisReal < 0 ? -depoisReal : 0;
+    const depois = passaDoLimite ? 0 : depoisReal;
     const campo = (nome) => el.querySelector(`[data-rs-${nome}]`);
     // Só reescreve o que mudou: menos trabalho e nada de anúncio repetido por leitor de tela.
     const escrever = (nome, texto) => { const c = campo(nome); if (c && c.textContent !== texto) c.textContent = texto; };
@@ -72,15 +77,15 @@ export function desenharResumo(el, { saldo, valor, sinal = -1, rotuloValor, cart
     escrever('depois', formatarBrl(depois));
 
     campo('atual')?.classList.toggle('neg', saldo < 0);
-    campo('depois')?.classList.toggle('neg', depois < 0);
+    campo('depois')?.classList.toggle('neg', depois < 0 || passaDoLimite > 0);
 
     const aviso = campo('aviso');
     if (aviso) {
-        const fica = depois < 0 && sinal < 0;
+        const fica = (depois < 0 || passaDoLimite > 0) && sinal < 0;
         // Obrigação (fatura, conta fixa) passa e a conta fica negativa; gasto NOVO sem fonte que
         // cubra é recusado pelo servidor — o texto não pode prometer que ele passa.
         const texto = !fica ? ''
-            : cartao ? 'Passa do limite livre do cartão.'
+            : cartao ? `Passa do limite livre em ${formatarBrl(passaDoLimite)}: o cartão não aceita esta compra.`
                 : obrigacao ? 'O saldo fica negativo. Se a conta tiver cheque especial ou investimento, você escolhe de onde sai o que faltar.'
                     : 'Falta dinheiro na conta: ao salvar, você escolhe se cobre com o cheque especial ou com um investimento. Sem nenhum dos dois, o lançamento não é aceito.';
         aviso.hidden = !fica;
