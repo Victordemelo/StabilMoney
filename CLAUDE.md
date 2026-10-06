@@ -1110,7 +1110,8 @@ Testes: `GuardsDeEdicaoNoHistoricoTest`, `ExclusaoComDividaTest`, `FaturaAtrasad
 - **Editar despesa financiada por resgate RECONCILIA**, não recusa: `estornarFonte()` + `spend()`
   recalcula do zero, com a **conta travada antes do estorno** (ordem conta → pai). Zera também a
   auditoria de cheque especial — senão uma despesa de R$ 100 ficava marcada "cheque especial R$ 300".
-- **Excluir meta/investimento com a conta no vermelho é bloqueado.** Não porque crie dinheiro
+- **Excluir meta/investimento com a conta no vermelho é bloqueado** (a meta, desde out/2026, só sai
+  zerada — ver "Meta só sai ZERADA"). Não porque crie dinheiro
   (excluir e resgatar por inteiro têm efeito IDÊNTICO no disponível), mas porque quita o cheque
   especial **sem registro** de que a poupança cobriu. Excluir o **perfil** NÃO é bloqueado: seria
   brigar com o direito de eliminação da LGPD que a própria Política promete — em vez disso, as
@@ -1386,9 +1387,14 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
     repetem entre as três tabelas).
   - A migration das receitas fixas ordena pelo nome sem caixa/acento (no MySQL "salário" casa com
     "Salário"; teste só-MySQL no `ReceitasFixasNasCategoriasTest`).
-  - Aceito, não corrigido: no cartão o resumo usa o limite livre CLAMPADO em 0 (com o limite já
-    estourado mostra "0 − 100"); excluir meta/investimento leva junto o histórico de aportes dela
-    (cascade de `goal_id`/`investment_id`).
+  - **Cartão: o limite livre vai até 0, nunca abaixo** (decisão do Victor). O resumo usa o
+    `availableLimitDisplay` e o "Limite livre depois" para em R$ 0,00 (vermelho); o excesso vai para
+    o aviso ("Passa do limite livre em R$ X: o cartão não aceita esta compra").
+  - **Meta só sai ZERADA** (`ExclusaoDeMetaSoZeradaTest`, decisão do Victor): com dinheiro guardado o
+    `GoalController::destroy` recusa ("resgate todo o dinheiro dela antes") e o modal explica e
+    desliga o botão. Substituiu a trava antiga, que só barrava com a conta no vermelho. Motivo:
+    excluir devolvia o dinheiro em silêncio e o histórico de aportes sumia junto (cascade); o
+    resgate deixa registro e aparece em Movimentações. Investimentos seguem a regra antiga.
 - **Rodapé de autoria** (`partials/rodape-autoria`, dentro do `#content` do `layouts/app`): logo,
   versão, "Desenvolvido com ♥ por" `config('sistema.autor.nome')` (o nome é link para o site), © 2026
   (vira intervalo nos anos seguintes). Sem a fileira de links Sobre/Termos/Privacidade (saiu por
