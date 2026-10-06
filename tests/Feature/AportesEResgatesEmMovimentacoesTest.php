@@ -196,4 +196,39 @@ class AportesEResgatesEmMovimentacoesTest extends TestCase
 
         $this->assertLessThan(strpos($html, 'Aporte em Tesouro'), strpos($html, 'Padaria'), 'o lançamento feito depois vem antes');
     }
+
+    public function test_tipo_desconhecido_vale_como_todos(): void
+    {
+        $tesouro = Investment::factory()->for($this->titular)->create(['name' => 'Tesouro']);
+        $tesouro->contributions()->create(['account_id' => $this->corrente->id, 'type' => 'aporte', 'amount' => 70, 'date' => $this->dia(0)]);
+        Transaction::factory()->for($this->titular)->create([
+            'account_id' => $this->corrente->id, 'type' => 'expense', 'amount' => 10, 'description' => 'Padaria', 'date' => $this->dia(0),
+        ]);
+
+        $this->actingAs($this->titular)->get(route('transactions.index', ['type' => 'xyz']))->assertOk()
+            ->assertSee('Padaria')->assertSee('Aporte em Tesouro');
+    }
+
+    public function test_mesmo_id_e_mesmo_instante_em_tabelas_diferentes_nao_somem_na_paginacao(): void
+    {
+        // Lançamento e aporte com o MESMO id, data e criação: a origem desempata, e as duas
+        // páginas juntas trazem cada linha uma vez só.
+        $tesouro = Investment::factory()->for($this->titular)->create(['name' => 'Tesouro']);
+        for ($i = 0; $i < 16; $i++) {
+            Transaction::factory()->for($this->titular)->create([
+                'account_id' => $this->corrente->id, 'type' => 'expense', 'amount' => 1, 'description' => "Gasto {$i}", 'date' => $this->dia(0),
+            ]);
+            $tesouro->contributions()->create(['account_id' => $this->corrente->id, 'type' => 'aporte', 'amount' => 1, 'date' => $this->dia(0)]);
+        }
+
+        $vistos = [];
+        foreach ([1, 2, 3] as $pagina) {
+            foreach ($this->actingAs($this->titular)->get(route('transactions.index', ['page' => $pagina]))->viewData('transactions')->items() as $item) {
+                $vistos[] = class_basename($item).'#'.$item->id;
+            }
+        }
+
+        $this->assertCount(32, $vistos);
+        $this->assertCount(32, array_unique($vistos));
+    }
 }

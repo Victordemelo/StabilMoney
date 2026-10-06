@@ -64,7 +64,12 @@ class TransactionController extends Controller
         // de uma transferência continuam `income`/`expense` no banco (é o que faz o
         // saldo fechar), mas listá-las em "Receitas" diria que entrou dinheiro que só
         // trocou de conta. Elas têm filtro próprio, "Transferências".
+        // Tipo desconhecido (`?type=xyz`) vale como "todos" — antes listava os lançamentos e
+        // escondia os aportes, uma lista que não era nenhum dos filtros oferecidos.
         $type = $request->query('type');
+        if (! in_array($type, ['income', 'expense', 'transfer', 'reserva'], true)) {
+            $type = null;
+        }
         if (in_array($type, ['income', 'expense'], true)) {
             $query->where('type', $type)->whereNull('transfer_group_id');
         } elseif ($type === 'transfer') {
@@ -126,7 +131,7 @@ class TransactionController extends Controller
         // então ficam fora de "Receitas"/"Despesas"/"Transferências" e de qualquer filtro de
         // categoria, e têm filtro próprio. A paginação é UMA só, sobre a união dos três, por
         // data (`AportesEResgatesEmMovimentacoesTest`).
-        $comReservas = ($type === null || $type === '' || $type === 'reserva') && ! ($categoryId && $idsDeCategoria->contains($categoryId));
+        $comReservas = ($type === null || $type === 'reserva') && ! ($categoryId && $idsDeCategoria->contains($categoryId));
         $contaFiltrada = $accountId && $accounts->contains('id', $accountId) ? $accountId : null;
 
         $linhas = (clone $query)->toBase()
@@ -152,6 +157,9 @@ class TransactionController extends Controller
             ->orderByDesc('data')
             ->orderByDesc('criado')
             ->orderByDesc('id')
+            // Os ids vêm de três tabelas e se repetem: sem a origem, um lançamento #7 e um aporte
+            // #7 do mesmo instante empatavam, e o MySQL podia repetir ou sumir com um na virada de página.
+            ->orderBy('origem')
             ->paginate(self::POR_PAGINA)
             ->withQueryString();
 
