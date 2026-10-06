@@ -73,4 +73,17 @@ class ResumoDeSaldoNosPagamentosTest extends TestCase
         $this->assertStringContainsString('data-resumo-saldo', $html);
         $this->assertStringContainsString('data-saldo-valor="800.00"', $html);
     }
+
+    public function test_o_menos_e_o_igual_ficam_na_linha_dos_valores(): void
+    {
+        // Centralizados no bloco rótulo+valor, o − e o = flutuavam entre as duas linhas
+        // (pedido do Victor). Alinhados pela base, com a mesma altura de linha dos valores.
+        $css = file_get_contents(resource_path('css/forms.css'));
+
+        $this->assertMatchesRegularExpression('/\.resumo-saldo \{[^}]*align-items: flex-end;/', $css);
+        preg_match('/\.rs-valor \{[^}]*line-height: (\d+px)/', $css, $valor);
+        preg_match('/\.rs-op \{[^}]*line-height: (\d+px)/', $css, $operador);
+        $this->assertNotEmpty($valor);
+        $this->assertSame($valor[1], $operador[1] ?? null);
+    }
 }
