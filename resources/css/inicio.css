@@ -2,9 +2,9 @@
    Página inicial pública (resources/views/inicio.blade.php).
 
    Reformulada em out/2026 com o estilo da Wise como base — o guia completo está em
-   design_stabilmoney/ (paleta, fontes, imagens e regras). Um verde-petróleo profundo (o mesmo
-   fundo da ilustração do topo, para a imagem se fundir com a página), UM destaque lima (só nas
-   ações principais), títulos blocados em Bricolage Grotesque 800 e texto em Geist.
+   design_stabilmoney/ (paleta, fontes, imagens e regras). Um verde-petróleo profundo nas faixas
+   escuras, UM destaque lima (só nas ações principais), a abertura com uma prévia viva do app
+   (sm/vitrine.js), títulos blocados em Bricolage Grotesque 800 e texto em Geist.
 
    Tokens fixos no escopo `.inicio` (a página é sempre clara, como o login). O design system
    trava `body { overflow: hidden }` (no app quem rola é o #content); aqui a página inteira rola.
@@ -12,7 +12,7 @@
 .inicio-body { height: auto; min-height: 100%; overflow-y: auto; overflow-x: hidden; background: #FFFFFF; }
 
 .inicio {
-  --mata: #032628;      /* fundo da ilustração do topo — topo, Segurança e chamada final */
+  --mata: #032628;      /* superfícies escuras — topo, abertura, Segurança e chamada final */
   --abeto: #0A3A36;     /* verde-escuro do texto forte e dos ícones */
   --lima: #9FE870;      /* o ÚNICO destaque: as ações principais */
   --lima-claro: #E4F7D4;
@@ -64,38 +64,94 @@
 /* ----- Topo (escuro, colado na abertura) ----- */
 .in-topo { position: sticky; top: 0; z-index: 20; background: var(--mata); color: #fff;
   border-bottom: 1px solid rgba(255, 255, 255, .08); }
-.in-topo-in { display: flex; align-items: center; gap: 24px; min-height: 72px; padding-top: env(safe-area-inset-top, 0px); }
+/* Três colunas: a marca, o menu no CENTRO da página e as ações. As colunas das pontas têm o
+   mesmo tamanho (1fr), então o menu fica centralizado de verdade, não só "entre" os vizinhos. */
+.in-topo-in { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 24px;
+  min-height: 72px; padding-top: env(safe-area-inset-top, 0px); }
+.in-topo-in > .in-marca { justify-self: start; }
 .in-marca { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; flex: none; }
 .in-marca img { width: 34px; height: 34px; border-radius: 9px; display: block; }
 .in-marca span { font-family: var(--font-titulo); font-weight: 800; font-size: 20px; letter-spacing: -.02em; }
 .in-marca b { font-weight: 800; color: var(--lima); }
-.in-menu { display: flex; gap: 2px; margin-left: auto; }
+.in-menu { display: flex; gap: 2px; grid-column: 2; }
 .in-menu a { padding: 8px 12px; border-radius: 999px; font-size: 14.5px; font-weight: 500; color: var(--no-escuro); text-decoration: none; }
 .in-menu a:hover { color: #fff; background: rgba(255, 255, 255, .08); }
-.in-topo-acoes { display: flex; gap: 10px; }
+.in-topo-acoes { display: flex; gap: 10px; grid-column: 3; justify-self: end; }
 .in-topo .in-btn { min-height: 40px; padding: 8px 18px; font-size: 14.5px; }
 
-/* ----- Abertura: a ilustração do app ao fundo, à direita; o título à esquerda ----- */
+/* ----- Abertura: o título e uma prévia VIVA do app (sm/vitrine.js) ----- */
 .in-hero { position: relative; overflow: hidden; background: var(--mata); color: #fff; }
-/* A imagem tem a altura da abertura e encosta na direita; em telas médias recua, para o celular
-   da ilustração não ficar embaixo do texto. A borda esquerda some no fundo (mesma cor). */
-.in-hero-arte { position: absolute; top: 0; bottom: 0; right: clamp(-150px, calc((100vw - 1440px) / 2), 0px); }
-.in-hero-arte img { display: block; height: 100%; width: auto; max-width: none;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22%); mask-image: linear-gradient(90deg, transparent 0, #000 22%); }
-.in-hero-in { position: relative; min-height: 680px; display: flex; flex-direction: column; justify-content: center;
-  padding-top: 72px; padding-bottom: 88px; }
-.in-hero h1 { color: #fff; max-width: 600px; font-size: clamp(46px, 5.6vw, 84px); line-height: .92; letter-spacing: -.038em; }
-.in-hero-lede { margin: 28px 0 0; max-width: 480px; font-size: 19px; line-height: 1.55; color: var(--no-escuro); }
+.in-hero-in { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 470px); gap: 64px; align-items: center;
+  min-height: 660px; padding-top: 72px; padding-bottom: 96px; }
+.in-hero h1 { color: #fff; max-width: 620px; font-size: clamp(46px, 5.6vw, 84px); line-height: .92; letter-spacing: -.038em; }
+.in-hero-lede { margin: 28px 0 0; max-width: 470px; font-size: 19px; line-height: 1.55; color: var(--no-escuro); }
 .in-hero-pontos { list-style: none; margin: 36px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px 26px;
   font-size: 15px; font-weight: 500; color: #fff; }
 .in-hero-pontos li { display: inline-flex; align-items: center; gap: 9px; }
 .in-hero-pontos li::before { content: ""; width: 18px; height: 18px; flex: none; border-radius: 50%; background: var(--lima)
   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23032628' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 12.5 4 4 8-9'/%3E%3C/svg%3E") center / 12px no-repeat; }
-/* O único movimento da página: o texto da abertura sobe uma vez, ao carregar. */
-.in-hero-in > * { animation: in-sobe .7s cubic-bezier(.2, .7, .2, 1) backwards; }
+
+/* A vitrine: o painel branco (o app é claro) com dois avisos escuros encostados. */
+.in-vitrine { position: relative; margin: 0; padding: 54px 0 54px 30px; justify-self: end; width: 100%; }
+.vt-painel { position: relative; background: var(--papel); color: var(--tinta); border-radius: 28px; padding: 26px 26px 18px;
+  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, .55); }
+.vt-topo { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; color: var(--grafite); }
+.vt-mes { padding: 4px 12px; border-radius: 999px; background: var(--nevoa); color: var(--abeto); }
+.vt-rotulo { margin: 22px 0 0; font-size: 13.5px; font-weight: 500; color: var(--apagado); }
+.vt-saldo { margin: 4px 0 0; font-family: var(--font-titulo); font-weight: 800; font-size: 44px; line-height: 1; letter-spacing: -.035em;
+  color: var(--tinta); font-variant-numeric: tabular-nums; }
+.vt-moeda { font-size: 22px; letter-spacing: 0; vertical-align: 14px; margin-right: 2px; color: var(--grafite); }
+.vt-contas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0 0; }
+.vt-contas div { background: var(--nevoa); border-radius: 14px; padding: 10px 14px; }
+.vt-contas dt { font-size: 12px; color: var(--apagado); }
+.vt-contas dd { margin: 2px 0 0; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.vt-gasto { margin-top: 16px; }
+.vt-gasto-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--apagado); font-variant-numeric: tabular-nums; }
+.vt-gasto-linha span:last-child { color: var(--grafite); font-weight: 500; }
+.vt-barra { height: 8px; margin-top: 8px; border-radius: 999px; background: var(--nevoa); overflow: hidden; }
+.vt-barra i { display: block; height: 100%; border-radius: inherit; background: var(--abeto); transition: width .7s cubic-bezier(.2, .7, .2, 1); }
+.vt-rotulo-lista { margin-top: 20px; }
+.vt-lista { list-style: none; margin: 6px 0 0; padding: 0; }
+.vt-item { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 9px 0;
+  border-top: 1px solid var(--linha); max-height: 64px; overflow: hidden;
+  transition: max-height .45s ease, padding .45s ease, opacity .45s ease, transform .45s cubic-bezier(.2, .7, .2, 1); }
+.vt-item:first-child { border-top: 0; }
+.vt-ic { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--nevoa); color: var(--grafite); }
+.vt-receita .vt-ic { background: var(--lima-claro); color: var(--abeto); }
+.vt-ic svg { width: 18px; height: 18px; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.vt-txt { display: grid; min-width: 0; }
+.vt-txt b { font-size: 14.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vt-txt small { font-size: 12.5px; color: var(--apagado); }
+.vt-valor { font-size: 14.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vt-receita .vt-valor { color: #1D7A4C; }
+/* Entrada e saída de um lançamento (as classes saem/entram pelo vitrine.js). */
+.vt-item.vt-entra { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; transform: translateY(-10px); }
+.vt-item.vt-sai { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; }
+
+.vt-aviso, .vt-meta { position: absolute; display: flex; align-items: center; gap: 12px; padding: 12px 18px 12px 12px;
+  border-radius: 20px; background: var(--abeto); color: #fff; border: 1px solid rgba(255, 255, 255, .1);
+  box-shadow: 0 24px 50px -20px rgba(0, 0, 0, .6); }
+.vt-aviso span:last-child, .vt-meta span:last-child { display: grid; line-height: 1.3; }
+.vt-aviso b, .vt-meta b { font-size: 14px; font-weight: 600; }
+.vt-aviso small, .vt-meta small { font-size: 12.5px; color: var(--no-escuro); }
+.vt-aviso { top: 0; right: -14px; }
+.vt-sino { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: var(--lima); color: var(--mata); }
+.vt-sino svg { width: 19px; height: 19px; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.vt-meta { left: 0; bottom: 8px; }
+.vt-anel { width: 42px; height: 42px; transform: rotate(-90deg); }
+.vt-anel circle { fill: none; stroke-width: 5; stroke: rgba(255, 255, 255, .14); }
+.vt-anel .vt-anel-cheio { stroke: var(--lima); stroke-linecap: round; stroke-dasharray: 68 100; }
+
+/* A abertura entra uma vez: texto e painel sobem, a meta enche. Sem JS, nada se mexe. */
+.vt-viva .vt-painel { animation: in-sobe .8s cubic-bezier(.2, .7, .2, 1) backwards; }
+.vt-viva .vt-aviso { animation: in-sobe .8s .35s cubic-bezier(.2, .7, .2, 1) backwards; }
+.vt-viva .vt-meta { animation: in-sobe .8s .5s cubic-bezier(.2, .7, .2, 1) backwards; }
+.vt-viva .vt-anel-cheio { animation: vt-enche 1.4s .7s cubic-bezier(.2, .7, .2, 1) backwards; }
+.in-hero-texto > * { animation: in-sobe .7s cubic-bezier(.2, .7, .2, 1) backwards; }
 .in-hero-lede { animation-delay: .08s; }
 .in-hero-pontos { animation-delay: .16s; }
 @keyframes in-sobe { from { opacity: 0; transform: translateY(18px); } }
+@keyframes vt-enche { from { stroke-dasharray: 0 100; } }
 
 /* ----- Seções ----- */
 .in-secao { padding: 120px 0; scroll-margin-top: 72px; }
@@ -186,20 +242,26 @@
 .in-rodape p { margin: 0; }
 
 /* ----- Telas médias e celular ----- */
-@media (max-width: 1060px) {
+/* Sem espaço para o menu centralizado entre a marca e as ações: ele sai (as seções seguem a
+   uma rolagem), e o topo volta a ser marca à esquerda, ações à direita. */
+@media (max-width: 1140px) {
+  .in-topo-in { display: flex; }
   .in-menu { display: none; }
   .in-topo-acoes { margin-left: auto; }
+}
+@media (max-width: 1060px) {
   .in-recursos, .in-garantias { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .in-hero-in { gap: 40px; }
 }
 
 /* Abaixo disto a ilustração não cabe ao lado do texto: desce para depois dele, inteira. */
 @media (max-width: 980px) {
-  .in-hero, .in-passos-faixa { display: flex; flex-direction: column-reverse; }
-  .in-hero-arte, .in-passos-arte { position: static; display: block; }
-  .in-hero-arte img, .in-passos-arte img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: 68% center;
+  .in-passos-faixa { display: flex; flex-direction: column-reverse; }
+  .in-passos-arte { position: static; display: block; }
+  .in-passos-arte img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: 68% center;
     -webkit-mask-image: none; mask-image: none; }
-  .in-hero-arte img { -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22%); mask-image: linear-gradient(180deg, transparent 0, #000 22%); }
-  .in-hero-in { min-height: 0; padding-top: 56px; padding-bottom: 8px; }
+  .in-hero-in { grid-template-columns: minmax(0, 1fr); min-height: 0; padding-top: 56px; padding-bottom: 72px; gap: 48px; }
+  .in-vitrine { justify-self: center; max-width: 470px; }
   .in-passos-in { min-height: 0; padding-top: 88px; padding-bottom: 0; }
   .in-passos { max-width: none; }
   .in-dupla, .in-autor { grid-template-columns: minmax(0, 1fr); gap: 40px; }
@@ -228,6 +290,18 @@
   .in-topo .in-btn { padding: 8px 14px; font-size: 14px; }
   .in-passos li { grid-template-columns: 44px minmax(0, 1fr); column-gap: 14px; }
   .in-passos li::before { width: 44px; height: 44px; font-size: 19px; }
+  /* No celular os avisos não cabem ao lado do painel: o do vencimento sai e a meta vem para
+     baixo dele, inteira. */
+  .in-vitrine { padding: 0; }
+  .vt-aviso { display: none; }
+  .vt-meta { position: static; margin-top: 12px; }
+  .vt-painel { padding: 22px 18px 14px; border-radius: 24px; }
+  .vt-saldo { font-size: 38px; }
+  .vt-contas dd { font-size: 14px; }
+}
+@media (max-width: 340px) {
+  .vt-contas { grid-template-columns: minmax(0, 1fr); }
+  .vt-gasto-linha { flex-direction: column; gap: 2px; }
 }
 
 @media (max-width: 300px) {
@@ -237,6 +311,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .in-hero-in > * { animation: none; }
+  .in-hero-texto > *, .vt-viva .vt-painel, .vt-viva .vt-aviso, .vt-viva .vt-meta, .vt-viva .vt-anel-cheio { animation: none; }
+  .vt-item, .vt-barra i { transition: none; }
   .in-faq summary::after, .in-btn { transition: none; }
 }

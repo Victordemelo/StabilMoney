@@ -84,22 +84,82 @@
     </header>
 
     <main>
-        {{-- ---------- Abertura: a ilustração do app ao fundo, o título por cima ---------- --}}
+        {{-- ---------- Abertura: o título e uma prévia VIVA do app ---------- --}}
+        {{--
+            Sem ilustração (a do celular "tinha cara de IA", out/2026): ao lado do título, o app
+            em pequeno, desenhado em HTML. A cada poucos segundos entra um lançamento novo e o
+            saldo acompanha (`sm/vitrine.js`). Os números são de exemplo. Sem JS, ou com
+            "reduzir movimento", fica este estado inicial, parado.
+        --}}
+        @php
+            $vitrine = [
+                'corrente' => 3018.30, 'poupanca' => 1200.00, 'receitas' => 5200.00, 'despesas' => 1981.70,
+                'itens' => [
+                    ['Salário', 'Receita', 5200.00],
+                    ['Aluguel', 'Moradia', -1450.00],
+                    ['Mercado', 'Alimentação', -347.20],
+                ],
+            ];
+            $num = fn ($v) => number_format(abs($v), 2, ',', '.');
+        @endphp
         <section class="in-hero">
-            <picture class="in-hero-arte">
-                <source media="(max-width: 860px)" srcset="{{ asset('assets/inicio-app-960.jpg') }}">
-                <img src="{{ asset('assets/inicio-app-1672.jpg') }}" alt="" width="1672" height="941" fetchpriority="high" decoding="async">
-            </picture>
             <div class="in-wrap in-hero-in">
-                <h1>Seu dinheiro com clareza, controle e crescimento.</h1>
-                <p class="in-hero-lede">{{ config('seo.resumo') }}</p>
-                {{-- Sem botões aqui (out/2026): "Criar conta" e "Entrar" já estão no topo e no fim
-                     da página — repetidos logo abaixo do texto, ficavam redundantes. --}}
-                <ul class="in-hero-pontos">
-                    <li>Grátis</li>
-                    <li>Sem conectar banco</li>
-                    <li>Para você e para a família</li>
-                </ul>
+                <div class="in-hero-texto">
+                    <h1>Seu dinheiro com clareza, controle e crescimento.</h1>
+                    <p class="in-hero-lede">Receitas, despesas, cartões com fatura, contas fixas, metas e investimentos — para você e para a família, no computador e no celular.</p>
+                    {{-- Sem botões aqui (out/2026): "Criar conta" e "Entrar" já estão no topo e no fim
+                         da página — repetidos logo abaixo do texto, ficavam redundantes. --}}
+                    <ul class="in-hero-pontos">
+                        <li>Grátis</li>
+                        <li>Sem conectar banco</li>
+                        <li>Para você e para a família</li>
+                    </ul>
+                </div>
+
+                <figure class="in-vitrine" data-vitrine
+                        data-corrente="{{ $vitrine['corrente'] }}" data-poupanca="{{ $vitrine['poupanca'] }}"
+                        data-receitas="{{ $vitrine['receitas'] }}" data-despesas="{{ $vitrine['despesas'] }}"
+                        role="img" aria-label="Exemplo da Visão geral do app: saldo disponível, gasto do mês, últimos lançamentos e uma meta.">
+                    <div class="vt-painel" aria-hidden="true">
+                        <div class="vt-topo">
+                            <span>Visão geral</span>
+                            <span class="vt-mes">{{ ucfirst(now()->translatedFormat('F')) }}</span>
+                        </div>
+                        <p class="vt-rotulo">Saldo disponível</p>
+                        <p class="vt-saldo"><span class="vt-moeda">R$</span> <span data-vt-saldo>{{ $num($vitrine['corrente'] + $vitrine['poupanca']) }}</span></p>
+                        <dl class="vt-contas">
+                            <div><dt>Conta corrente</dt><dd>R$ <span data-vt-corrente>{{ $num($vitrine['corrente']) }}</span></dd></div>
+                            <div><dt>Poupança</dt><dd>R$ {{ $num($vitrine['poupanca']) }}</dd></div>
+                        </dl>
+                        <div class="vt-gasto">
+                            <div class="vt-gasto-linha">
+                                <span>Gasto do mês</span>
+                                <span>R$ <span data-vt-gasto>{{ $num($vitrine['despesas']) }}</span> de R$ <span data-vt-renda>{{ $num($vitrine['receitas']) }}</span></span>
+                            </div>
+                            <div class="vt-barra"><i data-vt-barra style="width: {{ round($vitrine['despesas'] / $vitrine['receitas'] * 100, 1) }}%"></i></div>
+                        </div>
+                        <p class="vt-rotulo vt-rotulo-lista">Últimos lançamentos</p>
+                        <ul class="vt-lista" data-vt-lista>
+                            @foreach ($vitrine['itens'] as [$nome, $categoria, $valor])
+                                <li class="vt-item {{ $valor > 0 ? 'vt-receita' : 'vt-despesa' }}">
+                                    <span class="vt-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="{{ $valor > 0 ? 'M17 7 7 17M7 9v8h8' : 'M7 17 17 7M9 7h8v8' }}"/></svg></span>
+                                    <span class="vt-txt"><b>{{ $nome }}</b><small>{{ $categoria }}</small></span>
+                                    <span class="vt-valor">{{ $valor > 0 ? '+' : '−' }}R$ {{ $num($valor) }}</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+
+                    <div class="vt-aviso" aria-hidden="true">
+                        <span class="vt-sino"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 20a1.9 1.9 0 0 0 3.4 0"/></svg></span>
+                        <span><b>Condomínio</b><small>vence em 3 dias</small></span>
+                    </div>
+
+                    <div class="vt-meta" aria-hidden="true">
+                        <svg class="vt-anel" viewBox="0 0 44 44"><circle cx="22" cy="22" r="18"/><circle class="vt-anel-cheio" cx="22" cy="22" r="18" pathLength="100"/></svg>
+                        <span><b>Viagem de férias</b><small>68% de R$ 5.000,00</small></span>
+                    </div>
+                </figure>
             </div>
         </section>
 

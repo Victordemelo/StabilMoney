@@ -67,11 +67,12 @@ class PaginaInicialPublicaTest extends TestCase
     }
 
     /**
-     * A reformulação de out/2026 (design_stabilmoney/): as fontes próprias da página, as duas
-     * ilustrações (o app na abertura, as contas no "Como funciona") e nenhum vídeo na abertura.
-     * Cada imagem tem a versão grande e a do celular, e todas existem em public/assets.
+     * A reformulação de out/2026 (design_stabilmoney/): as fontes próprias da página, a
+     * ilustração das contas no "Como funciona" e, no topo, uma prévia VIVA do app (a
+     * ilustração do celular saiu — "tinha cara de IA"). A prévia é desenhada pelo servidor,
+     * então vale sem JS, e o `sm/vitrine.js` a anima (tests/js/vitrine.test.js).
      */
-    public function test_a_reformulacao_usa_as_fontes_e_as_ilustracoes_do_guia(): void
+    public function test_a_reformulacao_usa_as_fontes_a_previa_viva_e_a_ilustracao_das_contas(): void
     {
         $html = $this->get('/')->assertOk()->getContent();
 
@@ -82,22 +83,40 @@ class PaginaInicialPublicaTest extends TestCase
         $inicio = strpos($html, '<section class="in-hero">');
         $hero = substr($html, $inicio, strpos($html, 'in-equilibrio') - $inicio);
         $this->assertStringNotContainsString('<video', $hero);
-        $this->assertStringContainsString(asset('assets/inicio-app-1672.jpg'), $hero);
-        $this->assertStringContainsString(asset('assets/inicio-app-960.jpg'), $hero);
+        $this->assertStringNotContainsString('<img', $hero, 'O topo voltou a ter uma imagem no lugar da prévia do app.');
+        $this->assertMatchesRegularExpression('/<figure class="in-vitrine" data-vitrine[^>]*role="img" aria-label="Exemplo da Visão geral do app/', $hero);
+        foreach (['Saldo disponível', 'Gasto do mês', 'Últimos lançamentos', 'Viagem de férias', '4.218,30', '−R$ 1.450,00'] as $trecho) {
+            $this->assertStringContainsString($trecho, $hero);
+        }
+        $this->assertSame(3, substr_count($hero, '<li class="vt-item'));
 
         $inicio = strpos($html, 'id="como-funciona"');
         $passos = substr($html, $inicio, strpos($html, 'id="familia"') - $inicio);
         $this->assertStringContainsString(asset('assets/inicio-contas-1672.jpg'), $passos);
         $this->assertStringContainsString(asset('assets/inicio-contas-960.jpg'), $passos);
 
-        foreach (['inicio-app-1672.jpg', 'inicio-app-960.jpg', 'inicio-contas-1672.jpg', 'inicio-contas-960.jpg'] as $arquivo) {
+        foreach (['inicio-contas-1672.jpg', 'inicio-contas-960.jpg'] as $arquivo) {
             $this->assertFileExists(public_path('assets/'.$arquivo));
             $this->assertLessThan(260 * 1024, filesize(public_path('assets/'.$arquivo)), "{$arquivo} pesado demais para a página inicial.");
         }
+        $this->assertFileDoesNotExist(public_path('assets/inicio-app-1672.jpg'), 'A ilustração que saiu do topo ficou no site.');
 
         $css = file_get_contents(resource_path('css/inicio.css'));
         $this->assertStringContainsString('--lima: #9FE870;', $css);
         $this->assertStringContainsString('--mata: #032628;', $css);
+    }
+
+    /**
+     * O menu do topo fica no CENTRO da página (out/2026 — "estão meio tortos"): três colunas,
+     * as das pontas do mesmo tamanho, e o menu sozinho na do meio.
+     */
+    public function test_o_menu_do_topo_fica_centralizado(): void
+    {
+        $css = file_get_contents(resource_path('css/inicio.css'));
+
+        $this->assertMatchesRegularExpression('/\.in-topo-in \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto minmax\(0, 1fr\);/', $css);
+        $this->assertMatchesRegularExpression('/\.in-menu \{[^}]*grid-column: 2;/', $css);
+        $this->assertDoesNotMatchRegularExpression('/\.in-menu \{[^}]*margin-left: auto/', $css, 'O menu voltou a ser empurrado para a direita.');
     }
 
     /** A faixa clara logo abaixo do topo, com a ilustração da carteira na balança (out/2026). */

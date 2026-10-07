@@ -21,6 +21,7 @@ import { initRelogio } from './sm/relogio';
 import { initInstalar, aplicarEstadoDeInstalacao } from './sm/instalar';
 import { initBaloes, promoverFlashes } from './sm/balao';
 import { initTutorial, tutorialAposTrocarDeTela } from './sm/tutorial';
+import { initVitrine } from './sm/vitrine';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -61,6 +62,7 @@ function init() {
     initRelogio();
     initAuth();
     initRecuperarSenha(); // "Recuperar senha": o Reenviar com contagem
+    initVitrine();        // página inicial: a prévia viva do app no topo
     // "Tem certeza?" dos formulários de excluir (`form[data-confirmar]`): um ouvinte
     // só, no documento, que vale também para o conteúdo trocado pelo pjax. Substitui os
     // `onsubmit="return confirm(...)"`, que a CSP bloqueia.
