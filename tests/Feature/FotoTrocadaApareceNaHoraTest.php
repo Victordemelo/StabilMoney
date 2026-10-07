@@ -67,8 +67,33 @@ class FotoTrocadaApareceNaHoraTest extends TestCase
 
         $resposta = $this->actingAs($user)->get($user->avatarUrl());
 
-        $resposta->assertOk()->assertHeader('Cache-Control', 'max-age=3600, private');
+        $resposta->assertOk()->assertHeader('Cache-Control', 'no-cache, private');
+        $this->assertSame('"'.$user->versaoDaFoto().'"', $resposta->headers->get('ETag'));
         $this->assertSame('foto nova', $resposta->streamedContent());
+    }
+
+    /**
+     * O cache é CONFERIDO a cada uso (out/2026 — revisão de segurança do push): com a ETag
+     * certa o servidor responde 304 sem a imagem, mas só depois de conferir a sessão. Depois
+     * do "Sair" não há sessão, e a foto não sai mais do cache do navegador — com o
+     * `max-age=3600` de antes, ela seguia abrindo por até 1 hora num computador compartilhado.
+     */
+    public function test_o_cache_da_foto_e_conferido_e_nao_vale_depois_de_sair(): void
+    {
+        $user = $this->trocarFoto(User::factory()->create(), 'foto');
+        $url = $user->avatarUrl();
+        $etag = $this->actingAs($user)->get($url)->headers->get('ETag');
+
+        $this->assertStringNotContainsString('max-age', (string) $this->get($url)->headers->get('Cache-Control'));
+
+        $this->withHeader('If-None-Match', $etag)->get($url)
+            ->assertStatus(304)
+            ->assertHeader('ETag', $etag);
+
+        $this->post(route('logout'));
+        $this->app['auth']->forgetGuards();
+
+        $this->withHeader('If-None-Match', $etag)->get($url)->assertRedirect(route('login'));
     }
 
     /**

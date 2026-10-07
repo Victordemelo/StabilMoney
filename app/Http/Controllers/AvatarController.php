@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Serve a foto de perfil a partir do disco PRIVADO.
@@ -21,21 +21,20 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class AvatarController extends Controller
 {
     /**
-     * URL com a versão da foto ATUAL (`?v=`, ver User::avatarUrl): pode ficar em cache.
-     * Privado: o navegador guarda, proxies e CDNs não. Quando a foto muda, a versão muda
-     * junto e a página passa a pedir outra URL — o cache nunca serve a foto velha.
+     * A foto vai para o cache do navegador, mas é CONFERIDA a cada uso (`no-cache` + ETag):
+     * o navegador pergunta, o servidor confere a sessão e a família e responde 304 sem
+     * reenviar a imagem. Antes era `max-age=3600`, que o navegador usava sem perguntar — com
+     * o fim do `Clear-Site-Data` no "Sair" (out/2026), a foto de alguém da família seguia
+     * abrindo por até 1 hora depois de sair, num computador compartilhado. Privado: proxies
+     * e CDNs não guardam.
+     *
+     * URL sem versão, ou com a de uma foto que já foi trocada: responde a foto atual, sem
+     * ETag — guardar a foto nova numa URL que não muda (ou na de uma foto antiga) era o
+     * defeito de a troca só aparecer depois de 1 hora.
      */
-    private const CACHE = 'private, max-age=3600';
+    private const CACHE = 'private, no-cache';
 
-    /**
-     * URL sem versão, ou com a versão de uma foto que já foi trocada: responde a foto atual
-     * e não deixa o navegador guardá-la sob essa chave. Guardar a foto nova numa URL que
-     * não muda (ou na de uma foto antiga) era exatamente o defeito — a troca de foto só
-     * aparecia depois de 1 hora.
-     */
-    private const SEM_CACHE = 'private, no-cache';
-
-    public function show(Request $request, User $membro): StreamedResponse
+    public function show(Request $request, User $membro): Response
     {
         // Só a própria família vê a foto. Quem garante isso primeiro é o binding do
         // `{membro}` (User::daFamiliaNaRota): pessoa de outra família nem chega aqui — recebe
@@ -61,10 +60,16 @@ class AvatarController extends Controller
         $versao = $request->query('v');
         $versaoAtual = is_string($versao) && $versao === $membro->versaoDaFoto();
 
-        return $disco->response(
-            $membro->avatar_path,
-            null,
-            ['Cache-Control' => $versaoAtual ? self::CACHE : self::SEM_CACHE],
-        );
+        if (! $versaoAtual) {
+            return $disco->response($membro->avatar_path, null, ['Cache-Control' => self::CACHE]);
+        }
+
+        // A ETag é a própria versão da foto (muda a cada upload). Bateu: 304, sem a imagem.
+        $etag = '"'.$membro->versaoDaFoto().'"';
+        if (in_array($etag, $request->getETags(), true)) {
+            return response('', 304, ['Cache-Control' => self::CACHE, 'ETag' => $etag]);
+        }
+
+        return $disco->response($membro->avatar_path, null, ['Cache-Control' => self::CACHE, 'ETag' => $etag]);
     }
 }

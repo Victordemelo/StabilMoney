@@ -63,12 +63,13 @@ class AvatarPrivadoTest extends TestCase
 
         $user = $this->comFoto(User::factory()->create());
 
-        // A URL que as telas usam (com a versão) pode ficar 1 hora no cache do navegador:
-        // quando a foto muda, a versão muda e a URL também.
+        // A URL que as telas usam (com a versão) vai para o cache do navegador, mas conferida
+        // a cada uso (ETag): depois de sair, a foto não sai mais do cache (out/2026).
         $this->actingAs($user)
             ->get($user->avatarUrl())
             ->assertOk()
-            ->assertHeader('Cache-Control', 'max-age=3600, private');
+            ->assertHeader('Cache-Control', 'no-cache, private')
+            ->assertHeader('ETag');
     }
 
     public function test_dependente_ve_a_foto_do_titular_e_vice_versa(): void
