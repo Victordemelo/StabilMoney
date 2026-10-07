@@ -35,6 +35,7 @@
             <source src="{{ asset('assets/video_login.mp4') }}" type="video/mp4" />
         </video>
         <div class="auth-veil"></div>
+        @include('partials.selo-do-video')
 
         <div class="av-top">
             <span class="av-badge"><img src="{{ asset('assets/stabilmoney-mark.png') }}" alt="StabilMoney" /></span>

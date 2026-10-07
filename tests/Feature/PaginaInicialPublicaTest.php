@@ -32,15 +32,38 @@ class PaginaInicialPublicaTest extends TestCase
         $this->assertStringContainsString('href="'.route('privacidade').'"', $html);
     }
 
-    public function test_quem_fez_apresenta_o_autor_com_site_linkedin_e_contato(): void
+    public function test_quem_fez_apresenta_o_autor_com_foto_site_linkedin_github_e_contato(): void
     {
         $this->get('/')->assertOk()
             ->assertSee(config('sistema.autor.nome'))
             ->assertSee('Criador e desenvolvedor do Stabil Money')
             ->assertSee('href="'.config('sistema.autor.site').'"', false)
             ->assertSee('href="'.config('sistema.autor.linkedin').'"', false)
+            ->assertSee('href="'.config('sistema.autor.github').'"', false)
             ->assertSee('mailto:'.config('legal.contact_email'), false)
-            ->assertSee('<span class="in-autor-av" aria-hidden="true">VR</span>', false);
+            // A foto de verdade (out/2026), não mais as iniciais num círculo.
+            ->assertSee('<img class="in-autor-foto" src="'.asset(config('sistema.autor.foto')).'"', false)
+            ->assertDontSee('in-autor-av', false);
+
+        $this->assertFileExists(public_path(config('sistema.autor.foto')));
+    }
+
+    /**
+     * Ajustes de out/2026 (pedido do Victor): o topo sem os botões repetidos ("Criar conta" e
+     * "Entrar" já estão no menu e na chamada do fim), sem o card inclinado e sem emoji; e o
+     * selo do Stabil Money sobre a marca d'água do vídeo, aqui e nas telas de entrada.
+     */
+    public function test_o_topo_nao_repete_os_botoes_e_o_video_leva_o_selo(): void
+    {
+        $html = $this->get('/')->assertOk()->getContent();
+        $hero = substr($html, strpos($html, '<section class="in-hero">'), strpos($html, 'id="recursos"') - strpos($html, '<section class="in-hero">'));
+
+        $this->assertStringNotContainsString('in-hero-acoes', $hero, 'Os botões repetidos voltaram ao topo.');
+        $this->assertStringNotContainsString('🛒', $hero);
+        $this->assertStringContainsString('class="selo-do-video"', $hero);
+        $this->assertSame(2, substr_count($html, 'href="'.route('register').'"'), 'Criar conta: no menu e na chamada do fim.');
+
+        $this->get(route('login'))->assertOk()->assertSee('class="selo-do-video"', false);
     }
 
     public function test_quem_entrou_continua_indo_para_a_visao_geral(): void

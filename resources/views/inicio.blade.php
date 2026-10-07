@@ -13,8 +13,6 @@
     $site = config('seo.site');
     $titulo = config('seo.paginas.dashboard.titulo');
     $autor = config('sistema.autor');
-    $partesAutor = preg_split('/\s+/', trim($autor['nome']));
-    $iniciaisAutor = mb_strtoupper(mb_substr($partesAutor[0], 0, 1).mb_substr(end($partesAutor), 0, 1));
 
     $perguntas = [
         ['É grátis mesmo?', 'Sim. O Stabil Money é gratuito. Se um dia isso mudar, os Termos de Uso explicam como você será avisado antes.'],
@@ -83,15 +81,14 @@
                 <source src="{{ asset('assets/video_login.mp4') }}" type="video/mp4" />
             </video>
             <div class="in-hero-veu" aria-hidden="true"></div>
+            @include('partials.selo-do-video')
             <div class="in-wrap in-hero-in">
                 <div class="in-hero-texto">
                     <span class="in-selo">Gratuito · em português · funciona no celular</span>
                     <h1>Seu dinheiro com <em>clareza</em>, controle e crescimento.</h1>
                     <p>{{ config('seo.resumo') }}</p>
-                    <div class="in-hero-acoes">
-                        <a class="in-btn in-btn-cheio in-btn-grande" href="{{ route('register') }}">Criar conta grátis</a>
-                        <a class="in-btn in-btn-vidro in-btn-grande" href="{{ route('login') }}">Já tenho conta</a>
-                    </div>
+                    {{-- Sem botões aqui (out/2026): "Criar conta" e "Entrar" já estão no topo e no fim
+                         da página — repetidos logo abaixo do texto, ficavam redundantes. --}}
                     <ul class="in-hero-pontos">
                         <li>Sem conectar banco</li>
                         <li>Sem cartão de crédito para começar</li>
@@ -115,8 +112,8 @@
                             <i style="--h: {{ $altura }}%"></i>
                         @endforeach
                     </div>
-                    <div class="in-amostra-item"><span class="ic">🛒</span><span>Mercado <small>Cartão · 3x</small></span><b>− R$ 420,00</b></div>
-                    <div class="in-amostra-item"><span class="ic">🏠</span><span>Aluguel <small>vence dia 10</small></span><b>− R$ 1.850,00</b></div>
+                    <div class="in-amostra-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.5L20.5 8H6.1"/><circle cx="10" cy="20" r="1.2"/><circle cx="17" cy="20" r="1.2"/></svg></span><span>Mercado <small>Cartão · 3x</small></span><b>− R$ 420,00</b></div>
+                    <div class="in-amostra-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/></svg></span><span>Aluguel <small>vence dia 10</small></span><b>− R$ 1.850,00</b></div>
                 </div>
             </div>
         </section>
@@ -212,7 +209,9 @@
         <section class="in-secao" id="quem-fez">
             <div class="in-wrap">
                 <div class="in-autor">
-                    <span class="in-autor-av" aria-hidden="true">{{ $iniciaisAutor }}</span>
+                    {{-- A foto do autor (out/2026): retangular, grande e centralizada na altura do texto. --}}
+                    <img class="in-autor-foto" src="{{ asset($autor['foto']) }}" alt="Foto de {{ $autor['nome'] }}"
+                         width="583" height="600" loading="lazy" decoding="async">
                     <div class="in-autor-texto">
                         <span class="in-eyebrow">Quem fez</span>
                         <h2>{{ $autor['nome'] }}</h2>
@@ -222,6 +221,7 @@
                         <div class="in-autor-links">
                             <a class="in-btn in-btn-claro" href="{{ $autor['site'] }}" target="_blank" rel="noopener noreferrer">Site</a>
                             <a class="in-btn in-btn-claro" href="{{ $autor['linkedin'] }}" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                            <a class="in-btn in-btn-claro" href="{{ $autor['github'] }}" target="_blank" rel="noopener noreferrer">GitHub</a>
                             <a class="in-btn in-btn-claro" href="mailto:{{ config('legal.contact_email') }}">{{ config('legal.contact_email') }}</a>
                         </div>
                     </div>

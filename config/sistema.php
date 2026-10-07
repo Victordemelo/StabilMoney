@@ -16,5 +16,8 @@ return [
         'nome' => 'Victor de Melo da Rosa',
         'site' => 'https://victordemelo.com.br',
         'linkedin' => 'https://www.linkedin.com/in/victor-de-melo-da-rosa/',
+        'github' => 'https://github.com/Victordemelo',
+        // A foto da seção "Quem fez" da página inicial (public/assets).
+        'foto' => 'assets/victor-de-melo.jpg',
     ],
 ];

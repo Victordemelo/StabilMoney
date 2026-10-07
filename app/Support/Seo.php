@@ -176,7 +176,7 @@ final class Seo
                 '@type' => 'Person',
                 'name' => config('legal.controller'),
                 'url' => config('seo.autor_url'),
-                'sameAs' => array_values(array_filter([config('sistema.autor.site'), config('sistema.autor.linkedin')])),
+                'sameAs' => array_values(array_filter([config('sistema.autor.site'), config('sistema.autor.linkedin'), config('sistema.autor.github')])),
             ],
             'featureList' => config('seo.recursos', []),
         ];

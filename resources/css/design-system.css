@@ -2309,3 +2309,25 @@ body.pjax-loading #content { opacity: .5; }
 .ra-assinatura a { color: var(--ink-2); font-weight: 600; text-decoration: none; }
 .ra-assinatura a:hover { color: var(--brand-600); text-decoration: underline; }
 .ra-coracao { color: var(--brand-500); }
+
+/* ============ Selo sobre a marca d'água do vídeo de fundo (out/2026) ============
+   `partials/selo-do-video`. O vídeo (1280×720) é desenhado com `object-fit: cover`
+   centralizado: escala s = max(L/1280, A/720) e sobra cortada igual dos dois lados. A
+   camada mede a caixa do vídeo (container de tamanho) e o selo refaz a conta para cair
+   em cima da estrela, centrada em (1160, 600) no vídeo, em qualquer tamanho de tela. */
+.camada-do-video { position: absolute; inset: 0; container-type: size; pointer-events: none; overflow: hidden; }
+.selo-do-video {
+  --s: max(100cqw / 1280, 100cqh / 720);
+  position: absolute;
+  left: calc((100cqw - 1280 * var(--s)) / 2 + 1160 * var(--s));
+  top: calc((100cqh - 720 * var(--s)) / 2 + 600 * var(--s));
+  width: calc(58 * var(--s)); height: calc(58 * var(--s));
+  transform: translate(-50%, -50%);
+  display: grid; place-items: center;
+  /* Escuro e translúcido, com o "S" em branco: o fundo atrás é sempre o verde-escuro do véu.
+     Quando o cover corta a estrela na borda, o selo é cortado junto — uma lasca escura some
+     no fundo; um selo branco virava um risco claro na borda. */
+  border-radius: 26%; background: rgba(9, 44, 30, .9); border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 10px 26px rgba(0,0,0,.25);
+}
+.selo-do-video img { width: 64%; height: 64%; object-fit: contain; filter: brightness(0) invert(1); opacity: .92; }

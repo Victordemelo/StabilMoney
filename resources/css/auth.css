@@ -47,6 +47,9 @@
   mix-blend-mode: luminosity; filter: saturate(1.05);
 }
 .auth .auth-video.ready { opacity: .9; }
+/* O selo da marca d'água (partials/selo-do-video) fica no plano do véu, depois dele no HTML:
+   por cima do vídeo e do véu, por baixo do conteúdo do painel. */
+.auth .camada-do-video { z-index: -1; }
 .auth .auth-veil {
   position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background:

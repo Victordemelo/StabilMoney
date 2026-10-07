@@ -57,6 +57,7 @@
             <source src="{{ asset('assets/video_login.mp4') }}" type="video/mp4" />
         </video>
         <div class="auth-veil"></div>
+        @include('partials.selo-do-video')
 
         {{-- A marca leva à página inicial pública (out/2026). --}}
         <a class="av-top" href="{{ url('/') }}" aria-label="Stabil Money — página inicial">
