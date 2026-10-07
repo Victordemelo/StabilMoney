@@ -22,7 +22,7 @@ class PaginaInicialPublicaTest extends TestCase
         $html = $this->get('/')->assertOk()->getContent();
 
         $this->assertStringContainsString('<title>'.config('seo.paginas.dashboard.titulo').'</title>', $html);
-        $this->assertStringContainsString('Seu dinheiro com <em>clareza</em>, controle e crescimento.', $html);
+        $this->assertStringContainsString('<h1>Seu dinheiro com clareza, controle e crescimento.</h1>', $html);
         foreach (['id="recursos"', 'id="como-funciona"', 'id="familia"', 'id="seguranca"', 'id="quem-fez"', 'id="perguntas"'] as $secao) {
             $this->assertStringContainsString($secao, $html);
         }
@@ -51,19 +51,53 @@ class PaginaInicialPublicaTest extends TestCase
     /**
      * Ajustes de out/2026 (pedido do Victor): o topo sem os botões repetidos ("Criar conta" e
      * "Entrar" já estão no menu e na chamada do fim), sem o card inclinado e sem emoji; e o
-     * selo do Stabil Money sobre a marca d'água do vídeo, aqui e nas telas de entrada.
+     * selo do Stabil Money sobre a marca d'água do vídeo nas telas de entrada (a abertura daqui
+     * deixou de ter vídeo na reformulação de out/2026).
      */
-    public function test_o_topo_nao_repete_os_botoes_e_o_video_leva_o_selo(): void
+    public function test_o_topo_nao_repete_os_botoes_e_o_video_do_login_leva_o_selo(): void
     {
         $html = $this->get('/')->assertOk()->getContent();
         $hero = substr($html, strpos($html, '<section class="in-hero">'), strpos($html, 'id="recursos"') - strpos($html, '<section class="in-hero">'));
 
         $this->assertStringNotContainsString('in-hero-acoes', $hero, 'Os botões repetidos voltaram ao topo.');
         $this->assertStringNotContainsString('🛒', $hero);
-        $this->assertStringContainsString('class="selo-do-video"', $hero);
         $this->assertSame(2, substr_count($html, 'href="'.route('register').'"'), 'Criar conta: no menu e na chamada do fim.');
 
         $this->get(route('login'))->assertOk()->assertSee('class="selo-do-video"', false);
+    }
+
+    /**
+     * A reformulação de out/2026 (design_stabilmoney/): as fontes próprias da página, as duas
+     * ilustrações (o app na abertura, as contas no "Como funciona") e nenhum vídeo na abertura.
+     * Cada imagem tem a versão grande e a do celular, e todas existem em public/assets.
+     */
+    public function test_a_reformulacao_usa_as_fontes_e_as_ilustracoes_do_guia(): void
+    {
+        $html = $this->get('/')->assertOk()->getContent();
+
+        $this->assertStringContainsString('family=Bricolage+Grotesque', $html);
+        $this->assertStringContainsString('family=Geist', $html);
+        $this->assertStringContainsString('<meta name="theme-color" content="#032628" />', $html);
+
+        $inicio = strpos($html, '<section class="in-hero">');
+        $hero = substr($html, $inicio, strpos($html, 'in-equilibrio') - $inicio);
+        $this->assertStringNotContainsString('<video', $hero);
+        $this->assertStringContainsString(asset('assets/inicio-app-1672.jpg'), $hero);
+        $this->assertStringContainsString(asset('assets/inicio-app-960.jpg'), $hero);
+
+        $inicio = strpos($html, 'id="como-funciona"');
+        $passos = substr($html, $inicio, strpos($html, 'id="familia"') - $inicio);
+        $this->assertStringContainsString(asset('assets/inicio-contas-1672.jpg'), $passos);
+        $this->assertStringContainsString(asset('assets/inicio-contas-960.jpg'), $passos);
+
+        foreach (['inicio-app-1672.jpg', 'inicio-app-960.jpg', 'inicio-contas-1672.jpg', 'inicio-contas-960.jpg'] as $arquivo) {
+            $this->assertFileExists(public_path('assets/'.$arquivo));
+            $this->assertLessThan(260 * 1024, filesize(public_path('assets/'.$arquivo)), "{$arquivo} pesado demais para a página inicial.");
+        }
+
+        $css = file_get_contents(resource_path('css/inicio.css'));
+        $this->assertStringContainsString('--lima: #9FE870;', $css);
+        $this->assertStringContainsString('--mata: #032628;', $css);
     }
 
     /** A faixa clara logo abaixo do topo, com a ilustração da carteira na balança (out/2026). */

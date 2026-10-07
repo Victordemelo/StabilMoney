@@ -37,14 +37,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
-    <meta name="theme-color" content="#0C3D2B" />
+    <meta name="theme-color" content="#032628" />
     <title>{{ $titulo }}</title>
     @include('partials.seo', ['seoTitulo' => $titulo])
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
     @include('partials.pwa-head')
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    {{-- Fontes da página inicial (out/2026): Bricolage Grotesque 800 nos títulos e Geist no texto.
+         Só aqui — o app segue com Sora + Plus Jakarta. O Google Fonts já está na Política e na CSP. --}}
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Geist:wght@400..600&display=swap" rel="stylesheet" />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     {{-- Dados de perguntas frequentes (schema.org/FAQPage). Bloco de DADOS, com o nonce e as
          mesmas flags de escape do @json. --}}
@@ -53,6 +55,13 @@
 <body class="inicio-body">
 <div class="inicio">
 
+    {{--
+        Reformulação de out/2026 (pedido do Victor, com o estilo da Wise como base): verde-petróleo
+        profundo (o fundo da ilustração do topo) com UM destaque lima, títulos blocados em Bricolage
+        Grotesque 800, texto em Geist, botões em pílula. Faixas alternam papel, creme (as
+        ilustrações claras) e o escuro (topo, Segurança, chamada final). Sem rótulo em maiúsculas
+        acima dos títulos, sem degradê, sem a grade de cards iguais.
+    --}}
     <header class="in-topo">
         <div class="in-wrap in-topo-in">
             <a class="in-marca" href="{{ url('/') }}" aria-label="{{ $site }} — início">
@@ -62,67 +71,42 @@
             <nav class="in-menu" aria-label="Seções da página">
                 <a href="#recursos">Recursos</a>
                 <a href="#como-funciona">Como funciona</a>
+                <a href="#familia">Família</a>
                 <a href="#seguranca">Segurança</a>
                 <a href="#quem-fez">Quem fez</a>
                 <a href="#perguntas">Perguntas</a>
             </nav>
             <div class="in-topo-acoes">
-                <a class="in-btn in-btn-claro" href="{{ route('login') }}">Entrar</a>
-                <a class="in-btn in-btn-cheio" href="{{ route('register') }}">Criar conta grátis</a>
+                <a class="in-btn in-btn-contorno" href="{{ route('login') }}">Entrar</a>
+                <a class="in-btn in-btn-lima" href="{{ route('register') }}">Criar conta grátis</a>
             </div>
         </div>
     </header>
 
     <main>
-        {{-- ---------- Abertura ---------- --}}
+        {{-- ---------- Abertura: a ilustração do app ao fundo, o título por cima ---------- --}}
         <section class="in-hero">
-            <video class="in-hero-video" autoplay muted loop playsinline preload="metadata"
-                   poster="{{ asset('assets/og-stabilmoney.jpg') }}" aria-hidden="true">
-                <source src="{{ asset('assets/video_login.mp4') }}" type="video/mp4" />
-            </video>
-            <div class="in-hero-veu" aria-hidden="true"></div>
-            @include('partials.selo-do-video')
+            <picture class="in-hero-arte">
+                <source media="(max-width: 860px)" srcset="{{ asset('assets/inicio-app-960.jpg') }}">
+                <img src="{{ asset('assets/inicio-app-1672.jpg') }}" alt="" width="1672" height="941" fetchpriority="high" decoding="async">
+            </picture>
             <div class="in-wrap in-hero-in">
-                <div class="in-hero-texto">
-                    <span class="in-selo">Gratuito · em português · funciona no celular</span>
-                    <h1>Seu dinheiro com <em>clareza</em>, controle e crescimento.</h1>
-                    <p>{{ config('seo.resumo') }}</p>
-                    {{-- Sem botões aqui (out/2026): "Criar conta" e "Entrar" já estão no topo e no fim
-                         da página — repetidos logo abaixo do texto, ficavam redundantes. --}}
-                    <ul class="in-hero-pontos">
-                        <li>Sem conectar banco</li>
-                        <li>Sem cartão de crédito para começar</li>
-                        <li>Para você e para a família</li>
-                    </ul>
-                </div>
-
-                {{-- Uma amostra da Visão geral, desenhada em HTML (valores ilustrativos). --}}
-                <div class="in-amostra" aria-hidden="true">
-                    <div class="in-amostra-saldo">
-                        <span>Saldo disponível</span>
-                        <strong>R$ 4.820<small>,35</small></strong>
-                        <em>↗ 12% no mês</em>
-                    </div>
-                    <div class="in-amostra-linha">
-                        <div><span>Receitas</span><b class="pos">R$ 6.200,00</b></div>
-                        <div><span>Despesas</span><b class="neg">R$ 3.179,65</b></div>
-                    </div>
-                    <div class="in-amostra-barras">
-                        @foreach ([38, 64, 48, 82, 56, 70, 44] as $altura)
-                            <i style="--h: {{ $altura }}%"></i>
-                        @endforeach
-                    </div>
-                    <div class="in-amostra-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.5L20.5 8H6.1"/><circle cx="10" cy="20" r="1.2"/><circle cx="17" cy="20" r="1.2"/></svg></span><span>Mercado <small>Cartão · 3x</small></span><b>− R$ 420,00</b></div>
-                    <div class="in-amostra-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/></svg></span><span>Aluguel <small>vence dia 10</small></span><b>− R$ 1.850,00</b></div>
-                </div>
+                <h1>Seu dinheiro com clareza, controle e crescimento.</h1>
+                <p class="in-hero-lede">{{ config('seo.resumo') }}</p>
+                {{-- Sem botões aqui (out/2026): "Criar conta" e "Entrar" já estão no topo e no fim
+                     da página — repetidos logo abaixo do texto, ficavam redundantes. --}}
+                <ul class="in-hero-pontos">
+                    <li>Grátis</li>
+                    <li>Sem conectar banco</li>
+                    <li>Para você e para a família</li>
+                </ul>
             </div>
         </section>
 
-        {{-- ---------- Equilíbrio: faixa clara com a ilustração (out/2026 — pedido do Victor) ---------- --}}
+        {{-- ---------- Equilíbrio: faixa clara com a ilustração da balança ---------- --}}
         <section class="in-equilibrio" aria-labelledby="equilibrio-titulo">
             <div class="in-wrap">
-                <div class="in-titulo">
-                    <span class="in-eyebrow">Equilíbrio</span>
+                <div class="in-titulo in-titulo-centro">
                     <h2 id="equilibrio-titulo">Equilíbrio é saber para onde vai cada real</h2>
                     <p>O que entra, o que vence e o que você guarda, na mesma balança — para cada decisão caber no mês.</p>
                 </div>
@@ -135,11 +119,10 @@
             </div>
         </section>
 
-        {{-- ---------- Recursos ---------- --}}
+        {{-- ---------- Recursos: linhas de ícone + texto (não uma grade de cards iguais) ---------- --}}
         <section class="in-secao" id="recursos">
             <div class="in-wrap">
                 <div class="in-titulo">
-                    <span class="in-eyebrow">Recursos</span>
                     <h2>Tudo o que o dinheiro da casa precisa, num lugar só</h2>
                     <p>Pensado para a vida financeira no Brasil: cartão com fatura e parcelas, cheque especial, Pix, TED e as contas que vencem todo mês.</p>
                 </div>
@@ -153,9 +136,9 @@
                         ['Funciona no celular', 'Instale na tela inicial e lance até sem internet: o lançamento sincroniza quando a conexão volta.', '<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18.5h2"/>'],
                     ];
                 @endphp
-                <div class="in-grade in-grade-3">
+                <div class="in-recursos">
                     @foreach ($recursos as [$nome, $texto, $icone])
-                        <article class="in-card">
+                        <article class="in-recurso">
                             <span class="in-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor">{!! $icone !!}</svg></span>
                             <h3>{{ $nome }}</h3>
                             <p>{{ $texto }}</p>
@@ -165,13 +148,17 @@
             </div>
         </section>
 
-        {{-- ---------- Como funciona ---------- --}}
-        <section class="in-secao in-secao-alt" id="como-funciona">
-            <div class="in-wrap">
+        {{-- ---------- Como funciona: os três passos sobre a ilustração clara ---------- --}}
+        <section class="in-passos-faixa" id="como-funciona">
+            <picture class="in-passos-arte">
+                <source media="(max-width: 860px)" srcset="{{ asset('assets/inicio-contas-960.jpg') }}">
+                <img src="{{ asset('assets/inicio-contas-1672.jpg') }}" alt="" width="1672" height="941" loading="lazy" decoding="async">
+            </picture>
+            <div class="in-wrap in-passos-in">
                 <div class="in-titulo">
-                    <span class="in-eyebrow">Como funciona</span>
                     <h2>Comece em três passos</h2>
                 </div>
+                {{-- Numerados porque SÃO uma sequência. --}}
                 <ol class="in-passos">
                     <li><strong>Crie a sua conta</strong><span>É grátis e leva um minuto. Nada de cartão de crédito nem de dados do banco.</span></li>
                     <li><strong>Cadastre contas e cartões</strong><span>A conta corrente, a poupança, os cartões de crédito e débito, o Pix — com o saldo de hoje.</span></li>
@@ -183,8 +170,7 @@
         {{-- ---------- Família ---------- --}}
         <section class="in-secao" id="familia">
             <div class="in-wrap in-dupla">
-                <div class="in-titulo in-titulo-esq">
-                    <span class="in-eyebrow">Conta-família</span>
+                <div class="in-titulo">
                     <h2>O dinheiro da casa, visto por todos</h2>
                     <p>O titular cadastra quem divide as contas com ele. Cada pessoa entra com o próprio login, lança as próprias compras e enxerga o mesmo dinheiro — com quanto cada um gastou no mês.</p>
                 </div>
@@ -197,24 +183,23 @@
             </div>
         </section>
 
-        {{-- ---------- Segurança ---------- --}}
-        <section class="in-secao in-secao-alt" id="seguranca">
+        {{-- ---------- Segurança: a faixa escura do meio da página ---------- --}}
+        <section class="in-secao in-escura" id="seguranca">
             <div class="in-wrap">
                 <div class="in-titulo">
-                    <span class="in-eyebrow">Segurança e privacidade</span>
                     <h2>Seu controle, sem entregar a chave do banco</h2>
                     <p>{{ config('seo.o_que_nao_e') }}</p>
                 </div>
-                <div class="in-grade in-grade-3">
-                    <article class="in-card">
+                <div class="in-garantias">
+                    <article>
                         <h3>Verificação em duas etapas</h3>
                         <p>Ligue um código do app autenticador no login — e, se quiser, confie no seu aparelho por 7 dias.</p>
                     </article>
-                    <article class="in-card">
+                    <article>
                         <h3>Senha protegida</h3>
                         <p>A senha é guardada só como hash, e senhas que já vazaram na internet são recusadas no cadastro.</p>
                     </article>
-                    <article class="in-card">
+                    <article>
                         <h3>Transparência (LGPD)</h3>
                         <p>A Política de Privacidade diz o que é coletado, para quê e por quanto tempo — e como pedir a exclusão.</p>
                     </article>
@@ -226,20 +211,19 @@
         <section class="in-secao" id="quem-fez">
             <div class="in-wrap">
                 <div class="in-autor">
-                    {{-- A foto do autor (out/2026): retangular, grande e centralizada na altura do texto. --}}
+                    {{-- A foto do autor: retangular, grande e centralizada na altura do texto. --}}
                     <img class="in-autor-foto" src="{{ asset($autor['foto']) }}" alt="Foto de {{ $autor['nome'] }}"
                          width="583" height="600" loading="lazy" decoding="async">
                     <div class="in-autor-texto">
-                        <span class="in-eyebrow">Quem fez</span>
                         <h2>{{ $autor['nome'] }}</h2>
                         <p class="in-autor-papel">Criador e desenvolvedor do {{ $site }}</p>
                         <p>O {{ $site }} é um projeto independente, desenhado e desenvolvido por {{ $autor['nome'] }}. A ideia é simples: um lugar só para o dinheiro da casa, com as regras que fazem sentido no Brasil — cartão com fatura e parcelas, cheque especial, Pix, contas fixas — e com a família inteira olhando para os mesmos números.</p>
                         <p>O app está em fase de testes, é gratuito, e cada melhoria nasce do uso de verdade. Sugestões e problemas encontrados são bem-vindos pelo contato abaixo.</p>
                         <div class="in-autor-links">
-                            <a class="in-btn in-btn-claro" href="{{ $autor['site'] }}" target="_blank" rel="noopener noreferrer">Site</a>
-                            <a class="in-btn in-btn-claro" href="{{ $autor['linkedin'] }}" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-                            <a class="in-btn in-btn-claro" href="{{ $autor['github'] }}" target="_blank" rel="noopener noreferrer">GitHub</a>
-                            <a class="in-btn in-btn-claro" href="mailto:{{ config('legal.contact_email') }}">{{ config('legal.contact_email') }}</a>
+                            <a class="in-btn in-btn-contorno" href="{{ $autor['site'] }}" target="_blank" rel="noopener noreferrer">Site</a>
+                            <a class="in-btn in-btn-contorno" href="{{ $autor['linkedin'] }}" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                            <a class="in-btn in-btn-contorno" href="{{ $autor['github'] }}" target="_blank" rel="noopener noreferrer">GitHub</a>
+                            <a class="in-btn in-btn-contorno" href="mailto:{{ config('legal.contact_email') }}">{{ config('legal.contact_email') }}</a>
                         </div>
                     </div>
                 </div>
@@ -247,10 +231,9 @@
         </section>
 
         {{-- ---------- Perguntas frequentes ---------- --}}
-        <section class="in-secao in-secao-alt" id="perguntas">
+        <section class="in-secao in-nevoa" id="perguntas">
             <div class="in-wrap in-estreito">
                 <div class="in-titulo">
-                    <span class="in-eyebrow">Perguntas frequentes</span>
                     <h2>Antes de começar</h2>
                 </div>
                 <div class="in-faq">
@@ -264,14 +247,16 @@
             </div>
         </section>
 
-        {{-- ---------- Chamada final ---------- --}}
+        {{-- ---------- Chamada final: um bloco escuro, a única ação lima da faixa ---------- --}}
         <section class="in-final">
-            <div class="in-wrap in-final-in">
-                <h2>Comece a organizar o dinheiro da casa hoje</h2>
-                <p>Grátis, em português e no seu celular.</p>
-                <div class="in-hero-acoes">
-                    <a class="in-btn in-btn-cheio in-btn-grande" href="{{ route('register') }}">Criar conta grátis</a>
-                    <a class="in-btn in-btn-vidro in-btn-grande" href="{{ route('login') }}">Entrar</a>
+            <div class="in-wrap">
+                <div class="in-final-bloco">
+                    <h2>Comece a organizar o dinheiro da casa hoje</h2>
+                    <p>Grátis, em português e no seu celular.</p>
+                    <div class="in-final-acoes">
+                        <a class="in-btn in-btn-lima in-btn-grande" href="{{ route('register') }}">Criar conta grátis</a>
+                        <a class="in-link" href="{{ route('login') }}">Já tenho conta</a>
+                    </div>
                 </div>
             </div>
         </section>
@@ -288,7 +273,7 @@
                 <a href="{{ route('privacidade') }}">Política de Privacidade</a>
                 <a href="mailto:{{ config('legal.contact_email') }}">Contato</a>
             </nav>
-            <p>© {{ now()->year }} {{ $site }} · versão {{ config('sistema.versao') }} · feito no Brasil por {{ $autor['nome'] }}</p>
+            <p>© {{ now()->year }} {{ $site }}, versão {{ config('sistema.versao') }}. Feito no Brasil por {{ $autor['nome'] }}.</p>
         </div>
     </footer>
 </div>
