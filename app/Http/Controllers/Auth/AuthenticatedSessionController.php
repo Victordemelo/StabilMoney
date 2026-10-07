@@ -75,25 +75,19 @@ class AuthenticatedSessionController extends Controller
         // service worker reconhece o fim da sessão pelo /login respondendo 200 (ver abaixo).
         $resposta = redirect()->route('login');
 
-        // Manda o navegador apagar o cache HTTP do site ao sair, para uma página
-        // autenticada guardada ali não reaparecer depois do logout (no "Voltar", por
-        // exemplo).
+        // Sem `Clear-Site-Data` (out/2026). Ele existia para o navegador apagar a página logada
+        // guardada no cache HTTP; desde que toda página com sessão sai com `no-store`
+        // (SecurityHeaders), não há cópia para apagar — e a limpeza custava caro: o Chrome a
+        // faz devagar com o cache cheio, e a tela de login baixava CSS, JS, fontes e vídeo de
+        // novo. Era o "Sair" demorando (medido na prévia com cache em disco: quase 2× mais lento em
+        // média com ele, até 3× numa rodada).
         //
-        // ⚠️ "cache" NÃO alcança o Cache Storage do service worker (`caches.*`). A
-        // premissa antiga era essa, e estava errada — achado P-2 da auditoria de PWA
-        // (docs/auditoria-pwa-e-painel-admin-2026-09-06.md). É no Cache Storage que o SW
-        // guarda `/transactions/create`, HTML com as contas, as categorias e a família.
-        // Quem apaga aquilo é o próprio service worker: ele vê este POST passar e limpa,
-        // e limpa de novo quando o /login responde sem sessão — que é onde este redirect
-        // termina. Ver `HTML_AUTENTICADO` em resources/views/pwa/service-worker.blade.php
-        // e o ServiceWorkerApagaHtmlAutenticadoTest.
-        //
-        // Só "cache", DE PROPÓSITO: o valor que limparia o Cache Storage é "storage", que
-        // apagaria junto o IndexedDB da fila offline — destruindo em silêncio lançamentos
-        // ainda não sincronizados — e desregistraria o service worker, levando o
-        // Background Sync. Perder o cache custa um download; perder a fila custa o dado
-        // do usuário.
-        $resposta->headers->set('Clear-Site-Data', '"cache"');
+        // O Cache Storage do service worker (`/transactions/create` guardado offline) nunca
+        // foi alcançado por ele: quem apaga é o próprio SW, quando vê este POST passar e quando
+        // o /login responde sem sessão. Ver `HTML_AUTENTICADO` em
+        // resources/views/pwa/service-worker.blade.php e o ServiceWorkerApagaHtmlAutenticadoTest.
+        // E nunca "storage": apagaria o IndexedDB da fila offline (lançamentos ainda não
+        // sincronizados) e desregistraria o service worker.
 
         return $resposta;
     }

@@ -71,6 +71,18 @@ class SecurityHeaders
             $response->headers->set($nome, $valor);
         }
 
+        // Página com sessão (o app logado, e o painel): NENHUMA cópia no navegador —
+        // `no-store` em vez do `no-cache` padrão do framework (out/2026). Com `no-cache` a
+        // página logada ficava no cache HTTP e no cache do "Voltar", e o "Sair" mandava um
+        // `Clear-Site-Data: "cache"` para apagá-la — limpeza que o Chrome faz devagar com o
+        // cache cheio, e depois da qual a tela de login baixava tudo de novo: o "Sair"
+        // demorava. Com `no-store` não sobra nada para apagar. Só troca o padrão: resposta
+        // que escolheu o próprio cache (a foto, `avatar.show`) fica como está.
+        if (($request->user() ?? $request->user('admin')) !== null
+            && $response->headers->get('Cache-Control') === 'no-cache, private') {
+            $response->headers->set('Cache-Control', 'no-store, private');
+        }
+
         // Os buscadores: fora por padrão (ver `cabecalhosBasicos`). Só as páginas públicas
         // da lista, em produção, abrem — e o robots.txt e o sitemap.xml, que existem para
         // o robô e não são páginas.

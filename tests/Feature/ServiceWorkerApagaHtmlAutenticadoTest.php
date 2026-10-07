@@ -106,8 +106,9 @@ class ServiceWorkerApagaHtmlAutenticadoTest extends TestCase
     }
 
     /**
-     * A correção não pode ter mexido no header: "storage" limparia o Cache Storage, sim, mas
-     * apagaria a fila offline e desregistraria o SW (e com ele o Background Sync).
+     * "storage" limparia o Cache Storage, sim, mas apagaria a fila offline e desregistraria o
+     * SW (e com ele o Background Sync). Desde out/2026 o logout não manda `Clear-Site-Data`
+     * nenhum: a página logada sai com `no-store`, e o Cache Storage é o SW que limpa.
      */
     public function test_o_logout_segue_sem_storage_no_clear_site_data(): void
     {
@@ -115,7 +116,8 @@ class ServiceWorkerApagaHtmlAutenticadoTest extends TestCase
             ->post(route('logout'))
             ->headers->get('Clear-Site-Data');
 
-        $this->assertSame('"cache"', $header);
+        $this->assertStringNotContainsString('storage', $header);
+        $this->assertSame('', $header);
     }
 
     // ---- Leitura do /sw.js ------------------------------------------------

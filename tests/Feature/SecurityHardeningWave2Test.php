@@ -206,36 +206,27 @@ class SecurityHardeningWave2Test extends TestCase
     }
 
     /**
-     * O logout manda o navegador apagar o cache HTTP do site.
-     *
-     * ⚠️ Isso NÃO limpa o Cache Storage do service worker, onde fica `/transactions/create`
-     * (HTML autenticado com contas, categorias e família) — a premissa antiga deste
-     * docblock estava errada (P-2 da auditoria de 06/09/2026). Quem apaga aquela página é o
-     * próprio service worker: ver ServiceWorkerApagaHtmlAutenticadoTest. Este teste só
-     * garante o header e, principalmente, a AUSÊNCIA de "storage", que apagaria a fila
-     * offline.
+     * A página logada não fica guardada no navegador (out/2026): `no-store` em toda resposta
+     * com sessão, no lugar do `Clear-Site-Data: "cache"` que o logout mandava — a limpeza
+     * custava caro (o "Sair" demorava) e, com `no-store`, não há o que limpar.
      */
-    public function test_logout_tells_the_browser_to_clear_cached_pages(): void
+    public function test_pagina_logada_sai_com_no_store_e_o_logout_nao_manda_limpar_nada(): void
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->post('/logout');
+        $this->actingAs($user)->get(route('dashboard'))->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private');
 
-        $response->assertHeader('Clear-Site-Data', '"cache"');
+        $logout = $this->actingAs($user)->post('/logout');
+        $logout->assertRedirect(route('login'));
+        $this->assertFalse($logout->headers->has('Clear-Site-Data'),
+            'Sem Clear-Site-Data: com no-store não há cópia para apagar, e "storage" apagaria a fila offline.');
     }
 
-    /**
-     * E NÃO pede para limpar "storage": isso apagaria o IndexedDB da fila offline e
-     * destruiria lançamentos que o usuário fez sem internet e ainda não sincronizaram.
-     */
-    public function test_logout_does_not_wipe_offline_queue_storage(): void
+    /** Resposta que escolheu o próprio cache (a foto versionada) não é trocada. */
+    public function test_o_no_store_so_troca_o_padrao_do_framework(): void
     {
-        $user = User::factory()->create();
-
-        $header = $this->actingAs($user)->post('/logout')->headers->get('Clear-Site-Data');
-
-        $this->assertStringNotContainsString('storage', (string) $header);
-        $this->assertStringNotContainsString('"*"', (string) $header);
+        $this->get(route('login'))->assertOk()->assertHeader('Cache-Control', 'no-cache, private');
     }
 
     /** A política de senha do app rejeita menos de 8 caracteres em todos os fluxos. */

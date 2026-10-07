@@ -34,9 +34,9 @@ class FilaOfflineNaTrocaDeUsuarioTest extends TestCase
     // ---- Logout × fila -----------------------------------------------------
 
     /**
-     * O logout limpa o cache de páginas, mas NUNCA o "storage": storage apagaria o
-     * IndexedDB e junto com ele os lançamentos feitos offline que ainda não
-     * sincronizaram. Perder cache custa um download; perder a fila custa dinheiro.
+     * O logout NUNCA pede para o navegador limpar "storage": apagaria o IndexedDB e junto
+     * com ele os lançamentos feitos offline que ainda não sincronizaram. Desde out/2026 ele
+     * não manda `Clear-Site-Data` nenhum (a página logada sai com `no-store`).
      */
     public function test_logout_limpa_cache_mas_nunca_o_storage_da_fila(): void
     {
@@ -44,7 +44,6 @@ class FilaOfflineNaTrocaDeUsuarioTest extends TestCase
 
         $header = (string) $this->actingAs($user)->post('/logout')->headers->get('Clear-Site-Data');
 
-        $this->assertStringContainsString('cache', $header);
         $this->assertStringNotContainsString('storage', $header);
         $this->assertStringNotContainsString('*', $header);
     }

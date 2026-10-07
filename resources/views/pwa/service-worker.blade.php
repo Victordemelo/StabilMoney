@@ -61,9 +61,9 @@ const HTML_AUTENTICADO = ['/transactions/create'];
 // com os dados do dono anterior.
 //
 // A limpeza mora AQUI porque os outros dois lugares não dão conta sozinhos:
-//  - o header do logout. `Clear-Site-Data: "cache"` limpa o cache HTTP, NÃO o
-//    Cache Storage (`caches.*`), que é onde este arquivo guarda o formulário. O
-//    valor que limparia o Cache Storage é "storage" — e ele leva junto o IndexedDB
+//  - um header no logout. `Clear-Site-Data: "cache"` (que o logout mandou até out/2026)
+//    limpa o cache HTTP, NÃO o Cache Storage (`caches.*`), que é onde este arquivo guarda
+//    o formulário. O valor que limparia o Cache Storage é "storage" — e ele leva junto o IndexedDB
 //    da fila offline (lançamentos que ainda não chegaram ao servidor) e desregistra
 //    este SW (fim do Background Sync). Fora de cogitação;
 //  - o JS da página (offline-queue.js). Só apaga se o carregamento seguinte executar

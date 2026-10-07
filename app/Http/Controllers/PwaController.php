@@ -115,8 +115,8 @@ class PwaController extends Controller
      * assets estáticos, network-first nas navegações com fallback /offline.
      *
      * É também ele quem apaga o HTML autenticado guardado offline quando a
-     * sessão acaba — o `Clear-Site-Data: "cache"` do logout não alcança o
-     * Cache Storage. Ver `HTML_AUTENTICADO` na view.
+     * sessão acaba — nenhum header do logout alcança o Cache Storage (o "storage"
+     * apagaria junto a fila offline). Ver `HTML_AUTENTICADO` na view.
      *
      * A versão do build entra pela PRIMEIRA linha do script (a única fora do
      * `@verbatim` da view): é ela que faz o navegador enxergar um SW novo a cada
