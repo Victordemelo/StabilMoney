@@ -46,12 +46,15 @@ No painel da Cloudflare, zona **victordemelo.com.br**:
    - Se a VPS tiver IPv6 e o portfólio tiver um registro AAAA, crie o AAAA do `stabilmoney` também.
 2. **SSL/TLS** — já está em **Full (strict)** para a zona inteira: a Cloudflare só aceita falar
    com a VPS se o certificado dela for válido. É por isso que o certificado (passo 4) vem antes de abrir o site.
-3. **Desligue o que reescreve a página** (a CSP do app bloqueia o que for injetado, e a tela
-   quebra em silêncio — só o console do navegador acusa):
-   - **Speed › Optimization › Content Optimization › Rocket Loader: Off.** Ele reescreve as
-     tags `<script>`; os scripts do app levam um *nonce* que a reescrita descarta.
-   - **Security › Settings (ou Scrape Shield) › Email Address Obfuscation: Off.** Injeta um
-     script que a CSP bloqueia — e os e-mails nas páginas legais viram texto quebrado.
+3. **Desligue o que reescreve a página — só para este hostname** (a CSP do app bloqueia o que
+   for injetado, e a tela quebra em silêncio — só o console do navegador acusa). Por **regra de
+   configuração**, não na zona inteira: o portfólio, na mesma zona, usa o Email Obfuscation.
+   **Rules › Configuration Rules › Create rule**, com *Custom filter expression*
+   `Hostname equals stabilmoney.victordemelo.com.br`, e nela:
+   - **Rocket Loader: Off.** Ele reescreve as tags `<script>`; os scripts do app levam um
+     *nonce* que a reescrita descarta.
+   - **Email Obfuscation: Off.** Injeta um script que a CSP bloqueia — e os e-mails nas
+     páginas legais viram texto quebrado.
    - **Bot Fight Mode**: se estiver ligado para o portfólio, pode desafiar o *service worker* e
      a sincronização offline do app (que não têm como resolver um desafio de navegador). Se o
      app mostrar lançamentos presos na fila, é o primeiro suspeito.
