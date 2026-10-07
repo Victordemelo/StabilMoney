@@ -111,3 +111,21 @@ describe('A vitrine na página', () => {
         expect(iniciarVitrine(document.querySelector('[data-vitrine]'))).toBeNull();
     });
 });
+
+describe('A altura da lista não muda na troca', () => {
+    it('trava a altura de três linhas e a mantém quando entra um lançamento', () => {
+        document.body.innerHTML = tela();
+        const lista = document.querySelector('[data-vt-lista]');
+        // jsdom não calcula layout: a altura medida é simulada (três linhas de 51px).
+        Object.defineProperty(lista, 'offsetHeight', { configurable: true, get: () => 153 });
+
+        const vitrine = iniciarVitrine(document.querySelector('[data-vitrine]'), {
+            duracao: 0, reduzir: false, agendar: () => 1, cancelar: () => {},
+        });
+        expect(lista.style.height).toBe('153px');
+
+        vitrine.passo();
+        expect(lista.style.height).toBe('153px');
+        expect(lista.children).toHaveLength(3);
+    });
+});

@@ -119,12 +119,19 @@ class PaginaInicialPublicaTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/\.in-menu \{[^}]*margin-left: auto/', $css, 'O menu voltou a ser empurrado para a direita.');
     }
 
-    /** A abertura cabe na altura da tela (num notebook a prévia passava do fim e ficava cortada). */
-    public function test_a_abertura_cabe_na_altura_da_tela(): void
+    /**
+     * A abertura ocupa EXATAMENTE a janela: menor, a faixa seguinte aparecia embaixo (tela de
+     * 1080px); maior, a prévia passava do fim num notebook. E a lista da prévia tem altura
+     * travada — encolhendo e crescendo na troca, a página inteira descia e subia a cada
+     * lançamento (medido num Chromium: altura da página e topo do painel constantes por 8 s).
+     */
+    public function test_a_abertura_ocupa_a_janela_e_a_previa_nao_mexe_a_pagina(): void
     {
         $css = file_get_contents(resource_path('css/inicio.css'));
 
-        $this->assertMatchesRegularExpression('/\.in-hero-in \{[^}]*min-height: min\(660px, calc\(100svh - 72px\)\)/', $css);
+        $this->assertMatchesRegularExpression('/\.in-hero-in \{[^}]*min-height: calc\(100svh - 72px\);/', $css);
+        $this->assertMatchesRegularExpression('/\.vt-lista \{[^}]*overflow: hidden;/', $css);
+        $this->assertDoesNotMatchRegularExpression('/\.vt-item\.vt-sai \{[^}]*max-height/', $css, 'O item que sai não pode encolher a lista.');
         $this->assertStringContainsString('@media (min-width: 981px) and (max-height: 800px)', $css);
     }
 

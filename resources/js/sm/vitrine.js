@@ -104,6 +104,27 @@ export function iniciarVitrine(root = document.querySelector('[data-vitrine]'), 
     const duracao = opcoes.duracao ?? (reduzir ? 0 : 700);
     const doc = root.ownerDocument;
 
+    // A lista tem a altura de TRÊS linhas, travada: o item novo entra em cima e o antigo sai por
+    // baixo, cortado (`overflow: hidden` no CSS). Sem a trava, a lista encolhia e crescia na troca
+    // e a página inteira descia e subia a cada lançamento. Mede de novo quando a largura muda (as
+    // linhas mudam de altura nas telas estreitas), sempre com a lista parada em três itens.
+    const listaEl = root.querySelector('[data-vt-lista]');
+    const travarAltura = () => {
+        if (!listaEl) return;
+        // No meio de uma troca (4 itens), mede depois: soltar a altura agora faria a página pular.
+        if (listaEl.children.length !== ITENS_NA_LISTA) return;
+        listaEl.style.height = '';
+        const altura = listaEl.offsetHeight;
+        if (altura > 0) listaEl.style.height = altura + 'px';
+    };
+    travarAltura();
+    let larguraMedida = win.innerWidth;
+    win.addEventListener('resize', () => {
+        if (win.innerWidth === larguraMedida) return; // a barra do celular aparecendo não conta
+        larguraMedida = win.innerWidth;
+        travarAltura();
+    });
+
     const base = lerEstado(root);
     let estado = { ...base };
     let indice = 0;

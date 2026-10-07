@@ -80,10 +80,11 @@
 
 /* ----- Abertura: o título e uma prévia VIVA do app (sm/vitrine.js) ----- */
 .in-hero { position: relative; overflow: hidden; background: var(--mata); color: #fff; }
-/* A abertura cabe na tela: no máximo a altura da janela menos o topo (num notebook, a prévia
-   passava do fim da tela e ficava cortada). */
+/* A abertura ocupa EXATAMENTE a janela (menos o topo): menor, a faixa seguinte aparecia embaixo
+   numa tela de 1080px; maior, a prévia passava do fim da tela num notebook (a compactação para
+   telas baixas fica mais abaixo). */
 .in-hero-in { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 450px); gap: 64px; align-items: center;
-  min-height: min(660px, calc(100svh - 72px)); padding-top: 48px; padding-bottom: 56px; }
+  min-height: calc(100svh - 72px); padding-top: 48px; padding-bottom: 56px; }
 .in-hero h1 { color: #fff; max-width: 620px; font-size: clamp(44px, min(5.6vw, 10vh), 84px); line-height: .92; letter-spacing: -.038em; }
 .in-hero-lede { margin: 28px 0 0; max-width: 470px; font-size: 19px; line-height: 1.55; color: var(--no-escuro); }
 .in-hero-pontos { list-style: none; margin: 36px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px 26px;
@@ -112,7 +113,10 @@
 .vt-barra { height: 8px; margin-top: 8px; border-radius: 999px; background: var(--nevoa); overflow: hidden; }
 .vt-barra i { display: block; height: 100%; border-radius: inherit; background: var(--abeto); transition: width .7s cubic-bezier(.2, .7, .2, 1); }
 .vt-rotulo-lista { margin-top: 16px; }
-.vt-lista { list-style: none; margin: 6px 0 0; padding: 0; }
+/* Altura FIXA (o vitrine.js mede a de três linhas e a trava): o lançamento novo entra em cima e
+   o mais antigo sai por baixo, cortado pelo `overflow`. Antes a lista encolhia e crescia durante
+   a troca, e a página inteira descia e subia a cada lançamento. */
+.vt-lista { list-style: none; margin: 6px 0 0; padding: 0; overflow: hidden; }
 .vt-item { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 7px 0;
   border-top: 1px solid var(--linha); max-height: 120px; overflow: hidden; /* teto só para a animação de entrada/saída */
   transition: max-height .45s ease, padding .45s ease, opacity .45s ease, transform .45s cubic-bezier(.2, .7, .2, 1); }
@@ -127,7 +131,7 @@
 .vt-receita .vt-valor { color: #1D7A4C; }
 /* Entrada e saída de um lançamento (as classes saem/entram pelo vitrine.js). */
 .vt-item.vt-entra { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; transform: translateY(-10px); }
-.vt-item.vt-sai { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; }
+.vt-item.vt-sai { opacity: 0; } /* sai por baixo, sem encolher: quem segura a altura é a lista */
 
 .vt-aviso, .vt-meta { position: absolute; display: flex; align-items: center; gap: 12px; padding: 12px 18px 12px 12px;
   border-radius: 20px; background: var(--abeto); color: #fff; border: 1px solid rgba(255, 255, 255, .1);
