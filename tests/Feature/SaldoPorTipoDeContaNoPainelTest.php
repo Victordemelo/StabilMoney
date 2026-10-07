@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\Goal;
+use App\Models\Transaction;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Dom\HTMLDocument;
@@ -102,7 +103,7 @@ class SaldoPorTipoDeContaNoPainelTest extends TestCase
         $corrente = $this->conta('checking', 0);
         $corrente->update(['overdraft_limit' => 500]);
         $this->conta('savings', 1000);
-        \App\Models\Transaction::factory()->for($this->user)->create([
+        Transaction::factory()->for($this->user)->create([
             'account_id' => $corrente->id, 'type' => 'expense', 'amount' => 120, 'date' => CarbonImmutable::today()->toDateString(),
         ]);
 

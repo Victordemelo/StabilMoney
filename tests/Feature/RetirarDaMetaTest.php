@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Goal;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Dom\Element;
 use Dom\HTMLDocument;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -45,7 +46,7 @@ class RetirarDaMetaTest extends TestCase
         return $meta;
     }
 
-    private function botaoRetirar(HTMLDocument $doc, Goal $meta): \Dom\Element
+    private function botaoRetirar(HTMLDocument $doc, Goal $meta): Element
     {
         $botao = $doc->querySelector(".meta-botoes [data-meta-resgatar][data-id=\"{$meta->id}\"]");
         $this->assertNotNull($botao, "O card de {$meta->name} não tem o botão Retirar ao lado do Aportar.");
