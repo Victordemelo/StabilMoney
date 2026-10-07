@@ -96,6 +96,7 @@ const lancar = (tipo) => async (page) => {
 
 // id, caminho, logado?, preparar(page) → seletor do escopo (modal/drawer) ou nada.
 export const TELAS = [
+    { id: 'inicio', url: '/', guest: true }, // a página inicial pública (out/2026)
     { id: 'login', url: '/login', guest: true },
     { id: 'cadastro', url: '/register', guest: true },
     { id: 'esqueci-a-senha', url: '/forgot-password', guest: true },

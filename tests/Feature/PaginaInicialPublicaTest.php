@@ -107,16 +107,25 @@ class PaginaInicialPublicaTest extends TestCase
     }
 
     /**
-     * O menu do topo fica no CENTRO da página (out/2026 — "estão meio tortos"): três colunas,
-     * as das pontas do mesmo tamanho, e o menu sozinho na do meio.
+     * O menu do topo fica no meio do espaço entre a marca e as ações, com o mesmo respiro dos
+     * dois lados (out/2026 — "estão meio tortos"; centrado na PÁGINA, o vão da esquerda era o
+     * dobro do da direita, porque as ações são mais largas que a marca).
      */
-    public function test_o_menu_do_topo_fica_centralizado(): void
+    public function test_o_menu_do_topo_fica_centralizado_entre_a_marca_e_as_acoes(): void
     {
         $css = file_get_contents(resource_path('css/inicio.css'));
 
-        $this->assertMatchesRegularExpression('/\.in-topo-in \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto minmax\(0, 1fr\);/', $css);
-        $this->assertMatchesRegularExpression('/\.in-menu \{[^}]*grid-column: 2;/', $css);
+        $this->assertMatchesRegularExpression('/\.in-menu \{[^}]*margin-inline: auto;/', $css);
         $this->assertDoesNotMatchRegularExpression('/\.in-menu \{[^}]*margin-left: auto/', $css, 'O menu voltou a ser empurrado para a direita.');
+    }
+
+    /** A abertura cabe na altura da tela (num notebook a prévia passava do fim e ficava cortada). */
+    public function test_a_abertura_cabe_na_altura_da_tela(): void
+    {
+        $css = file_get_contents(resource_path('css/inicio.css'));
+
+        $this->assertMatchesRegularExpression('/\.in-hero-in \{[^}]*min-height: min\(660px, calc\(100svh - 72px\)\)/', $css);
+        $this->assertStringContainsString('@media (min-width: 981px) and (max-height: 800px)', $css);
     }
 
     /** A faixa clara logo abaixo do topo, com a ilustração da carteira na balança (out/2026). */
