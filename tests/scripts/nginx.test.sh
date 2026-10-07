@@ -16,6 +16,7 @@
 #     cabeçalho não passa —, "https", a porta 443, o Host do site, e nada de
 #     X-Forwarded-Prefix nem Forwarded;
 #   - vindo de fora da Cloudflare, a conexão é fechada (444), mesmo com CF-Connecting-IP;
+#   - as duas coisas continuam valendo num nginx que JÁ tem real_ip no nível http (a VPS);
 #   - Host/SNI desconhecido: a 80 fecha a conexão e a 443 recusa o aperto de mão TLS;
 #   - a porta 80 do site manda para https, com o caminho;
 #   - redirect em http:// montado pelo Apache do container (a barra no fim da URL) chega ao
@@ -218,6 +219,49 @@ corpo() { # <arquivo> <status esperado>
 }
 afirmar "corpo de 11 MB (abaixo do post_max_size de 12M) chega ao app" corpo /tmp/11mb 200
 afirmar "corpo de 13 MB (acima do post_max_size) recebe 413 do nginx" corpo /tmp/13mb 413
+
+# ------------------------------------------ servidor com real_ip GLOBAL (o da VPS)
+
+# A VPS já tem `real_ip_header CF-Connecting-IP` no nível http (conf.d/cloudflare-realip.conf,
+# para todos os sites): quando o server do Stabil Money é avaliado, o $remote_addr JÁ é o do
+# visitante. A checagem "veio da Cloudflare?" continua valendo porque olha o
+# $realip_remote_addr (o endereço da CONEXÃO, antes do real_ip) — um `allow/deny` com as
+# faixas da Cloudflare, que olha o $remote_addr, barraria todo mundo. Mesmo arquivos do
+# repositório, mais um real_ip global igual ao do servidor.
+CONTAINER_GLOBAL="sm-teste-nginx-global-$$"
+trap 'docker rm -f "$CONTAINER" "$CONTAINER_GLOBAL" > /dev/null 2>&1; rm -rf "$T"' EXIT
+mkdir -p "$T/conf-global"
+cp "$T"/conf.d/*.conf "$T/conf-global/"
+# Nível http: um arquivo de conf.d/ é incluído dentro do bloco http do nginx.conf.
+cp "$NGINX/cloudflare-ip-real.conf" "$T/conf-global/00-cloudflare-realip-global.conf"
+chmod -R a+rX "$T/conf-global"
+if docker run -d --name "$CONTAINER_GLOBAL" --cap-add NET_ADMIN --sysctl net.ipv6.conf.all.disable_ipv6=0 \
+  -v "$T/conf-global:/etc/nginx/conf.d:ro" -v "$T/snippets:/etc/nginx/snippets:ro" \
+  -v "$T/letsencrypt:/etc/letsencrypt:ro" "$IMAGEM" > "$T/docker-run-global.log" 2>&1; then
+  docker exec "$CONTAINER_GLOBAL" ip addr add "$IP_CLOUDFLARE/32" dev lo
+  docker exec "$CONTAINER_GLOBAL" ip addr add "$IP_DE_FORA/32" dev lo
+  sleep 1
+  curl_global() {
+    local origem="$1"
+    shift
+    docker exec "$CONTAINER_GLOBAL" curl -sk --max-time 5 --interface "$origem" "$@"
+  }
+  global_no_ar() {
+    local saida
+    saida="$(docker exec "$CONTAINER_GLOBAL" nginx -t 2>&1)" || { DETALHE="$saida"; return 1; }
+  }
+  afirmar "com real_ip GLOBAL: nginx -t aceita (o snippet do server não conflita com o do http)" global_no_ar
+
+  RESPOSTA="$(curl_global "$IP_CLOUDFLARE" --resolve "$HOST:443:$IP_CLOUDFLARE" \
+    -H "CF-Connecting-IP: 203.0.113.7" -H "X-Forwarded-For: 6.6.6.6" "https://$HOST/login" 2>&1)"
+  afirmar "com real_ip GLOBAL: da Cloudflare passa, com o IP real do visitante no X-Forwarded-For" cabecalho "xff=203.0.113.7"
+
+  SAIDA="$(curl_global "$IP_DE_FORA" --resolve "$HOST:443:$IP_DE_FORA" -H "CF-Connecting-IP: 203.0.113.7" "https://$HOST/login" 2>&1)"
+  CODIGO=$?
+  afirmar "com real_ip GLOBAL: de fora da Cloudflare a conexão continua fechada" fechou "direto" "$CODIGO" "$SAIDA"
+else
+  falhou "com real_ip GLOBAL: o container do nginx não subiu" "$(cat "$T/docker-run-global.log")"
+fi
 
 # ------------------------------------------ o arquivo da PRIMEIRA emissão do certificado
 

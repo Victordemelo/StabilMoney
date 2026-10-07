@@ -242,6 +242,18 @@ sudo cp deploy/nginx/cloudflare-origem.conf  /etc/nginx/conf.d/cloudflare-origem
 - `conf.d/cloudflare-origem.conf` define `$stabilmoney_via_cloudflare`, que o site usa para
   **fechar a conexão de quem fala direto com o IP da VPS**, pulando a Cloudflare. Precisa ficar em
   `conf.d/` (contexto `http`) — dentro de um `server` o nginx recusa o `geo`.
+- **Funciona com o `real_ip` global que a VPS já tem** (`conf.d/cloudflare-realip.conf`, nível
+  `http`). Ali, quando o server é avaliado, o `$remote_addr` JÁ é o IP do visitante — por isso a
+  checagem NÃO é um `allow <faixas>; deny all;` (que olharia o `$remote_addr` e barraria todo
+  mundo): é um `geo` sobre o **`$realip_remote_addr`**, o endereço da conexão antes do `real_ip`.
+  O `tests/scripts/nginx.test.sh` prova as duas montagens (real_ip só no server, e global + no
+  server) com um nginx 1.24 de verdade.
+- **Nesta VPS ela é uma terceira camada:** o firewall já só aceita a 443 das faixas da Cloudflare
+  e o nginx exige o certificado de cliente da Cloudflare (Authenticated Origin Pulls,
+  `ssl_verify_client on`). Manter o `geo` + `return 444` não custa nada e cobre um erro numa das
+  outras duas; tirá-lo do arquivo final também é seguro aqui. O certificado do AOP
+  (`ssl_client_certificate`/`ssl_verify_client`) não está no arquivo do repositório — quem o
+  acrescenta é a configuração do servidor.
 
 ### 5.2 O servidor padrão (Host desconhecido não recebe nada)
 
