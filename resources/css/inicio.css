@@ -86,7 +86,13 @@
 .in-topo .in-btn { min-height: 40px; padding: 8px 18px; font-size: 14.5px; }
 
 /* ----- Abertura: o título e uma prévia VIVA do app (sm/vitrine.js) ----- */
-.in-hero { position: relative; overflow: hidden; background: var(--mata); color: #fff; }
+/* O fundo verde com as ondas (pedido do Victor, out/2026): `inicio-fundo-*.jpg`, a mesma cor da
+   faixa, ancorado à direita — é lá que ficam as ondas, atrás da prévia do app. */
+.in-hero { position: relative; overflow: hidden; color: #fff;
+  background: var(--mata) url('/assets/inicio-fundo-1920.jpg') right center / cover no-repeat; }
+@media (max-width: 900px) {
+  .in-hero { background-image: url('/assets/inicio-fundo-900.jpg'); background-position: 70% bottom; }
+}
 /* A abertura ocupa EXATAMENTE a janela (menos o topo): menor, a faixa seguinte aparecia embaixo
    numa tela de 1080px; maior, a prévia passava do fim da tela num notebook (a compactação para
    telas baixas fica mais abaixo). */

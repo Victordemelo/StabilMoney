@@ -253,4 +253,17 @@ class PaginaInicialPublicaTest extends TestCase
         $this->assertMatchesRegularExpression('/@media \(prefers-reduced-motion: no-preference\) \{\s*\.inicio-body \{ scroll-behavior: smooth; \}/', $css);
         $this->assertStringContainsString("import { initRolagemSuave } from './sm/rolagem-suave';", file_get_contents(resource_path('js/app.js')));
     }
+
+    public function test_a_abertura_tem_o_fundo_verde_com_as_ondas_leve(): void
+    {
+        $css = file_get_contents(resource_path('css/inicio.css'));
+        $this->assertStringContainsString("background: var(--mata) url('/assets/inicio-fundo-1920.jpg') right center / cover no-repeat;", $css);
+        $this->assertStringContainsString("background-image: url('/assets/inicio-fundo-900.jpg')", $css);
+
+        foreach (['inicio-fundo-1920.jpg', 'inicio-fundo-900.jpg'] as $arquivo) {
+            $caminho = public_path('assets/'.$arquivo);
+            $this->assertFileExists($caminho);
+            $this->assertLessThan(260 * 1024, filesize($caminho), "{$arquivo} pesado demais para a abertura");
+        }
+    }
 }
