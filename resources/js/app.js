@@ -22,6 +22,7 @@ import { initInstalar, aplicarEstadoDeInstalacao } from './sm/instalar';
 import { initBaloes, promoverFlashes } from './sm/balao';
 import { initTutorial, tutorialAposTrocarDeTela } from './sm/tutorial';
 import { initVitrine } from './sm/vitrine';
+import { melhorarCamposDeData } from './sm/data-br';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -41,6 +42,10 @@ function initContent() {
     // voltar a responder antes de qualquer outra coisa. O Lançar, que vive no shell e
     // sobrevive à troca, continua aberto e continua dono da página.
     liberarDialogosOrfaos();
+    // Datas em dd/mm/aaaa (sm/data-br.js) ANTES dos módulos da tela: o campo do navegador
+    // segue o idioma do aparelho (num Android em inglês, mm/dd/yyyy). Vale também para o
+    // modal Lançar, que mora no shell — a primeira chamada varre o documento inteiro.
+    melhorarCamposDeData();
     promoverFlashes(); // aviso de sucesso que veio com a tela vira balão no canto
     tutorialAposTrocarDeTela();
     initDashboard();

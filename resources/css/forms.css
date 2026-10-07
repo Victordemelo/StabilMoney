@@ -50,6 +50,28 @@ select.input {
 .input-error, .input-error:focus { border-color: var(--neg); }
 .input-error:focus { box-shadow: 0 0 0 4px rgba(229,96,77,.12); }
 
+/* ----- Data em dd/mm/aaaa (sm/data-br.js) -----
+   O campo de data do navegador segue o idioma do APARELHO (num Android em inglês,
+   mm/dd/yyyy). O JS troca cada um por um texto com máscara e põe o calendário num
+   botão ao lado; o campo original vai escondido, com o `name`, para o servidor. */
+.data-br { position: relative; display: block; width: 100%; min-width: 0; }
+.data-br.com-calendario > .input { padding-right: 46px; }
+.data-br-cal {
+  position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+  width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  color: var(--ink-3); background: transparent; border: 0; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.data-br-cal:hover { background: var(--surface-3); color: var(--ink-2); }
+.data-br-cal:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 1px; }
+.data-br-cal svg { width: 18px; height: 18px; }
+/* O campo nativo que só abre o calendário: na tela (o Chrome ancora o calendário
+   nele), mas invisível e fora do toque. */
+.data-br-nativo {
+  position: absolute; right: 0; bottom: 0; width: 1px; height: 1px;
+  opacity: 0; pointer-events: none; border: 0; padding: 0;
+}
+
 /* ----- Linha com 2 colunas ----- */
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
 @media (max-width: 560px) { .form-row { grid-template-columns: 1fr; } }
