@@ -83,7 +83,7 @@
                     $dash   = number_format(min(100, max(0, $pct)) / 100 * 238.7, 1, '.', '');
                 @endphp
                 <div class="card span4 meta-card">
-                    {{-- Ações (editar / resgatar / excluir) aparecem no hover --}}
+                    {{-- Ações (editar / excluir) aparecem no hover; aportar e retirar ficam à vista, embaixo --}}
                     <div class="meta-actions">
                         <button class="meta-act" type="button"
                                 data-meta-edit
@@ -95,14 +95,6 @@
                                 data-color="{{ $cor }}"
                                 aria-label="Editar meta">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg>
-                        </button>
-                        <button class="meta-act" type="button"
-                                data-meta-resgatar
-                                data-id="{{ $goal->id }}"
-                                data-name="{{ $goal->name }}"
-                                data-saved="{{ $brl($goal->saved) }}"
-                                aria-label="Resgatar valor">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M5 12l7 7 7-7"/></svg>
                         </button>
                         <button class="meta-act meta-act-del" type="button"
                                 data-meta-del
@@ -143,14 +135,28 @@
                         <div style="text-align:right"><span>Faltam</span><b>{{ $brl0($goal->remaining) }}</b></div>
                     </div>
 
-                    <button class="btn primary meta-aporte" type="button"
-                            data-meta-aporte
-                            data-id="{{ $goal->id }}"
-                            data-name="{{ $goal->name }}"
-                            data-saved="{{ $brl($goal->saved) }}"
-                            data-remaining="{{ $brl($goal->remaining) }}">
-                        + Aportar
-                    </button>
+                    {{-- Aportar e Retirar lado a lado (out/2026 — Victor): o dinheiro da meta entra e
+                         sai. Antes o resgate era um ícone ↓ que só aparecia passando o mouse. Sem
+                         nada guardado não há o que retirar, e o botão diz isso. --}}
+                    <div class="meta-botoes">
+                        <button class="btn primary meta-aporte" type="button"
+                                data-meta-aporte
+                                data-id="{{ $goal->id }}"
+                                data-name="{{ $goal->name }}"
+                                data-saved="{{ $brl($goal->saved) }}"
+                                data-remaining="{{ $brl($goal->remaining) }}">
+                            + Aportar
+                        </button>
+                        <button class="btn ghost meta-retirar" type="button"
+                                data-meta-resgatar
+                                data-id="{{ $goal->id }}"
+                                data-name="{{ $goal->name }}"
+                                data-saved="{{ $brl($goal->saved) }}"
+                                aria-label="Retirar dinheiro de {{ $goal->name }}"
+                                @if ($goal->saved <= 0.001) disabled title="Nada guardado nesta meta ainda" @endif>
+                            − Retirar
+                        </button>
+                    </div>
                 </div>
             @endforeach
 
@@ -366,7 +372,7 @@
                     {{-- Com dinheiro guardado a meta não sai (o servidor recusa): a tela diz por quê e
                          o botão vem desligado, em vez de deixar clicar para só então avisar. --}}
                     @if ((float) $goal->saved > 0.001)
-                        <p id="metaDeleteModal-{{ $goal->id }}-descricao" data-meta-com-dinheiro>“{{ $goal->name }}” ainda tem <b>@brl($goal->saved)</b> guardados. Para excluir, resgate todo o dinheiro dela primeiro.</p>
+                        <p id="metaDeleteModal-{{ $goal->id }}-descricao" data-meta-com-dinheiro>“{{ $goal->name }}” ainda tem <b>@brl($goal->saved)</b> guardados. Para excluir, retire todo o dinheiro dela primeiro (botão Retirar).</p>
                     @else
                         <p id="metaDeleteModal-{{ $goal->id }}-descricao">Tem certeza que deseja excluir “{{ $goal->name }}”? Esta ação não pode ser desfeita.</p>
                     @endif
@@ -480,8 +486,8 @@
         <div class="modal-head">
             <span class="modal-ico ico-out" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M5 12l7 7 7-7"/></svg></span>
             <div>
-                <h3 id="metaResgateModal-titulo">Resgatar <span data-resgate-name></span></h3>
-                <p id="metaResgateModal-descricao">Devolva parte do valor guardado para uma conta.</p>
+                <h3 id="metaResgateModal-titulo">Retirar de <span data-resgate-name></span></h3>
+                <p id="metaResgateModal-descricao">Tire o valor guardado (todo ou parte) e devolva para uma conta.</p>
             </div>
             <button class="modal-x" type="button" data-meta-close aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -524,7 +530,7 @@
 
                 @if ($familyMembers->count() > 1)
                     <div class="field">
-                        <label for="meta-resgate-who">Quem resgatou <span class="hint">(opcional)</span></label>
+                        <label for="meta-resgate-who">Quem retirou <span class="hint">(opcional)</span></label>
                         <select class="input" id="meta-resgate-who" name="made_by_user_id">
                             @foreach ($familyMembers as $member)
                                 <option value="{{ $member->id }}" @selected($reabreResgate && (int) old('made_by_user_id') === $member->id)>
@@ -542,7 +548,7 @@
             </div>
             <div class="modal-foot">
                 <button class="btn ghost" type="button" data-meta-close>Cancelar</button>
-                <button class="btn primary" type="submit">Resgatar</button>
+                <button class="btn primary" type="submit">Retirar</button>
             </div>
         </form>
     </div>

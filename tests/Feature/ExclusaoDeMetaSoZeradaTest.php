@@ -57,7 +57,7 @@ class ExclusaoDeMetaSoZeradaTest extends TestCase
         $this->actingAs($this->user)->from(route('metas.index'))
             ->delete(route('metas.destroy', $meta))
             ->assertRedirect(route('metas.index'))
-            ->assertSessionHasErrors(['meta' => 'A meta “Viagem” ainda tem R$ 300,00 guardados. Resgate todo o dinheiro dela antes de excluí-la.']);
+            ->assertSessionHasErrors(['meta' => 'A meta “Viagem” ainda tem R$ 300,00 guardados. Retire todo o dinheiro dela (botão Retirar) antes de excluí-la.']);
 
         $this->assertModelExists($meta);
         $this->assertSame(300.0, (float) $meta->fresh()->saved);
@@ -85,7 +85,7 @@ class ExclusaoDeMetaSoZeradaTest extends TestCase
 
         $html = $this->actingAs($this->user)->get(route('metas.index'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('“Viagem” ainda tem <b>R$ 300,00</b> guardados. Para excluir, resgate todo o dinheiro dela primeiro.', $html);
+        $this->assertStringContainsString('“Viagem” ainda tem <b>R$ 300,00</b> guardados. Para excluir, retire todo o dinheiro dela primeiro (botão Retirar).', $html);
         $this->assertMatchesRegularExpression('#metas/'.$cheia->id.'"[^>]*>.*?<button class="btn-danger" type="submit" disabled>Excluir meta</button>#s', $html);
         $this->assertMatchesRegularExpression('#metas/'.$vazia->id.'"[^>]*>.*?<button class="btn-danger" type="submit" >Excluir meta</button>#s', $html);
     }

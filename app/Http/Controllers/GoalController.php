@@ -90,7 +90,7 @@ class GoalController extends Controller
         $guardado = (float) $meta->saved;
         if ($guardado > 0.001) {
             return back()->withErrors(['meta' => 'A meta “'.$meta->name.'” ainda tem '.Brl::format($guardado)
-                .' guardados. Resgate todo o dinheiro dela antes de excluí-la.']);
+                .' guardados. Retire todo o dinheiro dela (botão Retirar) antes de excluí-la.']);
         }
 
         // Zerada: os aportes e resgates (que se anulam) caem junto (cascadeOnDelete).

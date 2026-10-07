@@ -663,6 +663,11 @@ a.tx { text-decoration: none; color: inherit; }
 .meta-amounts span { font-size: 11.5px; color: var(--ink-3); display: block; }
 .meta-amounts b { font-family: var(--font-head); font-size: 15px; font-weight: 700; }
 .meta-card .btn.primary { width: 100%; }
+/* Aportar + Retirar lado a lado; em card estreito, um embaixo do outro (sem largura mínima fixa). */
+.meta-botoes { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; margin-top: auto; }
+.meta-botoes .btn { flex: 1 1 min(120px, 100%); min-width: 0; justify-content: center; }
+.meta-botoes .btn.primary { flex-grow: 2; }
+.meta-retirar:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Card "Nova meta" tracejado (reaproveita .pm-add-inner/.pm-plus do design system) */
 .meta-add {
