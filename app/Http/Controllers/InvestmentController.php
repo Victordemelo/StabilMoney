@@ -143,13 +143,32 @@ class InvestmentController extends Controller
     {
         $this->authorize('delete', $investimento);
 
-        if ($erro = $this->travaDeExclusaoComContaNoVermelho($investimento)) {
+        // A decisão e a exclusão acontecem SOB TRAVA (out/2026 — auditoria de concorrência,
+        // pendência 5): antes, uma despesa que levasse a conta ao vermelho logo depois da
+        // conferência deixava excluir sem o resgate explícito que a regra exige, e um aporte
+        // concorrente era confirmado e apagado junto pelo cascade. Ordem da trava: contas
+        // (por id) → investimento, a mesma do `FundingService` e do `HandlesContributions`.
+        $erro = DB::transaction(function () use ($investimento) {
+            Account::where('user_id', $investimento->user_id)->orderBy('id')->lockForUpdate()->get();
+            $travado = Investment::whereKey($investimento->id)->lockForUpdate()->first();
+            if ($travado === null) {
+                return null; // outra pessoa da família já excluiu
+            }
+
+            if ($erro = $this->travaDeExclusaoComContaNoVermelho($travado)) {
+                return $erro;
+            }
+
+            // As contributions caem junto (cascadeOnDelete) — o dinheiro volta a ficar
+            // disponível nas contas, já que deixa de estar reservado.
+            $travado->delete();
+
+            return null;
+        }, attempts: 3);
+
+        if ($erro !== null) {
             return back()->withErrors(['investimento' => $erro]);
         }
-
-        // As contributions caem junto (cascadeOnDelete) — o dinheiro volta a ficar
-        // disponível nas contas, já que deixa de estar reservado.
-        $investimento->delete();
 
         return redirect()->route('investimentos.index')
             ->with('status', 'Investimento removido.');
