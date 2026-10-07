@@ -36,6 +36,7 @@ return [
 
     'mudancas' => [
         '3.4' => [
+            'Novo e-mail de contato, também para assuntos de privacidade e para o encarregado dos dados: victor.rosa.system@gmail.com.',
             'Os e-mails do aplicativo (confirmação de cadastro, redefinição de senha, alertas e lembretes) passam a ser enviados pelo serviço de e-mail da Oracle, na região de São Paulo (Brasil) — a mesma empresa e a mesma região do servidor.',
         ],
         '3.3' => [
@@ -61,6 +62,6 @@ return [
 
     'controller' => 'Victor de Melo da Rosa',
 
-    'contact_email' => 'victor.rosa.faculdade@gmail.com',
+    'contact_email' => 'victor.rosa.system@gmail.com',
 
 ];

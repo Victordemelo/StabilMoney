@@ -37,7 +37,7 @@ class LegalPagesTest extends TestCase
         foreach (['/termos', '/privacidade'] as $url) {
             $this->get($url)
                 ->assertSee('Victor de Melo da Rosa')
-                ->assertSee('victor.rosa.faculdade@gmail.com');
+                ->assertSee('victor.rosa.system@gmail.com');
         }
     }
 
