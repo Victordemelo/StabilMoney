@@ -20,9 +20,13 @@ Sans). Migrar o app para esta identidade é um passo separado, que precisa de um
 
 **Verde-petróleo profundo com um único destaque lima.** O ponto de partida é a referência da Wise
 (`referencias/wise-style-reference.md`): uma cor escura que ocupa as superfícies de peso, um
-destaque elétrico usado com parcimônia, títulos enormes e blocados, e botões em pílula. O verde
-do Stabil Money é o fundo da ilustração do app (`imagens/web/inicio-app-*.jpg`). Por isso a
-imagem se funde com a página, sem moldura.
+destaque elétrico usado com parcimônia, títulos enormes e blocados, e botões em pílula.
+
+**A abertura mostra o app de verdade, não uma ilustração.** Ao lado do título fica uma prévia
+viva da Visão geral, desenhada em HTML (`.in-vitrine`, animada por `resources/js/sm/vitrine.js`).
+A cada poucos segundos entra um lançamento novo, e o saldo e o gasto do mês acompanham. Uma
+ilustração 3D de um celular chegou a ocupar o topo e saiu por ter "cara de IA" (out/2026, pedido
+do Victor). Ilustração 3D só nas faixas claras do meio da página.
 
 A página alterna três tipos de faixa, e é esse o ritmo da página. Nada de enfeite para criar ritmo.
 
@@ -89,12 +93,15 @@ O título é o elemento de impacto da página. É blocado, apertado e grande. Li
   num círculo mata, em lima.
 - **Perguntas**: `details` brancos com raio de 22px sobre a névoa; um "+" que gira para "×" ao abrir.
 - **Foto do autor**: retangular 4:5 e raio de 28px. Nada de foto redonda.
+- **Prévia do app (abertura)**: o painel é BRANCO, como o app, com raio de 28px e uma sombra só.
+  Os dois avisos encostados (vencimento e meta) são verde-abeto, retos, nunca inclinados. Os
+  números são de exemplo e usam o formato do app (`−R$ 182,40`, sinal antes do símbolo).
 
 ## Imagens
 
 | Arquivo | Onde | Observação |
 |---|---|---|
-| `imagens/originais/app-no-celular-escuro.png` → `public/assets/inicio-app-1672.jpg` / `-960.jpg` | Abertura (ao fundo, à direita) | O fundo da imagem é o próprio `--mata`. No celular, a imagem desce para depois do texto. |
+| `imagens/originais/app-no-celular-escuro.png` | **Fora de uso** | Ficou no topo por um dia e saiu ("tinha cara de IA"). Guardada só como referência do que não fazer. |
 | `imagens/originais/contas-claro.png` → `public/assets/inicio-contas-1672.jpg` / `-960.jpg` | "Como funciona" (à direita dos passos) | Fundo `#FDFAF6`. |
 | `imagens/originais/equilibrio-carteira.png` → `public/assets/equilibrio-1600.jpg` / `-900.jpg` | Faixa "Equilíbrio" | Bordas esfumadas por máscara radial, para sumirem no creme. |
 | `imagens/originais/foto-victor.png` → `public/assets/victor-de-melo.jpg` | "Quem fez" | 583×600. |
@@ -121,15 +128,27 @@ Repita com `-Z 960` para a versão de celular.
 - Conteúdo com até 1200px de largura e 24px de margem lateral (mais a área segura do aparelho).
 - O conteúdo fica alinhado à esquerda. Só a faixa Equilíbrio e a chamada final são centralizadas.
 - Seções com 120px de respiro vertical (80px no celular).
-- Abertura e "Como funciona": a imagem fica ao fundo, à direita, e o texto à esquerda. Abaixo de
-  980px, a imagem desce para depois do texto.
+- O menu do topo fica no CENTRO da página: grade de três colunas, as das pontas do mesmo tamanho.
+  Abaixo de 1140px o menu sai e ficam a marca e as ações.
+- Abertura: o título à esquerda e a prévia do app à direita (até 470px). Abaixo de 980px, a
+  prévia desce para depois do texto; abaixo de 440px o aviso do vencimento sai e a meta fica
+  embaixo do painel.
+- "Como funciona": a ilustração fica ao fundo, à direita, e os passos à esquerda. Abaixo de 980px
+  ela desce para depois dos passos.
 - Responsivo de 2000px até 300px, sem rolagem lateral.
 
 ## Movimento
 
-Um único movimento automático: o texto da abertura sobe uma vez ao carregar. Fora ele, só
-movimento que responde a uma ação (o "+" das perguntas gira). O `prefers-reduced-motion` desliga
-os dois.
+O movimento fica todo na abertura, que é o ponto de destaque da página:
+
+- Ao carregar, uma vez: o texto e o painel sobem, o saldo conta a partir de zero e o anel da meta enche.
+- A cada 3,4 segundos, um lançamento novo entra no topo da lista e o mais antigo sai. O saldo, a
+  conta corrente e o gasto do mês contam até o valor novo.
+- O roteiro dos lançamentos soma zero, então depois de uma volta tudo está como no começo.
+- A animação só anda com a aba visível e a prévia na tela.
+
+Fora da abertura, só há movimento que responde a uma ação (o "+" das perguntas gira). Com
+`prefers-reduced-motion` nada se mexe e fica o estado que o servidor desenhou. Sem JS, também.
 
 ## Não fazer
 

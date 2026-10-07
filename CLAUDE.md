@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.249 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **378 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.251 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **387 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -241,7 +241,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.249 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.251 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -407,8 +407,8 @@ contrato do `storeAvatar` (não persiste, não apaga): o arquivo sai pelo hook `
 commit. Arquivo novo enviado junto vence. Antes a foto só podia ser trocada por outra.
 **A URL da foto é versionada** (22/09/2026 — `FotoTrocadaApareceNaHoraTest`): `avatarUrl()` leva
 `?v=` (hash curto do `avatar_path`, que muda a cada upload porque o `storeAvatar` sorteia o nome —
-não troque isso por nome fixo). Com a versão atual, `Cache-Control` de 1 hora; sem versão ou com
-versão velha, `no-cache`. Antes a URL era sempre a mesma e a foto trocada aparecia velha por até
+não troque isso por nome fixo). Com a versão atual, `no-cache` + `ETag` (conferida a cada uso, 304
+barato — out/2026; antes 1 hora de `max-age`); sem versão ou com versão velha, `no-cache` sem ETag. Antes a URL era sempre a mesma e a foto trocada aparecia velha por até
 1 hora no perfil, na sidebar, no popover e nos cards de dependentes.
 
 **Cadastro de categoria e de método de pagamento abre em MODAL** (06/08/2026), na própria tela,
@@ -1612,11 +1612,15 @@ recursos, como funciona, conta-família, segurança, **quem fez** (autor, site, 
   inicial não tem mais vídeo: o selo segue no login e na entrada do painel.)
 - **Reformulação de out/2026** (pedido do Victor, com a Wise como base — guia em `design_stabilmoney/`):
   fontes **Bricolage Grotesque + Geist** só nesta página (o app segue Sora + Plus Jakarta), tokens no
-  escopo `.inicio` (`--mata`, `--lima`…), topo escuro, abertura com `inicio-app-1672.jpg`/`-960.jpg` ao
-  fundo (o fundo da imagem É o `--mata`; recua à direita em telas médias e desce para depois do texto
-  ≤ 980px), "Como funciona" com `inicio-contas-*.jpg`, recursos em linhas (não cards), Segurança em
+  escopo `.inicio` (`--mata`, `--lima`…), topo escuro com o menu no CENTRO da página (grade
+  `1fr auto 1fr`; ≤ 1140px o menu sai), abertura com uma **prévia VIVA do app** no lugar de
+  ilustração (a do celular saiu por "cara de IA"): `.in-vitrine` desenhada pelo servidor (vale sem
+  JS) e animada por `sm/vitrine.js` — a cada 3,4 s entra um lançamento de exemplo e saldo/gasto do mês
+  contam até o valor novo; o `ROTEIRO` soma ZERO (o saldo volta ao começo a cada volta — o
+  `tests/js/vitrine.test.js` cobra), só anda com a aba visível e a prévia na tela, e com
+  `prefers-reduced-motion` fica parada. "Como funciona" com `inicio-contas-*.jpg`, recursos em linhas (não cards), Segurança em
   faixa escura, perguntas em `details` com "+", chamada final em bloco escuro com o botão lima e o link
-  "Já tenho conta". Único movimento automático: o texto da abertura sobe ao carregar. Imagens da página:
+  "Já tenho conta". Fora da abertura, nada se mexe sozinho. Imagens da página:
   versão grande e de celular, < 260 KB cada (o teste cobra).
 
 ## 🔎 SEO (23/09/2026) — `SeoDasPaginasPublicasTest`
@@ -1836,7 +1840,10 @@ dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypt
   `Clear-Site-Data: "cache"` para apagá-las — o Chrome faz essa limpeza devagar com o cache cheio, e a
   tela de login baixava tudo de novo: o "Sair" demorava (medido na prévia com cache em disco: 237 ms em
   média e até 383 ms; com a troca, ~73 ms). O `no-store` só substitui o padrão `no-cache, private` do
-  framework: resposta que escolhe o próprio cache (a foto versionada) fica. O texto abaixo é de quando
+  framework: resposta que escolhe o próprio cache (a foto versionada) fica — e a foto sai
+  `private, no-cache` + `ETag` (= a versão; 304 sem a imagem), NUNCA `max-age`: sem o
+  `Clear-Site-Data`, o navegador usaria a foto guardada sem perguntar por até 1 hora depois do
+  "Sair" (revisão de segurança do push, out/2026 — `FotoTrocadaApareceNaHoraTest`). O texto abaixo é de quando
   o header existia — ⚠️ ele nunca limpou o Cache Storage do SW (premissa antiga, derrubada pelo P-2
   da auditoria de 06/09). Quem apaga o `/transactions/create` guardado offline (HTML autenticado com
   contas/categorias/família) é o **próprio SW** desde 16/09/2026 (`HTML_AUTENTICADO` em
@@ -2595,7 +2602,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.249 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.251 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
