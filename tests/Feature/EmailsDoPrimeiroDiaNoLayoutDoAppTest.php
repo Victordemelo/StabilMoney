@@ -81,6 +81,20 @@ class EmailsDoPrimeiroDiaNoLayoutDoAppTest extends TestCase
         }
     }
 
+    /**
+     * O botão centralizado (out/2026 — pedido do Victor): `align="center"` na tabela E no td,
+     * que o Outlook e o Gmail respeitam (só CSS não centraliza no Outlook). Vem do layout, então
+     * vale para todo e-mail com botão.
+     */
+    private function assertBotaoCentralizado(Email $email, string $rotulo): void
+    {
+        $html = (string) $email->getHtmlBody();
+        $this->assertSame(1, preg_match(
+            '~<table role="presentation" align="center"[^>]*>\s*<tr>\s*<td align="center"[^>]*>\s*<a [^>]*>'.preg_quote($rotulo, '~').'</a>~',
+            $html,
+        ), "O botão \"{$rotulo}\" não está centralizado por align=\"center\" na tabela e no td.");
+    }
+
     // ══════════════════════════════════════════════════ confirmação do cadastro
 
     public function test_o_cadastro_manda_a_confirmacao_no_layout_do_app_e_o_link_do_texto_confirma(): void
@@ -104,6 +118,7 @@ class EmailsDoPrimeiroDiaNoLayoutDoAppTest extends TestCase
 
         $link = $this->linkDoTexto($email, '/verify-email/');
         $this->assertSame($link, $this->linkDoBotao($email, '/verify-email/'), 'O botão e o texto levam a lugares diferentes.');
+        $this->assertBotaoCentralizado($email, 'Confirmar meu e-mail');
 
         $this->actingAs($user)->get($link)->assertRedirect();
 
@@ -137,6 +152,7 @@ class EmailsDoPrimeiroDiaNoLayoutDoAppTest extends TestCase
 
         $link = $this->linkDoTexto($email, '/reset-password/');
         $this->assertSame($link, $this->linkDoBotao($email, '/reset-password/'));
+        $this->assertBotaoCentralizado($email, 'Criar senha nova');
 
         $this->get($link)->assertOk();
 

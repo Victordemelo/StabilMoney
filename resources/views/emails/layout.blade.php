@@ -110,11 +110,14 @@
                             @endif
 
                             {{-- Botão: <table> e não <a> com padding, porque o Outlook ignora
-                                 padding em elemento inline e o botão viraria um link solto. --}}
+                                 padding em elemento inline e o botão viraria um link solto.
+                                 CENTRALIZADO (out/2026) por `align="center"` na tabela e no td,
+                                 que o Outlook e o Gmail respeitam, e `margin: auto` para os outros
+                                 — só CSS não basta no Outlook. Vale para todos os e-mails. --}}
                             @if (!empty($acaoUrl))
-                                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 24px;">
+                                <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:4px auto 24px;">
                                     <tr>
-                                        <td style="background-color:#15795A; border-radius:13px;">
+                                        <td align="center" style="background-color:#15795A; border-radius:13px;">
                                             <a href="{{ $acaoUrl }}" style="display:inline-block; padding:13px 26px; font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:14.5px; font-weight:600; color:#FFFFFF; text-decoration:none;">{{ $acaoRotulo }}</a>
                                         </td>
                                     </tr>
