@@ -409,6 +409,19 @@ if [ -n "$DOCKER_DE_VERDADE" ] && "$DOCKER_DE_VERDADE" compose version > /dev/nu
     [ "$(printf '%s\n' "$cfg" | sm_gateway_da_rede_padrao)" = "172.16.80.1" ] || { DETALHE="gateway errado"; return 1; }
     [ "$(printf '%s\n' "$cfg" | sm_porta_publicada app)" = "8081" ] || { DETALHE="porta errada"; return 1; }
   }
+  # Tetos de memória combinados com o servidor (out/2026): app 512m, agendador 256m, banco
+  # 768m — a VPS é dividida com o portfólio. E o banco é o MySQL 8.4 (LTS), o mesmo do CI.
+  limites_prod() {
+    local cfg
+    cfg="$(renderizar "$COMPOSE_PROD")" || { DETALHE="$cfg"; return 1; }
+    teto() { # <serviço> <bytes>
+      printf '%s\n' "$cfg" | awk -v s="  $1:" '$0 == s { dentro = 1; next } /^  [a-z]/ { dentro = 0 } dentro' \
+        | grep -q "mem_limit: \"$2\"" || { DETALHE="$1 sem mem_limit de $2 bytes"; return 1; }
+    }
+    teto app 536870912 && teto agendador 268435456 && teto db 805306368 || return 1
+    printf '%s\n' "$cfg" | grep -q 'image: mysql:8.4$' || { DETALHE="o banco não é o mysql:8.4"; return 1; }
+  }
+  afirmar "docker compose config (de verdade): tetos de memória do app, do agendador e do banco, e MySQL 8.4" limites_prod
   afirmar "docker compose config (de verdade) do compose de produção passa na conferência do deploy" render_prod
   render_dev() {
     local cfg
@@ -565,7 +578,8 @@ afirmar "deploy normal: a ordem do checklist — backup, manutenção, código, 
   "php artisan config:clear" "php artisan migrate --force" \
   "php artisan config:cache" "php artisan route:cache" "php artisan event:cache" "php artisan view:cache" \
   "ASSETS" "php artisan up" "UP -d --remove-orphans" \
-  "CURL http://127.0.0.1:8081/up host=$HOST" "CURL http://127.0.0.1:8081/login host=$HOST" "CURL https://$HOST/up"
+  "CURL http://127.0.0.1:8081/up host=$HOST" "CURL http://127.0.0.1:8081/login host=$HOST" "CURL https://$HOST/up" \
+  "IMAGE image prune -f"
 afirmar "deploy normal: o build dos assets nunca roda antes do view:cache" nao_registrou "ASSETS SEM VIEWS"
 nenhum_artisan_como_root() { ! grep -q '^EXEC root app php artisan' "$E/registro" || { DETALHE="$(grep '^EXEC root app php artisan' "$E/registro")"; return 1; }; }
 afirmar "deploy normal: todo artisan roda como www-data (log do dia gravável pelo site)" nenhum_artisan_como_root
@@ -709,6 +723,20 @@ avisou_publico() {
   contem "$SAIDA" "https://$HOST/up não respondeu" || { DETALHE="$SAIDA"; return 1; }
 }
 afirmar "o endereço público não responde (nginx/Cloudflare ainda não prontos): só avisa" avisou_publico
+
+# --- a limpeza das imagens antigas ------------------------------------------
+
+novo_cenario prune-falha
+commit_novo
+SM_FALSO_FALHAR=prune rodar
+afirmar "o prune das imagens antigas falha: o deploy termina bem e só avisa" saiu_ok
+avisou_prune() { contem "$SAIDA" "não consegui apagar as imagens antigas" || { DETALHE="$SAIDA"; return 1; }; }
+afirmar "o prune das imagens antigas falha: a saída diz que o deploy está no ar" avisou_prune
+
+novo_cenario prune-depois-de-falha
+commit_novo
+SM_FALSO_FALHAR=migrate rodar
+afirmar "deploy que falha no meio não apaga imagem nenhuma (a anterior pode ser a volta)" nao_registrou "IMAGE"
 
 # --- primeiro deploy e --sem-git ---------------------------------------------
 

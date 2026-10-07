@@ -34,7 +34,8 @@
 #   11. build dos assets (Node num container) — sempre DEPOIS do view:cache
 #   12. apaga o public/hot
 #   13. manutenção desligada + o resto dos serviços (o agendador)
-#   14. conferência final: /up, HTML sem o Vite de dev, tamanho do CSS
+#   14. conferência final: /up, HTML sem o Vite de dev, tamanho do CSS — e, com tudo
+#       no ar, `docker image prune -f` (as imagens sem nome de builds anteriores)
 #
 # Uso:
 #   bash scripts/deploy.sh                    # o deploy de sempre
@@ -460,6 +461,16 @@ if [ "$PUBLICO" = "ok" ]; then
 else
   amarelo "https://$HOST_DO_APP/up não respondeu 'ok' (respondeu: '${PUBLICO:-nada}')."
   amarelo "O app está no ar na porta local; confira o nginx (sudo nginx -t), o certificado e a Cloudflare."
+fi
+
+# Imagens SEM NOME que sobraram dos builds anteriores: cada `up --build` deixa a de antes
+# "pendurada" (dangling), e em meses elas enchem o disco da VPS. O `-f` sem `-a` só apaga
+# essas: a imagem em uso e as que têm nome (a do portfólio, a do mysql) ficam. Falhar aqui
+# não desfaz nada — o deploy já está no ar —, então só avisa.
+if docker image prune -f > /dev/null 2>&1; then
+  info "imagens antigas sem uso: apagadas (docker image prune -f)"
+else
+  amarelo "não consegui apagar as imagens antigas (docker image prune -f); o deploy está no ar."
 fi
 
 verde ""

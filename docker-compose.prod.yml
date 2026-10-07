@@ -84,6 +84,10 @@ services:
   # Apache + PHP 8.4 (o mesmo Dockerfile do dev), com o Laravel.
   app:
     <<: *app
+    # Teto de memória (out/2026, combinado com o servidor): o app confere senha com
+    # argon2id de 64 MiB por tentativa, e 512 MB dá folga para várias ao mesmo tempo
+    # sem deixar um pico derrubar o portfólio que divide a VPS.
+    mem_limit: 512m
     ports:
       # SÓ em 127.0.0.1: quem fala com o app é o nginx do host (proxy_pass).
       # A 8080 já é do portfólio; o padrão aqui é 8081, e o .env do servidor
@@ -105,6 +109,7 @@ services:
   # NOVO — que já enxerga o código e o config:cache do último deploy.
   agendador:
     <<: *app
+    mem_limit: 256m
     user: www-data
     command: ["php", "artisan", "schedule:work"]
 
@@ -113,6 +118,7 @@ services:
     # do job `mysql` do CI. A produção nasce nela: não há dado de 8.0 para migrar.
     image: mysql:8.4
     restart: unless-stopped
+    mem_limit: 768m
     environment:
       # Sem valores padrão, ao contrário do dev: faltando no .env, o Compose
       # PARA com a mensagem abaixo em vez de subir o banco com senha de exemplo.

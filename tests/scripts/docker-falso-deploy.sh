@@ -15,6 +15,7 @@
 #   EXEC <usuário> <serviço> <comando...>
 #   ASSETS                        docker compose run --rm assets
 #   ASSETS SEM VIEWS              ...rodado ANTES do view:cache (o defeito do checklist, item 10)
+#   IMAGE <argumentos>            docker image (o prune do fim do deploy)
 #
 # O `docker compose config` monta o YAML normalizado do Compose v2 a partir de
 # MARCAS no arquivo de compose, para o teste descrever o cenário no próprio arquivo:
@@ -27,7 +28,7 @@
 #
 # Botões:
 #   SM_FALSO_FALHAR=<o quê>   falha nesse ponto: up, composer, migrate (ou outro
-#                             subcomando do artisan), assets
+#                             subcomando do artisan), assets, prune
 #   SM_FALSO_CSS_BYTES=<n>    tamanho do CSS que o build gera (padrão 130000)
 
 set -u
@@ -51,6 +52,12 @@ falhar_se() { # <ponto>
 
 case "${1-}" in
   compose) shift ;;
+  image)
+    # `docker image prune -f` no fim do deploy: só registra (e falha quando pedido).
+    registrar "IMAGE $*"
+    falhar_se prune
+    exit 0
+    ;;
   *)
     echo "docker-falso: não sei fazer: docker $*" >&2
     exit 99
