@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.231 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **380 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.237 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **384 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -229,7 +229,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.231 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.237 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -251,7 +251,7 @@ tests/Feature/              # 2.231 testes (PHP): auth, dashboard, CRUD, valida�
   (rotas públicas `/termos` e `/privacidade` → views em `resources/views/legal/`, cobertas por
   `LegalPagesTest`); o cadastro linka para elas. **Conteúdo v2 (27/07/2026):** documentos
   **completos** e específicos ao app — controlador = **Victor de Melo da Rosa** (pessoa física,
-  sem CPF publicado), contato/DPO = **victor.rosa.faculdade@gmail.com**, app **gratuito** com
+  sem CPF publicado), contato/DPO = **victor.rosa.system@gmail.com** (até a 3.3, victor.rosa.faculdade@gmail.com), app **gratuito** com
   cláusula de planos futuros, tom mantido em "fase de testes". Termos cobrem disclaimers-chave
   (não é instituição financeira / não movimenta dinheiro / não é aconselhamento financeiro /
   nunca pedimos senha de banco), conta-família, PWA offline, limitação de responsabilidade e
@@ -1442,6 +1442,17 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   vez no `app.js`) serve o card de senha das Configurações e os modais de adicionar/editar dependente;
   ao enviar o formulário a senha volta a ficar oculta. Não ligue outro ouvinte no botão — cada
   clique alternaria duas vezes. (As telas de login/cadastro têm o `.toggle` próprio do `sm/auth.js`.)
+- **"Recuperar senha" com confirmação e espera de 60 s** (`RecuperarSenhaComEsperaTest`,
+  `tests/js/recuperar-senha.test.js`): depois do pedido, o formulário dá lugar a "Confira seu e-mail",
+  com o endereço informado e "Reenviar" (o MESMO e-mail) contando 60 s (`sm/recuperar-senha.js`);
+  "Usar outro e-mail" (`?outro=1`) só depois disso. A espera vale no SERVIDOR, por sessão E por rede
+  (`RateLimiter` `recuperar-senha:<ChaveDeIp>`), ANTES do broker e igual para todo e-mail (sem
+  enumeração). Sem JS o botão fica ligado e o servidor diz quanto falta. Teste que peça o link duas
+  vezes simulando PESSOAS diferentes usa outra sessão e outro IP (`withServerVariables`).
+- **Botão dos e-mails centralizado** (`emails/layout`): `align="center"` na tabela e no td (o Outlook
+  ignora só CSS) — vale para todo e-mail com botão.
+- **E-mail de contato:** `config('legal.contact_email')` = victor.rosa.system@gmail.com (fonte única,
+  sem variável de `.env`); mudou na Política/Termos 3.4.
 - **Rodapé de autoria** (`partials/rodape-autoria`, dentro do `#content` do `layouts/app`): logo,
   versão, "Desenvolvido com ♥ por" `config('sistema.autor.nome')` (o nome é link para o site), © 2026
   (vira intervalo nos anos seguintes). Sem a fileira de links Sobre/Termos/Privacidade (saiu por
@@ -2527,7 +2538,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.231 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.237 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
