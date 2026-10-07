@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.210 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **376 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.228 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **376 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -229,7 +229,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.210 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.228 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1410,6 +1410,28 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
     (`.com-tipos`, grade ≥ 601px; abaixo dele no celular, `order: 2`). Com um tipo só, o rótulo vira
     "Saldo disponível · Conta corrente". Os valores ficam FORA do `.num`/`data-count`, que o
     `dashboard.js` casa por índice.
+- **Concorrência (out/2026 — auditoria de outra sessão, `correções pendentes.md`):** decisões que
+  liam o banco e gravavam depois, sem trava, agora decidem e gravam na MESMA transação, com a linha
+  travada. Testes: `EdicaoDaContaRespeitaODinheiroDeAgoraTest`, `MetaExcluidaNoMeioDoAporteTest`,
+  `ContaFixaExcluidaDuranteOPagamentoTest`, `ExclusaoDeInvestimentoSobTravaTest`,
+  `DoisFatoresConfirmadoSobTravaTest`.
+  - **Editar conta:** o `AccountController::update` trava a conta e repete as regras do piso
+    (`UpdateAccountRequest::falhaDoPisoDoSaldoInicial` / `falhaDoChequeEspecialEmUso`, públicas para
+    isso) — uma despesa que entrasse depois da validação deixava gravar limite/saldo inicial abaixo do piso.
+  - **Excluir meta:** `saved` e o DELETE sob a trava da meta. **`lockParent` com pai que sumiu** não
+    reaproveita o model apagado (era erro 500 de chave estrangeira): volta para a tela com o aviso
+    vermelho "foi excluída … Nada foi gravado" (metas e investimentos).
+  - **Conta fixa:** pagar (dentro do `write` do `spend`, ordem conta → conta fixa) e excluir pegam a
+    trava da linha de `fixed_bills`; o pagamento recusa conta fixa sumida ou desativada sob ela.
+  - **Excluir investimento:** trava as contas da família (por id) e depois o investimento — a ordem
+    conta → pai — antes de decidir.
+  - **2FA:** `TwoFactorService::confirmar` e `regerarCodigosDeRecuperacao` gravam com o usuário
+    travado e copiam o estado gravado para o `$user` de quem chamou (`sincronizar`).
+  - **Como testar corrida num processo só:** `Tests\Concerns\SimulaRequisicaoConcorrente` —
+    `depoisDaValidacaoDe(FormRequest::class, fn)` roda a "outra requisição" logo depois da validação
+    (o `afterResolving` do framework, que valida, vem antes), e `consultasDe(fn)` devolve cada SQL
+    com o nível de transação (decisão e escrita têm de estar DENTRO; no MySQL, confere o `for update`).
+    Sem Form Request, `Gate::after` serve de ponto depois da autorização.
 - **Rodapé de autoria** (`partials/rodape-autoria`, dentro do `#content` do `layouts/app`): logo,
   versão, "Desenvolvido com ♥ por" `config('sistema.autor.nome')` (o nome é link para o site), © 2026
   (vira intervalo nos anos seguintes). Sem a fileira de links Sobre/Termos/Privacidade (saiu por
@@ -2342,9 +2364,12 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   **Out/2026:** laravel/framework 12.69.3, commonmark 2.10.3 e flysystem 3.36.0 zeraram o
   `composer audit`. No npm, o **axios saiu** (o `bootstrap.js` do esqueleto o punha em toda página
   sem uso — o app faz tudo com `fetch`; o JS caiu de 137 para 93 kB): não o traga de volta só por
-  hábito. Fica **um aviso baixo aceito** no esbuild 0.27 (leitura de arquivo pelo servidor de dev
-  no **Windows**): o vite 7.3 trava a faixa 0.27 e a correção saiu fora dela. Some quando o vite
-  subir; não force com `overrides`.
+  hábito. O aviso do esbuild 0.27 sumiu com o vite 7.3.7 (aceita o 0.28; esbuild 0.28.2). O
+  **`concurrently` saiu** junto com o script `composer dev` do esqueleto (subia `artisan serve` +
+  `npm run dev`, fora do fluxo Docker do projeto): até a 10.0.5 ele fixa o `shell-quote` 1.9.0, com
+  aviso CRÍTICO de injeção de comando. **`npm audit --audit-level=high` roda no job `javascript`**
+  do CI — mesma política do `composer audit`: suba o pacote, nunca `overrides`; sem correção e sem
+  uso real, remova.
 - **Scripts de backup: o job `scripts` do CI está LIGADO** (22/09/2026). Roda
   `tests/scripts/backup-restore.test.sh`, que executa os scripts DE VERDADE contra um `docker`
   falso (`tests/scripts/docker-falso.sh`) — sem Docker nem MySQL. No Ubuntu de propósito (mawk e
@@ -2480,7 +2505,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.210 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.228 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
