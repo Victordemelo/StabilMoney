@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.256 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **387 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.260 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **387 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -248,7 +248,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.256 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.260 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1625,6 +1625,11 @@ recursos, como funciona, conta-família, segurança, **quem fez** (autor, site, 
   A faixa Equilíbrio recorta o alto vazio da ilustração (`aspect-ratio: 16/8`), usa o tom médio do
   fundo dela (#F9F5F0) e esfuma as bordas RETAS (máscara linear nos 4 lados — a elíptica deixava
   auréola, e o `multiply` escurecia as pontas).
+- **Aviso de cookies que não cobre nada** (out/2026 — `AvisoDeCookiesNaoCobreNadaTest`): nas telas de
+  entrada até 980px e na página inicial/legais até 920px ele fica no FIM da página, no fluxo
+  (`position: static`); no topo cobria a marca, e fixo embaixo cairia sobre o "Entrar" ou o
+  sumário dos Termos. No computador segue fixo (topo nas de entrada, embaixo nas outras, com o fim
+  da página reservando 120px via `.tem-aviso-cookie`). No app, igual: fixo acima da bottom-nav.
 - **Reformulação de out/2026** (pedido do Victor, com a Wise como base — guia em `design_stabilmoney/`):
   fontes **Bricolage Grotesque + Geist** só nesta página (o app segue Sora + Plus Jakarta), tokens no
   escopo `.inicio` (`--mata`, `--lima`…), topo escuro com o menu no CENTRO da página (grade
@@ -2617,7 +2622,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.256 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.260 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
