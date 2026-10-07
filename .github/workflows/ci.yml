@@ -234,6 +234,15 @@ jobs:
       - name: Rodar os testes de JavaScript
         run: npm run test:js
 
+      # Auditoria das dependências JS (out/2026 — auditoria de dependências, pendência 6):
+      # o mesmo papel do `composer audit` do job `auditoria`. `high` para cima reprova; aviso
+      # baixo/moderado aparece no log sem travar. Pode ficar vermelho sem mudança de código
+      # (aviso novo para versão já travada no lock): suba o pacote com `npm update <pacote>`,
+      # sem `overrides`; sem correção publicada e sem uso real do pacote, remova-o — foi o
+      # caso do `concurrently` (fixava o shell-quote vulnerável até na última versão).
+      - name: Auditar as dependências JS (npm audit)
+        run: npm audit --audit-level=high
+
   # ------------------------------------------------------------------------
   # Auditoria de segurança das dependências PHP (composer audit) — LIGADO em
   # 16/09/2026.
