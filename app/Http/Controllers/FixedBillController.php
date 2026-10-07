@@ -110,16 +110,57 @@ class FixedBillController extends Controller
         // histórico; só o vínculo se perde (fixed_bill_id vira null não é
         // possível sem FK, então desligamos a conta em vez de apagar quando há
         // pagamento — assim o histórico continua explicável).
-        if ($conta->payments()->exists()) {
-            $conta->update(['active' => false]);
+        //
+        // "Tem pagamento?" e a exclusão acontecem SOB A TRAVA da conta fixa (out/2026 —
+        // auditoria de concorrência, pendência 4), a mesma que o `pay` pega antes de gravar.
+        // Sem ela, um pagamento que entrasse entre o `exists()` e o DELETE ficava apontando
+        // para uma conta fixa que não existe mais (`fixed_bill_id` não tem chave estrangeira).
+        $desfecho = DB::transaction(function () use ($conta) {
+            $travada = FixedBill::whereKey($conta->id)->lockForUpdate()->first();
+            if ($travada === null) {
+                return 'removida'; // outra pessoa da família já excluiu
+            }
 
-            return redirect()->route('faturas.index')
-                ->with('status', 'Conta fixa desativada (os pagamentos já feitos continuam no histórico).'.$aviso);
+            if ($travada->payments()->exists()) {
+                $travada->update(['active' => false]);
+
+                return 'desativada';
+            }
+
+            $travada->delete();
+
+            return 'removida';
+        }, attempts: 3);
+
+        return redirect()->route('faturas.index')->with('status', $desfecho === 'desativada'
+            ? 'Conta fixa desativada (os pagamentos já feitos continuam no histórico).'.$aviso
+            : 'Conta fixa removida.'.$aviso);
+    }
+
+    /**
+     * Trava a conta fixa dentro da gravação do pagamento (o `write` do FundingService, que
+     * já travou a conta de pagamento: ordem conta → conta fixa) e confere, sob a trava, que
+     * ela ainda existe e está ativa. A exclusão pega a MESMA trava: ou o pagamento entra
+     * primeiro (e a exclusão vê o pagamento e só desativa), ou a exclusão entra primeiro (e o
+     * pagamento é recusado aqui, sem gravar nada).
+     *
+     * @throws ValidationException
+     */
+    private function travarContaFixaParaPagar(FixedBill $conta): void
+    {
+        $travada = FixedBill::whereKey($conta->id)->lockForUpdate()->first();
+
+        if ($travada === null) {
+            throw ValidationException::withMessages([
+                'amount' => 'A conta fixa “'.$conta->name.'” foi excluída enquanto você pagava. Nada foi pago.',
+            ]);
         }
 
-        $conta->delete();
-
-        return redirect()->route('faturas.index')->with('status', 'Conta fixa removida.'.$aviso);
+        if (! $travada->active) {
+            throw ValidationException::withMessages([
+                'amount' => 'Esta conta fixa está desativada. Reative-a (ou lance a despesa avulsa) antes de pagar.',
+            ]);
+        }
     }
 
     /**
@@ -226,33 +267,37 @@ class FixedBillController extends Controller
                 // Teto do resgate aprovado no modal (F-3): estourou, 409 com as
                 // opções recalculadas — nunca saca mais do que foi aprovado.
                 maxFonte: isset($data['funding_max_amount']) ? (float) $data['funding_max_amount'] : null,
-                write: fn (array $auditoria) => Transaction::create($auditoria + [
-                    'user_id' => $ownerId,
-                    'made_by_user_id' => $request->user()->id,
-                    'account_id' => $caixa->id,
-                    'category_id' => $conta->category_id,
-                    'type' => 'expense',
-                    'amount' => $valor,
-                    'date' => $pagoEm->toDateString(),
-                    // Em CONTA DE CAIXA o dinheiro sai na hora → a despesa já nasce
-                    // quitada. Em CARTÃO DE CRÉDITO não: a competência vira dívida na
-                    // fatura e precisa nascer EM ABERTO (paid_at null) para entrar no
-                    // `committed` (consumir limite) e no `openInvoiceDue` (ser cobrada
-                    // no pagamento da fatura). Marcá-la como paga aqui fazia a dívida
-                    // sumir: nenhum caixa era debitado e o limite nunca era consumido.
-                    // A competência continua contando como paga — FixedBillService
-                    // olha a EXISTÊNCIA da transação (fixed_bill_id + competence).
-                    'paid_at' => $caixa->isCash() ? $pagoEm : null,
-                    // Nome da conta fixa (até 255) + competência não cabe no
-                    // `varchar(255)`: o MySQL recusaria o pagamento com 1406. Quem
-                    // encolhe é o NOME — o "— setembro/2026" diz qual mês foi pago.
-                    'description' => Texto::paraColuna(
-                        $conta->name,
-                        depois: ' — '.$competence->translatedFormat('F/Y'),
-                    ),
-                    'fixed_bill_id' => $conta->id,
-                    'competence' => $competence->toDateString(),
-                ]),
+                write: function (array $auditoria) use ($conta, $ownerId, $request, $caixa, $valor, $pagoEm, $competence) {
+                    $this->travarContaFixaParaPagar($conta);
+
+                    return Transaction::create($auditoria + [
+                        'user_id' => $ownerId,
+                        'made_by_user_id' => $request->user()->id,
+                        'account_id' => $caixa->id,
+                        'category_id' => $conta->category_id,
+                        'type' => 'expense',
+                        'amount' => $valor,
+                        'date' => $pagoEm->toDateString(),
+                        // Em CONTA DE CAIXA o dinheiro sai na hora → a despesa já nasce
+                        // quitada. Em CARTÃO DE CRÉDITO não: a competência vira dívida na
+                        // fatura e precisa nascer EM ABERTO (paid_at null) para entrar no
+                        // `committed` (consumir limite) e no `openInvoiceDue` (ser cobrada
+                        // no pagamento da fatura). Marcá-la como paga aqui fazia a dívida
+                        // sumir: nenhum caixa era debitado e o limite nunca era consumido.
+                        // A competência continua contando como paga — FixedBillService
+                        // olha a EXISTÊNCIA da transação (fixed_bill_id + competence).
+                        'paid_at' => $caixa->isCash() ? $pagoEm : null,
+                        // Nome da conta fixa (até 255) + competência não cabe no
+                        // `varchar(255)`: o MySQL recusaria o pagamento com 1406. Quem
+                        // encolhe é o NOME — o "— setembro/2026" diz qual mês foi pago.
+                        'description' => Texto::paraColuna(
+                            $conta->name,
+                            depois: ' — '.$competence->translatedFormat('F/Y'),
+                        ),
+                        'fixed_bill_id' => $conta->id,
+                        'competence' => $competence->toDateString(),
+                    ]);
+                },
                 madeByUserId: $request->user()->id,
                 date: $pagoEm->toDateString(),
                 // Obrigação SÓ depois do vencimento (C-2c). A dívida vencida é
