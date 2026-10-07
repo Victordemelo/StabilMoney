@@ -53,6 +53,7 @@ class RegistraAcessoNaAtividade
             RegisteredUserController::class.'@store', TwoFactorController::class.'@confirmar',
             GoogleLoginController::class.'@criarConta' => [null, null], // o cadastro registra a própria linha
             GoogleLoginController::class.'@retorno' => ['acesso.entrou_google', 'entrou no app com a conta Google'],
+            GoogleLoginController::class.'@ligar' => ['acesso.entrou_google', 'ligou a conta Google (com a senha) e entrou no app'],
             AuthenticatedSessionController::class.'@store' => ['acesso.entrou', 'entrou no app com e-mail e senha'],
             // Código de recuperação gasto é um sinal à parte: são poucos, e quem os usa
             // costuma ter perdido o celular (ou alguém achou o papel onde estavam).

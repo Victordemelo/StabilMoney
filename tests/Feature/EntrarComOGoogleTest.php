@@ -7,6 +7,7 @@ use App\Models\Atividade;
 use App\Models\User;
 use App\Support\Totp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\User as UsuarioDoGoogle;
@@ -91,17 +92,77 @@ class EntrarComOGoogleTest extends TestCase
         $this->assertDatabaseHas('atividades', ['acao' => 'acesso.entrou_google', 'user_id' => $user->id]);
     }
 
-    public function test_conta_com_o_mesmo_email_verificado_e_ligada_e_entra(): void
+    /**
+     * Conta que já existe com o mesmo e-mail NÃO se liga sozinha: pede a senha dela. "E-mail
+     * confirmado" nem sempre prova de quem é a conta (login de dependente, conta criada sem envio
+     * de e-mail), e alguém pode ter cadastrado o e-mail de outra pessoa esperando a dona chegar
+     * pelo Google — o pré-sequestro de conta que a revisão de segurança apontou.
+     */
+    public function test_conta_existente_pelo_email_pede_a_senha_antes_de_ligar(): void
     {
-        $user = User::factory()->unverified()->create(['email' => 'eu@exemplo.test']);
+        $user = User::factory()->unverified()->create(['email' => 'eu@exemplo.test', 'password' => Hash::make('minha-senha')]);
         $this->googleResponde('g-2', 'EU@exemplo.test');
 
-        $this->get(route('google.callback'))->assertRedirect(route('dashboard', absolute: false));
+        $this->get(route('google.callback'))->assertRedirect(route('google.ligar'));
+        $this->assertGuest();
+        $this->assertNull($user->fresh()->google_id);
+
+        $this->get(route('google.ligar'))->assertOk()->assertSee('eu@exemplo.test')->assertSee('name="password"', false);
+
+        $this->post(route('google.ligar.confirmar'), ['password' => 'minha-senha'])->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertAuthenticatedAs($user);
         $user->refresh();
         $this->assertSame('g-2', $user->google_id);
         $this->assertNotNull($user->email_verified_at, 'O Google provou que a caixa é da pessoa.');
+        $this->assertTrue(Hash::check('minha-senha', $user->password), 'Ligar não mexe na senha de quem a sabe.');
+        $this->assertDatabaseHas('atividades', ['acao' => 'acesso.entrou_google', 'user_id' => $user->id]);
+    }
+
+    /** O pré-sequestro: quem só tem o e-mail (pelo Google) não sabe a senha de quem criou a conta. */
+    public function test_sem_a_senha_da_conta_o_google_nao_entra_nela(): void
+    {
+        $user = User::factory()->unverified()->create(['email' => 'vitima@exemplo.test', 'password' => Hash::make('senha-do-invasor')]);
+        $this->googleResponde('g-vitima', 'vitima@exemplo.test');
+        $this->get(route('google.callback'));
+
+        $this->post(route('google.ligar.confirmar'), ['password' => 'chute'])->assertSessionHasErrors('password');
+
+        $this->assertGuest();
+        $this->assertNull($user->fresh()->google_id);
+        $this->get(route('google.ligar'))->assertOk()->assertSee(route('password.request'), false);
+    }
+
+    public function test_login_de_dependente_tambem_pede_a_senha(): void
+    {
+        $titular = User::factory()->create();
+        $dependente = User::factory()->create(['email' => 'dep@exemplo.test', 'account_owner_id' => $titular->id, 'is_admin' => false, 'password' => Hash::make('senha-dep')]);
+        $this->googleResponde('g-dep', 'dep@exemplo.test');
+
+        $this->get(route('google.callback'))->assertRedirect(route('google.ligar'));
+        $this->assertNull($dependente->fresh()->google_id);
+
+        $this->post(route('google.ligar.confirmar'), ['password' => 'senha-dep']);
+        $this->assertAuthenticatedAs($dependente);
+    }
+
+    public function test_ligar_com_2fa_ainda_pede_o_codigo(): void
+    {
+        User::factory()->create([
+            'email' => 'eu@exemplo.test', 'password' => Hash::make('minha-senha'),
+            'two_factor_secret' => Totp::gerarSegredo(), 'two_factor_confirmed_at' => now(),
+        ]);
+        $this->googleResponde('g-6', 'eu@exemplo.test');
+        $this->get(route('google.callback'));
+
+        $this->post(route('google.ligar.confirmar'), ['password' => 'minha-senha'])->assertRedirect(route('two-factor.login'));
+        $this->assertGuest();
+    }
+
+    public function test_sem_passar_pelo_google_nao_da_para_ligar(): void
+    {
+        $this->get(route('google.ligar'))->assertRedirect(route('login'));
+        $this->post(route('google.ligar.confirmar'), ['password' => 'x'])->assertRedirect(route('login'))->assertSessionHasErrors('email');
     }
 
     public function test_email_que_o_google_nao_verificou_nao_entra_em_conta_nenhuma(): void

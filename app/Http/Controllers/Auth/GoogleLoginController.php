@@ -29,9 +29,9 @@ use Throwable;
  * - quem ligou o 2FA passa pela tela do código (o Google não é o segundo fator do app);
  * - o aparelho marcado como confiável no 2FA continua dispensando o código.
  *
- * Quem a conta é: primeiro pelo identificador da conta Google (`users.google_id`); sem ele,
- * pelo e-mail — e só se o GOOGLE disse que o e-mail é verificado (quem entra prova que é dono
- * da caixa, que é o mesmo que o "esqueci a senha" já aceita). Conta nova NÃO nasce no retorno
+ * Quem a conta é: pelo identificador da conta Google (`users.google_id`). Conta que já existe
+ * com o mesmo e-mail (o Google tem de dizer que o e-mail é verificado) só é LIGADA depois que a
+ * pessoa digita a senha dela — ver `retorno()`, o pré-sequestro de conta. Conta nova NÃO nasce no retorno
  * do Google: a pessoa vê uma tela com os dados recebidos e precisa aceitar os Termos e a
  * Política (a prova do aceite é a mesma do cadastro). Pedimos só nome e e-mail (`openid email
  * profile`); nunca a foto, os contatos ou qualquer outro dado da conta Google.
@@ -41,7 +41,10 @@ class GoogleLoginController extends Controller
     /** Onde a sessão guarda o cadastro pendente: ['sub', 'email', 'name', 'em']. */
     public const CHAVE_CADASTRO = 'google_cadastro';
 
-    /** Quanto tempo a tela de confirmação do cadastro vale (como o login pendente do 2FA). */
+    /** Onde a sessão guarda a ligação pendente (conta existente): ['sub', 'email', 'user_id', 'em']. */
+    public const CHAVE_LIGAR = 'google_ligar';
+
+    /** Quanto tempo as telas de confirmação (cadastro e ligação) valem (como o login pendente do 2FA). */
     private const VALIDADE_DO_CADASTRO_EM_SEGUNDOS = 600;
 
     public const MENSAGEM_FALHOU = 'Não foi possível entrar com o Google. Tente de novo ou entre com e-mail e senha.';
@@ -107,13 +110,19 @@ class GoogleLoginController extends Controller
             return redirect()->route('login')->withErrors(['email' => BloqueiaUsuarioBanido::mensagem()]);
         }
 
-        if ($user->google_id === null || $user->email_verified_at === null) {
-            // O Google acabou de provar que a pessoa é dona deste e-mail: liga a conta e, se o
-            // e-mail ainda estava por confirmar, conta como confirmado.
-            $user->forceFill([
-                'google_id' => $sub,
-                'email_verified_at' => $user->email_verified_at ?? now(),
-            ])->save();
+        if ($user->google_id === null) {
+            // Conta que já existe, achada pelo E-MAIL: não liga sozinha. "E-mail confirmado" nem
+            // sempre prova que a conta é da dona do e-mail (o titular cria o login do dependente
+            // com qualquer e-mail, já confirmado; conta criada enquanto o app não enviava e-mail
+            // também nasce confirmada) — e alguém pode ter cadastrado o e-mail de outra pessoa
+            // esperando a dona chegar pelo Google (pré-sequestro de conta). Para ligar, a pessoa
+            // digita a SENHA desta conta: quem a criou sabe; quem só tem o e-mail usa "Esqueci a
+            // senha", que troca a senha e derruba as sessões de quem a criou.
+            $request->session()->put(self::CHAVE_LIGAR, [
+                'sub' => $sub, 'email' => $email, 'user_id' => $user->getKey(), 'em' => now()->getTimestamp(),
+            ]);
+
+            return redirect()->route('google.ligar');
         }
 
         return $this->entrar($request, $user);
@@ -124,7 +133,7 @@ class GoogleLoginController extends Controller
     {
         abort_unless(LoginComGoogle::ativo(), 404);
 
-        $pendente = $this->cadastroPendente($request);
+        $pendente = $this->pendente($request, self::CHAVE_CADASTRO);
         if ($pendente === null) {
             return redirect()->route('login');
         }
@@ -136,7 +145,7 @@ class GoogleLoginController extends Controller
     {
         abort_unless(LoginComGoogle::ativo(), 404);
 
-        $pendente = $this->cadastroPendente($request);
+        $pendente = $this->pendente($request, self::CHAVE_CADASTRO);
         if ($pendente === null) {
             return $this->falhou('O tempo para criar a conta acabou. Entre com o Google de novo.');
         }
@@ -182,10 +191,53 @@ class GoogleLoginController extends Controller
         return redirect()->route('dashboard');
     }
 
+    /** A tela "Ligar sua conta Google": pede a senha da conta que já existe com este e-mail. */
+    public function ligacao(Request $request): View|RedirectResponse
+    {
+        abort_unless(LoginComGoogle::ativo(), 404);
+
+        $pendente = $this->pendente($request, self::CHAVE_LIGAR);
+        if ($pendente === null) {
+            return redirect()->route('login');
+        }
+
+        return view('auth.google-ligar', ['email' => $pendente['email']]);
+    }
+
+    public function ligar(Request $request): RedirectResponse
+    {
+        abort_unless(LoginComGoogle::ativo(), 404);
+
+        $pendente = $this->pendente($request, self::CHAVE_LIGAR);
+        $user = $pendente !== null ? User::find($pendente['user_id']) : null;
+        if ($user === null || $user->email !== $pendente['email'] || $user->google_id !== null) {
+            $request->session()->forget(self::CHAVE_LIGAR);
+
+            return $this->falhou('O tempo para ligar a conta acabou. Entre com o Google de novo.');
+        }
+
+        $request->validate(['password' => ['required', 'string']], ['password.required' => 'Digite a senha da sua conta.']);
+
+        if (! Hash::check((string) $request->input('password'), $user->password)) {
+            return back()->withErrors(['password' => 'Senha incorreta. Se não lembra, use "Esqueci a senha".']);
+        }
+        if ($user->estaBanido()) {
+            $request->session()->forget(self::CHAVE_LIGAR);
+
+            return redirect()->route('login')->withErrors(['email' => BloqueiaUsuarioBanido::mensagem()]);
+        }
+
+        // Senha certa: é a dona da conta, e o Google provou que é dona do e-mail.
+        $user->forceFill(['google_id' => $pendente['sub'], 'email_verified_at' => $user->email_verified_at ?? now()])->save();
+        $request->session()->forget(self::CHAVE_LIGAR);
+
+        return $this->entrar($request, $user);
+    }
+
     /** As mesmas regras do fim do login com senha: 2FA (salvo aparelho confiável) e sessão nova. */
     private function entrar(Request $request, User $user): RedirectResponse
     {
-        $request->session()->forget(self::CHAVE_CADASTRO);
+        $request->session()->forget([self::CHAVE_CADASTRO, self::CHAVE_LIGAR]);
 
         if ($user->temDoisFatores() && ! AparelhoConfiavel::confia($request, $user)) {
             TwoFactorChallengeController::aguardar($request->session(), $user, false);
@@ -199,15 +251,15 @@ class GoogleLoginController extends Controller
         return redirect()->intended(route('dashboard', absolute: false));
     }
 
-    /** @return array{sub: string, email: string, name: string, em: int}|null */
-    private function cadastroPendente(Request $request): ?array
+    /** O cadastro ou a ligação pendente na sessão, se ainda vale (10 minutos). */
+    private function pendente(Request $request, string $chave): ?array
     {
-        $p = $request->session()->get(self::CHAVE_CADASTRO);
+        $p = $request->session()->get($chave);
         if (! is_array($p) || ! is_string($p['sub'] ?? null) || ! is_string($p['email'] ?? null) || ! is_int($p['em'] ?? null)) {
             return null;
         }
         if (now()->getTimestamp() - $p['em'] > self::VALIDADE_DO_CADASTRO_EM_SEGUNDOS) {
-            $request->session()->forget(self::CHAVE_CADASTRO);
+            $request->session()->forget($chave);
 
             return null;
         }

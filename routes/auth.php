@@ -50,6 +50,10 @@ Route::middleware('guest')->group(function () {
         Route::get('auth/google/criar-conta', [GoogleLoginController::class, 'cadastro'])->name('google.cadastro');
         Route::post('auth/google/criar-conta', [GoogleLoginController::class, 'criarConta'])
             ->middleware('throttle:credencial')->name('google.criar-conta');
+        // Ligar a uma conta que já existe: pede a senha dela (pré-sequestro de conta).
+        Route::get('auth/google/ligar', [GoogleLoginController::class, 'ligacao'])->name('google.ligar');
+        Route::post('auth/google/ligar', [GoogleLoginController::class, 'ligar'])
+            ->middleware('throttle:credencial')->name('google.ligar.confirmar');
     });
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
