@@ -55,6 +55,10 @@ No painel da Cloudflare, zona **victordemelo.com.br**:
      *nonce* que a reescrita descarta.
    - **Email Obfuscation: Off.** Injeta um script que a CSP bloqueia — e os e-mails nas
      páginas legais viram texto quebrado.
+   - **Real User Monitoring (RUM / Web Analytics): Off.** Injeta o beacon de
+     `static.cloudflareinsights.com`, que a CSP do app não libera (erro no console a cada
+     página) — e a Política de Privacidade não descreve esse tipo de coleta. Ligar exige mudar
+     as duas coisas antes.
    - **Bot Fight Mode**: se estiver ligado para o portfólio, pode desafiar o *service worker* e
      a sincronização offline do app (que não têm como resolver um desafio de navegador). Se o
      app mostrar lançamentos presos na fila, é o primeiro suspeito.
