@@ -134,4 +134,11 @@ class AceiteDaPoliticaAtualTest extends TestCase
         // mudou mandaria todo mundo aceitar às cegas.
         $this->assertNotEmpty(config('legal.mudancas')[config('legal.version')] ?? null);
     }
+
+    public function test_no_celular_os_dois_botoes_ficam_no_centro(): void
+    {
+        $css = file_get_contents(resource_path('views/layouts/legal.blade.php'));
+
+        $this->assertMatchesRegularExpression('/@media \(max-width: 600px\) \{\s*\.aceite-form > \.btn-primary \{ justify-self: center; \}\s*\.aceite-sair form \{[^}]*justify-content: center;/', $css);
+    }
 }

@@ -102,6 +102,11 @@
         .aceite-sair { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line-2);
                        display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
         .aceite-sair p { flex: 1 1 260px; font-size: 13.5px; color: var(--ink-2); margin: 0; }
+        /* No celular os dois botões ("Aceitar e continuar" e "Sair da conta") ficam no centro. */
+        @media (max-width: 600px) {
+            .aceite-form > .btn-primary { justify-self: center; }
+            .aceite-sair form { flex: 1 1 100%; display: flex; justify-content: center; }
+        }
 
         /* Tabelas de transparência (dado → finalidade → base legal) — rolam no celular */
         .legal-table { overflow-x: auto; margin: 12px 0 18px; border: 1px solid var(--line); border-radius: 12px; }
