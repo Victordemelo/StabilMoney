@@ -286,7 +286,10 @@
                     <div class="in-autor-texto">
                         <h2>{{ $autor['nome'] }}</h2>
                         <p class="in-autor-papel">Criador e desenvolvedor do {{ $site }}</p>
-                        <p>O {{ $site }} é um projeto independente, desenhado e desenvolvido por {{ $autor['nome'] }}. A ideia é simples: um lugar só para o dinheiro da casa, com as regras que fazem sentido no Brasil — cartão com fatura e parcelas, cheque especial, Pix, contas fixas — e com a família inteira olhando para os mesmos números.</p>
+                        {{-- A história do projeto, contada pelo autor (out/2026). --}}
+                        <p>Por muito tempo eu procurei um aplicativo para organizar a minha vida financeira. Os mais completos eram pagos; os gratuitos faziam só um pedaço — anotavam gastos, mas não entendiam a fatura do cartão, as parcelas, as contas fixas do mês, nem a família dividindo o mesmo dinheiro. Nenhum dava conta da gestão inteira da minha conta.</p>
+                        <p>Então resolvi construir o meu. O projeto nasceu com o nome MoneyLife, mas o endereço na internet já tinha dono — e a troca acabou dizendo melhor o que eu queria: <strong>Stabil Money</strong>, dinheiro estável. Saber quanto entra, quanto sai, o que vence e o que está guardado, sem susto no fim do mês.</p>
+                        <p>Hoje o {{ $site }} é um projeto independente, desenhado e desenvolvido por mim: um lugar só para o dinheiro da casa, com as regras que fazem sentido no Brasil — cartão com fatura e parcelas, cheque especial, Pix, contas fixas — e com a família inteira olhando para os mesmos números.</p>
                         <p>O app está em fase de testes, é gratuito, e cada melhoria nasce do uso de verdade. Sugestões e problemas encontrados são bem-vindos pelo contato abaixo.</p>
                         <div class="in-autor-links">
                             <a class="in-btn in-btn-contorno" href="{{ $autor['site'] }}" target="_blank" rel="noopener noreferrer">Site</a>
