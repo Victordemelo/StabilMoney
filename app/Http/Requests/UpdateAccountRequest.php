@@ -164,41 +164,56 @@ class UpdateAccountRequest extends StoreAccountRequest
             // −R$ 123,45") antes do 403 — uma sonda. Conta de outra família:
             // silêncio aqui, e o 403 vem em seguida.
             if (! $conta instanceof Account
-                || (int) $conta->user_id !== (int) $this->user()->ownerId()
-                || ! in_array($conta->type, ['checking', 'savings'], true)
-                || ! is_numeric($value)) {
+                || (int) $conta->user_id !== (int) $this->user()->ownerId()) {
                 return;
             }
 
-            $atual = round((float) $conta->initial_balance, 2);
-            $novo = round((float) $value, 2);
-
-            // Manter ou aumentar o saldo inicial nunca piora o disponível.
-            if ($novo + 0.001 >= $atual) {
-                return;
-            }
-
-            // `available` = initial + receitas − despesas − reservado. Trocar o
-            // saldo inicial desloca o disponível exatamente pela diferença.
-            $disponivelProjetado = round($conta->available - $atual + $novo, 2);
-
-            // O limite que VALERÁ depois da edição — não o de hoje.
-            $limiteNovo = $this->input('type') === 'checking' && is_numeric($this->input('overdraft_limit'))
-                ? round((float) $this->input('overdraft_limit'), 2)
-                : 0.0;
-
-            if ($disponivelProjetado + 0.001 < -$limiteNovo) {
-                $fail(
-                    'Com esse saldo inicial a conta ficaria em '.Brl::format($disponivelProjetado).', '
-                    .($limiteNovo > 0
-                        ? 'abaixo do limite do cheque especial ('.Brl::format($limiteNovo).'). '
-                        : 'e ela não tem cheque especial para cobrir saldo negativo. ')
-                    .'O saldo em conta não pode ficar abaixo de '.Brl::format(-$limiteNovo).'. '
-                    .'Deixe o saldo inicial em pelo menos '.Brl::format($novo + (-$limiteNovo - $disponivelProjetado))
-                    .' ou faça um resgate do que está guardado em metas/investimentos antes de reduzir.'
-                );
+            if ($erro = $this->falhaDoPisoDoSaldoInicial($conta, $value)) {
+                $fail($erro);
             }
         };
+    }
+
+    /**
+     * A conta da regra do piso, separada para o controller repetir SOB A TRAVA da conta
+     * (out/2026 — `EdicaoDaContaRespeitaODinheiroDeAgoraTest`): a validação roda antes do
+     * controller, e uma despesa que entrasse entre as duas era ignorada — a edição gravava
+     * um saldo inicial que deixava a conta abaixo do piso. Devolve a mensagem, ou null.
+     */
+    public function falhaDoPisoDoSaldoInicial(Account $conta, mixed $value): ?string
+    {
+        if (! in_array($conta->type, ['checking', 'savings'], true) || ! is_numeric($value)) {
+            return null;
+        }
+
+        $atual = round((float) $conta->initial_balance, 2);
+        $novo = round((float) $value, 2);
+
+        // Manter ou aumentar o saldo inicial nunca piora o disponível.
+        if ($novo + 0.001 >= $atual) {
+            return null;
+        }
+
+        // `available` = initial + receitas − despesas − reservado. Trocar o
+        // saldo inicial desloca o disponível exatamente pela diferença.
+        $disponivelProjetado = round($conta->available - $atual + $novo, 2);
+
+        // O limite que VALERÁ depois da edição — não o de hoje.
+        $limiteNovo = $this->input('type') === 'checking' && is_numeric($this->input('overdraft_limit'))
+            ? round((float) $this->input('overdraft_limit'), 2)
+            : 0.0;
+
+        if ($disponivelProjetado + 0.001 >= -$limiteNovo) {
+            return null;
+        }
+
+        return 'Com esse saldo inicial a conta ficaria em '.Brl::format($disponivelProjetado).', '
+            .($limiteNovo > 0
+                ? 'abaixo do limite do cheque especial ('.Brl::format($limiteNovo).'). '
+                : 'e ela não tem cheque especial para cobrir saldo negativo. ')
+            .'O saldo em conta não pode ficar abaixo de '.Brl::format(-$limiteNovo).'. '
+            .'Deixe o saldo inicial em pelo menos '.Brl::format($novo + (-$limiteNovo - $disponivelProjetado))
+            .' ou faça um resgate do que está guardado em metas/investimentos antes de reduzir.';
     }
 
     /**
@@ -241,41 +256,52 @@ class UpdateAccountRequest extends StoreAccountRequest
             // Mesma guarda de posse da regra do saldo inicial: nada de revelar o
             // uso do cheque especial de conta alheia antes do 403 da policy.
             if (! $conta instanceof Account
-                || (int) $conta->user_id !== (int) $this->user()->ownerId()
-                || $conta->type !== 'checking') {
+                || (int) $conta->user_id !== (int) $this->user()->ownerId()) {
                 return;
             }
 
-            // `available` = inicial + receitas − despesas − reservado: trocar o
-            // saldo inicial desloca o disponível exatamente pela diferença (a mesma
-            // conta da `regraDoPisoDoSaldoInicial`). Sem saldo inicial válido no
-            // envio, vale o de hoje — a regra do próprio campo aponta o erro dele.
-            $inicialAtual = round((float) $conta->initial_balance, 2);
-            $inicialNovo = is_numeric($this->input('initial_balance'))
-                ? round((float) $this->input('initial_balance'), 2)
-                : $inicialAtual;
-            $mudouInicial = abs($inicialNovo - $inicialAtual) > 0.001;
-
-            // Quanto o saldo furaria o zero DEPOIS da edição: max(0, −disponível projetado).
-            $usado = round(max(0.0, -($conta->available - $inicialAtual + $inicialNovo)), 2);
-            $atual = round((float) $conta->overdraft_limit, 2);
-            $novo = round((float) $value, 2);
-
-            // Conta que fica positiva, ou o usuário não está reduzindo: nada a barrar.
-            if ($usado <= 0.001 || $novo >= $atual) {
-                return;
-            }
-
-            if ($novo + 0.001 < $usado) {
-                $fail(
-                    ($mudouInicial
-                        ? 'Com o saldo inicial novo, esta conta ficaria usando '.Brl::format($usado).' do cheque especial, '
-                        : 'Esta conta está usando '.Brl::format($usado).' do cheque especial agora, ')
-                    .'então o limite não pode cair para '.Brl::format($novo).'. '
-                    .'Deixe pelo menos '.Brl::format($usado)
-                    .' ou lance um recebimento para cobrir o saldo negativo antes de reduzir o limite.'
-                );
+            if ($erro = $this->falhaDoChequeEspecialEmUso($conta, $value)) {
+                $fail($erro);
             }
         };
+    }
+
+    /**
+     * A conta da regra do cheque especial em uso — pública pelo mesmo motivo da
+     * `falhaDoPisoDoSaldoInicial`: o controller a repete com a conta TRAVADA. Devolve a
+     * mensagem, ou null.
+     */
+    public function falhaDoChequeEspecialEmUso(Account $conta, mixed $value): ?string
+    {
+        if ($conta->type !== 'checking' || ! is_numeric($value)) {
+            return null;
+        }
+
+        // `available` = inicial + receitas − despesas − reservado: trocar o
+        // saldo inicial desloca o disponível exatamente pela diferença (a mesma
+        // conta da `regraDoPisoDoSaldoInicial`). Sem saldo inicial válido no
+        // envio, vale o de hoje — a regra do próprio campo aponta o erro dele.
+        $inicialAtual = round((float) $conta->initial_balance, 2);
+        $inicialNovo = is_numeric($this->input('initial_balance'))
+            ? round((float) $this->input('initial_balance'), 2)
+            : $inicialAtual;
+        $mudouInicial = abs($inicialNovo - $inicialAtual) > 0.001;
+
+        // Quanto o saldo furaria o zero DEPOIS da edição: max(0, −disponível projetado).
+        $usado = round(max(0.0, -($conta->available - $inicialAtual + $inicialNovo)), 2);
+        $atual = round((float) $conta->overdraft_limit, 2);
+        $novo = round((float) $value, 2);
+
+        // Conta que fica positiva, ou o usuário não está reduzindo: nada a barrar.
+        if ($usado <= 0.001 || $novo >= $atual || $novo + 0.001 >= $usado) {
+            return null;
+        }
+
+        return ($mudouInicial
+            ? 'Com o saldo inicial novo, esta conta ficaria usando '.Brl::format($usado).' do cheque especial, '
+            : 'Esta conta está usando '.Brl::format($usado).' do cheque especial agora, ')
+            .'então o limite não pode cair para '.Brl::format($novo).'. '
+            .'Deixe pelo menos '.Brl::format($usado)
+            .' ou lance um recebimento para cobrir o saldo negativo antes de reduzir o limite.';
     }
 }

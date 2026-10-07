@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class AccountController extends Controller
 {
@@ -182,7 +183,33 @@ class AccountController extends Controller
             unset($dados['initial_balance']);
         }
 
-        $account->update($dados);
+        // O piso do saldo (`available >= −overdraft_limit`) é conferido de novo AQUI, com a
+        // conta TRAVADA (out/2026 — `EdicaoDaContaRespeitaODinheiroDeAgoraTest`). O Form
+        // Request confere antes do controller, sem trava: uma despesa que entrasse entre a
+        // validação e o `update` usava o cheque especial antigo, e a edição gravava por cima
+        // um limite (ou um saldo inicial) que deixava a conta abaixo do piso. Sob a trava, a
+        // despesa concorrente ou já entrou (e a conta é vista com ela) ou espera esta edição.
+        $erros = DB::transaction(function () use ($request, $account, $dados) {
+            $travada = Account::whereKey($account->id)->lockForUpdate()->first();
+            if (! $travada) {
+                abort(404);
+            }
+
+            $erros = array_filter([
+                'initial_balance' => $request->falhaDoPisoDoSaldoInicial($travada, $request->input('initial_balance')),
+                'overdraft_limit' => $request->falhaDoChequeEspecialEmUso($travada, $request->input('overdraft_limit')),
+            ]);
+
+            if ($erros === []) {
+                $travada->update($dados);
+            }
+
+            return $erros;
+        }, attempts: 3);
+
+        if ($erros !== []) {
+            throw ValidationException::withMessages($erros);
+        }
 
         if ($request->expectsJson()) {
             return response()->json([
