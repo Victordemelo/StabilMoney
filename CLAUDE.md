@@ -266,7 +266,8 @@ tests/Feature/              # 2.231 testes (PHP): auth, dashboard, CRUD, valida�
   Google Fonts como "única transferência internacional" e servidor "no Brasil" sem saber a região.
   **3.1 (24/09/2026):** a VPS fica na região **São Paulo** da Oracle (confirmado pelo Victor) — a
   Política diz que os dados ficam no Brasil; mudou de região, mude as seções 6 e 13 e suba a versão.
-  **3.2 e 3.3 (out/2026):** o que mudou em cada uma está em `config('legal.mudancas')`. `PoliticaDescreveOCodigoRealTest` confere a
+  **3.2, 3.3 e 3.4 (out/2026):** o que mudou em cada uma está em `config('legal.mudancas')` (3.4 = o provedor de
+  e-mail nomeado: Oracle Email Delivery, região São Paulo, sem transferência internacional por ele). `PoliticaDescreveOCodigoRealTest` confere a
   Política contra o código (nome dos cookies; todo host externo que o código contata tem de estar
   nomeado) e `VersaoDosDocumentosLegaisTest` falha quando o texto visível muda sem subir a
   `legal.version` (registre a impressão nova que a falha mostra). **Ao mexer no que o app coleta/compartilha, atualizar essas
@@ -1832,6 +1833,16 @@ fala por `mailpit:1025` na rede interna do compose.
 
 ### Produção
 
+**No ar desde out/2026:** Oracle Cloud Email Delivery, região São Paulo (`sa-saopaulo-1`), remetente
+`noreply@stabilmoney.victordemelo.com.br`, SPF/DKIM no subdomínio e DMARC do domínio pai; porta 587
+(`MAIL_SCHEME=smtp`). A Política (3.4) nomeia esse operador — trocou de provedor, mude as seções 6 e 13
+e suba a versão (`PoliticaDescreveOCodigoRealTest` cobra o nome).
+
+> 🚨 **Valor com `#` ou espaço no `.env` vai entre aspas simples** (`MAIL_PASSWORD='...'`). Sem aspas o
+> phpdotenv corta no `#` (o compose lê inteiro) e com espaço nem lê o arquivo; a primeira senha SMTP
+> da Oracle tinha `#` e o envio deu 535. O `deploy.sh` recusa (`sm_valores_que_o_laravel_le_diferente`,
+> sem imprimir o valor), e o `sm_ler_env` dos scripts lê como o Laravel (aspas e `" # comentário"`).
+
 Configuração no `.env` (receita completa e comentada no `.env.example`). O que **não** pode
 errar:
 
@@ -2656,8 +2667,7 @@ visitante → Cloudflare (proxy, SSL Full strict) → nginx do HOST (:443, Let's
   desconhecido, redirect, upload de 11 × 13 MB, o arquivo da emissão sem certificado, e o redirect
   que o Apache monta em http:// saindo em https — `proxy_redirect`), `permissoes-do-deploy.test.sh`
   (o trecho real do deploy.sh, como root, num container) e `atualizar-ips-cloudflare.test.sh`. Sem Docker, as partes que dependem dele são puladas com aviso.
-- **Pendências (não são código):** provedor de e-mail com remetente do domínio (SPF/DKIM/DMARC na
-  Cloudflare — ela não envia e-mail; o nome dele entra na Política); revisão jurídica; Search Console
+- **Pendências (não são código):** revisão jurídica; Search Console
   (TXT na Cloudflare + `/sitemap.xml`); desligar Rocket Loader e Email Obfuscation por **regra de
   configuração só para o hostname** do app (o portfólio, na mesma zona, usa o Email Obfuscation).
 - **O que a sessão do servidor informou (out/2026):** o nginx da VPS tem `real_ip_header
