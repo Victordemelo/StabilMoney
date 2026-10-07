@@ -244,8 +244,15 @@
    é decorativo, e ainda fica mais visível (o que interessa a um aviso de LGPD).
    Nas telas do app ela segue no rodapé: lá o topo tem a barra de navegação. */
 .auth-body .cookie-bar { top: 16px; bottom: auto; }
-@media (max-width: 600px) {
-  .auth-body .cookie-bar { top: calc(12px + env(safe-area-inset-top, 0px)); left: 12px; right: 12px; }
+/* No CELULAR e no tablet (até 980px, onde o vídeo fica EM CIMA do formulário — out/2026, pedido
+   do Victor): embaixo, no FIM da página — no fluxo, depois do formulário, e não fixa. No topo ela
+   cobria a marca da faixa do vídeo; fixa no rodapé voltaria a cair em cima do "Entrar" (o defeito
+   descrito acima). No fluxo ela não cobre nada. */
+@media (max-width: 980px) {
+  .auth-body .cookie-bar {
+    position: static; top: auto; bottom: auto; max-width: none;
+    margin: 0 12px calc(12px + env(safe-area-inset-bottom, 0px)); transform: none;
+  }
 }
 
 /* ===== Desafio de 2FA (código do autenticador) ===== */

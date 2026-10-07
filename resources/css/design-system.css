@@ -998,6 +998,18 @@ form[data-type="transfer"] .type-toggle.tt-3 .tt-pill {
    bem onde o FAB sobe. */
 @media (max-width: 920px) {
   .cookie-bar { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  /* Página inicial e páginas legais (sem barra de navegação embaixo): o aviso vai para o FIM da
+     página, no fluxo, como nas telas de entrada (auth.css) — fixo, ele ficava por cima do
+     conteúdo (no celular, os links do sumário dos Termos) até a pessoa aceitar. */
+  .inicio-body .cookie-bar, .legal-body .cookie-bar {
+    position: static; max-width: none; transform: none;
+    margin: 0 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+}
+/* No computador ela segue fixa embaixo nessas páginas; enquanto está na tela, o fim da página
+   ganha o espaço dela — senão o rodapé (Termos, Privacidade, Contato) ficava por baixo. */
+@media (min-width: 921px) {
+  .tem-aviso-cookie .inicio-body, .tem-aviso-cookie .legal-body { padding-bottom: 120px; }
 }
 
 /* Espaço reservado enquanto o aviso está na tela (classe posta pelo script do
