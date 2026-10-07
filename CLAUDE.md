@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.283 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **402 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.285 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **409 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -249,7 +249,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.283 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.285 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1667,6 +1667,12 @@ recursos, como funciona, conta-família, segurança, **quem fez** (autor, site, 
   (contorno), com o mesmo `sm/instalar.js` do login (`data-instalar-app`/`-ios`/`data-instalado`, nascem
   `hidden`; `.inicio [hidden]` garante que somem). Pergunta frequente "Preciso informar os dados do meu
   cartão?" — nunca pedimos número, CVV, validade nem senha (entra também no FAQPage).
+- **"Quem fez" conta a história** (out/2026, texto do Victor): procurava um app gratuito que fizesse a
+  gestão inteira da conta e não achava; o projeto nasceu como MoneyLife (o domínio estava ocupado) e
+  virou Stabil Money, "dinheiro estável". **Rolagem suave do menu** (`sm/rolagem-suave.js`,
+  `tests/js/rolagem-suave.test.js`): todo `a[href^="#"]` da página inicial desliza numa curva
+  (450–1100 ms pela distância), para quando a pessoa mexe, respeita "reduzir movimento", desconta o
+  topo fixo pelo `scroll-margin-top` da seção e leva o foco a ela; sem JS, `scroll-behavior: smooth`.
 - **Aviso de cookies que não cobre nada** (out/2026 — `AvisoDeCookiesNaoCobreNadaTest`): nas telas de
   entrada até 980px e na página inicial/legais até 920px ele fica no FIM da página, no fluxo
   (`position: static`); no topo cobria a marca, e fixo embaixo cairia sobre o "Entrar" ou o
@@ -2665,7 +2671,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.283 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.285 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
