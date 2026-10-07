@@ -17,7 +17,7 @@ return [
     |
     */
 
-    'version' => '3.4',
+    'version' => '3.5',
 
     'updated_at' => '7 de outubro de 2026',
     // A mesma data em AAAA-MM-DD (o <lastmod> do sitemap.xml). Mude junto com a de cima.
@@ -38,6 +38,10 @@ return [
         '3.4' => [
             'Novo e-mail de contato, também para assuntos de privacidade e para o encarregado dos dados: victor.rosa.system@gmail.com.',
             'Os e-mails do aplicativo (confirmação de cadastro, redefinição de senha, alertas e lembretes) passam a ser enviados pelo serviço de e-mail da Oracle, na região de São Paulo (Brasil) — a mesma empresa e a mesma região do servidor.',
+        ],
+        '3.5' => [
+            'Você pode entrar com a sua conta Google ("Continuar com o Google"), se quiser. Nesse caso recebemos do Google só o identificador da conta, o seu nome e o seu e-mail — nunca a sua senha do Google, a foto ou os contatos.',
+            'O Google aparece entre os serviços que tratam dados (seções 2.1, 6 e 13), apenas para quem usar esse login.',
         ],
         '3.3' => [
             'O “Lembrar de mim” passa a valer por 7 dias. Depois disso, o aplicativo pede a sua senha de novo.',

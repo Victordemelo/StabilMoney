@@ -73,6 +73,11 @@
             proteção foi ativada.</li>
         <li><strong>Novo e-mail aguardando confirmação</strong> — quando você pede para trocar de e-mail,
             o endereço novo fica guardado até ser confirmado pelo link enviado a ele.</li>
+        <li><strong>Identificador da conta Google</strong> — só se você entrar com o Google: um número que
+            o Google atribui à sua conta, guardado para reconhecer você nas próximas vezes. Do Google
+            recebemos apenas esse número, o seu <strong>nome</strong> e o seu <strong>e-mail</strong> (e a
+            informação de que o e-mail é confirmado); <strong>nunca a sua senha do Google</strong>, a foto,
+            os contatos ou qualquer outro dado da conta.</li>
     </ul>
 
     <h3>2.2. Dados financeiros que você registra</h3>
@@ -357,6 +362,14 @@
                         é feita no nosso servidor.</td>
                 </tr>
                 <tr>
+                    <td>Google (Entrar com o Google)</td>
+                    <td>Terceiro (login)</td>
+                    <td>Só se você escolher "Continuar com o Google": o Google confirma quem você é e nos
+                        envia o identificador da sua conta, o seu nome e o seu e-mail. A sua senha do Google
+                        fica no Google. O Google sabe que você entrou no Stabil Money por ele, conforme a
+                        política de privacidade do próprio Google.</td>
+                </tr>
+                <tr>
                     <td>Google Fonts</td>
                     <td>Terceiro (CDN)</td>
                     <td>As fontes do aplicativo são carregadas dos servidores do Google, que recebem seu
@@ -551,6 +564,8 @@
         <li><strong>Cloudflare</strong> — todo acesso ao aplicativo passa pela rede global dela: endereço
             IP, dados do navegador e o conteúdo em trânsito;</li>
         <li><strong>Google Fonts</strong> — endereço IP e dados do navegador, ao carregar as fontes;</li>
+        <li><strong>Google (Entrar com o Google)</strong> — só se você entrar por ele: o login acontece nos
+            servidores do Google, que nos devolvem o identificador da conta, o nome e o e-mail;</li>
         <li><strong>Have I Been Pwned</strong> — só o trecho do <em>hash</em> da senha descrito na seção 6,
             que não identifica você.</li>
     </ul>

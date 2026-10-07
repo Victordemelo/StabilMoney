@@ -25,6 +25,7 @@ class VersaoDosDocumentosLegaisTest extends TestCase
         '3.2' => 'e6999aebe4eead82c12e27dd1829763ed53f184f6880a4825a805f3b45c69434', // registro de atividade, aparelho confiável do 2FA e fuso do relógio (04/10/2026)
         '3.3' => '13afb68e4b5e200dda24222c13a922cae81012c7377201af43dfb60d234b1008', // "lembrar de mim" por 7 dias, IP só para quem agiu e aceite da versão nova no próximo acesso (05/10/2026)
         '3.4' => 'bade960cc1c9891ce4e00a9e542ba5d28597f6a87b52e2f6fa4320e908cf2851', // provedor de e-mail nomeado: Oracle Email Delivery, região São Paulo (07/10/2026)
+        '3.5' => 'c226fe3c08104e28a321fbfa88a3ffde2bc4b40a5f9fd38243715892724ecd87', // Entrar com o Google: o Google entre os serviços (2.1, 6 e 13) (07/10/2026)
     ];
 
     public function test_o_texto_dos_documentos_so_muda_com_a_versao(): void
