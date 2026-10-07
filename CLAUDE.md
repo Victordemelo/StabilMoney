@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.228 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **376 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.230 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **376 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -229,7 +229,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.228 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.230 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1110,8 +1110,8 @@ Testes: `GuardsDeEdicaoNoHistoricoTest`, `ExclusaoComDividaTest`, `FaturaAtrasad
 - **Editar despesa financiada por resgate RECONCILIA**, não recusa: `estornarFonte()` + `spend()`
   recalcula do zero, com a **conta travada antes do estorno** (ordem conta → pai). Zera também a
   auditoria de cheque especial — senão uma despesa de R$ 100 ficava marcada "cheque especial R$ 300".
-- **Excluir meta/investimento com a conta no vermelho é bloqueado** (a meta, desde out/2026, só sai
-  zerada — ver "Meta só sai ZERADA"). Não porque crie dinheiro
+- **Excluir meta/investimento com a conta no vermelho é bloqueado** (desde out/2026 os dois só saem
+  ZERADOS, com a conta no vermelho ou não — ver "Meta só sai ZERADA"). Não porque crie dinheiro
   (excluir e resgatar por inteiro têm efeito IDÊNTICO no disponível), mas porque quita o cheque
   especial **sem registro** de que a poupança cobriu. Excluir o **perfil** NÃO é bloqueado: seria
   brigar com o direito de eliminação da LGPD que a própria Política promete — em vez disso, as
@@ -1394,7 +1394,10 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
     `GoalController::destroy` recusa ("retire todo o dinheiro dela (botão Retirar) antes") e o modal explica e
     desliga o botão. Substituiu a trava antiga, que só barrava com a conta no vermelho. Motivo:
     excluir devolvia o dinheiro em silêncio e o histórico de aportes sumia junto (cascade); o
-    resgate deixa registro e aparece em Movimentações. Investimentos seguem a regra antiga.
+    resgate deixa registro e aparece em Movimentações. **Investimentos seguem a mesma regra**
+    (`ExclusaoDeInvestimentoSoZeradoTest`): com dinheiro aplicado o `InvestmentController::destroy`
+    recusa ("resgate todo o dinheiro dele (botão Resgatar)"), o modal explica e desliga o botão. A
+    trava antiga ("conta de origem no vermelho", `travaDeExclusaoComContaNoVermelho`) saiu.
 - **Segunda rodada de pedidos de out/2026:**
   - **Categoria nova aparece no Lançar** (`CategoriaNovaApareceNoLancarTest`): o `#lm-category` leva
     `data-pjax-atualizar` (o modal mora no shell; criar categoria salva e recarrega só o `#content`) e
@@ -1423,8 +1426,8 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
     vermelho "foi excluída … Nada foi gravado" (metas e investimentos).
   - **Conta fixa:** pagar (dentro do `write` do `spend`, ordem conta → conta fixa) e excluir pegam a
     trava da linha de `fixed_bills`; o pagamento recusa conta fixa sumida ou desativada sob ela.
-  - **Excluir investimento:** trava as contas da família (por id) e depois o investimento — a ordem
-    conta → pai — antes de decidir.
+  - **Excluir investimento:** "ainda tem dinheiro aplicado?" e o DELETE sob a trava do investimento
+    (como a meta; com a regra do "só zerado" a decisão não lê mais o saldo das contas).
   - **2FA:** `TwoFactorService::confirmar` e `regerarCodigosDeRecuperacao` gravam com o usuário
     travado e copiam o estado gravado para o `$user` de quem chamou (`sincronizar`).
   - **Como testar corrida num processo só:** `Tests\Concerns\SimulaRequisicaoConcorrente` —
@@ -2505,7 +2508,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.228 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.230 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
