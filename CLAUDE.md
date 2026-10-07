@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.251 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **387 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.256 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **387 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -94,9 +94,16 @@ o `DatabaseSeeder` abaixo. **Painel admin ligado no dev** (`ADMIN_PANEL_ENABLED=
 > Em resumo: verde-petróleo **mata #032628** + um ÚNICO destaque **lima #9FE870**, títulos em
 > **Bricolage Grotesque 800** (blocados, entrelinha < 1, espaçamento negativo) e texto em **Geist**,
 > botões em pílula, sem rótulo em maiúsculas, sem degradê de enfeite, sem grade de cards iguais.
-> Hoje está aplicado na **página inicial pública**; o app logado ainda usa o design v2 (`design/`,
-> Sora + Plus Jakarta) — migrá-lo é um passo separado, que o Victor decide. Mudou cor, fonte ou
-> imagem? Atualize `design_stabilmoney/` junto (README, `tokens.css` e a cópia em `imagens/web/`).
+> Vale no **app inteiro** desde out/2026: a página inicial (`inicio.css`, tokens no escopo `.inicio`) e
+> todo o resto — app, login/cadastro/2FA, páginas legais, painel admin e páginas de erro — pela folha
+> **`resources/css/identidade.css`**, a ÚLTIMA do `app.css`: ela redefine os tokens do
+> `design-system.css` e do `.auth` (`--brand-*` do mata ao lima; no ESCURO os tons de texto
+> `--brand-500/600/700` viram lima) e sobrescreve só o que tinha cor fixa (barra lateral, botões
+> principais em pílula lima com texto escuro, cartões escuros, iniciais, painel do vídeo). Os
+> LAYOUTS e o desenho das telas continuam os do design v2 (`design/`); mudaram cor e fonte.
+> Regra nova de cor = token; se uma tela tem cor fixa, a sobrescrita vai na `identidade.css`.
+> `IdentidadeVisualNoAppTest` cobra a ordem da folha, os tokens e as fontes nos 5 layouts. Mudou
+> cor, fonte ou imagem? Atualize `design_stabilmoney/` junto (README, `tokens.css`, `imagens/web/`).
 
 O visual do app vem de um **handoff do Claude Design** (claude.ai/design), versionado em
 `design/` — atualmente o **bundle v2**:
@@ -147,7 +154,7 @@ system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 | Auth | **Laravel Breeze 2.4** (blade) | **Todas** as telas de auth no layout split v2 com vídeo (`layouts/auth.blade.php` — o `layouts/guest.blade.php` foi removido em 06/08/2026). Tudo PT-BR. Hash de senha em **argon2id** (`config/hashing.php`). **2FA opcional** por app autenticador (TOTP) — seção própria abaixo. |
 | QR do 2FA | **bacon/bacon-qr-code 3.x** | Única dependência de produção fora do Laravel. Só desenha o QR (SVG puro, sem imagick/GD); o algoritmo TOTP é nosso (`App\Support\Totp`). |
 | i18n | **laravel-lang/common** | `lang/pt_BR` completo (validation, auth, passwords). `APP_LOCALE=pt_BR`; `Carbon::setLocale` no `AppServiceProvider`. |
-| Fontes | Google Fonts | Sora (títulos/números) + Plus Jakarta Sans (corpo) — link nos layouts. |
+| Fontes | Google Fonts | **Bricolage Grotesque** (títulos/números) + **Geist** (corpo) — link nos 5 layouts (out/2026; antes Sora + Plus Jakarta Sans, que seguem só como fonte de reserva no CSS). |
 | Mobile | **PWA** (Fase 1, pendente) | Web instalável; sem Android Studio por enquanto. |
 
 ---
@@ -241,7 +248,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.251 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.256 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1610,6 +1617,14 @@ recursos, como funciona, conta-família, segurança, **quem fez** (autor, site, 
   translúcido de propósito: quando o recorte do cover corta a estrela na borda, a lasca do selo some no
   fundo. Trocou de vídeo? Mude 1280/720/1160/600 no CSS. (Desde a reformulação abaixo, a página
   inicial não tem mais vídeo: o selo segue no login e na entrada do painel.)
+- **Responsividade e Equilíbrio (out/2026):** a página inicial entrou na varredura
+  (`tests/e2e/responsividade.mjs`, tela `inicio`); menu do topo no meio do espaço entre a marca e as
+  ações (`margin-inline: auto` — centrado na página, os vãos ficavam 220 × 80px); a abertura cabe na
+  altura da tela (`min(660px, calc(100svh - 72px))` + compactação em `max-height: 800px`); até 300px
+  os títulos encolhem para a palavra mais longa caber inteira e botões quebram linha em vez de vazar.
+  A faixa Equilíbrio recorta o alto vazio da ilustração (`aspect-ratio: 16/8`), usa o tom médio do
+  fundo dela (#F9F5F0) e esfuma as bordas RETAS (máscara linear nos 4 lados — a elíptica deixava
+  auréola, e o `multiply` escurecia as pontas).
 - **Reformulação de out/2026** (pedido do Victor, com a Wise como base — guia em `design_stabilmoney/`):
   fontes **Bricolage Grotesque + Geist** só nesta página (o app segue Sora + Plus Jakarta), tokens no
   escopo `.inicio` (`--mata`, `--lima`…), topo escuro com o menu no CENTRO da página (grade
@@ -2602,7 +2617,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.251 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.256 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo

@@ -12,9 +12,20 @@
 | Onde | Arquivos |
 |---|---|
 | Página inicial pública (`/` para quem não entrou) | `resources/views/inicio.blade.php` + `resources/css/inicio.css` (tokens no escopo `.inicio`) |
+| Todo o resto: app logado, login/cadastro/2FA, páginas legais, painel admin, páginas de erro | `resources/css/identidade.css` (a última folha do `app.css`) + o link das fontes nos 5 layouts |
 
-O app logado (painel, movimentações etc.) ainda usa o design v2 (`design/`, Sora + Plus Jakarta
-Sans). Migrar o app para esta identidade é um passo separado, que precisa de uma decisão do Victor.
+No app, os **layouts e o desenho das telas** continuam os do design v2 (`design/`); o que muda é
+a cor e a fonte. A `identidade.css` redefine os tokens que as telas já usam (`--brand-*`,
+`--ink`, `--surface`…) e sobrescreve os poucos lugares que tinham cor fixa:
+
+- **Escala da marca:** `--brand-900` é o mata e `--brand-300` é o lima. No tema escuro, os tons de
+  texto (`--brand-500/600/700`) também viram lima, porque o verde-escuro some sobre o mata.
+- **Botões principais** (Salvar, Pagar, "+", Entrar…): pílula lima com texto escuro, sem sombra.
+- **Barra lateral, cartão de crédito e saldo em destaque:** mata ou abeto lisos, sem brilho.
+- **Iniciais no lugar da foto:** lima com letra escura.
+- **Telas claras e escuras** usam os mesmos tokens. Fundo claro `#F3F5F1`, escuro `#021C1E`.
+
+Capturas do app em `capturas/app-*`.
 
 ## Conceito
 
