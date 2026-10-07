@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.276 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **388 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.280 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **388 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -249,7 +249,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.276 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.280 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -348,9 +348,15 @@ A credencial é criada pelo Victor no Google Cloud Console (OAuth, "Aplicativo d
   de toda porta), quem ligou o 2FA vai para a tela do código (`TwoFactorChallengeController::aguardar`;
   o aparelho confiável continua valendo), sessão regenerada.
 - **Quem é a conta:** `users.google_id` (o `sub`, único, sem cifra — é procurado a cada login; fora do
-  JSON pelo `$hidden`) ou, sem ele, o e-mail — SÓ se o Google disser `email_verified`. E-mail já ligado
-  a OUTRA conta Google é recusado (não troca em silêncio). Ligar a conta pelo e-mail também marca o
-  e-mail como confirmado.
+  JSON pelo `$hidden`). O Google tem de dizer `email_verified`. E-mail já ligado a OUTRA conta Google é
+  recusado (não troca em silêncio).
+- 🚨 **Pré-sequestro de conta** (revisão de segurança, out/2026): conta que JÁ EXISTE com o mesmo e-mail
+  **não se liga sozinha** — a tela `auth/google-ligar` (`google.ligar`, sessão `google_ligar`, 10 min,
+  `throttle:credencial`) pede a SENHA dela. "E-mail confirmado" não prova de quem é a conta: o titular
+  cria o login do dependente com qualquer e-mail, já confirmado; conta criada sem envio de e-mail nasce
+  confirmada; e alguém pode cadastrar o e-mail de outra pessoa esperando a dona chegar pelo Google. Quem
+  só tem o e-mail usa "Esqueci a senha" (troca a senha e derruba as sessões de quem criou). Com a
+  senha certa: liga, marca o e-mail como confirmado e segue o login (2FA se houver).
 - **Conta nova não nasce no retorno do Google:** os dados ficam na sessão (`google_cadastro`, 10 min) e a
   tela `auth/google-cadastro` pede o aceite dos Termos — a prova do aceite é a do cadastro. Nasce titular,
   verificada, com senha aleatória (quem quiser senha cria pelo "Esqueci a senha") e as categorias padrão.
@@ -2646,7 +2652,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.276 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.280 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
