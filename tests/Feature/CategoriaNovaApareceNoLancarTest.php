@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\Category;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Support\DefaultCategories;
+use Dom\Element;
 use Dom\HTMLDocument;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -20,17 +22,17 @@ class CategoriaNovaApareceNoLancarTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function selectDeCategoria(User $user): \Dom\Element
+    private function selectDeCategoria(User $user, ?string $url = null, string $id = 'lm-category'): Element
     {
-        $html = $this->actingAs($user)->get(route('transactions.index'))->assertOk()->getContent();
-        $select = HTMLDocument::createFromString($html, LIBXML_NOERROR)->getElementById('lm-category');
-        $this->assertNotNull($select, 'O modal Lançar não tem o select de categoria.');
+        $html = $this->actingAs($user)->get($url ?? route('transactions.index'))->assertOk()->getContent();
+        $select = HTMLDocument::createFromString($html, LIBXML_NOERROR)->getElementById($id);
+        $this->assertNotNull($select, "A página não tem o select #{$id}.");
 
         return $select;
     }
 
     /** @return list<string> */
-    private function opcoes(\Dom\Element $select, string $tipo): array
+    private function opcoes(Element $select, string $tipo): array
     {
         $nomes = [];
         foreach ($select->querySelectorAll("optgroup[data-type=\"{$tipo}\"] option") as $opt) {
@@ -68,5 +70,26 @@ class CategoriaNovaApareceNoLancarTest extends TestCase
         $this->assertSame($tela, $despesas, 'O modal segue a ordem da tela de Categorias.');
         $this->assertSame('Alimentação', $despesas[0], 'As fixas vêm no topo.');
         $this->assertTrue(Category::where('user_id', $user->id)->where('name', 'Academia')->exists());
+    }
+
+    public function test_a_pagina_cheia_de_lancamento_usa_a_mesma_ordem(): void
+    {
+        // A página cheia (fallback sem JS) e a edição ordenavam por nome: a mesma lista
+        // aparecia em outra sequência conforme o caminho.
+        $user = User::factory()->create();
+        DefaultCategories::seedFor($user);
+        $conta = Account::factory()->for($user)->create(['type' => 'checking', 'initial_balance' => 100]);
+        Category::factory()->expense()->for($user)->create(['name' => 'Academia', 'position' => Category::TRILHO_LIVRE + 50]);
+
+        $tela = $this->actingAs($user)->get(route('categories.index'))
+            ->viewData('expenseCategories')->pluck('name')->values()->all();
+
+        $this->assertSame($tela, $this->opcoes($this->selectDeCategoria($user, route('transactions.create'), 'category_id'), 'expense'));
+
+        $lancamento = Transaction::factory()->for($user)->create([
+            'account_id' => $conta->id, 'type' => 'income', 'amount' => 10, 'date' => now()->addDay()->toDateString(),
+        ]);
+        $this->assertSame($tela, $this->opcoes(
+            $this->selectDeCategoria($user, route('transactions.edit', $lancamento), 'category_id'), 'expense'));
     }
 }

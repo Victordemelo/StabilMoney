@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\EscopoDaFamiliaNaRota;
 use App\Models\Concerns\RegistraAtividade;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -85,6 +86,17 @@ class Category extends Model
         return $ultima === null
             ? ($fixa ? self::TRILHO_FIXA : self::TRILHO_LIVRE)
             : ((int) $ultima) + 1;
+    }
+
+    /**
+     * A ordem da tela de Categorias — fixas no topo, depois a ordem que a pessoa arrumou.
+     * Todo select de categoria usa esta (modal Lançar, página cheia, filtro de
+     * Movimentações): ordenar por nome em um deles fazia a mesma lista aparecer em
+     * sequências diferentes conforme o caminho.
+     */
+    public function scopeNaOrdemDaTela(Builder $query): Builder
+    {
+        return $query->orderByDesc('is_locked')->orderBy('position')->orderBy('name')->orderBy('id');
     }
 
     /**

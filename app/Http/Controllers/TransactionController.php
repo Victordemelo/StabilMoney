@@ -51,8 +51,7 @@ class TransactionController extends Controller
         // agrupadas por tipo no select. Ordenar por nome aqui faria o filtro
         // discordar da ordem que o usuário arrumou à mão.
         $categories = Category::where('user_id', $userId)
-            ->orderBy('position')
-            ->orderBy('id')
+            ->naOrdemDaTela()
             ->get()
             ->groupBy('type');
 
@@ -225,10 +224,7 @@ class TransactionController extends Controller
         return view('transactions.create', [
             // paymentOptions: cartão de débito aparece, mas submete a conta que ele espelha.
             'accounts' => Account::paymentOptions($userId),
-            'categories' => Category::where('user_id', $userId)
-                ->orderBy('type')
-                ->orderBy('name')
-                ->get(),
+            'categories' => Category::where('user_id', $userId)->naOrdemDaTela()->get(),
             'familyMembers' => $this->familyMembers($userId),
         ]);
     }
@@ -476,10 +472,7 @@ class TransactionController extends Controller
         return view('transactions.edit', [
             'transaction' => $transaction,
             'accounts' => Account::paymentOptions($userId),
-            'categories' => Category::where('user_id', $userId)
-                ->orderBy('type')
-                ->orderBy('name')
-                ->get(),
+            'categories' => Category::where('user_id', $userId)->naOrdemDaTela()->get(),
             'familyMembers' => $this->familyMembers($userId),
             'ofereceEncerrarRecorrencia' => $this->ofereceEncerrarRecorrencia($transaction),
             // Painel "Detalhes" ao lado do formulário: o que trava a edição desta linha (a
