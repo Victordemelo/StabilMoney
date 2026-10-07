@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.246 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **384 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.247 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **378 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -229,7 +229,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.246 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.247 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1581,6 +1581,19 @@ recursos, como funciona, conta-família, segurança, **quem fez** (autor, site, 
 - Teste que precise de "tela que exige login" usa `route('transactions.index')`, nunca a raiz.
 - SEO: `seo.paginas.dashboard` (o título forte); `Seo::indexavel` exige visitante sem sessão — a Visão
   geral, no mesmo endereço, nunca é indexável. A marca do login/cadastro leva à página inicial.
+- **Ajustes de out/2026 (pedido do Victor, "menos cara de IA"):** o topo sem os botões "Criar conta /
+  Já tenho conta" (já estão no menu e na chamada do fim — o teste conta 2 links de cadastro), card de
+  exemplo reto e com ícones SVG (sem emoji), linha de contexto sóbria no lugar da pílula; **Quem fez**
+  com a foto de verdade (`config('sistema.autor.foto')` = `public/assets/victor-de-melo.jpg`, 4:5,
+  centralizada na altura do texto) e os links Site, LinkedIn, **GitHub** (`sistema.autor.github`,
+  também no `sameAs` do JSON-LD) e o e-mail; rodapé em duas colunas (marca e © à esquerda, documentos
+  à direita).
+- **Selo sobre a marca d'água do vídeo** (`partials/selo-do-video`, na página inicial, no login e na
+  entrada do painel): o `video_login.mp4` (1280×720) tem a estrela do Gemini centrada em (1160, 600);
+  o `.selo-do-video` refaz a conta do `object-fit: cover` com unidades de container query
+  (`.camada-do-video` é container de tamanho) e põe o "S" do Stabil Money em cima dela. Selo escuro e
+  translúcido de propósito: quando o recorte do cover corta a estrela na borda, a lasca do selo some no
+  fundo. Trocou de vídeo? Mude 1280/720/1160/600 no CSS.
 
 ## 🔎 SEO (23/09/2026) — `SeoDasPaginasPublicasTest`
 
@@ -1793,8 +1806,14 @@ dispositivos e a prova do aceite — para IP em repouso o certo é cast `encrypt
 
 **Onda 3:**
 
-- **Logout manda `Clear-Site-Data: "cache"`** (`AuthenticatedSessionController::destroy`) — isso
-  limpa só o cache HTTP. ⚠️ **NÃO limpa o Cache Storage do SW** (premissa antiga, derrubada pelo P-2
+- **Página com sessão sai com `Cache-Control: no-store, private`** (`SecurityHeaders`, out/2026 —
+  `SecurityHardeningWave2Test`) e o **logout não manda mais `Clear-Site-Data`**. Antes as páginas
+  logadas saíam `no-cache` (ficavam no cache HTTP e no do "Voltar") e o logout mandava
+  `Clear-Site-Data: "cache"` para apagá-las — o Chrome faz essa limpeza devagar com o cache cheio, e a
+  tela de login baixava tudo de novo: o "Sair" demorava (medido na prévia com cache em disco: 237 ms em
+  média e até 383 ms; com a troca, ~73 ms). O `no-store` só substitui o padrão `no-cache, private` do
+  framework: resposta que escolhe o próprio cache (a foto versionada) fica. O texto abaixo é de quando
+  o header existia — ⚠️ ele nunca limpou o Cache Storage do SW (premissa antiga, derrubada pelo P-2
   da auditoria de 06/09). Quem apaga o `/transactions/create` guardado offline (HTML autenticado com
   contas/categorias/família) é o **próprio SW** desde 16/09/2026 (`HTML_AUTENTICADO` em
   `pwa/service-worker.blade.php`), com dois gatilhos: (1) o `POST /logout` passando por ele — o SW
@@ -2373,7 +2392,9 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   **mobile-first**, classes do design system (Tailwind só como utilitário pontual com tokens `var(--...)`).
 - **Dark mode**: atributo `data-theme` no `<html>` + `localStorage` chave `sm-theme`
   (anti-flash inline no head dos layouts). Collapse da sidebar em `sm-collapsed`. **Sem `sm-theme`
-  salvo, vale `prefers-color-scheme`** (inclusive se mudar com a página aberta — 23/09/2026):
+  salvo, vale o CLARO** — a primeira entrada é sempre clara, também com o sistema no modo escuro, e
+  o tema não acompanha o sistema (out/2026, decisão do Victor; de set a out valia o
+  `prefers-color-scheme`). Quem quiser o escuro usa o botão, e a escolha fica salva:
   `resolverTema` + anti-flash dos layouts app e legal, conferidos pelo `tests/js/theme.test.js`. Só
   páginas com a meta `data-sm-theme`; auth, painel e e-mails seguem sempre claros.
 - Flash de sucesso: `session('status')` ou `session('success')` (partial `partials/flash`, que vira BALÃO no canto superior direito — `sm/balao.js`);
@@ -2550,7 +2571,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.246 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.247 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
