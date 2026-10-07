@@ -30,6 +30,9 @@
   -webkit-font-smoothing: antialiased;
 }
 .inicio a { color: inherit; }
+/* `hidden` vale mesmo em quem tem `display` próprio (o .in-btn é inline-flex): é o atributo que o
+   sm/instalar.js liga e desliga no "Instalar o app". */
+.inicio [hidden] { display: none !important; }
 .inicio ::selection { background: var(--lima); color: var(--tinta); }
 .inicio :focus-visible { outline: 3px solid var(--abeto); outline-offset: 3px; border-radius: 6px; }
 .inicio .in-topo :focus-visible, .inicio .in-hero :focus-visible,
@@ -159,6 +162,15 @@
 .in-hero-pontos { animation-delay: .16s; }
 @keyframes in-sobe { from { opacity: 0; transform: translateY(18px); } }
 @keyframes vt-enche { from { stroke-dasharray: 0 100; } }
+
+/* "Instalar o app" (abertura e chamada final) */
+.in-instalar { margin-top: 30px; }
+.in-instalar .in-btn { gap: 10px; }
+.in-instalar .in-btn svg { width: 18px; height: 18px; flex: none; }
+.in-instalar-dica { margin: 0; max-width: 46ch; font-size: 14.5px; color: var(--no-escuro); }
+.in-instalar-dica strong { color: #fff; font-weight: 600; }
+.in-final-bloco .in-instalar { margin-top: 22px; display: flex; justify-content: center; }
+.in-final-bloco .in-instalar-dica { text-align: center; margin: 0 auto; }
 
 /* ----- Seções ----- */
 .in-secao { padding: 120px 0; scroll-margin-top: 72px; }

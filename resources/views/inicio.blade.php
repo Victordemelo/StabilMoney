@@ -17,6 +17,7 @@
     $perguntas = [
         ['É grátis mesmo?', 'Sim. O Stabil Money é gratuito. Se um dia isso mudar, os Termos de Uso explicam como você será avisado antes.'],
         ['Preciso conectar minha conta do banco?', 'Não. O app não se conecta a banco nenhum e nunca pede senha de banco. Você lança o que entra e o que sai — e enxerga para onde o dinheiro vai.'],
+        ['Preciso informar os dados do meu cartão?', 'Não. O Stabil Money nunca pede o número do cartão, o código de segurança (CVV), a validade nem a senha. Para controlar a fatura, você cadastra só um apelido para o cartão, o banco, o limite e os dias de fechamento e de vencimento da fatura — nada que permita usar o cartão.'],
         ['Funciona no celular?', 'Funciona no navegador do computador e do celular, e pode ser instalado na tela inicial como um aplicativo. Instalado, deixa lançar até sem internet: o lançamento sincroniza quando a conexão volta.'],
         ['Dá para usar com a família?', 'Dá. O titular cadastra os dependentes, cada um com login próprio, e todos veem o mesmo dinheiro da casa — com quanto cada pessoa gastou no mês.'],
         ['Meus dados estão seguros?', 'A senha é guardada só como hash, dá para ligar a verificação em duas etapas, e cada ação fica registrada no histórico da conta. Os detalhes estão na Política de Privacidade.'],
@@ -114,6 +115,14 @@
                         <li>Sem conectar banco</li>
                         <li>Para você e para a família</li>
                     </ul>
+                    <div class="in-instalar">
+                        {{-- "Instalar o app" (PWA, sm/instalar.js): nasce escondido. Aparece quando o
+                             navegador oferece a instalação (Chrome/Android, Edge); no iPhone, a instrução;
+                             instalado, o aviso. Sem JS, ou em http, nada aparece. --}}
+                        <button type="button" class="in-btn in-btn-lima" data-instalar-app hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>Instalar o app</button>
+                        <p class="in-instalar-dica" data-instalar-ios hidden>No iPhone: toque em <strong>Compartilhar</strong> e depois em <strong>Adicionar à Tela de Início</strong>.</p>
+                        <p class="in-instalar-dica" data-instalado hidden>O app já está instalado neste aparelho.</p>
+                    </div>
                 </div>
 
                 <figure class="in-vitrine" data-vitrine
@@ -316,6 +325,14 @@
                     <div class="in-final-acoes">
                         <a class="in-btn in-btn-lima in-btn-grande" href="{{ route('register') }}">Criar conta grátis</a>
                         <a class="in-link" href="{{ route('login') }}">Já tenho conta</a>
+                    </div>
+                    <div class="in-instalar">
+                        {{-- "Instalar o app" (PWA, sm/instalar.js): nasce escondido. Aparece quando o
+                             navegador oferece a instalação (Chrome/Android, Edge); no iPhone, a instrução;
+                             instalado, o aviso. Sem JS, ou em http, nada aparece. --}}
+                        <button type="button" class="in-btn in-btn-contorno" data-instalar-app hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>Instalar o app</button>
+                        <p class="in-instalar-dica" data-instalar-ios hidden>No iPhone: toque em <strong>Compartilhar</strong> e depois em <strong>Adicionar à Tela de Início</strong>.</p>
+                        <p class="in-instalar-dica" data-instalado hidden>O app já está instalado neste aparelho.</p>
                     </div>
                 </div>
             </div>

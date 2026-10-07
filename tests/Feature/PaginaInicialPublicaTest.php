@@ -216,4 +216,26 @@ class PaginaInicialPublicaTest extends TestCase
         $this->assertMatchesRegularExpression('/\.inicio-body \{[^}]*overflow-y: auto;/', $css);
         $this->assertStringContainsString("@import './inicio.css';", file_get_contents(resource_path('css/app.css')));
     }
+
+    public function test_a_pagina_oferece_instalar_o_app_no_topo_e_no_fim(): void
+    {
+        // O botão nasce escondido e o sm/instalar.js o mostra quando o navegador oferece a
+        // instalação (no iPhone, a instrução do Compartilhar). Sem o manifest na página, o
+        // navegador nunca ofereceria nada.
+        $html = $this->get('/')->assertOk()->getContent();
+
+        $this->assertSame(2, substr_count($html, 'data-instalar-app hidden>'));
+        $this->assertSame(2, substr_count($html, 'data-instalar-ios hidden>'));
+        $this->assertSame(2, substr_count($html, 'data-instalado hidden>'));
+        $this->assertStringContainsString('<link rel="manifest"', $html);
+        $this->assertStringContainsString('.inicio [hidden] { display: none !important; }', file_get_contents(resource_path('css/inicio.css')));
+    }
+
+    public function test_as_perguntas_dizem_que_nao_pedimos_os_dados_do_cartao(): void
+    {
+        $html = $this->get('/')->assertOk()->getContent();
+
+        $this->assertStringContainsString('"name":"Preciso informar os dados do meu cartão?"', $html);
+        $this->assertStringContainsString('nunca pede o número do cartão, o código de segurança (CVV), a validade nem a senha', $html);
+    }
 }
