@@ -396,11 +396,16 @@ o serviço `agendador` do compose, que sobe junto com o app.
 
 ---
 
-## 9. E-mail (falta escolher o provedor)
+## 9. E-mail
 
 O app manda e-mail sozinho: confirmação de cadastro, "esqueci a senha", alertas de segurança e
-lembretes de vencimento. Hoje sai de uma caixa de TESTE. Em produção, o remetente precisa ser do
-seu domínio (ex.: `nao-responda@victordemelo.com.br`), senão Gmail e Outlook mandam para o spam.
+lembretes de vencimento. O remetente precisa ser do seu domínio, senão Gmail e Outlook mandam para
+o spam.
+
+**Em produção (out/2026):** Oracle Cloud Email Delivery, região São Paulo (`sa-saopaulo-1`),
+remetente `noreply@stabilmoney.victordemelo.com.br`, com SPF e DKIM no subdomínio `stabilmoney`
+e o DMARC do domínio pai. O `.env` usa `MAIL_HOST=smtp.email.sa-saopaulo-1.oci.oraclecloud.com`,
+`MAIL_PORT=587`, `MAIL_SCHEME=smtp`, e o usuário/senha SMTP gerados no console da Oracle.
 
 - **A Cloudflare não envia e-mail** (o Email Routing dela só recebe e encaminha). É preciso um
   serviço de envio, que te dá os registros **SPF, DKIM e DMARC** para criar no DNS da Cloudflare —
@@ -408,6 +413,11 @@ seu domínio (ex.: `nao-responda@victordemelo.com.br`), senão Gmail e Outlook m
 - Depois, no `.env`: `MAIL_MAILER=smtp` (no lugar do `log` do passo 3), `MAIL_HOST`, `MAIL_PORT`,
   `MAIL_SCHEME` (**465 → `smtps`**, **587 → `smtp`** — trocados, a conexão morre sem mensagem
   útil), `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`, e `bash scripts/deploy.sh --sem-git`.
+- **🚨 A senha SMTP vai SEMPRE entre aspas simples:** `MAIL_PASSWORD='...'`. Senha gerada por
+  provedor costuma ter `#`, e sem aspas o Laravel lê só até o `#` (a primeira senha da Oracle
+  tinha `#` no 2º caractere: o Laravel leu 1 caractere e o SMTP respondeu 535). Entre aspas simples
+  o Laravel e o `docker compose` leem o valor literalmente. O `deploy.sh` recusa valor sem aspas
+  com `#` ou com espaço, em qualquer chave, sem imprimir o valor.
 - O `deploy.sh` confere o remetente quando o e-mail sai: `MAIL_FROM_ADDRESS` vazio, que não é e-mail
   ou de exemplo (`example.com`, `.test`) é **recusado**, e `MAIL_FROM_NAME=Laravel` também; um
   remetente cujo domínio não é o do site (nem um acima dele) nem o da caixa do `MAIL_USERNAME` só

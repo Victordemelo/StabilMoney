@@ -294,6 +294,39 @@ afirmar ".env: MAIL_HOST=mailpit (o do .env.example, de desenvolvimento) é recu
 afirmar ".env: MAIL_MAILER=smtp sem MAIL_HOST (vale 127.0.0.1, sem servidor de e-mail) é recusado" \
   recusa_env mail-sem-host "$(com MAIL_HOST '')" "MAIL_HOST=(vazio)"
 
+# Valor sem aspas que o Laravel lê diferente (out/2026): a senha SMTP da Oracle com "#".
+afirmar ".env: senha com \"#\" sem aspas é recusada (o Laravel leria só até o #)" \
+  recusa_env cerquilha "$(printf '%s\n' "$ENV_BOM" 'MAIL_PASSWORD=a#Bc9xYz')" 'MAIL_PASSWORD tem "#" sem aspas'
+afirmar ".env: \"#\" sem aspas na senha do banco também é recusado" \
+  recusa_env cerquilha-db "$(com DB_PASSWORD '5d2c8e0f4b7a#d1c3e6f8a0b2d4c6e')" 'DB_PASSWORD tem "#" sem aspas'
+afirmar ".env: espaço sem aspas é recusado (o Laravel nem leria o .env)" \
+  recusa_env espaco "$(com APP_NAME 'Stabil Money')" "APP_NAME tem espaço sem aspas"
+segredo_nao_aparece() {
+  local r
+  r="$(conferir "$(printf '%s\n' "$ENV_BOM" 'MAIL_PASSWORD=xY#SEGREDO-NAO-IMPRIMIR')")"
+  contem "$r" "MAIL_PASSWORD" || { DETALHE="não acusou: $r"; return 1; }
+  ! contem "$r" "SEGREDO-NAO-IMPRIMIR" || { DETALHE="imprimiu o valor: $r"; return 1; }
+}
+afirmar ".env: a recusa do \"#\" não imprime o valor (pode ser senha)" segredo_nao_aparece
+entre_aspas_passa() {
+  local r
+  r="$(conferir "$(printf '%s\n' "$ENV_BOM" "MAIL_PASSWORD='a#Bc 9\"xYz'" 'APP_NAME_EXTRA="Stabil Money"')")"
+  [ -z "$r" ] || { DETALHE="$r"; return 1; }
+}
+afirmar ".env: o mesmo valor entre aspas simples (ou um com espaço entre aspas duplas) passa" entre_aspas_passa
+comentario_no_fim_passa() {
+  local r
+  r="$(conferir "$(com HTTP_PORT '8081 # a 8080 é do portfólio')")"
+  [ -z "$r" ] || { DETALHE="$r"; return 1; }
+}
+afirmar ".env: comentário no fim da linha (\" # ...\") continua permitido" comentario_no_fim_passa
+exemplo_passa_na_regra() {
+  local r
+  r="$(sm_valores_que_o_laravel_le_diferente "$REPO/.env.example")"
+  [ -z "$r" ] || { DETALHE="$r"; return 1; }
+}
+afirmar "o .env.example não tem valor que o Laravel leria diferente" exemplo_passa_na_regra
+
 avisa_env() { # <descrição> <conteúdo> <trecho esperado numa linha "aviso:">
   local r
   r="$(conferir "$2")"

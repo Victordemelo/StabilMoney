@@ -100,9 +100,16 @@ sm_ler_env() {
   fi
   valor="${linha#*=}"
   valor="${valor%$'\r'}"
+  # Como o Laravel (phpdotenv) lê: entre aspas, o que está entre elas (e o que vier depois,
+  # como um " # comentário", fica de fora); sem aspas, até um " #" de comentário. Antes o
+  # comentário no fim da linha vinha junto: HTTP_PORT=8081 # ... "não era número".
   case "$valor" in
-    \"*\") valor="${valor#\"}"; valor="${valor%\"}" ;;
-    \'*\') valor="${valor#\'}"; valor="${valor%\'}" ;;
+    \"*) valor="${valor#\"}"; valor="${valor%%\"*}" ;;
+    \'*) valor="${valor#\'}"; valor="${valor%%\'*}" ;;
+    *)
+      valor="$(printf '%s' "$valor" | sed -E 's/[[:space:]]+#.*$//')"
+      valor="${valor%"${valor##*[![:space:]]}"}"
+      ;;
   esac
   printf '%s' "$valor"
 }

@@ -207,6 +207,39 @@ sm_conferir_env_de_producao() { # <arquivo .env>
 
   v="$(sm_minusculas "$(sm_ler_env "$env" ADMIN_PANEL_ENABLED false)")"
   [ "$v" != "true" ] || echo "aviso: ADMIN_PANEL_ENABLED=true — o painel administrativo está ligado; desligue quando não estiver usando"
+
+  sm_valores_que_o_laravel_le_diferente "$env"
+}
+
+# Valor SEM ASPAS que o Laravel lê diferente do que está escrito (out/2026 — achado no
+# primeiro envio de e-mail em produção: a senha SMTP gerada pela Oracle tinha "#" no 2º
+# caractere, o Laravel leu 1 caractere só e o SMTP respondeu 535, sem o deploy avisar).
+# Medido com o phpdotenv do vendor e o docker compose:
+#   - "#" sem aspas: o phpdotenv CORTA ali (A=x#yz vira "x"), e o compose guarda inteiro —
+#     numa senha do banco, o MySQL nasceria com uma senha e o app usaria outra;
+#   - espaço sem aspas: o phpdotenv nem lê o .env (exceção) — erro 500 em toda página;
+#   - " #" (espaço antes) é comentário nos dois, e continua permitido.
+# Entre aspas simples os dois leem literalmente. O VALOR nunca é impresso (pode ser senha).
+sm_valores_que_o_laravel_le_diferente() { # <arquivo .env>
+  awk '
+    { sub(/\r$/, "") }
+    /^[ \t]*(#|$)/ { next }
+    {
+      linha = $0
+      sub(/^[ \t]*export[ \t]+/, "", linha)
+      p = index(linha, "=")
+      if (p == 0) next
+      chave = substr(linha, 1, p - 1)
+      if (chave !~ /^[A-Za-z_][A-Za-z0-9_]*$/) next
+      valor = substr(linha, p + 1)
+      if (valor ~ /^["\047]/) next
+      sub(/[ \t]+#.*$/, "", valor)
+      if (index(valor, "#") > 0)
+        print "erro: " chave " tem \"#\" sem aspas — o Laravel lê o valor só até o \"#\" (o docker compose lê inteiro). Ponha o valor entre aspas simples: " chave "=\047...\047"
+      else if (valor ~ /[ \t]/)
+        print "erro: " chave " tem espaço sem aspas — o Laravel não consegue ler o .env (erro 500 em toda página). Ponha o valor entre aspas simples: " chave "=\047...\047"
+    }
+  ' "$1"
 }
 
 # ------------------------------------------------ a saída do `docker compose config`
