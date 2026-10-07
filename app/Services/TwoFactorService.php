@@ -64,27 +64,38 @@ class TwoFactorService
      */
     public function confirmar(User $user, string $codigo): ?array
     {
-        if (! $user->doisFatoresPendente()) {
-            return null;
-        }
+        // Sob trava, como o desafio do login (out/2026 — auditoria de concorrência, pendência
+        // 7): dois "Confirmar" simultâneos com o mesmo código passavam os dois, cada um com
+        // uma lista nova de códigos de recuperação — e só a gravada por último valia. Quem
+        // anotasse a outra só descobriria no dia em que perdesse o celular.
+        $codigos = DB::transaction(function () use ($user, $codigo) {
+            $travado = User::whereKey($user->getKey())->lockForUpdate()->first();
 
-        $passo = Totp::verificar($user->two_factor_secret, $codigo, $user->two_factor_last_step);
+            if ($travado === null || ! $travado->doisFatoresPendente()) {
+                return null;
+            }
 
-        if ($passo === null) {
-            return null;
-        }
+            $passo = Totp::verificar($travado->two_factor_secret, $codigo, $travado->two_factor_last_step);
 
-        $codigos = RecoveryCodes::gerar();
+            if ($passo === null) {
+                return null;
+            }
 
-        $user->forceFill([
-            'two_factor_confirmed_at' => now(),
-            // O código gasto para confirmar já não serve para entrar: sem isto, quem
-            // estivesse olhando a tela por cima do ombro reusaria o mesmo número.
-            'two_factor_last_step' => $passo,
-            'two_factor_recovery_codes' => $codigos,
-        ])->save();
+            $codigos = RecoveryCodes::gerar();
 
-        $user->revogarAparelhosConfiaveis();
+            $travado->forceFill([
+                'two_factor_confirmed_at' => now(),
+                // O código gasto para confirmar já não serve para entrar: sem isto, quem
+                // estivesse olhando a tela por cima do ombro reusaria o mesmo número.
+                'two_factor_last_step' => $passo,
+                'two_factor_recovery_codes' => $codigos,
+            ])->save();
+
+            $travado->revogarAparelhosConfiaveis();
+            $this->sincronizar($user, $travado);
+
+            return $codigos;
+        });
 
         return $codigos;
     }
@@ -115,15 +126,32 @@ class TwoFactorService
      */
     public function regerarCodigosDeRecuperacao(User $user): array
     {
-        $codigos = RecoveryCodes::gerar();
+        // Sob trava pelo mesmo motivo do `confirmar`: a lista devolvida é a que fica gravada.
+        // (A rota já exige um código de uso único, que barra o reenvio do mesmo pedido.)
+        return DB::transaction(function () use ($user) {
+            $travado = User::whereKey($user->getKey())->lockForUpdate()->firstOrFail();
 
-        $user->forceFill(['two_factor_recovery_codes' => $codigos])->save();
+            $codigos = RecoveryCodes::gerar();
 
-        // Quem troca os códigos desconfia de que alguém viu a lista — e esse alguém pode ter
-        // entrado e marcado o aparelho dele como confiável. Todos voltam a pedir o código.
-        $user->revogarAparelhosConfiaveis();
+            $travado->forceFill(['two_factor_recovery_codes' => $codigos])->save();
 
-        return $codigos;
+            // Quem troca os códigos desconfia de que alguém viu a lista — e esse alguém pode ter
+            // entrado e marcado o aparelho dele como confiável. Todos voltam a pedir o código.
+            $travado->revogarAparelhosConfiaveis();
+            $this->sincronizar($user, $travado);
+
+            return $codigos;
+        });
+    }
+
+    /**
+     * Copia para o model de quem chamou (o usuário da requisição) o estado gravado no model
+     * travado: o controller segue usando `$user` depois (login, alertas, atividade) e não
+     * pode vê-lo com o 2FA de antes. Atributos crus — os campos cifrados já vêm cifrados.
+     */
+    private function sincronizar(User $user, User $travado): void
+    {
+        $user->setRawAttributes($travado->getAttributes(), sync: true);
     }
 
     /**
