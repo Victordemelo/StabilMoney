@@ -104,6 +104,9 @@ O título é o elemento de impacto da página. É blocado, apertado e grande. Li
   num círculo mata, em lima.
 - **Perguntas**: `details` brancos com raio de 22px sobre a névoa; um "+" que gira para "×" ao abrir.
 - **Foto do autor**: retangular 4:5 e raio de 28px. Nada de foto redonda.
+- **"Continuar com o Google"** (login e cadastro, abaixo do botão principal, depois de um "ou"): pílula
+  BRANCA com contorno e o "G" colorido do Google — as regras de marca do Google pedem o logo inteiro, então
+  é o único lugar com essas cores. Nunca lima: o lima é da ação principal.
 - **Prévia do app (abertura)**: o painel é BRANCO, como o app, com raio de 28px e uma sombra só.
   Os dois avisos encostados (vencimento e meta) são verde-abeto, retos, nunca inclinados. Os
   números são de exemplo e usam o formato do app (`−R$ 182,40`, sinal antes do símbolo).
@@ -117,7 +120,7 @@ O título é o elemento de impacto da página. É blocado, apertado e grande. Li
 | `imagens/originais/equilibrio-carteira.png` → `public/assets/equilibrio-1600.jpg` / `-900.jpg` | Faixa "Equilíbrio" | Bordas esfumadas por máscara radial, para sumirem no creme. |
 | `imagens/originais/foto-victor.png` → `public/assets/victor-de-melo.jpg` | "Quem fez" | 583×600. |
 | `marca/stabilmoney-mark.png`, `marca/favicon.png`, `marca/icon-512.png` | Marca | O "S" da marca. Ao lado dele, "Stabil" no texto e "Money" no destaque. |
-| `imagens/web/og-stabilmoney.jpg` | Prévia de link (redes) | 1200×630. Trocou o conteúdo? Troque o nome do arquivo. |
+| `imagens/web/og-stabilmoney-2.jpg` (fonte: `resources/og/og-stabilmoney.html`) | Prévia de link (WhatsApp, redes) e capa do vídeo do login | 1200×630, 53 KB. Tudo no QUADRADO central: a prévia pequena do WhatsApp recorta o meio. Trocou o conteúdo? Troque o nome do arquivo. |
 
 **Estilo das ilustrações:** objetos 3D foscos (celular, calculadora, carteira, moedas, planta)
 em verdes, bege e dourado. Iluminação suave e o lado esquerdo vazio, para o texto.

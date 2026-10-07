@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.260 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **387 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.276 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **388 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -152,7 +152,8 @@ system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 | Frontend | **Blade + design system próprio** | `resources/css/design-system.css` (portado de `design/project/styles.css` v2) + `forms.css` + `auth.css` (telas de auth, escopado sob `.auth`). Tailwind 4 carregado como base utilitária via Vite 7. |
 | JS | **Vanilla** em `resources/js/sm/` (padrão atual) | Módulos em `resources/js/sm/` (ver mapa de pastas). **Frameworks/bibliotecas JS são liberados** quando a feature se beneficiar (decisão do Victor, jun/2026) — escolher a ferramenta certa caso a caso; "vanilla" deixou de ser obrigatório. |
 | Auth | **Laravel Breeze 2.4** (blade) | **Todas** as telas de auth no layout split v2 com vídeo (`layouts/auth.blade.php` — o `layouts/guest.blade.php` foi removido em 06/08/2026). Tudo PT-BR. Hash de senha em **argon2id** (`config/hashing.php`). **2FA opcional** por app autenticador (TOTP) — seção própria abaixo. |
-| QR do 2FA | **bacon/bacon-qr-code 3.x** | Única dependência de produção fora do Laravel. Só desenha o QR (SVG puro, sem imagick/GD); o algoritmo TOTP é nosso (`App\Support\Totp`). |
+| Login com o Google | **laravel/socialite 5.x** | Oficial do Laravel. Opcional: só liga com `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` no `.env` — ver "🔑 Entrar com o Google". |
+| QR do 2FA | **bacon/bacon-qr-code 3.x** | Dependência de produção fora do Laravel (com o Socialite). Só desenha o QR (SVG puro, sem imagick/GD); o algoritmo TOTP é nosso (`App\Support\Totp`). |
 | i18n | **laravel-lang/common** | `lang/pt_BR` completo (validation, auth, passwords). `APP_LOCALE=pt_BR`; `Carbon::setLocale` no `AppServiceProvider`. |
 | Fontes | Google Fonts | **Bricolage Grotesque** (títulos/números) + **Geist** (corpo) — link nos 5 layouts (out/2026; antes Sora + Plus Jakarta Sans, que seguem só como fonte de reserva no CSS). |
 | Mobile | **PWA** (Fase 1, pendente) | Web instalável; sem Android Studio por enquanto. |
@@ -203,7 +204,7 @@ resources/
     └── coming-soon.blade.php   # placeholder das seções futuras
 
 public/assets/              # stabilmoney-mark.png (logo), favicon.png, video_login.mp4 (login), icons/ (ícones do PWA),
-                            # og-stabilmoney.jpg (prévia de link; fonte em resources/og/)
+                            # og-stabilmoney-2.jpg (prévia de link; fonte em resources/og/)
 deploy/nginx/               # o nginx do host da VPS (site, servidor padrão, faixas da Cloudflare) — ver "🚀 Publicação"
 docker-compose.prod.yml     # o compose de PRODUÇÃO (o de dev é o docker-compose.yml)
 design/                     # Handoff do Claude Design v2 (fonte da verdade visual — NÃO editar)
@@ -248,7 +249,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.260 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.276 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -335,6 +336,28 @@ tests/Feature/              # 2.260 testes (PHP): auth, dashboard, CRUD, valida�
   banco, o texto puro existe apenas no `.env` local (gitignorado) para o seeder gerar o hash.
 
 ---
+
+## 🔑 Entrar com o Google (out/2026) — `EntrarComOGoogleTest`
+
+**Opcional e desligado por padrão:** sem `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` no `.env`
+(`App\Support\LoginComGoogle::ativo()`), o botão não aparece e as rotas `/auth/google*` dão 404.
+A credencial é criada pelo Victor no Google Cloud Console (OAuth, "Aplicativo da Web", retorno
+`APP_URL/auth/google/callback`); o segredo vai SÓ no `.env` do servidor. Receita no `.env.example`.
+
+- **O Google substitui só a SENHA** (`Auth\GoogleLoginController`): banido não entra (mesma mensagem
+  de toda porta), quem ligou o 2FA vai para a tela do código (`TwoFactorChallengeController::aguardar`;
+  o aparelho confiável continua valendo), sessão regenerada.
+- **Quem é a conta:** `users.google_id` (o `sub`, único, sem cifra — é procurado a cada login; fora do
+  JSON pelo `$hidden`) ou, sem ele, o e-mail — SÓ se o Google disser `email_verified`. E-mail já ligado
+  a OUTRA conta Google é recusado (não troca em silêncio). Ligar a conta pelo e-mail também marca o
+  e-mail como confirmado.
+- **Conta nova não nasce no retorno do Google:** os dados ficam na sessão (`google_cadastro`, 10 min) e a
+  tela `auth/google-cadastro` pede o aceite dos Termos — a prova do aceite é a do cadastro. Nasce titular,
+  verificada, com senha aleatória (quem quiser senha cria pelo "Esqueci a senha") e as categorias padrão.
+- Escopos `openid email profile` (nunca foto, contatos, arquivos). O botão é um LINK (GET): a CSP tem
+  `form-action 'self'`, e um POST que redireciona para o Google seria bloqueado. Rotas sob
+  `throttle:login-ip` (o POST de criar conta também `credencial`). Atividade: `acesso.entrou_google`.
+- **A Política 3.5 nomeia o Google** (2.1, 6 e 13). Trocou o que pedimos ao Google? Mude a Política.
 
 ## Mapa de rotas / telas
 
@@ -1662,8 +1685,9 @@ uma). Página nova entra lá e aparece sozinha no sitemap.
 - 🚨 **Toda URL de SEO sai do APP_URL (`Seo::url`), nunca do Host da requisição** — um Host forjado não
   pode virar a canônica. (As URLs geradas pelo Laravel, inclusive a do e-mail de redefinir senha, também
   vinham do Host: ver o `forceRootUrl`/`TrustHosts` de produção.)
-- **Imagem de prévia** `public/assets/og-stabilmoney.jpg` (1200×630, 127 KB — o WhatsApp costuma não
-  mostrar acima de ~300 KB): é o painel visual do login do design v2. Fonte e comando para gerar de novo
+- **Imagem de prévia** `public/assets/og-stabilmoney-2.jpg` (out/2026: identidade nova, tudo no quadrado central — a prévia pequena do WhatsApp recorta o meio e a de antes saía cortada; 1200×630, 53 KB — o WhatsApp costuma não
+  mostrar acima de ~300 KB): o símbolo num selo branco, o nome e uma frase, centralizados no mata — é também a
+  capa (`poster`) do vídeo do login, pela mesma `seo.imagem`. Fonte e comando para gerar de novo
   (Chrome headless + `sips`) em `resources/og/og-stabilmoney.html`. Trocou o conteúdo? Troque o NOME do
   arquivo: as redes guardam a prévia pela URL.
 - **Out/2026 (`SeoDasPaginasPublicasTest`):**
@@ -2622,7 +2646,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.260 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.276 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
