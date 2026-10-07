@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.199 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **376 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.209 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **376 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -229,7 +229,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.199 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.209 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1391,10 +1391,23 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
     `availableLimitDisplay` e o "Limite livre depois" para em R$ 0,00 (vermelho); o excesso vai para
     o aviso ("Passa do limite livre em R$ X: o cartão não aceita esta compra").
   - **Meta só sai ZERADA** (`ExclusaoDeMetaSoZeradaTest`, decisão do Victor): com dinheiro guardado o
-    `GoalController::destroy` recusa ("resgate todo o dinheiro dela antes") e o modal explica e
+    `GoalController::destroy` recusa ("retire todo o dinheiro dela (botão Retirar) antes") e o modal explica e
     desliga o botão. Substituiu a trava antiga, que só barrava com a conta no vermelho. Motivo:
     excluir devolvia o dinheiro em silêncio e o histórico de aportes sumia junto (cascade); o
     resgate deixa registro e aparece em Movimentações. Investimentos seguem a regra antiga.
+- **Segunda rodada de pedidos de out/2026:**
+  - **Categoria nova aparece no Lançar** (`CategoriaNovaApareceNoLancarTest`): o `#lm-category` leva
+    `data-pjax-atualizar` (o modal mora no shell; criar categoria salva e recarrega só o `#content`) e
+    segue a ordem da tela de Categorias (`is_locked desc, position, name` no View Composer).
+  - **Retirar da meta à vista** (`RetirarDaMetaTest`): "+ Aportar" e "− Retirar" lado a lado no card
+    (`.meta-botoes`); o Retirar abre o modal de resgate (`data-meta-resgatar`) e vem desligado sem
+    nada guardado. O ícone ↓ do hover saiu. Na tela a palavra é "Retirar"; a rota segue `resgates`.
+  - **Saldo disponível por tipo de conta** (`SaldoPorTipoDeContaNoPainelTest`): com corrente E
+    poupança, o card do painel mostra as duas (`DashboardService::saldoPorTipo`, soma do
+    `current_balance` — o disponível — por tipo, plural com duas do mesmo tipo) ao lado do total
+    (`.com-tipos`, grade ≥ 601px; abaixo dele no celular, `order: 2`). Com um tipo só, o rótulo vira
+    "Saldo disponível · Conta corrente". Os valores ficam FORA do `.num`/`data-count`, que o
+    `dashboard.js` casa por índice.
 - **Rodapé de autoria** (`partials/rodape-autoria`, dentro do `#content` do `layouts/app`): logo,
   versão, "Desenvolvido com ♥ por" `config('sistema.autor.nome')` (o nome é link para o site), © 2026
   (vira intervalo nos anos seguintes). Sem a fileira de links Sobre/Termos/Privacidade (saiu por
@@ -2465,7 +2478,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.199 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.209 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
