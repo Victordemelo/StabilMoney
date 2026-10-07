@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.230 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **376 testes JS** (Vitest) + **223 checagens dos scripts** (backup 83, deploy 99, nginx 17, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.230 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **376 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -129,7 +129,7 @@ system (`design-system.css` + `forms.css`) — nunca inventar visual do zero.
 | Camada | Escolha | Observações |
 |--------|---------|-------------|
 | Backend | **Laravel 12** (PHP 8.4) | Monolito, resource controllers + Form Requests + Policies + Services. |
-| Banco | **MySQL 8.0** (Docker) | Container `db`; porta **3307 no host → 3306 no container** (db `stabilmoney`, user/password no `.env`). A 3307 no host só serve p/ ferramenta externa (DBeaver/TablePlus); o app fala com `db:3306` pela rede interna, então `DB_PORT=3306` no `.env`. |
+| Banco | **MySQL 8.0 no dev, 8.4 na produção e no CI** (Docker) | Container `db`; porta **3307 no host → 3306 no container** (db `stabilmoney`, user/password no `.env`). A 3307 no host só serve p/ ferramenta externa (DBeaver/TablePlus); o app fala com `db:3306` pela rede interna, então `DB_PORT=3306` no `.env`. |
 | Runtime | **Docker** (php:8.4-apache) | Container `app`, site em **http://localhost:8001** (porta do host → 80 no container). Host não precisa de PHP. Ativa o **`php.ini-production`** + `conf.d/zz-stabilmoney.ini` (upload 8M / post 12M, `expose_php=Off`, `date.timezone=America/Sao_Paulo`, `variables_order=EGPCS`) — cada valor justificado em comentário no `Dockerfile`. ⚠️ Container buildado antes de 16/09/2026 **não tem nada disso** (`php --ini` responde `(none)`): rode `docker compose up -d --build`. |
 | Frontend | **Blade + design system próprio** | `resources/css/design-system.css` (portado de `design/project/styles.css` v2) + `forms.css` + `auth.css` (telas de auth, escopado sob `.auth`). Tailwind 4 carregado como base utilitária via Vite 7. |
 | JS | **Vanilla** em `resources/js/sm/` (padrão atual) | Módulos em `resources/js/sm/` (ver mapa de pastas). **Frameworks/bibliotecas JS são liberados** quando a feature se beneficiar (decisão do Victor, jun/2026) — escolher a ferramenta certa caso a caso; "vanilla" deixou de ser obrigatório. |
@@ -2386,7 +2386,9 @@ layouts `layouts/admin` e `layouts/admin-auth`.
   Teste com VÁRIOS aparelhos e driver `database`: além de `forgetGuards()`, zere
   `$this->app->forgetInstance('auth.driver')` (é ele que preenche `sessions.user_id`) e
   `$this->app['cookie']->flushQueuedCookies()` — o app de teste não é recriado entre requisições.
-- **MySQL no CI: o job `mysql` está LIGADO** (23/09/2026) — a mesma suíte num serviço `mysql:8.0`.
+- **MySQL no CI: o job `mysql` está LIGADO** (23/09/2026) — a mesma suíte num serviço `mysql:8.4`
+  (out/2026: a 8.0 saiu de suporte em abril/2026; produção e CI na 8.4 LTS, o dev local segue na 8.0
+  para não mexer no volume do banco de dev — a suíte inteira passou nas duas).
   Para rodar local, crie um banco PRÓPRIO no container `db` (com o root, cuja senha está em
   `MYSQL_ROOT_PASSWORD` dentro dele) e rode com `-e DB_CONNECTION=mysql -e DB_DATABASE=<o seu>`;
   apague o banco no fim. A rodada de 22-23/09 passou inteira nos dois (1.723 testes).
@@ -2601,7 +2603,9 @@ visitante → Cloudflare (proxy, SSL Full strict) → nginx do HOST (:443, Let's
 - **`docker-compose.prod.yml`** (arquivo INTEIRO, não override — override somaria as portas do dev):
   app em `127.0.0.1:${HTTP_PORT:-8081}`, banco sem porta e com healthcheck, serviço **`agendador`**
   (`schedule:work` como www-data — não há cron do Laravel), `assets` (Node 24 num container, perfil
-  `ferramentas`), log com rotação, e rede com **gateway fixo 172.16.80.1**. O `.env` do servidor tem
+  `ferramentas`), log com rotação, **`mysql:8.4`**, tetos de memória (`mem_limit`: app 512m, agendador
+  256m, banco 768m — a VPS é dividida com o portfólio; conferidos pelo `deploy.test.sh` no
+  `docker compose config` de verdade), e rede com **gateway fixo 172.16.80.1**. O `.env` do servidor tem
   **`COMPOSE_FILE=docker-compose.prod.yml`**: o `docker compose` da pasta nunca sobe o compose de dev
   (8001 aberta + Mailpit). A pasta é montada no container, como no dev.
 - **🚨 `TRUSTED_PROXIES=172.16.80.1`** (`config/trustedproxy.php`, lido pelo `TrustProxies` do
@@ -2648,9 +2652,16 @@ visitante → Cloudflare (proxy, SSL Full strict) → nginx do HOST (:443, Let's
   (o trecho real do deploy.sh, como root, num container) e `atualizar-ips-cloudflare.test.sh`. Sem Docker, as partes que dependem dele são puladas com aviso.
 - **Pendências (não são código):** provedor de e-mail com remetente do domínio (SPF/DKIM/DMARC na
   Cloudflare — ela não envia e-mail; o nome dele entra na Política); revisão jurídica; Search Console
-  (TXT na Cloudflare + `/sitemap.xml`); desligar Rocket Loader e Email Obfuscation na Cloudflare.
-  Endurecimento opcional: as faixas da Cloudflare são de TODOS os clientes dela — com Authenticated
-  Origin Pulls (certificado da zona), só a zona do Victor chega à origem.
+  (TXT na Cloudflare + `/sitemap.xml`); desligar Rocket Loader e Email Obfuscation por **regra de
+  configuração só para o hostname** do app (o portfólio, na mesma zona, usa o Email Obfuscation).
+- **O que a sessão do servidor informou (out/2026):** o nginx da VPS tem `real_ip_header
+  CF-Connecting-IP` GLOBAL (nível http), o firewall só aceita a 443 das faixas da Cloudflare e há
+  Authenticated Origin Pulls por hostname (`ssl_verify_client on`). O `geo` sobre o
+  `$realip_remote_addr` continua certo com o real_ip global — um `allow/deny` com as faixas barraria
+  todo mundo (provado no `nginx.test.sh`, cenário "real_ip GLOBAL", e por mutação). Lá ele é uma
+  terceira camada; quem escreve o arquivo final do site no servidor é a sessão do servidor. O
+  `deploy.sh` termina com `docker image prune -f` (só imagens sem nome; falha só avisa; deploy que
+  para no meio não apaga nada).
 
 ## 🏗️ Visão de infraestrutura (decidida em jun/2026, ainda não executada)
 
