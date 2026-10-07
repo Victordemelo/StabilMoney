@@ -109,7 +109,9 @@ services:
     command: ["php", "artisan", "schedule:work"]
 
   db:
-    image: mysql:8.0
+    # 8.4 = a LTS atual (o 8.0 saiu de suporte em abril/2026), com imagem arm64. É a mesma
+    # do job `mysql` do CI. A produção nasce nela: não há dado de 8.0 para migrar.
+    image: mysql:8.4
     restart: unless-stopped
     environment:
       # Sem valores padrão, ao contrário do dev: faltando no .env, o Compose

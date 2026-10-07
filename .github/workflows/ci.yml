@@ -107,14 +107,15 @@ jobs:
   #   docker compose exec -T -e DB_CONNECTION=mysql -e DB_DATABASE=stabilmoney_testes app php artisan test
   # (o banco precisa existir e o usuário do app precisa de grant nele).
   mysql:
-    name: Suíte de testes (PHP 8.4 · MySQL 8.0)
+    name: Suíte de testes (PHP 8.4 · MySQL 8.4)
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
     services:
       mysql:
-        # A mesma imagem do docker-compose.yml.
-        image: mysql:8.0
+        # A mesma imagem do docker-compose.prod.yml (a produção). O dev local ainda roda a
+        # 8.0 (docker-compose.yml), para não mexer no volume do banco de dev.
+        image: mysql:8.4
         env:
           MYSQL_DATABASE: stabilmoney_testes
           MYSQL_ROOT_PASSWORD: root
