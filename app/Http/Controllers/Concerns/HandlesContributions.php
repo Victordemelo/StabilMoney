@@ -8,6 +8,7 @@ use App\Models\Investment;
 use App\Services\SpendingGuard;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -136,13 +137,33 @@ trait HandlesContributions
         return $account;
     }
 
-    /** Trava a linha do pai (Goal/Investment) — 2º elo da ordem de lock. */
+    /**
+     * Trava a linha do pai (Goal/Investment) — 2º elo da ordem de lock.
+     *
+     * Pai que SUMIU entre o carregamento da rota e a trava (excluído por outra pessoa da
+     * família no mesmo instante) não é reaproveitado (out/2026 — auditoria de concorrência,
+     * pendência 3): antes caía no `?? $parent`, e a movimentação ia para um id que não
+     * existe — erro 500 da chave estrangeira. Agora nada é gravado e a tela diz o porquê.
+     */
     protected function lockParent(Model $parent): Model
     {
-        return $parent->newQuery()
+        $travado = $parent->newQuery()
             ->whereKey($parent->getKey())
             ->lockForUpdate()
-            ->first() ?? $parent;
+            ->first();
+
+        if ($travado === null) {
+            $meta = $parent instanceof Goal;
+
+            throw new HttpResponseException(
+                redirect()->route($meta ? 'metas.index' : 'investimentos.index')->with('erro', ($meta
+                    ? 'A meta “'.$parent->name.'” foi excluída'
+                    : 'O investimento “'.$parent->name.'” foi excluído')
+                    .' enquanto você fazia esta movimentação. Nada foi gravado.')
+            );
+        }
+
+        return $travado;
     }
 
     /**

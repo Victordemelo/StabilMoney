@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\Brl;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class GoalController extends Controller
 {
@@ -87,14 +88,33 @@ class GoalController extends Controller
         // Antes, excluir devolvia o dinheiro à conta em silêncio e o histórico de aportes
         // sumia junto (cascade). Substitui a trava antiga, que só barrava com a conta no
         // vermelho — `ExclusaoDeMetaSoZeradaTest`.
-        $guardado = (float) $meta->saved;
-        if ($guardado > 0.001) {
-            return back()->withErrors(['meta' => 'A meta “'.$meta->name.'” ainda tem '.Brl::format($guardado)
-                .' guardados. Retire todo o dinheiro dela (botão Retirar) antes de excluí-la.']);
-        }
+        //
+        // A conferência e a exclusão acontecem SOB A TRAVA da meta (out/2026 — auditoria de
+        // concorrência, pendência 3). Sem ela, um aporte que entrasse entre "está zerada" e
+        // o DELETE era apagado junto pelo cascade, depois de a tela dele dizer que entrou.
+        // Com a trava, o aporte ou já entrou (e a meta não sai) ou espera, e ao travar a meta
+        // descobre que ela sumiu (`HandlesContributions::lockParent`).
+        $erro = DB::transaction(function () use ($meta) {
+            $travada = Goal::whereKey($meta->id)->lockForUpdate()->first();
+            if ($travada === null) {
+                return null; // outra pessoa da família já excluiu
+            }
 
-        // Zerada: os aportes e resgates (que se anulam) caem junto (cascadeOnDelete).
-        $meta->delete();
+            $guardado = (float) $travada->saved;
+            if ($guardado > 0.001) {
+                return 'A meta “'.$travada->name.'” ainda tem '.Brl::format($guardado)
+                    .' guardados. Retire todo o dinheiro dela (botão Retirar) antes de excluí-la.';
+            }
+
+            // Zerada: os aportes e resgates (que se anulam) caem junto (cascadeOnDelete).
+            $travada->delete();
+
+            return null;
+        }, attempts: 3);
+
+        if ($erro !== null) {
+            return back()->withErrors(['meta' => $erro]);
+        }
 
         return redirect()->route('metas.index')
             ->with('status', 'Meta removida.');
