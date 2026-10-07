@@ -91,10 +91,17 @@
                 $bom = $trend === null ? null : ($card['key'] === 'despesas' ? $trend < 0 : $trend >= 0);
                 $sparkVals = $payload['sparks'][$card['key']] ?? [];
             @endphp
-            <div @class(['card', 'stat', 'span3', 'dashboard-balance-hero' => $card['key'] === 'saldo']) style="animation-delay:{{ $card['delay'] }}">
+            @php
+                // Saldo por tipo de conta (out/2026): com corrente E poupança, o card mostra as duas;
+                // com um tipo só, o rótulo diz qual é ("Saldo disponível · Conta corrente").
+                $ehSaldo = $card['key'] === 'saldo';
+                $tiposDoSaldo = $ehSaldo ? ($saldoPorTipo ?? []) : [];
+                $rotulo = $card['label'] . (count($tiposDoSaldo) === 1 ? ' · ' . $tiposDoSaldo[0]['rotulo'] : '');
+            @endphp
+            <div @class(['card', 'stat', 'span3', 'dashboard-balance-hero' => $ehSaldo, 'com-tipos' => count($tiposDoSaldo) > 1]) style="animation-delay:{{ $card['delay'] }}">
                 <div class="stat-top">
                     <div class="ico {{ $card['g'] }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor">{!! $card['icon'] !!}</svg></div>
-                    <span class="label" title="{{ $card['hint'] }}">{{ $card['label'] }}</span>
+                    <span class="label" title="{{ $card['hint'] }}">{{ $rotulo }}</span>
                     @if ($trend === null)
                         <span class="trend neutral" data-trend="{{ $card['key'] }}">—</span>
                     @else
@@ -106,6 +113,18 @@
                      span próprio para o dashboard.js poder ligá-lo/desligá-lo ao trocar
                      de período sem remontar o número. O .num anima o valor ABSOLUTO. --}}
                 <div class="value {{ $value < 0 ? 'neg' : '' }}"><span class="sign">{{ $value < 0 ? '−' : '' }}</span><span class="cur">R$</span><span class="num" data-count="{{ $value }}" data-dec="2">{{ $money(abs($value)) }}</span></div>
+                @if (count($tiposDoSaldo) > 1)
+                    {{-- Fora do `.num`/`data-count`: o dashboard.js casa os stat cards por índice
+                         e não pode confundir estes valores com o do card. --}}
+                    <dl class="saldo-tipos" data-saldo-tipos>
+                        @foreach ($tiposDoSaldo as $tipo)
+                            <div class="saldo-tipo" data-saldo-tipo="{{ $tipo['tipo'] }}">
+                                <dt>{{ $tipo['rotulo'] }}</dt>
+                                <dd @class(['neg' => $tipo['valor'] < 0])>@brl($tipo['valor'])</dd>
+                            </div>
+                        @endforeach
+                    </dl>
+                @endif
                 @if (count($sparkVals) > 1)
                     <svg class="spark" data-spark="{{ $card['key'] }}" preserveAspectRatio="none" viewBox="0 0 120 34"></svg>
                 @endif

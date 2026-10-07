@@ -117,6 +117,10 @@ class DashboardService
         $reservado = $this->reservedTotals($userId);
         $saldoDisponivel = round($totalBalance - $reservado['total'], 2);
 
+        // O mesmo disponível, separado por TIPO de conta (out/2026 — Victor): com corrente e
+        // poupança, o card mostra o saldo de cada uma; com uma só, o rótulo diz qual é.
+        $saldoPorTipo = $this->saldoPorTipo($nonCardAccounts);
+
         $hasData = Transaction::where('user_id', $userId)->exists();
 
         // ----- Fluxo de caixa: semana, mês e ano saem da MESMA regra -----
@@ -255,6 +259,7 @@ class DashboardService
             'recent' => $recent,
             'accounts' => $accounts,
             'totalBalance' => $totalBalance,
+            'saldoPorTipo' => $saldoPorTipo,
             // Exibe "quem fez a compra" nas recentes só quando a família tem dependentes.
             'showAuthor' => User::where('account_owner_id', $userId)->exists(),
             // Resumos das features (metas, faturas a pagar, investimentos) p/ os cards.
@@ -262,6 +267,37 @@ class DashboardService
             // Painel "Meus cartões": gasto e limite disponível de cada cartão.
             ...$this->creditCardsPanel($accounts),
         ];
+    }
+
+    /**
+     * Disponível (`current_balance`, já sem metas e investimentos) somado por tipo de conta
+     * de banco — corrente primeiro, depois poupança —, só dos tipos que a família tem. Duas
+     * contas do mesmo tipo somam juntas, e o rótulo vai para o plural.
+     *
+     * @return list<array{tipo: string, rotulo: string, valor: float, contas: int}>
+     */
+    private function saldoPorTipo(Collection $contasDeBanco): array
+    {
+        $rotulos = [
+            'checking' => ['Conta corrente', 'Contas correntes'],
+            'savings' => ['Conta poupança', 'Contas poupança'],
+        ];
+
+        $tipos = [];
+        foreach ($rotulos as $tipo => [$singular, $plural]) {
+            $contas = $contasDeBanco->where('type', $tipo);
+            if ($contas->isEmpty()) {
+                continue;
+            }
+            $tipos[] = [
+                'tipo' => $tipo,
+                'rotulo' => $contas->count() > 1 ? $plural : $singular,
+                'valor' => round((float) $contas->sum(fn ($c) => (float) $c->current_balance), 2),
+                'contas' => $contas->count(),
+            ];
+        }
+
+        return $tipos;
     }
 
     /**

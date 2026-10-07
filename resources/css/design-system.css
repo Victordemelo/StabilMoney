@@ -1945,6 +1945,32 @@ body.pjax-loading #content { opacity: .5; }
 .dashboard-overview-grid .dashboard-balance-hero .value .sign { color: rgba(255,255,255,.72); font-size: 13px; }
 .dashboard-overview-grid .dashboard-balance-hero .trend { position: relative; z-index: 1; padding: 5px 8px; color: #D2F9E9; background: rgba(255,255,255,.1); }
 .dashboard-overview-grid .dashboard-balance-hero .trend.down { color: #FFD0C9; }
+/* Saldo por tipo de conta (out/2026): com corrente E poupança, as duas ao lado do total —
+   o total à esquerda (rótulo, valor, variação), as contas à direita. Na tela estreita, as
+   contas descem para baixo do total, lado a lado (ou uma sob a outra, se não couberem). */
+.dashboard-balance-hero .saldo-tipos {
+  /* `order: 2` = o mesmo do valor, e vem depois dele no HTML: sem isto (order 0) as contas
+     subiam para ACIMA do rótulo no celular, onde o card é coluna flex ordenada. */
+  order: 2; position: relative; z-index: 1; margin: 0 0 14px; width: 100%;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); gap: 8px;
+}
+.dashboard-balance-hero .saldo-tipo { padding: 10px 14px; border-radius: 13px; background: rgba(255,255,255,.08); min-width: 0; }
+.dashboard-balance-hero .saldo-tipo dt { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.67); }
+.dashboard-balance-hero .saldo-tipo dd { margin: 4px 0 0; font-family: var(--font-head); font-size: 17px; font-weight: 600; color: #fff; overflow-wrap: anywhere; }
+.dashboard-balance-hero .saldo-tipo dd.neg { color: #FFD0C9; }
+@media (min-width: 601px) {
+  .dashboard-overview-grid > .dashboard-balance-hero.com-tipos {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto); grid-template-rows: auto auto 1fr;
+    column-gap: 20px; align-items: start;
+  }
+  .dashboard-balance-hero.com-tipos .label { grid-column: 1; grid-row: 1; }
+  .dashboard-balance-hero.com-tipos .value { grid-column: 1; grid-row: 2; }
+  .dashboard-balance-hero.com-tipos .trend { grid-column: 1; grid-row: 3; align-self: end; justify-self: start; }
+  .dashboard-balance-hero.com-tipos .saldo-tipos {
+    grid-column: 2; grid-row: 1 / span 3; align-self: center;
+    grid-template-columns: minmax(0, 1fr); width: auto; min-width: min(170px, 30vw); margin: 0;
+  }
+}
 
 /* As artes dos cartões passam a ser reconhecíveis sem disputar com os dados. */
 .cc-list { --cc-item-h: 94px; gap: 16px; max-height: calc(var(--cc-item-h) * 2 + 16px); }
