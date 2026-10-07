@@ -9,7 +9,7 @@
     <meta name="sm-user" content="{{ auth()->id() }}" />
     {{-- Cor que o navegador do celular usa na barra de cima (e o Android na barra
          de status do app instalado). Precisa casar com o fundo REAL da página,
-         que é o token `--bg` do design-system.css: #EFF4F1 no claro, #07140E no
+         que é o token `--bg` (identidade.css): #F3F5F1 no claro, #021C1E no
          escuro. Antes era fixa em #0C3D2B (verde da sidebar): no tema claro dava
          uma faixa escura colada num conteúdo quase branco, e no escuro uma faixa
          mais clara que a página.
@@ -18,7 +18,7 @@
          `sm/theme.js` lerem do MESMO lugar (o CSS não é acessível pelo JS sem
          getComputedStyle). O marcador `data-sm-theme` é o que autoriza o JS a
          mexer nesta meta — as telas de auth têm cor fixa e não o levam. --}}
-    <meta name="theme-color" content="#EFF4F1" data-sm-theme data-light="#EFF4F1" data-dark="#07140E" />
+    <meta name="theme-color" content="#F3F5F1" data-sm-theme data-light="#F3F5F1" data-dark="#021C1E" />
     {{-- Versão do build com que ESTA página foi montada (P-6 da auditoria de 06/09/2026).
          Mesma fonte do `const VERSAO` do service worker (PwaController::versaoDoBuild).
          O pjax compara com a da página que acabou de buscar — deploy no meio = navegação
@@ -66,7 +66,7 @@
     {{-- Fontes do design system (Sora + Plus Jakarta Sans) --}}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Geist:wght@400..600&display=swap" rel="stylesheet" />
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>

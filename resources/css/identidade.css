@@ -1,0 +1,184 @@
+/* ============================================================
+   Identidade visual de out/2026 no app inteiro — o guia está em design_stabilmoney/.
+
+   Verde-petróleo profundo (mata #032628) nas superfícies de peso, UM destaque lima
+   (#9FE870) nas ações principais, títulos em Bricolage Grotesque e texto em Geist,
+   botões em pílula, sem degradê de enfeite.
+
+   Folha CARREGADA POR ÚLTIMO (app.css): redefine os tokens do design-system.css e do
+   escopo .auth e sobrescreve os poucos lugares que tinham cor fixa ou degradê. As telas
+   continuam usando os mesmos tokens (--brand-*, --ink, --surface…), então tudo que já
+   pergunta ao token muda junto, sem tocar em cada regra.
+   ============================================================ */
+
+:root,
+.auth {
+  /* Escala da marca: do mata (900) ao lima (300) e seus tons claros (200–50).
+     600/700 são verdes ESCUROS o bastante para texto sobre o branco; 300 é o lima,
+     que só aparece como forma (barra, selo, contorno) ou sobre fundo escuro. */
+  --brand-900: #032628;
+  --brand-800: #0A3A36;
+  --brand-700: #0F4A43;
+  --brand-600: #16604F;
+  --brand-500: #1F7A5C;
+  --brand-400: #5FB878;
+  --brand-300: #9FE870;
+  --brand-200: #CDEFB4;
+  --brand-100: #E4F7D4;
+  --brand-50:  #F2FAEB;
+
+  --lima: #9FE870;
+  --lima-hover: #B4F08E;
+  --mata: #032628;
+  --abeto: #0A3A36;
+
+  --pos: #1D7A4C;
+
+  --font-head: "Bricolage Grotesque", "Sora", system-ui, sans-serif;
+  --font-body: "Geist", "Plus Jakarta Sans", system-ui, sans-serif;
+}
+
+:root {
+  --bg: #F3F5F1;
+  --surface: #FFFFFF;
+  --surface-2: #F7F9F5;
+  --surface-3: #EEF2EC;
+  --ink: #0E1A14;
+  --ink-2: #454745;
+  --ink-3: #6B726D;
+  --line: #DDE3DC;
+  --line-2: #EBEFE9;
+  --shadow-sm: 0 1px 2px rgba(3,38,40,.06);
+  --shadow-md: 0 6px 18px rgba(3,38,40,.07);
+  --shadow-lg: 0 24px 56px rgba(3,38,40,.16);
+  --shadow-card: 0 1px 2px rgba(3,38,40,.04);
+
+  --side-bg-1: #032628;
+  --side-bg-2: #032628;
+  --side-ink: #FFFFFF;
+  --side-muted: #9DB5AE;
+  --side-line: rgba(255,255,255,.08);
+}
+
+[data-theme="dark"] {
+  --bg: #021C1E;
+  --surface: #062A2C;
+  --surface-2: #083234;
+  --surface-3: #0B3A3B;
+  --ink: #EEF5F0;
+  --ink-2: #B9CBC5;
+  --ink-3: #7E9690;
+  --line: rgba(255,255,255,.08);
+  --line-2: rgba(255,255,255,.05);
+  --pos: #9FE870;
+  /* No escuro, os tons de TEXTO da marca (links, "Ver todas", valor positivo, aba ativa)
+     viram lima: o verde-escuro do tema claro some sobre o mata. */
+  --brand-700: #B4F08E;
+  --brand-600: #9FE870;
+  --brand-500: #7FD36A;
+  --side-bg-1: #011517;
+  --side-bg-2: #011517;
+}
+
+.auth {
+  --ink: #0E1A14; --ink-2: #454745; --ink-3: #6B726D; --line: #DDE3DC;
+  --surface: #FFFFFF; --surface-2: #F7F9F5; --surface-3: #EEF2EC;
+  background: var(--mata);
+}
+
+/* ----- Tipografia: títulos blocados, números na fonte dos títulos ----- */
+body { -webkit-font-smoothing: antialiased; }
+.greeting h1 { font-weight: 800; font-size: 24px; letter-spacing: -.03em; }
+.section-head h2 { font-weight: 700; letter-spacing: -.02em; }
+.card-head h3 { font-weight: 700; letter-spacing: -.015em; }
+.brand-name, .auth .av-word { letter-spacing: -.02em; font-weight: 800; }
+.brand-name b, .auth .av-word b { color: var(--lima); font-weight: 800; }
+
+/* ----- Ações principais: pílula lima com texto escuro, sem degradê nem sombra ----- */
+.btn.primary,
+.btn-primary,
+.auth .btn-primary,
+.launch-btn,
+.pagination .pg.current {
+  background: var(--lima);
+  color: var(--ink) !important;
+  box-shadow: none;
+  border-radius: 999px;
+}
+.auth .btn-primary { color: #0E1A14 !important; }
+.btn.primary:hover,
+.btn-primary:hover,
+.auth .btn-primary:hover,
+.launch-btn:hover {
+  background: var(--lima-hover);
+  box-shadow: none;
+  transform: none;
+}
+[data-theme="dark"] .btn.primary,
+[data-theme="dark"] .btn-primary,
+[data-theme="dark"] .launch-btn,
+[data-theme="dark"] .pagination .pg.current { color: #0E1A14 !important; }
+.btn-danger { background: var(--neg); border-radius: 999px; box-shadow: none; }
+.btn-danger:hover { transform: none; box-shadow: none; filter: brightness(.95); }
+.btn.ghost, .btn-ghost { border-radius: 999px; }
+.btn { border-radius: 999px; }
+
+/* Botão flutuante do celular: lima, com o "+" escuro. */
+.bn-item.fab { background: var(--lima); color: var(--mata); box-shadow: 0 10px 22px rgba(3,38,40,.28); border-radius: 50%; }
+
+/* ----- Barra lateral: mata liso, sem o brilho; item ativo marcado em lima ----- */
+.sidebar { background: var(--side-bg-1); }
+.sidebar::after, .sb-glow { display: none; }
+.nav-item.active { background: rgba(255,255,255,.08); }
+.nav-item.active::before { background: var(--lima); box-shadow: none; }
+.nav-item .badge { background: var(--lima); color: var(--mata); }
+.side-balance { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.08); }
+.brand-mark .s-arrow { stroke: var(--lima); }
+
+/* ----- Cartões escuros: cartão de crédito e o saldo em destaque do painel ----- */
+.cc { background: var(--abeto); }
+.cc::before { display: none; }
+.dashboard-overview-grid .dashboard-balance-hero { background: var(--mata); box-shadow: none; }
+
+/* Barras de progresso: cor lisa (o lima no escuro, o verde da marca no claro). */
+.bar i, .dp-bar > i, .dp-bar > .dp-bar-fill { background: var(--brand-500); }
+[data-theme="dark"] .bar i,
+[data-theme="dark"] .dp-bar > i,
+[data-theme="dark"] .dp-bar > .dp-bar-fill { background: var(--lima); }
+.dp-bar.cheque > i, .dp-bar > .dp-bar-fill.over { background: var(--neg); }
+
+/* Iniciais no lugar da foto: abeto liso. */
+.avatar-preview, .sis-autor-av { background: var(--abeto); }
+
+/* ----- Telas de entrada: o painel do vídeo em mata, sem os brilhos verdes ----- */
+.auth .auth-visual { background: var(--mata); }
+.auth .auth-visual::after { display: none; }
+.auth .auth-veil {
+  background: linear-gradient(180deg, rgba(3,38,40,.72) 0%, rgba(3,38,40,.12) 34%, rgba(3,38,40,.28) 62%, rgba(3,38,40,.92) 100%);
+}
+.auth .check.terms a, .auth .link { color: var(--brand-600); }
+
+/* Marca escrita no topo do celular: a mesma da barra lateral (apertada, peso 800). */
+.mobile-top .mbrand { letter-spacing: -.02em; font-weight: 800; }
+.mobile-top .mbrand b { font-weight: 800; }
+/* O tamanho fica o do design-system (15px; 13,5px até 380px; some até 340px). */
+@media (max-width: 380px) { .mobile-top .mbrand { letter-spacing: -.02em; } }
+
+/* Saldo em destaque no tema ESCURO: o mata é quase o fundo da página e o card sumia. Fica no
+   abeto, com um contorno — o destaque continua sendo o card mais escuro-verde da tela. */
+[data-theme="dark"] .dashboard-overview-grid .dashboard-balance-hero {
+  background: var(--abeto); border: 1px solid rgba(159, 232, 112, .18);
+}
+
+/* Iniciais no lugar da foto: lima com letra escura, nos dois temas (no escuro o --brand-600
+   vira lima, e o texto branco sumia). */
+.avatar-initials { background: var(--lima); color: var(--mata); }
+
+/* Outras iniciais e selos sobre a cor da marca: letra escura sobre o lima. Com o --brand-600
+   virando lima no escuro, o branco desses lugares ficava ilegível. */
+.tfa-familia-foto.iniciais, .avatar-pick-cam { background: var(--lima); color: var(--mata); }
+[data-theme="dark"] .dp-av[style*="--brand-600"] { color: var(--mata); }
+
+/* Marca escrita dentro do card das telas de entrada (no celular, acima do formulário). */
+.auth .ac-brand span { letter-spacing: -.02em; font-weight: 800; }
+.auth .ac-brand span b { font-weight: 800; }

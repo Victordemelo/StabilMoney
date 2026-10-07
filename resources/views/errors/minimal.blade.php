@@ -53,20 +53,20 @@
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}">
     <style>
         :root {
-            --brand-700: #11624A;
-            --brand-600: #15795A;
-            --brand-500: #1C9A70;
-            --brand-300: #6FCDA8;
-            --brand-100: #DCF1E8;
-            --brand-50: #EEF8F3;
-            --bg: #EFF4F1;
+            --brand-700: #0F4A43;
+            --brand-600: #16604F;
+            --brand-500: #1F7A5C;
+            --brand-300: #9FE870;
+            --brand-100: #E4F7D4;
+            --brand-50: #F2FAEB;
+            --bg: #F3F5F1;
             --surface: #FFFFFF;
             --ink: #112019;
             --ink-2: #46584F;
             --line: #E5ECE8;
             --shadow-lg: 0 18px 48px rgba(11,58,40,.14), 0 6px 18px rgba(11,58,40,.08);
-            --font-head: "Sora", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-            --font-body: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            --font-head: "Bricolage Grotesque", "Sora", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            --font-body: "Geist", "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }

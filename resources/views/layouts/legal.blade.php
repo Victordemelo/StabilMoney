@@ -6,9 +6,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     {{-- Mesma regra do layouts/app: a cor da barra do celular acompanha o `--bg`
-         do tema (claro #EFF4F1, escuro #07140E), porque estas páginas usam o
+         do tema (claro #F3F5F1, escuro #021C1E), porque estas páginas usam o
          design system inteiro e o tema salvo. Ver o comentário longo lá. --}}
-    <meta name="theme-color" content="#EFF4F1" data-sm-theme data-light="#EFF4F1" data-dark="#07140E" />
+    <meta name="theme-color" content="#F3F5F1" data-sm-theme data-light="#F3F5F1" data-dark="#021C1E" />
     <title>@yield('title', 'StabilMoney')</title>
     @include('partials.seo', ['seoTitulo' => trim($__env->yieldContent('title', 'StabilMoney'))])
 
@@ -38,7 +38,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Geist:wght@400..600&display=swap" rel="stylesheet" />
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 

@@ -43,13 +43,13 @@ class TemaNasBordasTest extends TestCase
         $this->actingAs($user)->get('/')
             ->assertOk()
             ->assertSee('data-sm-theme', escape: false)
-            ->assertSee('data-light="#EFF4F1"', escape: false)
-            ->assertSee('data-dark="#07140E"', escape: false);
+            ->assertSee('data-light="#F3F5F1"', escape: false)
+            ->assertSee('data-dark="#021C1E"', escape: false);
 
         // Páginas legais são públicas e usam o outro layout — mesma regra.
         $this->get('/termos')
             ->assertOk()
-            ->assertSee('data-dark="#07140E"', escape: false);
+            ->assertSee('data-dark="#021C1E"', escape: false);
     }
 
     /**
@@ -61,7 +61,7 @@ class TemaNasBordasTest extends TestCase
     {
         $this->get('/login')
             ->assertOk()
-            ->assertSee('content="#0C3D2B"', escape: false)
+            ->assertSee('content="#032628"', escape: false)
             ->assertDontSee('data-sm-theme', escape: false);
     }
 

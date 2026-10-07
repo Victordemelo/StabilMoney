@@ -18,7 +18,7 @@
          o topo da tela é o painel do vídeo — verde-escuro em qualquer tema. Por
          isso esta meta fica sem o marcador `data-sm-theme` e o `sm/theme.js` não
          encosta nela. #0C3D2B é o verde da marca (mesmo fundo dos ícones). --}}
-    <meta name="theme-color" content="#0C3D2B" />
+    <meta name="theme-color" content="#032628" />
 
     {{-- Mesmo padrão do layouts/app: a view informa `@section('title')` e o
          layout compõe. Com o título fixo, as cinco telas de auth apareciam
@@ -41,7 +41,7 @@
     {{-- Fontes do design system (Sora + Plus Jakarta Sans) --}}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Geist:wght@400..600&display=swap" rel="stylesheet" />
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>

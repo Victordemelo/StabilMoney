@@ -19,12 +19,12 @@
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     {{-- `noindex` de verdade: o painel não pode aparecer em buscador nenhum. --}}
     <meta name="robots" content="noindex, nofollow, noarchive" />
-    <meta name="theme-color" content="#0C3D2B" />
+    <meta name="theme-color" content="#032628" />
     <title>@yield('title', 'Painel') · Stabil Money</title>
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Geist:wght@400..600&display=swap" rel="stylesheet" />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="auth-body">
