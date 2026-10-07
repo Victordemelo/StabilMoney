@@ -23,6 +23,7 @@ import { initBaloes, promoverFlashes } from './sm/balao';
 import { initTutorial, tutorialAposTrocarDeTela } from './sm/tutorial';
 import { initVitrine } from './sm/vitrine';
 import { melhorarCamposDeData } from './sm/data-br';
+import { initRolagemSuave } from './sm/rolagem-suave';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -68,6 +69,7 @@ function init() {
     initAuth();
     initRecuperarSenha(); // "Recuperar senha": o Reenviar com contagem
     initVitrine();        // página inicial: a prévia viva do app no topo
+    initRolagemSuave();   // página inicial: o menu desliza até a seção
     // "Tem certeza?" dos formulários de excluir (`form[data-confirmar]`): um ouvinte
     // só, no documento, que vale também para o conteúdo trocado pelo pjax. Substitui os
     // `onsubmit="return confirm(...)"`, que a CSP bloqueia.

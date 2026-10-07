@@ -238,4 +238,19 @@ class PaginaInicialPublicaTest extends TestCase
         $this->assertStringContainsString('"name":"Preciso informar os dados do meu cartão?"', $html);
         $this->assertStringContainsString('nunca pede o número do cartão, o código de segurança (CVV), a validade nem a senha', $html);
     }
+
+    public function test_quem_fez_conta_a_historia_do_projeto(): void
+    {
+        $this->get('/')->assertOk()
+            ->assertSee('Por muito tempo eu procurei um aplicativo para organizar a minha vida financeira.')
+            ->assertSee('O projeto nasceu com o nome MoneyLife')
+            ->assertSee('<strong>Stabil Money</strong>, dinheiro estável.', false);
+    }
+
+    public function test_o_menu_desliza_ate_a_secao_e_respeita_reduzir_movimento(): void
+    {
+        $css = file_get_contents(resource_path('css/inicio.css'));
+        $this->assertMatchesRegularExpression('/@media \(prefers-reduced-motion: no-preference\) \{\s*\.inicio-body \{ scroll-behavior: smooth; \}/', $css);
+        $this->assertStringContainsString("import { initRolagemSuave } from './sm/rolagem-suave';", file_get_contents(resource_path('js/app.js')));
+    }
 }

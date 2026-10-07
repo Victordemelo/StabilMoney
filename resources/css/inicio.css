@@ -10,6 +10,10 @@
    trava `body { overflow: hidden }` (no app quem rola é o #content); aqui a página inteira rola.
    ============================================================ */
 .inicio-body { height: auto; min-height: 100%; overflow-y: auto; overflow-x: hidden; background: #FFFFFF; }
+/* O menu leva às seções DESLIZANDO (sm/rolagem-suave.js dá a curva; sem JS, o do navegador). */
+@media (prefers-reduced-motion: no-preference) {
+  .inicio-body { scroll-behavior: smooth; }
+}
 
 .inicio {
   --mata: #032628;      /* superfícies escuras — topo, abertura, Segurança e chamada final */
