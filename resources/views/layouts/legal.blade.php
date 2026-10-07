@@ -15,7 +15,7 @@
     <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
     @include('partials.pwa-head')
 
-    {{-- Anti-flash: aplica o tema (o salvo; sem escolha, o do sistema) antes de pintar +
+    {{-- Anti-flash: aplica o tema (o salvo; sem escolha, o claro) antes de pintar +
          acerta as cores das bordas do sistema (barra do navegador/status). Cópia
          deliberada do inline do layouts/app — o iOS lê a meta da barra no carregamento,
          então isto não pode esperar o bundle; ao mexer aqui, mexa lá também (o
@@ -24,9 +24,8 @@
         (function () {
             var t;
             try { t = localStorage.getItem('sm-theme'); } catch (e) { /* storage indisponível */ }
-            if (t !== 'dark' && t !== 'light') {
-                try { t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch (e) { t = 'light'; }
-            }
+            // Sem escolha salva, o CLARO — inclusive com o sistema no modo escuro (out/2026).
+            if (t !== 'dark') t = 'light';
             document.documentElement.setAttribute('data-theme', t);
 
             var cor = document.querySelector('meta[name="theme-color"][data-sm-theme]');

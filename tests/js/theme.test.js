@@ -5,10 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Tema claro/escuro (`resources/js/sm/theme.js` + o anti-flash inline dos layouts).
  *
- * O defeito (observação da auditoria de PWA de 06/09/2026): sem preferência salva, o app
- * abria SEMPRE claro — num celular no modo escuro, um clarão a cada abertura. A regra agora:
- * a escolha explícita (botão de tema, `sm-theme`) manda; sem ela, vale o tema do sistema
- * (`prefers-color-scheme`), inclusive quando ele muda com a página aberta.
+ * A regra (out/2026, decisão do Victor: "a primeira vez é modo claro"): a escolha explícita
+ * (botão de tema, `sm-theme`) manda; sem ela, vale o CLARO — também com o sistema no modo
+ * escuro, e sem acompanhar a mudança do sistema. (De set a out/2026 valia o do sistema.)
  *
  * A regra mora em DOIS lugares, de propósito: no `resolverTema` do módulo e no script inline
  * do <head> dos layouts app e legal, que precisa rodar antes do CSS pintar (o bundle chega
@@ -82,26 +81,35 @@ afterEach(() => {
 
 describe('resolverTema: a regra', () => {
     it.each([
-        // [salvo, sistema escuro?, esperado]
-        [null, true, 'dark'],
-        [null, false, 'light'],
-        ['dark', false, 'dark'],
-        ['light', true, 'light'],
-        ['dark', true, 'dark'],
-        ['light', false, 'light'],
-        // Lixo no storage (versão antiga, extensão) não é escolha: vale o sistema.
-        ['azul', true, 'dark'],
-        ['', false, 'light'],
-    ])('salvo=%s, sistema escuro=%s → %s', async (salvo, escuro, esperado) => {
+        // [salvo, esperado]
+        [null, 'light'],
+        ['dark', 'dark'],
+        ['light', 'light'],
+        // Lixo no storage (versão antiga, extensão) não é escolha: vale o claro.
+        ['azul', 'light'],
+        ['', 'light'],
+    ])('salvo=%s → %s', async (salvo, esperado) => {
         const { resolverTema } = await import('../../resources/js/sm/theme.js');
 
-        expect(resolverTema(salvo, escuro)).toBe(esperado);
+        expect(resolverTema(salvo)).toBe(esperado);
     });
 });
 
 describe('initTheme: página que segue o tema (layouts app e legal)', () => {
-    it('sem escolha salva e sistema escuro: abre ESCURO, com as bordas do sistema junto', async () => {
+    it('primeira entrada, com o sistema no modo ESCURO: abre CLARO, com as bordas do sistema junto', async () => {
         sistemaEm(true);
+        montarPagina({ temaDoServidor: null });
+
+        await iniciarTema();
+
+        expect(tema()).toBe('light');
+        expect(corDaBarra()).toBe('#EFF4F1');
+        expect(barraDoIphone()).toBe('default');
+    });
+
+    it('a escolha salva vale: quem escolheu o escuro abre escuro', async () => {
+        localStorage.setItem('sm-theme', 'dark');
+        sistemaEm(false);
         montarPagina();
 
         await iniciarTema();
@@ -111,64 +119,30 @@ describe('initTheme: página que segue o tema (layouts app e legal)', () => {
         expect(barraDoIphone()).toBe('black');
     });
 
-    it('sem escolha salva e sistema claro: abre claro', async () => {
-        sistemaEm(false);
+    it('o sistema mudar com a página aberta não troca o tema', async () => {
+        const sistema = sistemaEm(false);
         montarPagina();
-
         await iniciarTema();
 
+        sistema.mudarPara(true);
+
         expect(tema()).toBe('light');
-        expect(corDaBarra()).toBe('#EFF4F1');
     });
 
-    it('a escolha salva vence o sistema', async () => {
-        localStorage.setItem('sm-theme', 'light');
+    it('o botão grava a escolha explícita, e ela vale na próxima visita', async () => {
         sistemaEm(true);
         montarPagina();
-
         await iniciarTema();
-
         expect(tema()).toBe('light');
-    });
-
-    it('o sistema muda com a página aberta: sem escolha salva, o app acompanha', async () => {
-        const sistema = sistemaEm(false);
-        montarPagina();
-        await iniciarTema();
-
-        sistema.mudarPara(true);
-        expect(tema()).toBe('dark');
-        expect(corDaBarra()).toBe('#07140E');
-
-        sistema.mudarPara(false);
-        expect(tema()).toBe('light');
-    });
-
-    it('com escolha salva, a mudança do sistema não mexe no tema', async () => {
-        localStorage.setItem('sm-theme', 'light');
-        const sistema = sistemaEm(false);
-        montarPagina();
-        await iniciarTema();
-
-        sistema.mudarPara(true);
-
-        expect(tema()).toBe('light');
-    });
-
-    it('o botão grava a escolha explícita — e daí em diante o sistema não manda mais', async () => {
-        const sistema = sistemaEm(true);
-        montarPagina();
-        await iniciarTema();
-        expect(tema()).toBe('dark');
 
         document.getElementById('themeBtn').click();
 
-        expect(tema()).toBe('light');
-        expect(localStorage.getItem('sm-theme')).toBe('light');
+        expect(tema()).toBe('dark');
+        expect(localStorage.getItem('sm-theme')).toBe('dark');
 
-        sistema.mudarPara(false);
-        sistema.mudarPara(true);
-        expect(tema()).toBe('light');
+        montarPagina({ temaDoServidor: null });
+        await iniciarTema();
+        expect(tema()).toBe('dark');
     });
 
     it('o botão do celular grava do mesmo jeito', async () => {
@@ -182,16 +156,15 @@ describe('initTheme: página que segue o tema (layouts app e legal)', () => {
         expect(localStorage.getItem('sm-theme')).toBe('dark');
     });
 
-    it('seguir o sistema NÃO grava nada: a escolha salva é só a do botão', async () => {
-        const sistema = sistemaEm(true);
+    it('abrir sem escolher NÃO grava nada: a escolha salva é só a do botão', async () => {
+        sistemaEm(true);
         montarPagina();
         await iniciarTema();
-        sistema.mudarPara(false);
 
         expect(localStorage.getItem('sm-theme')).toBeNull();
     });
 
-    it('navegador sem matchMedia: abre claro, como sempre foi, sem quebrar', async () => {
+    it('navegador sem matchMedia: abre claro, sem quebrar', async () => {
         montarPagina();
 
         await iniciarTema();
@@ -199,26 +172,14 @@ describe('initTheme: página que segue o tema (layouts app e legal)', () => {
         expect(tema()).toBe('light');
     });
 
-    it('storage bloqueado: segue o sistema e não quebra', async () => {
+    it('storage bloqueado: abre claro e não quebra', async () => {
         vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('bloqueado'); });
         sistemaEm(true);
         montarPagina();
 
         await iniciarTema();
 
-        expect(tema()).toBe('dark');
-    });
-
-    it('Safari antigo (só addListener) também acompanha a mudança', async () => {
-        const ouvintes = [];
-        const consulta = { matches: false, addListener: (f) => ouvintes.push(f) };
-        window.matchMedia = vi.fn(() => consulta);
-        montarPagina();
-        await iniciarTema();
-
-        ouvintes.forEach((f) => f({ matches: true }));
-
-        expect(tema()).toBe('dark');
+        expect(tema()).toBe('light');
     });
 });
 
@@ -290,7 +251,7 @@ describe('o anti-flash inline dos layouts aplica a MESMA regra', () => {
             // o navegador executaria o <script> do <head>.
             new Function(antiFlash(layout))();
 
-            const esperado = resolverTema(storage === 'ok' ? salvo : null, sistema === 'escuro');
+            const esperado = resolverTema(storage === 'ok' ? salvo : null);
             expect(tema()).toBe(esperado);
             expect(corDaBarra()).toBe(esperado === 'dark' ? '#07140E' : '#EFF4F1');
             expect(barraDoIphone()).toBe(esperado === 'dark' ? 'black' : 'default');

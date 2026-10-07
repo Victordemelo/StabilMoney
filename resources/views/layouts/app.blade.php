@@ -41,18 +41,17 @@
          A mesma conta é refeita pelo `sm/theme.js` quando o usuário troca o tema
          (as duas pontas leem os hex dos data-light/data-dark da meta acima).
 
-         Qual tema: a escolha SALVA (botão de tema); sem escolha, o do SISTEMA
-         (`prefers-color-scheme`) — antes era sempre o claro, e o app abria branco num
-         celular no modo escuro. É a regra do `resolverTema` do sm/theme.js, escrita de
+         Qual tema: a escolha SALVA (botão de tema); sem escolha, o CLARO — a primeira
+         entrada é sempre clara, também com o sistema no modo escuro (out/2026, decisão
+         do Victor). É a regra do `resolverTema` do sm/theme.js, escrita de
          novo aqui porque este trecho não pode esperar o bundle; o
          tests/js/theme.test.js executa este script e confere que as duas concordam. --}}
     <script nonce="{{ Vite::cspNonce() }}">
         (function () {
             var t;
             try { t = localStorage.getItem('sm-theme'); } catch (e) { /* storage indisponível */ }
-            if (t !== 'dark' && t !== 'light') {
-                try { t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } catch (e) { t = 'light'; }
-            }
+            // Sem escolha salva, o CLARO — inclusive com o sistema no modo escuro (out/2026).
+            if (t !== 'dark') t = 'light';
             document.documentElement.setAttribute('data-theme', t);
 
             var cor = document.querySelector('meta[name="theme-color"][data-sm-theme]');
