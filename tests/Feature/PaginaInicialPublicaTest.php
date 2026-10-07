@@ -66,6 +66,23 @@ class PaginaInicialPublicaTest extends TestCase
         $this->get(route('login'))->assertOk()->assertSee('class="selo-do-video"', false);
     }
 
+    /** A faixa clara logo abaixo do topo, com a ilustração da carteira na balança (out/2026). */
+    public function test_a_faixa_do_equilibrio_vem_logo_abaixo_do_topo_com_a_ilustracao(): void
+    {
+        $html = $this->get('/')->assertOk()->getContent();
+
+        $faixa = strpos($html, 'class="in-equilibrio"');
+        $this->assertNotFalse($faixa);
+        $this->assertGreaterThan(strpos($html, '<section class="in-hero">'), $faixa);
+        $this->assertLessThan(strpos($html, 'id="recursos"'), $faixa, 'A faixa vem antes dos Recursos.');
+        $this->assertStringContainsString('src="'.asset('assets/equilibrio-1600.jpg').'"', $html);
+        $this->assertMatchesRegularExpression('/<img class="in-equilibrio-img"[^>]*alt="Ilustração de uma carteira/', $html);
+
+        foreach (['equilibrio-1600.jpg', 'equilibrio-900.jpg'] as $arquivo) {
+            $this->assertFileExists(public_path('assets/'.$arquivo));
+        }
+    }
+
     public function test_quem_entrou_continua_indo_para_a_visao_geral(): void
     {
         $this->actingAs(User::factory()->create())->get('/')->assertOk()

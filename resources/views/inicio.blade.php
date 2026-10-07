@@ -118,6 +118,23 @@
             </div>
         </section>
 
+        {{-- ---------- Equilíbrio: faixa clara com a ilustração (out/2026 — pedido do Victor) ---------- --}}
+        <section class="in-equilibrio" aria-labelledby="equilibrio-titulo">
+            <div class="in-wrap">
+                <div class="in-titulo">
+                    <span class="in-eyebrow">Equilíbrio</span>
+                    <h2 id="equilibrio-titulo">Equilíbrio é saber para onde vai cada real</h2>
+                    <p>O que entra, o que vence e o que você guarda, na mesma balança — para cada decisão caber no mês.</p>
+                </div>
+                <img class="in-equilibrio-img"
+                     src="{{ asset('assets/equilibrio-1600.jpg') }}"
+                     srcset="{{ asset('assets/equilibrio-900.jpg') }} 900w, {{ asset('assets/equilibrio-1600.jpg') }} 1600w"
+                     sizes="(max-width: 1120px) 100vw, 1080px"
+                     alt="Ilustração de uma carteira equilibrada sobre uma balança de madeira, entre moedas, uma planta e dois painéis com gráficos"
+                     width="1600" height="900" loading="lazy" decoding="async">
+            </div>
+        </section>
+
         {{-- ---------- Recursos ---------- --}}
         <section class="in-secao" id="recursos">
             <div class="in-wrap">

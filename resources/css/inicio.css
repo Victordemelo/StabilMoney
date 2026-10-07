@@ -120,6 +120,17 @@
 .in-lista li::before { content: "✓"; flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px;
   color: var(--brand-700); background: var(--brand-50); }
 
+/* ----- Equilíbrio: a faixa clara com a ilustração (out/2026) -----
+   O fundo é o creme da própria imagem (#f9f5f0, medido nas bordas dela) e as bordas da
+   imagem se esfumam nele: sem isso, um retângulo levemente mais claro marcava a faixa. */
+.in-equilibrio { padding: 76px 0 28px; background: #f9f5f0; border-bottom: 1px solid var(--line); }
+.in-equilibrio .in-titulo { margin-bottom: 4px; }
+.in-equilibrio-img { display: block; width: 100%; max-width: 1080px; height: auto; margin: 0 auto;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 13%, #000 87%, transparent), linear-gradient(to bottom, transparent, #000 14%, #000 90%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent, #000 13%, #000 87%, transparent), linear-gradient(to bottom, transparent, #000 14%, #000 90%, transparent);
+  mask-composite: intersect; }
+
 /* ----- Quem fez ----- */
 /* A foto (out/2026): retangular, grande, centralizada na altura do texto (`align-items: center`). */
 .in-autor { display: grid; grid-template-columns: minmax(0, 280px) minmax(0, 1fr); gap: 44px; align-items: center; max-width: 1040px; margin: 0 auto;
