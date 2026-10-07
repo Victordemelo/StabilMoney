@@ -4,6 +4,7 @@ import { initDashboard } from './sm/dashboard';
 import { initCategories } from './sm/categories';
 import { initAuth } from './sm/auth';
 import { initSecurity } from './sm/security';
+import { initMostrarSenha } from './sm/mostrar-senha';
 import { initMetas } from './sm/metas';
 import { initInvestimentos } from './sm/investimentos';
 import { initFaturas } from './sm/faturas';
@@ -62,6 +63,8 @@ function init() {
     // só, no documento, que vale também para o conteúdo trocado pelo pjax. Substitui os
     // `onsubmit="return confirm(...)"`, que a CSP bloqueia.
     initConfirmar();
+    // O "olho" dos campos de senha (`.pw-toggle`): também um ouvinte só, no documento.
+    initMostrarSenha();
     // O modal de escolha de fonte vive no shell (serve os 3 formulários), então
     // é ligado uma vez só, antes de quem o consome.
     initFunding();

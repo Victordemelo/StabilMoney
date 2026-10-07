@@ -259,7 +259,13 @@
                 </div>
                 <div class="field">
                     <label for="dep-password">Senha</label>
-                    <input class="input" type="password" id="dep-password" name="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" required>
+                    {{-- O "olho" mostra a senha que o titular está criando (sm/mostrar-senha.js). --}}
+                    <div class="input-pw">
+                        <input class="input" type="password" id="dep-password" name="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" required>
+                        <button type="button" class="pw-toggle" data-toggle="dep-password" aria-label="Mostrar senha" aria-pressed="false">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="modal-foot">
@@ -343,7 +349,12 @@
                     </div>
                     <div class="field">
                         <label for="dep-edit-password-{{ $dep->id }}">Nova senha <span class="hint">(opcional)</span></label>
-                        <input class="input" type="password" id="dep-edit-password-{{ $dep->id }}" name="password" placeholder="Deixe em branco para manter a atual" autocomplete="new-password">
+                        <div class="input-pw">
+                            <input class="input" type="password" id="dep-edit-password-{{ $dep->id }}" name="password" placeholder="Deixe em branco para manter a atual" autocomplete="new-password">
+                            <button type="button" class="pw-toggle" data-toggle="dep-edit-password-{{ $dep->id }}" aria-label="Mostrar senha" aria-pressed="false">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-foot">

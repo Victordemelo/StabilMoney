@@ -66,17 +66,8 @@ function initCardDeSenha() {
     const form = document.getElementById('passwordForm');
     if (!form) return;
 
-    // Mostrar/ocultar senha (cada botão aponta para o id do seu input)
-    form.querySelectorAll('.pw-toggle[data-toggle]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            const input = document.getElementById(btn.dataset.toggle);
-            if (!input) return;
-            const oculta = input.type === 'password';
-            input.type = oculta ? 'text' : 'password';
-            btn.classList.toggle('on', oculta);
-            btn.setAttribute('aria-label', oculta ? 'Ocultar senha' : 'Mostrar senha');
-        });
-    });
+    // Mostrar/ocultar senha: o ouvinte é o delegado do `sm/mostrar-senha.js` (ligado uma vez no
+    // app.js). Ligar aqui também faria cada clique alternar duas vezes.
 
     const nova = document.getElementById('new_password');
     const confirma = document.getElementById('new_password_confirmation');
