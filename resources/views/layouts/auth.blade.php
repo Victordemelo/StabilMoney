@@ -53,7 +53,7 @@
         {{-- `poster` + `preload="metadata"` (out/2026): a página aparece com a imagem na hora, e o
              vídeo (1,5 MB) carrega depois — antes ele segurava o maior elemento da tela (LCP). --}}
         <video class="auth-video" id="authVideo" autoplay muted loop playsinline preload="metadata"
-               poster="{{ asset('assets/og-stabilmoney.jpg') }}">
+               poster="{{ asset(config('seo.imagem')) }}">
             <source src="{{ asset('assets/video_login.mp4') }}" type="video/mp4" />
         </video>
         <div class="auth-veil"></div>

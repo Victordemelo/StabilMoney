@@ -188,7 +188,7 @@ class SeoDasPaginasPublicasTest extends TestCase
         $this->assertSame('Entrar no Stabil Money — controle financeiro da família', $doc->querySelector('title')?->textContent);
         $this->assertSame($descricao, $this->meta($doc, 'property', 'og:description'));
         $this->assertSame(self::APP_URL.'/login', $this->meta($doc, 'property', 'og:url'));
-        $this->assertSame(self::APP_URL.'/assets/og-stabilmoney.jpg', $this->meta($doc, 'property', 'og:image'));
+        $this->assertSame(self::APP_URL.'/assets/og-stabilmoney-2.jpg', $this->meta($doc, 'property', 'og:image'));
         $this->assertSame('1200', $this->meta($doc, 'property', 'og:image:width'));
         $this->assertSame('630', $this->meta($doc, 'property', 'og:image:height'));
         $this->assertSame('summary_large_image', $this->meta($doc, 'name', 'twitter:card'));
@@ -345,6 +345,6 @@ class SeoDasPaginasPublicasTest extends TestCase
         $video = $doc->querySelector('video#authVideo');
 
         $this->assertSame('metadata', $video?->getAttribute('preload'));
-        $this->assertStringEndsWith('/assets/og-stabilmoney.jpg', (string) $video?->getAttribute('poster'));
+        $this->assertStringEndsWith('/assets/og-stabilmoney-2.jpg', (string) $video?->getAttribute('poster'));
     }
 }

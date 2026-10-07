@@ -26,9 +26,10 @@ return [
     'site' => 'Stabil Money',
 
     // Imagem das prévias de link: 1200×630, abaixo de 300 KB (o WhatsApp costuma não
-    // mostrar prévia de imagem maior). É o painel visual do login do design v2; o fonte
-    // e o comando para gerar de novo estão em resources/og/og-stabilmoney.html.
-    'imagem' => 'assets/og-stabilmoney.jpg',
+    // mostrar prévia de imagem maior). Identidade de out/2026, com tudo no quadrado central
+    // (o WhatsApp recorta a prévia pequena num quadrado no meio); o fonte e o comando para
+    // gerar de novo estão em resources/og/og-stabilmoney.html.
+    'imagem' => 'assets/og-stabilmoney-2.jpg',
     'imagem_largura' => 1200,
     'imagem_altura' => 630,
     'imagem_alt' => 'Stabil Money — seu dinheiro com clareza, controle e crescimento.',
