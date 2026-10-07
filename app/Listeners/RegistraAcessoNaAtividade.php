@@ -3,6 +3,7 @@
 namespace App\Listeners;
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\GoogleLoginController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\TwoFactorController;
@@ -49,7 +50,9 @@ class RegistraAcessoNaAtividade
         $acaoDaRota = request()->route()?->getActionName();
 
         [$acao, $oQue] = match ($acaoDaRota) {
-            RegisteredUserController::class.'@store', TwoFactorController::class.'@confirmar' => [null, null],
+            RegisteredUserController::class.'@store', TwoFactorController::class.'@confirmar',
+            GoogleLoginController::class.'@criarConta' => [null, null], // o cadastro registra a própria linha
+            GoogleLoginController::class.'@retorno' => ['acesso.entrou_google', 'entrou no app com a conta Google'],
             AuthenticatedSessionController::class.'@store' => ['acesso.entrou', 'entrou no app com e-mail e senha'],
             // Código de recuperação gasto é um sinal à parte: são poucos, e quem os usa
             // costuma ter perdido o celular (ou alguém achou o papel onde estavam).

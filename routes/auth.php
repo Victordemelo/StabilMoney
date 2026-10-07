@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
+use App\Http\Controllers\Auth\GoogleLoginController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -40,6 +41,16 @@ Route::middleware('guest')->group(function () {
 
     Route::post('verificacao-em-duas-etapas/cancelar', [TwoFactorChallengeController::class, 'destroy'])
         ->name('two-factor.cancel');
+
+    // "Entrar com o Google" (opcional — 404 sem as chaves no .env). Só GET para sair ao Google:
+    // a CSP tem `form-action 'self'`, e um POST que redireciona para fora seria bloqueado.
+    Route::middleware('throttle:login-ip')->group(function () {
+        Route::get('auth/google', [GoogleLoginController::class, 'redirecionar'])->name('google.redirect');
+        Route::get('auth/google/callback', [GoogleLoginController::class, 'retorno'])->name('google.callback');
+        Route::get('auth/google/criar-conta', [GoogleLoginController::class, 'cadastro'])->name('google.cadastro');
+        Route::post('auth/google/criar-conta', [GoogleLoginController::class, 'criarConta'])
+            ->middleware('throttle:credencial')->name('google.criar-conta');
+    });
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');

@@ -28,6 +28,15 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // "Entrar com o Google" (out/2026) — opcional; ver App\Support\LoginComGoogle. A credencial
+    // OAuth (tipo "Aplicativo da Web") é criada no Google Cloud Console, com o endereço de
+    // retorno igual a GOOGLE_REDIRECT_URI. As chaves ficam SÓ no .env do servidor.
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', rtrim((string) env('APP_URL', 'http://localhost'), '/').'/auth/google/callback'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

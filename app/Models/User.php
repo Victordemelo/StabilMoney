@@ -170,6 +170,8 @@ class User extends Authenticatable implements MustVerifyEmail
         // pulam a segunda etapa inteira: nenhum dos dois pode escapar num `toJson()`.
         'two_factor_secret',
         'two_factor_recovery_codes',
+        // O identificador da conta Google (login com o Google): só serve ao login.
+        'google_id',
     ];
 
     /**

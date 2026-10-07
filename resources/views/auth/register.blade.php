@@ -90,5 +90,7 @@
         </button>
     </form>
 
+    @include('partials.entrar-com-google')
+
     <p class="ac-alt">Já tem uma conta? <a href="{{ route('login') }}">Entrar</a></p>
 @endsection

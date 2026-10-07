@@ -103,6 +103,7 @@ class Atividade extends Model
         'app.conta_criada' => 'acesso',
         'acesso.entrou' => 'acesso',
         'acesso.entrou_2fa' => 'acesso',
+        'acesso.entrou_google' => 'acesso',
         'acesso.lembrado' => 'acesso',
         'acesso.saiu' => 'acesso',
         'acesso.codigo_2fa_errado' => 'acesso',
