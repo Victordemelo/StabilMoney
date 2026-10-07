@@ -341,11 +341,12 @@
                         informações do navegador e o conteúdo que trafega entre você e o servidor.</td>
                 </tr>
                 <tr>
-                    <td>Provedor de envio de e-mail (SMTP)</td>
+                    <td>Oracle Cloud Infrastructure Email Delivery (Oracle) — envio de e-mail</td>
                     <td>Operador</td>
                     <td>Entrega os e-mails do aplicativo — confirmação de cadastro e de troca de e-mail,
-                        redefinição de senha, alertas de segurança e lembretes. Recebe o seu endereço de
-                        e-mail e o conteúdo dessas mensagens.</td>
+                        redefinição de senha, alertas de segurança e lembretes —, a partir da região de
+                        São Paulo (Brasil). Recebe o seu endereço de e-mail e o conteúdo dessas mensagens,
+                        e não os usa para finalidade própria.</td>
                 </tr>
                 <tr>
                     <td>Have I Been Pwned (Pwned Passwords)</td>
@@ -543,14 +544,13 @@
     <h2 id="s13">13. Transferência internacional de dados</h2>
     <p>Os dados da sua conta ficam armazenados <strong>no Brasil</strong>: o servidor com o aplicativo e o
        banco de dados está na região de São Paulo da nuvem da <strong>Oracle</strong> (Oracle Cloud
-       Infrastructure). Além dele, alguns serviços usados pelo Stabil Money são de empresas estrangeiras e
-       tratam dados fora do Brasil:</p>
+       Infrastructure), e os e-mails do aplicativo também saem dessa região, pelo serviço de envio de
+       e-mail da mesma Oracle. Além deles, alguns serviços usados pelo Stabil Money são de empresas
+       estrangeiras e tratam dados fora do Brasil:</p>
     <ul>
         <li><strong>Cloudflare</strong> — todo acesso ao aplicativo passa pela rede global dela: endereço
             IP, dados do navegador e o conteúdo em trânsito;</li>
         <li><strong>Google Fonts</strong> — endereço IP e dados do navegador, ao carregar as fontes;</li>
-        <li>o <strong>provedor de envio de e-mail</strong>, se for estrangeiro — seu endereço de e-mail e o
-            conteúdo das mensagens do aplicativo;</li>
         <li><strong>Have I Been Pwned</strong> — só o trecho do <em>hash</em> da senha descrito na seção 6,
             que não identifica você.</li>
     </ul>

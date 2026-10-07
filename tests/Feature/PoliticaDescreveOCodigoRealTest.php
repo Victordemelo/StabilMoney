@@ -62,7 +62,10 @@ class PoliticaDescreveOCodigoRealTest extends TestCase
             // Brasil. Mudou de região? Mude as seções 6 e 13 — e, se sair do país, a 13 diz isso.
             ->assertSee('região de São Paulo')
             ->assertSee('Cloudflare')
-            ->assertSee('Provedor de envio de e-mail')
+            // O provedor de e-mail em produção (out/2026): Oracle Email Delivery, região São Paulo.
+            // Trocou de provedor? Mude as seções 6 e 13 — e, se o novo enviar de fora do país, a 13
+            // volta a listar a transferência.
+            ->assertSee('Oracle Cloud Infrastructure Email Delivery')
             ->assertSee('Have I Been Pwned')
             ->assertSee('Google Fonts');
     }
@@ -108,7 +111,8 @@ class PoliticaDescreveOCodigoRealTest extends TestCase
             ->assertDontSee('garantia de rotina de backup')     // scripts/backup-db.sh + cron do guia
             ->assertDontSee('única transferência internacional')
             ->assertDontSee('stabilmoney_session')              // o nome real vem da config
-            ->assertDontSee('nome e, se preciso, e-mail');      // o login de dependente exige e-mail e senha
+            ->assertDontSee('nome e, se preciso, e-mail')       // o login de dependente exige e-mail e senha
+            ->assertDontSee('se for estrangeiro');              // o provedor de e-mail é a Oracle, em São Paulo
     }
 
     public function test_os_termos_dizem_o_alcance_da_suspensao_e_o_canal_de_contestacao(): void

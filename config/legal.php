@@ -17,11 +17,11 @@ return [
     |
     */
 
-    'version' => '3.3',
+    'version' => '3.4',
 
-    'updated_at' => '5 de outubro de 2026',
+    'updated_at' => '7 de outubro de 2026',
     // A mesma data em AAAA-MM-DD (o <lastmod> do sitemap.xml). Mude junto com a de cima.
-    'updated_at_iso' => '2026-10-05',
+    'updated_at_iso' => '2026-10-07',
 
     /*
     |--------------------------------------------------------------------------
@@ -35,6 +35,9 @@ return [
     */
 
     'mudancas' => [
+        '3.4' => [
+            'Os e-mails do aplicativo (confirmação de cadastro, redefinição de senha, alertas e lembretes) passam a ser enviados pelo serviço de e-mail da Oracle, na região de São Paulo (Brasil) — a mesma empresa e a mesma região do servidor.',
+        ],
         '3.3' => [
             'O “Lembrar de mim” passa a valer por 7 dias. Depois disso, o aplicativo pede a sua senha de novo.',
             'Em Configurações › Atividade, o titular continua vendo o que cada pessoa da família fez e de qual aparelho, mas o endereço IP só aparece para a própria pessoa.',
