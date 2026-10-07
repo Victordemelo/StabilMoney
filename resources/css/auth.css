@@ -102,6 +102,8 @@
 .auth .ac-head p { font-size: 14.5px; color: var(--ink-3); margin-top: 7px; }
 .auth .ac-head p a { color: var(--brand-600); font-weight: 600; text-decoration: none; }
 .auth .ac-head p a:hover { text-decoration: underline; }
+/* "Recuperar senha" depois do pedido: o e-mail informado, inteiro (endereço longo quebra). */
+.auth .ac-head p .ac-email { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
 
 /* .field/.input aqui são os do PROTÓTIPO (o .input é o wrapper do campo,
    não o controle do forms.css) — por isso os resets explícitos. */
@@ -186,6 +188,8 @@
 
 /* Estado de carregamento do botão "Entrar" (login por AJAX) */
 .auth .btn-primary:disabled { cursor: default; }
+/* "Reenviar em N s": parado de verdade enquanto conta (sem o pulo do hover). */
+.auth .btn-primary[data-reenviar-botao]:disabled { opacity: .55; transform: none; box-shadow: none; cursor: not-allowed; }
 .auth .btn-primary.is-loading:hover { transform: none; }
 .auth .btn-primary.is-loading .btn-label,
 .auth .btn-primary.is-loading .btn-arrow { visibility: hidden; }

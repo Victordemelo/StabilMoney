@@ -3,6 +3,7 @@ import { initShell } from './sm/shell';
 import { initDashboard } from './sm/dashboard';
 import { initCategories } from './sm/categories';
 import { initAuth } from './sm/auth';
+import { initRecuperarSenha } from './sm/recuperar-senha';
 import { initSecurity } from './sm/security';
 import { initMostrarSenha } from './sm/mostrar-senha';
 import { initMetas } from './sm/metas';
@@ -59,6 +60,7 @@ function init() {
     initShell();
     initRelogio();
     initAuth();
+    initRecuperarSenha(); // "Recuperar senha": o Reenviar com contagem
     // "Tem certeza?" dos formulários de excluir (`form[data-confirmar]`): um ouvinte
     // só, no documento, que vale também para o conteúdo trocado pelo pjax. Substitui os
     // `onsubmit="return confirm(...)"`, que a CSP bloqueia.

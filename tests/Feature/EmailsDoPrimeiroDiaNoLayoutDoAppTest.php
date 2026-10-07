@@ -162,7 +162,10 @@ class EmailsDoPrimeiroDiaNoLayoutDoAppTest extends TestCase
         $existe = $this->from('/forgot-password')->post('/forgot-password', ['email' => 'existe@exemplo.test']);
         $enviadas = $this->totalDeMensagens();
 
-        $naoExiste = $this->from('/forgot-password')->post('/forgot-password', ['email' => 'ninguem@exemplo.test']);
+        // Outra pessoa (outra sessão, outra rede): a mesma não pode pedir de novo antes de 60 s.
+        $this->flushSession();
+        $naoExiste = $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.7'])
+            ->from('/forgot-password')->post('/forgot-password', ['email' => 'ninguem@exemplo.test']);
 
         $naoExiste->assertRedirect('/forgot-password')->assertSessionHasNoErrors();
         $this->assertSame($existe->getSession()->get('status'), $naoExiste->getSession()->get('status'));

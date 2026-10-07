@@ -7,7 +7,6 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\DashboardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\RateLimiter;
 use Tests\TestCase;
 
 /**
@@ -76,8 +75,10 @@ class SecurityHardeningTest extends TestCase
         User::factory()->create(['email' => 'existe@example.com']);
 
         $existente = $this->post(route('password.email'), ['email' => 'existe@example.com']);
-        RateLimiter::clear('credencial'); // o limiter é por IP e ambos usam o mesmo
-        $inexistente = $this->post(route('password.email'), ['email' => 'nao-existe@example.com']);
+        // Outra pessoa (outra sessão, outra rede): a mesma espera 60 s para pedir de novo.
+        $this->flushSession();
+        $inexistente = $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.7'])
+            ->post(route('password.email'), ['email' => 'nao-existe@example.com']);
 
         $inexistente->assertSessionHasNoErrors();
         $this->assertSame(

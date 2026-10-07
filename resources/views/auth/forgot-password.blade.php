@@ -23,46 +23,72 @@
 
 {{-- Card do formulário --}}
 @section('card')
-    <div class="ac-head">
-        <h1>Recuperar senha</h1>
-        <p>Informe seu e-mail e enviaremos um link para você criar uma nova senha.</p>
-    </div>
-
-    {{-- Status da sessão (link de redefinição enviado) --}}
-    @if (session('status'))
-        <div class="auth-status" role="status">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg>
-            {{ session('status') }}
+    @if ($enviadoPara)
+        {{-- Depois de um pedido (out/2026): a confirmação com o e-mail informado, no lugar do
+             formulário. O texto não afirma que a conta existe — a mesma tela para todo e-mail. --}}
+        <div class="ac-head">
+            <h1>Confira seu e-mail</h1>
+            <p>Se houver uma conta com <strong class="ac-email">{{ $enviadoPara }}</strong>, enviamos para
+               ele um link para criar uma senha nova. Ele chega em alguns minutos — confira também a caixa de spam.</p>
         </div>
-    @endif
 
-    {{-- Erro no banner (e não sob o campo): a tela tem um campo só, e a mensagem que
-         mais cai aqui é o aviso de que o app ainda não envia e-mail — texto longo, que
-         precisa de espaço e destaque para quem está trancado fora da conta. --}}
-    @error('email')
-        <div class="auth-error long" role="alert">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
-            <span>{{ $message }}</span>
-        </div>
-    @enderror
-
-    <form method="POST" action="{{ route('password.email') }}">
-        @csrf
-
-        {{-- E-mail --}}
-        <div class="field">
-            <label for="email">E-mail</label>
-            <div class="input">
-                <svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg>
-                <input type="email" id="email" name="email" value="{{ old('email') }}"
-                       placeholder="voce@email.com" autocomplete="email" inputmode="email" required autofocus />
+        @error('email')
+            <div class="auth-error long" role="alert">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                <span>{{ $message }}</span>
             </div>
+        @enderror
+
+        {{-- Reenviar para o MESMO e-mail. A espera vale no servidor (`PasswordResetLinkController`);
+             o JS (sm/recuperar-senha.js) só desliga o botão e conta os segundos. Sem JS o botão
+             fica ligado, e o servidor diz quanto falta. --}}
+        <form method="POST" action="{{ route('password.email') }}" data-reenviar-link data-espera="{{ $esperaParaReenviar }}">
+            @csrf
+            <input type="hidden" name="email" value="{{ $enviadoPara }}">
+            <button type="submit" class="btn-primary spaced" data-reenviar-botao>
+                <span data-reenviar-rotulo>{{ $esperaParaReenviar > 0 ? 'Reenviar em '.$esperaParaReenviar.' s' : 'Reenviar o link' }}</span>
+            </button>
+            <p class="sr-only" role="status" aria-live="polite" data-reenviar-anuncio></p>
+        </form>
+
+        <p class="ac-alt" data-outro-email @if ($esperaParaReenviar > 0) hidden @endif>
+            Errou o endereço? <a href="{{ route('password.request', ['outro' => 1]) }}">Usar outro e-mail</a>
+        </p>
+        <p class="ac-alt">Lembrou a senha? <a href="{{ route('login') }}">Voltar para entrar</a></p>
+    @else
+        <div class="ac-head">
+            <h1>Recuperar senha</h1>
+            <p>Informe seu e-mail e enviaremos um link para você criar uma nova senha.</p>
         </div>
 
-        <button type="submit" class="btn-primary spaced">Enviar link de redefinição
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </button>
-    </form>
+        {{-- Erro no banner (e não sob o campo): a tela tem um campo só, e a mensagem que
+             mais cai aqui é o aviso de que o app ainda não envia e-mail — texto longo, que
+             precisa de espaço e destaque para quem está trancado fora da conta. --}}
+        @error('email')
+            <div class="auth-error long" role="alert">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
+                <span>{{ $message }}</span>
+            </div>
+        @enderror
 
-    <p class="ac-alt">Lembrou a senha? <a href="{{ route('login') }}">Voltar para entrar</a></p>
+        <form method="POST" action="{{ route('password.email') }}">
+            @csrf
+
+            {{-- E-mail --}}
+            <div class="field">
+                <label for="email">E-mail</label>
+                <div class="input">
+                    <svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg>
+                    <input type="email" id="email" name="email" value="{{ old('email') }}"
+                           placeholder="voce@email.com" autocomplete="email" inputmode="email" required autofocus />
+                </div>
+            </div>
+
+            <button type="submit" class="btn-primary spaced">Enviar link de redefinição
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+        </form>
+
+        <p class="ac-alt">Lembrou a senha? <a href="{{ route('login') }}">Voltar para entrar</a></p>
+    @endif
 @endsection

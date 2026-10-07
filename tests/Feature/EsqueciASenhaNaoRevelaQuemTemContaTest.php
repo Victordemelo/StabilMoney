@@ -36,9 +36,10 @@ class EsqueciASenhaNaoRevelaQuemTemContaTest extends TestCase
     use RefreshDatabase;
     use SimulaSmtpQueRecusa;
 
-    private function pedir(string $email): TestResponse
+    private function pedir(string $email, string $ip = '127.0.0.1'): TestResponse
     {
-        return $this->from('/forgot-password')->post('/forgot-password', ['email' => $email]);
+        return $this->withServerVariables(['REMOTE_ADDR' => $ip])
+            ->from('/forgot-password')->post('/forgot-password', ['email' => $email]);
     }
 
     /** O que a pessoa vê: o código, para onde volta, o recado e os erros. */
@@ -75,12 +76,15 @@ class EsqueciASenhaNaoRevelaQuemTemContaTest extends TestCase
         $user = User::factory()->create();
         Notification::fake();
 
-        $existente = $this->oQueAparece($this->pedir($user->email));
+        // Cada pedido de uma sessão e uma rede diferentes: a MESMA pessoa espera 60 s entre um
+        // pedido e outro (`RecuperarSenhaComEsperaTest`), e aqui o que se compara é o que
+        // pessoas diferentes veem.
+        $existente = $this->oQueAparece($this->pedir($user->email, '198.51.100.1'));
         $this->flushSession();
-        $inexistente = $this->oQueAparece($this->pedir('ninguem@nao-existe.test'));
+        $inexistente = $this->oQueAparece($this->pedir('ninguem@nao-existe.test', '198.51.100.2'));
         $this->flushSession();
-        // Dentro de 60 s: o broker responde THROTTLED — só para e-mail cadastrado.
-        $repetido = $this->oQueAparece($this->pedir($user->email));
+        // Dentro de 60 s, de outra rede: o broker responde THROTTLED — só para e-mail cadastrado.
+        $repetido = $this->oQueAparece($this->pedir($user->email, '198.51.100.3'));
 
         $this->assertSame($existente, $inexistente);
         $this->assertSame($existente, $repetido, 'O pedido repetido respondia diferente só para e-mail cadastrado.');
@@ -116,9 +120,9 @@ class EsqueciASenhaNaoRevelaQuemTemContaTest extends TestCase
         $bruno = User::factory()->create();
         Notification::fake();
 
-        $this->pedir($ana->email);
+        $this->pedir($ana->email, '198.51.100.1');
         $this->flushSession();
-        $this->pedir($bruno->email);
+        $this->pedir($bruno->email, '198.51.100.2');
 
         Notification::assertSentToTimes($ana, RedefinicaoDeSenha::class, 1);
         Notification::assertSentToTimes($bruno, RedefinicaoDeSenha::class, 1);
