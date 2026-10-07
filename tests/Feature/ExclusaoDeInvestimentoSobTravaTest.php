@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\Investment;
-use App\Models\Transaction;
+use App\Models\InvestmentContribution;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -17,12 +17,10 @@ use Tests\TestCase;
  * Excluir investimento é decidido e feito sob trava (out/2026 — auditoria de concorrência,
  * pendência 5).
  *
- * A trava de exclusão (investimento com dinheiro + conta de origem no vermelho = resgate
- * primeiro) consultava o aplicado e os saldos e só depois apagava, sem travar nada: uma
- * despesa que levasse a conta ao vermelho logo depois da conferência deixava excluir sem o
- * resgate que a regra exige, e um aporte concorrente era confirmado e apagado pelo cascade.
- * Agora as contas da família (por id) e o investimento são travados antes da decisão — a
- * mesma ordem do `FundingService` e do `HandlesContributions`.
+ * A decisão ("ainda tem dinheiro aplicado?" — desde out/2026 o investimento só sai zerado,
+ * `ExclusaoDeInvestimentoSoZeradoTest`) e o DELETE rodam na mesma transação, com o
+ * investimento travado. Antes eram passos soltos: um aporte concorrente podia ser confirmado
+ * entre a conferência e a exclusão e era apagado junto pelo cascade.
  */
 class ExclusaoDeInvestimentoSobTravaTest extends TestCase
 {
@@ -46,9 +44,6 @@ class ExclusaoDeInvestimentoSobTravaTest extends TestCase
         $this->inv = Investment::create([
             'user_id' => $this->user->id, 'name' => 'CDB', 'classe' => 'renda_fixa', 'indexador' => 'cdi', 'taxa' => 100,
         ]);
-        $this->actingAs($this->user)->post(route('investimentos.aportes.store', $this->inv), [
-            'account_id' => $this->conta->id, 'amount' => '500,00', 'date' => CarbonImmutable::today()->toDateString(),
-        ])->assertSessionHasNoErrors();
     }
 
     public function test_a_decisao_e_a_exclusao_acontecem_na_mesma_transacao(): void
@@ -70,23 +65,21 @@ class ExclusaoDeInvestimentoSobTravaTest extends TestCase
         $this->assertModelMissing($this->inv);
 
         if (DB::getDriverName() === 'mysql') {
-            $trava = fn (string $tabela) => collect($consultas)->search(fn ($c) => str_contains($c['sql'], 'for update')
-                && str_contains($c['sql'], 'from '.$gramatica->wrapTable($tabela)));
-            $this->assertNotFalse($trava('accounts'));
-            $this->assertNotFalse($trava('investments'));
-            $this->assertLessThan($trava('investments'), $trava('accounts'), 'Ordem da trava: contas antes do investimento.');
+            $this->assertTrue(collect($consultas)->contains(fn ($c) => str_contains($c['sql'], 'for update')
+                && str_contains($c['sql'], 'from '.$gramatica->wrapTable('investments'))));
         }
     }
 
-    public function test_a_conta_que_ficou_no_vermelho_depois_da_autorizacao_ainda_barra_a_exclusao(): void
+    public function test_aporte_que_entra_depois_da_autorizacao_ainda_barra_a_exclusao(): void
     {
-        // Uma despesa entra depois que a exclusão foi autorizada: a decisão (que vem depois,
-        // sob a trava) enxerga a conta no vermelho.
+        // O aporte de outra pessoa entra depois que a exclusão foi autorizada: a decisão (que
+        // vem depois, sob a trava) enxerga o dinheiro aplicado.
         $rodou = false;
         Gate::after(function () use (&$rodou) {
             if (! $rodou) {
                 $rodou = true;
-                Transaction::factory()->for($this->user)->for($this->conta)->expense()->create(['amount' => 900]);
+                InvestmentContribution::factory()->for($this->inv)->for($this->conta)->aporte()
+                    ->create(['amount' => 200, 'date' => CarbonImmutable::today()->toDateString()]);
             }
         });
 
@@ -95,6 +88,7 @@ class ExclusaoDeInvestimentoSobTravaTest extends TestCase
             ->assertSessionHasErrors('investimento');
 
         $this->assertModelExists($this->inv);
+        $this->assertSame(200.0, (float) $this->inv->fresh()->aplicado);
     }
 
     public function test_investimento_ja_excluido_por_outra_pessoa_nao_vira_erro(): void

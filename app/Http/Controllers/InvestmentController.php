@@ -143,24 +143,28 @@ class InvestmentController extends Controller
     {
         $this->authorize('delete', $investimento);
 
-        // A decisão e a exclusão acontecem SOB TRAVA (out/2026 — auditoria de concorrência,
-        // pendência 5): antes, uma despesa que levasse a conta ao vermelho logo depois da
-        // conferência deixava excluir sem o resgate explícito que a regra exige, e um aporte
-        // concorrente era confirmado e apagado junto pelo cascade. Ordem da trava: contas
-        // (por id) → investimento, a mesma do `FundingService` e do `HandlesContributions`.
+        // Investimento com dinheiro aplicado não sai (out/2026 — decisão do Victor, a mesma
+        // regra das metas): primeiro resgata tudo, pelo caminho que deixa registro (e aparece em
+        // Movimentações), depois exclui. Antes só barrava com a conta de origem no vermelho; no
+        // azul, excluir devolvia o dinheiro em silêncio e o histórico de aportes sumia junto
+        // (cascade) — `ExclusaoDeInvestimentoSoZeradoTest`.
+        //
+        // A conferência e a exclusão acontecem SOB A TRAVA do investimento (auditoria de
+        // concorrência, pendência 5): um aporte simultâneo ou já entrou (e o investimento não
+        // sai) ou espera, e ao travar descobre que ele sumiu (`HandlesContributions::lockParent`).
         $erro = DB::transaction(function () use ($investimento) {
-            Account::where('user_id', $investimento->user_id)->orderBy('id')->lockForUpdate()->get();
             $travado = Investment::whereKey($investimento->id)->lockForUpdate()->first();
             if ($travado === null) {
                 return null; // outra pessoa da família já excluiu
             }
 
-            if ($erro = $this->travaDeExclusaoComContaNoVermelho($travado)) {
-                return $erro;
+            $aplicado = (float) $travado->aplicado;
+            if ($aplicado > 0.001) {
+                return 'O investimento “'.$travado->name.'” ainda tem '.Brl::format($aplicado)
+                    .' aplicados. Resgate todo o dinheiro dele (botão Resgatar) antes de excluí-lo.';
             }
 
-            // As contributions caem junto (cascadeOnDelete) — o dinheiro volta a ficar
-            // disponível nas contas, já que deixa de estar reservado.
+            // Zerado: os aportes e resgates (que se anulam) caem junto (cascadeOnDelete).
             $travado->delete();
 
             return null;
@@ -172,71 +176,6 @@ class InvestmentController extends Controller
 
         return redirect()->route('investimentos.index')
             ->with('status', 'Investimento removido.');
-    }
-
-    /**
-     * Trava de INTENÇÃO E AUDITORIA — não de criação de dinheiro.
-     *
-     * Excluir o investimento e resgatá-lo por inteiro têm efeito IDÊNTICO sobre
-     * o disponível da conta: os dois derrubam o `reserved` dela no mesmo valor.
-     * Nenhum dos dois inventa dinheiro, e não é isso que estamos evitando.
-     *
-     * O que a exclusão destrói é o REGISTRO. Sai de cena a linha de resgate que
-     * diria "foi o CDB que cobriu o cheque especial", e some com ela a única
-     * pista de como aquele saldo negativo virou positivo. Somado a isso,
-     * "excluir" é um caminho ACIDENTAL: quem clica ali está limpando uma lista,
-     * não decidindo quitar dívida com a poupança. Então, quando há dinheiro
-     * aplicado E a conta de origem está no vermelho, exigimos o caminho
-     * explícito (resgatar), que deixa rastro.
-     *
-     * Investimento vazio, ou contas todas no azul: nada a proteger — libera.
-     *
-     * Devolve a mensagem PT-BR do bloqueio, ou null quando pode excluir.
-     */
-    private function travaDeExclusaoComContaNoVermelho(Investment $investimento): ?string
-    {
-        // Nada aplicado: excluir não mexe no disponível de conta nenhuma.
-        if ($investimento->aplicado <= 0.001) {
-            return null;
-        }
-
-        // Quanto CADA conta ainda tem aplicado aqui (aportes − resgates), numa
-        // query só. Conta que já resgatou tudo não é afetada pela exclusão.
-        $reservadoPorConta = InvestmentContribution::where('investment_id', $investimento->id)
-            ->groupBy('account_id')
-            ->selectRaw('account_id')
-            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'aporte' THEN amount ELSE -amount END), 0) AS total")
-            ->pluck('total', 'account_id')
-            ->filter(fn ($total) => (float) $total > 0.001);
-
-        if ($reservadoPorConta->isEmpty()) {
-            return null;
-        }
-
-        // Escopado na família do próprio investimento: um dado cruzado jamais
-        // pode fazer a mensagem de erro citar o nome da conta de outra pessoa.
-        $contas = Account::where('user_id', $investimento->user_id)
-            ->whereIn('id', $reservadoPorConta->keys())
-            ->orderBy('name')
-            ->get();
-
-        // Sem isto seriam ~6 queries POR conta dentro do laço abaixo
-        // (regra do CLAUDE.md: nunca ler available/reserved iterando).
-        Account::preloadMoney($contas);
-
-        $negativa = $contas->first(fn (Account $conta) => $conta->available < -0.001);
-
-        if (! $negativa) {
-            return null;
-        }
-
-        $aplicadoDela = (float) $reservadoPorConta->get($negativa->id, 0);
-
-        return 'A conta “'.$negativa->name.'” está em '.Brl::format($negativa->available)
-            .' e este investimento tem '.Brl::format($aplicadoDela).' aplicados a partir dela. '
-            .'Excluir aqui zeraria esse saldo negativo em silêncio, sem deixar registrado que foi '
-            .'a aplicação que o cobriu. Faça um resgate para a conta “'.$negativa->name.'” '
-            .'(aí fica gravado de onde saiu o dinheiro) ou deixe o saldo dela positivo antes de excluir.';
     }
 
     /**

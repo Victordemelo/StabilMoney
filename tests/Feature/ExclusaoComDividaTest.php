@@ -18,13 +18,13 @@ use Tests\TestCase;
  * Excluir com dívida na mesa — duas guardas de naturezas DIFERENTES,
  * deliberadamente resolvidas de formas diferentes:
  *
- * 1) META / INVESTIMENTO com conta no vermelho → BLOQUEIA.
- *    Não porque criaria dinheiro: excluir o cofrinho e resgatá-lo por inteiro
- *    derrubam o `reserved` da conta no MESMO valor, o disponível termina
- *    idêntico nos dois caminhos. O que se perde na exclusão é o REGISTRO de
- *    que foi a poupança que cobriu o negativo — e "excluir" é um caminho
- *    acidental (limpar uma lista), não uma decisão de quitar dívida. Então
- *    pedimos o caminho explícito, que deixa rastro.
+ * 1) META / INVESTIMENTO com dinheiro dentro → BLOQUEIA, com a conta no
+ *    vermelho ou não (out/2026 — decisão do Victor: só sai zerado; ver
+ *    ExclusaoDeMetaSoZeradaTest e ExclusaoDeInvestimentoSoZeradoTest). Não porque
+ *    criaria dinheiro: excluir o cofrinho e resgatá-lo por inteiro derrubam o
+ *    `reserved` da conta no MESMO valor. O que se perde na exclusão é o REGISTRO
+ *    — e "excluir" é um caminho acidental (limpar uma lista). Então pedimos o
+ *    caminho explícito, o resgate, que deixa rastro.
  *
  * 2) CONTA DE USUÁRIO com pendência → NÃO bloqueia, pede consentimento.
  *    Travar a exclusão por causa de um número interno de bookkeeping brigaria
@@ -126,7 +126,7 @@ class ExclusaoComDividaTest extends TestCase
         $this->assertSame(-1300.0, $this->conta->fresh()->available);
     }
 
-    public function test_a_mensagem_diz_qual_conta_e_quanto(): void
+    public function test_a_mensagem_diz_quanto_esta_aplicado_e_aponta_o_resgate(): void
     {
         $investimento = $this->investimentoCom(800);
         $this->derrubaSaldoDaConta();
@@ -136,27 +136,21 @@ class ExclusaoComDividaTest extends TestCase
             ->assertSessionHasErrors('investimento')
             ->getSession()->get('errors')->first('investimento');
 
-        $this->assertStringContainsString('Corrente', $erro);
-        $this->assertStringContainsString('−R$ 1.300,00', $erro);
-        $this->assertStringContainsString('R$ 800,00', $erro);
-        // Enquadramento honesto: a guarda é de registro, não de "criar dinheiro".
-        $this->assertStringContainsString('resgate', mb_strtolower($erro));
+        $this->assertSame('O investimento “CDB Liquidez” ainda tem R$ 800,00 aplicados. Resgate todo o dinheiro dele (botão Resgatar) antes de excluí-lo.', $erro);
     }
 
-    public function test_investimento_com_aporte_pode_ser_excluido_com_a_conta_no_azul(): void
+    public function test_investimento_com_aporte_nao_pode_ser_excluido_nem_com_a_conta_no_azul(): void
     {
+        // Out/2026 (decisão do Victor): como a meta, só sai zerado.
         $investimento = $this->investimentoCom(800);
-
-        // 1.000 − 800 reservados = 200 disponíveis: nada a proteger.
         $this->assertSame(200.0, $this->conta->fresh()->available);
 
         $this->actingAs($this->user)
             ->delete(route('investimentos.destroy', $investimento))
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('investimentos.index'));
+            ->assertSessionHasErrors('investimento');
 
-        $this->assertDatabaseMissing('investments', ['id' => $investimento->id]);
-        $this->assertSame(1000.0, $this->conta->fresh()->available);
+        $this->assertDatabaseHas('investments', ['id' => $investimento->id]);
+        $this->assertSame(200.0, $this->conta->fresh()->available);
     }
 
     public function test_investimento_vazio_pode_ser_excluido_mesmo_com_a_conta_no_vermelho(): void
@@ -181,30 +175,6 @@ class ExclusaoComDividaTest extends TestCase
 
         // Aplicado zerado: a exclusão já não tem efeito nenhum sobre o saldo.
         $this->assertSame(0.0, $investimento->fresh()->aplicado);
-
-        $this->actingAs($this->user)
-            ->delete(route('investimentos.destroy', $investimento))
-            ->assertSessionHasNoErrors();
-
-        $this->assertDatabaseMissing('investments', ['id' => $investimento->id]);
-    }
-
-    public function test_conta_no_vermelho_que_nao_aportou_no_investimento_nao_trava_a_exclusao(): void
-    {
-        // A guarda olha as contas que ainda têm dinheiro NESTE cofrinho — uma
-        // outra conta no vermelho não tem relação com ele.
-        $outra = Account::factory()->for($this->user)->create([
-            'type' => 'checking',
-            'name' => 'Segunda conta',
-            'initial_balance' => 0,
-            'overdraft_limit' => 1000,
-        ]);
-        Transaction::factory()->for($this->user)->for($outra)->expense()
-            ->create(['amount' => 400, 'date' => '2026-08-02']);
-
-        $investimento = $this->investimentoCom(800);
-
-        $this->assertSame(-400.0, $outra->fresh()->available);
 
         $this->actingAs($this->user)
             ->delete(route('investimentos.destroy', $investimento))

@@ -451,7 +451,13 @@
                 <span class="modal-ico ico-out" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg></span>
                 <div>
                     <h3 id="invDeleteModal-{{ $inv->id }}-titulo">Excluir investimento</h3>
-                    <p id="invDeleteModal-{{ $inv->id }}-descricao">Tem certeza que deseja excluir “{{ $inv->name }}”? Esta ação não pode ser desfeita.</p>
+                    {{-- Com dinheiro aplicado o investimento não sai (o servidor recusa), como a meta:
+                         a tela diz por quê e o botão vem desligado. --}}
+                    @if ((float) $inv->aplicado > 0.001)
+                        <p id="invDeleteModal-{{ $inv->id }}-descricao" data-inv-com-dinheiro>“{{ $inv->name }}” ainda tem <b>@brl($inv->aplicado)</b> aplicados. Para excluir, resgate todo o dinheiro dele primeiro (botão Resgatar).</p>
+                    @else
+                        <p id="invDeleteModal-{{ $inv->id }}-descricao">Tem certeza que deseja excluir “{{ $inv->name }}”? Esta ação não pode ser desfeita.</p>
+                    @endif
                 </div>
                 <button class="modal-x" type="button" data-inv-close aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -462,7 +468,7 @@
                 @method('DELETE')
                 <div class="modal-foot">
                     <button class="btn ghost" type="button" data-inv-close>Cancelar</button>
-                    <button class="btn-danger" type="submit">Excluir investimento</button>
+                    <button class="btn-danger" type="submit" @disabled((float) $inv->aplicado > 0.001)>Excluir investimento</button>
                 </div>
             </form>
         </div>
