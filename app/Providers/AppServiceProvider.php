@@ -107,8 +107,10 @@ class AppServiceProvider extends ServiceProvider
 
             $view->with([
                 'lmAccounts' => $ownerId ? Account::paymentOptions($ownerId) : collect(),
+                // Na ordem da tela de Categorias (fixas no topo, depois a ordem que a pessoa arrumou).
                 'lmCategories' => $ownerId
-                    ? Category::where('user_id', $ownerId)->orderBy('type')->orderBy('name')->get()
+                    ? Category::where('user_id', $ownerId)
+                        ->orderByDesc('is_locked')->orderBy('position')->orderBy('name')->get()
                     : collect(),
                 'lmFamily' => $ownerId ? User::familyOf($ownerId)->get() : collect(),
             ]);

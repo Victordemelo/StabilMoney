@@ -144,7 +144,10 @@
                         @endif
                         <div class="field" data-lm-not-transfer>
                             <label for="lm-category">Categoria</label>
-                            <select class="input" id="lm-category" name="category_id">
+                            {{-- `data-pjax-atualizar`, como o select de contas: o modal mora no SHELL, e uma
+                                 categoria criada em Categorias (que salva e recarrega só o #content) não
+                                 aparecia aqui até recarregar a página inteira. --}}
+                            <select class="input" id="lm-category" name="category_id" data-pjax-atualizar>
                                 <option value="">Selecione a categoria</option>
                                 <optgroup label="Receitas" data-type="income">
                                     @foreach ($lmCategories->where('type', 'income') as $categoria)
