@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.248 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **378 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.249 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **378 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -86,6 +86,17 @@ o `DatabaseSeeder` abaixo. **Painel admin ligado no dev** (`ADMIN_PANEL_ENABLED=
 ---
 
 ## 🎨 Visão e processo de design
+
+> 🚨 **REGRA (out/2026, pedido do Victor): toda tela nova e toda mudança visual seguem o guia de
+> `design_stabilmoney/`** — `README.md` (conceito, cores, fontes, componentes, imagens, layout, o que
+> não fazer), `tokens.css` (os valores), `paleta.html` (abrir no navegador), `marca/`, `imagens/`
+> (originais e versões web), `referencias/wise-style-reference.md` (a base de estilo) e `capturas/`.
+> Em resumo: verde-petróleo **mata #032628** + um ÚNICO destaque **lima #9FE870**, títulos em
+> **Bricolage Grotesque 800** (blocados, entrelinha < 1, espaçamento negativo) e texto em **Geist**,
+> botões em pílula, sem rótulo em maiúsculas, sem degradê de enfeite, sem grade de cards iguais.
+> Hoje está aplicado na **página inicial pública**; o app logado ainda usa o design v2 (`design/`,
+> Sora + Plus Jakarta) — migrá-lo é um passo separado, que o Victor decide. Mudou cor, fonte ou
+> imagem? Atualize `design_stabilmoney/` junto (README, `tokens.css` e a cópia em `imagens/web/`).
 
 O visual do app vem de um **handoff do Claude Design** (claude.ai/design), versionado em
 `design/` — atualmente o **bundle v2**:
@@ -189,6 +200,7 @@ public/assets/              # stabilmoney-mark.png (logo), favicon.png, video_lo
 deploy/nginx/               # o nginx do host da VPS (site, servidor padrão, faixas da Cloudflare) — ver "🚀 Publicação"
 docker-compose.prod.yml     # o compose de PRODUÇÃO (o de dev é o docker-compose.yml)
 design/                     # Handoff do Claude Design v2 (fonte da verdade visual — NÃO editar)
+design_stabilmoney/         # GUIA DE DESIGN da identidade (out/2026): paleta, fontes, imagens, regras — seguir sempre
 lang/pt_BR(+.json)          # Traduções PT-BR (laravel-lang)
 routes/web.php              # Rotas do app | routes/auth.php (Breeze)
 database/
@@ -229,7 +241,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.248 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.249 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1570,7 +1582,7 @@ no `PainelAdminNaoVeValoresTest`).
 ## 🌐 Página inicial pública (out/2026) — `PaginaInicialPublicaTest`
 
 A raiz (`/`) para quem **não entrou** é a apresentação do projeto (`resources/views/inicio.blade.php` +
-`resources/css/inicio.css`, sempre clara): abertura com o vídeo da marca e uma amostra da Visão geral,
+`resources/css/inicio.css`, sempre clara): abertura com a ilustração do app, a faixa Equilíbrio,
 recursos, como funciona, conta-família, segurança, **quem fez** (autor, site, LinkedIn e contato, de
 `config/sistema.php`) e perguntas frequentes (FAQPage em JSON-LD). Quem entrou segue para a Visão geral.
 - `App\Http\Middleware\PaginaInicialParaVisitante` na rota `/`, ANTES do `auth`. 🚨 Só a ordem na rota
@@ -1589,14 +1601,23 @@ recursos, como funciona, conta-família, segurança, **quem fez** (autor, site, 
   também no `sameAs` do JSON-LD) e o e-mail; rodapé em duas colunas (marca e © à esquerda, documentos
   à direita).
 - **Faixa "Equilíbrio"** logo abaixo do topo (pedido do Victor): a ilustração da carteira na balança
-  (`public/assets/equilibrio-1600.jpg` / `-900.jpg`, com `srcset`) num fundo creme #f9f5f0, o mesmo da
+  (`public/assets/equilibrio-1600.jpg` / `-900.jpg`, com `srcset`) num fundo creme #FBF7F2, o mesmo da
   imagem, com as bordas esfumadas por `mask-image` para não marcar retângulo.
 - **Selo sobre a marca d'água do vídeo** (`partials/selo-do-video`, na página inicial, no login e na
   entrada do painel): o `video_login.mp4` (1280×720) tem a estrela do Gemini centrada em (1160, 600);
   o `.selo-do-video` refaz a conta do `object-fit: cover` com unidades de container query
   (`.camada-do-video` é container de tamanho) e põe o "S" do Stabil Money em cima dela. Selo escuro e
   translúcido de propósito: quando o recorte do cover corta a estrela na borda, a lasca do selo some no
-  fundo. Trocou de vídeo? Mude 1280/720/1160/600 no CSS.
+  fundo. Trocou de vídeo? Mude 1280/720/1160/600 no CSS. (Desde a reformulação abaixo, a página
+  inicial não tem mais vídeo: o selo segue no login e na entrada do painel.)
+- **Reformulação de out/2026** (pedido do Victor, com a Wise como base — guia em `design_stabilmoney/`):
+  fontes **Bricolage Grotesque + Geist** só nesta página (o app segue Sora + Plus Jakarta), tokens no
+  escopo `.inicio` (`--mata`, `--lima`…), topo escuro, abertura com `inicio-app-1672.jpg`/`-960.jpg` ao
+  fundo (o fundo da imagem É o `--mata`; recua à direita em telas médias e desce para depois do texto
+  ≤ 980px), "Como funciona" com `inicio-contas-*.jpg`, recursos em linhas (não cards), Segurança em
+  faixa escura, perguntas em `details` com "+", chamada final em bloco escuro com o botão lima e o link
+  "Já tenho conta". Único movimento automático: o texto da abertura sobe ao carregar. Imagens da página:
+  versão grande e de celular, < 260 KB cada (o teste cobra).
 
 ## 🔎 SEO (23/09/2026) — `SeoDasPaginasPublicasTest`
 
@@ -2574,7 +2595,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.248 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.249 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo

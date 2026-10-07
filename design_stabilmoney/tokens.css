@@ -1,0 +1,44 @@
+/* ============================================================
+   Stabil Money — tokens da identidade visual (out/2026).
+   Fonte da verdade: design_stabilmoney/README.md. Em uso em resources/css/inicio.css
+   (escopo `.inicio`). Mudou um valor aqui? Mude lá também.
+   ============================================================ */
+:root {
+  /* Cores */
+  --mata: #032628;       /* verde-petróleo profundo — superfícies escuras (topo, faixa escura, chamada final) */
+  --abeto: #0A3A36;      /* verde-escuro — ícones, texto forte sobre claro */
+  --lima: #9FE870;       /* o ÚNICO destaque — ação principal, marcas de confirmação, números dos passos */
+  --lima-claro: #E4F7D4; /* fundo dos ícones */
+  --papel: #FFFFFF;      /* fundo padrão */
+  --nevoa: #EEF2EC;      /* faixa neutra (perguntas) */
+  --creme: #FBF7F2;      /* fundo das ilustrações claras */
+  --tinta: #0E1A14;      /* títulos */
+  --grafite: #454745;    /* texto corrido */
+  --apagado: #6B726D;    /* texto secundário (rodapé) */
+  --linha: #DDE3DC;      /* divisórias */
+  --no-escuro: #B9CBC5;  /* texto corrido sobre o mata */
+
+  /* Fontes (Google Fonts):
+     https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Geist:wght@400..600&display=swap */
+  --font-titulo: "Bricolage Grotesque", "Sora", system-ui, sans-serif;
+  --font-texto: "Geist", "Plus Jakarta Sans", system-ui, sans-serif;
+
+  /* Escala de tipo */
+  --tipo-display: clamp(46px, 5.6vw, 84px);  /* h1 — entrelinha .92, espaçamento -.038em, peso 800 */
+  --tipo-titulo: clamp(34px, 4.4vw, 60px);   /* h2 — entrelinha .98, espaçamento -.035em, peso 800 */
+  --tipo-subtitulo: 21px;                    /* h3 — entrelinha 1.15, espaçamento -.015em, peso 700 */
+  --tipo-destaque: 18px;                     /* parágrafo de abertura de seção */
+  --tipo-texto: 16px;                        /* texto corrido — entrelinha 1.6 */
+  --tipo-pequeno: 14px;
+
+  /* Raios */
+  --raio-pilula: 999px;  /* botões, menu */
+  --raio-bloco: 36px;    /* blocos grandes (chamada final) */
+  --raio-imagem: 28px;   /* fotos */
+  --raio-cartao: 22px;   /* perguntas */
+
+  /* Espaço */
+  --secao: 120px;        /* respiro vertical de seção (80px no celular) */
+  --largura: 1200px;     /* largura máxima do conteúdo */
+  --margem: 24px;        /* margem lateral */
+}

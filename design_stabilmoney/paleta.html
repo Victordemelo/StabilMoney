@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stabil Money — paleta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Geist:wght@400..600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font-texto); color: var(--grafite); background: var(--papel); line-height: 1.6; }
+  .wrap { max-width: var(--largura); margin: 0 auto; padding: 0 var(--margem); }
+  h1, h2, h3 { font-family: var(--font-titulo); color: var(--tinta); margin: 0; }
+  header { background: var(--mata); color: var(--no-escuro); padding: 80px 0; }
+  header h1 { color: #fff; font-size: var(--tipo-display); font-weight: 800; line-height: .92; letter-spacing: -.038em; max-width: 12ch; }
+  header p { max-width: 52ch; font-size: 19px; margin: 24px 0 0; }
+  section { padding: 72px 0; border-bottom: 1px solid var(--linha); }
+  section > .wrap > h2 { font-size: 40px; font-weight: 800; letter-spacing: -.035em; margin-bottom: 32px; }
+  .cores { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 20px; }
+  .cor { border: 1px solid var(--linha); border-radius: 22px; overflow: hidden; }
+  .cor i { display: block; height: 110px; }
+  .cor div { padding: 14px 16px; font-size: 14px; }
+  .cor b { display: block; font-family: var(--font-titulo); color: var(--tinta); font-size: 17px; }
+  .tipo { display: grid; gap: 28px; }
+  .tipo small { display: block; color: var(--apagado); font-size: 13px; }
+  .t1 { font-family: var(--font-titulo); font-weight: 800; font-size: var(--tipo-display); line-height: .92; letter-spacing: -.038em; color: var(--tinta); }
+  .t2 { font-family: var(--font-titulo); font-weight: 800; font-size: var(--tipo-titulo); line-height: .98; letter-spacing: -.035em; color: var(--tinta); }
+  .t3 { font-family: var(--font-titulo); font-weight: 700; font-size: 21px; letter-spacing: -.015em; color: var(--tinta); }
+  .comp { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 22px; border-radius: var(--raio-pilula); font-weight: 600; text-decoration: none; }
+  .btn-lima { background: var(--lima); color: var(--tinta); }
+  .btn-contorno { border: 1.5px solid currentColor; color: var(--tinta); }
+  .link { color: var(--tinta); font-weight: 600; text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1.5px; }
+  .escuro { background: var(--mata); color: #fff; padding: 28px; border-radius: var(--raio-bloco); }
+  .escuro .btn-contorno { color: #fff; }
+  .icone { display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--lima-claro); color: var(--abeto); }
+  .ok { display: inline-flex; gap: 10px; align-items: center; color: var(--tinta); font-weight: 500; }
+  .ok::before { content: "✓"; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--lima); color: var(--mata); font-size: 13px; font-weight: 800; }
+  .imgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 20px; }
+  .imgs figure { margin: 0; }
+  .imgs img { width: 100%; display: block; border-radius: var(--raio-imagem); }
+  .imgs figcaption { font-size: 14px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Stabil Money, a identidade visual</h1>
+    <p>Verde-petróleo profundo com um único destaque lima, títulos blocados em Bricolage Grotesque e texto em Geist. O guia completo está no README.md desta pasta.</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>Cores</h2>
+    <div class="cores">
+      <div class="cor"><i style="background:#032628"></i><div><b>Mata</b>#032628<br>superfícies escuras</div></div>
+      <div class="cor"><i style="background:#0A3A36"></i><div><b>Abeto</b>#0A3A36<br>ícones, texto forte</div></div>
+      <div class="cor"><i style="background:#9FE870"></i><div><b>Lima</b>#9FE870<br>o único destaque</div></div>
+      <div class="cor"><i style="background:#E4F7D4"></i><div><b>Lima claro</b>#E4F7D4<br>fundo de ícone</div></div>
+      <div class="cor"><i style="background:#FFFFFF"></i><div><b>Papel</b>#FFFFFF<br>fundo padrão</div></div>
+      <div class="cor"><i style="background:#EEF2EC"></i><div><b>Névoa</b>#EEF2EC<br>faixa neutra</div></div>
+      <div class="cor"><i style="background:#FBF7F2"></i><div><b>Creme</b>#FBF7F2<br>ilustrações claras</div></div>
+      <div class="cor"><i style="background:#0E1A14"></i><div><b>Tinta</b>#0E1A14<br>títulos</div></div>
+      <div class="cor"><i style="background:#454745"></i><div><b>Grafite</b>#454745<br>texto</div></div>
+      <div class="cor"><i style="background:#6B726D"></i><div><b>Apagado</b>#6B726D<br>secundário</div></div>
+      <div class="cor"><i style="background:#DDE3DC"></i><div><b>Linha</b>#DDE3DC<br>divisórias</div></div>
+      <div class="cor"><i style="background:#B9CBC5"></i><div><b>Texto no escuro</b>#B9CBC5<br>sobre o mata</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap tipo">
+    <h2>Fontes</h2>
+    <div><small>h1, Bricolage Grotesque 800</small><div class="t1">Seu dinheiro com clareza.</div></div>
+    <div><small>h2, Bricolage Grotesque 800</small><div class="t2">Comece em três passos</div></div>
+    <div><small>h3, Bricolage Grotesque 700</small><div class="t3">Cartões com fatura</div></div>
+    <div><small>Texto, Geist 400, 16px</small><p style="max-width:60ch;margin:0">Compras à vista, parceladas e recorrentes caem no ciclo certo, e o limite volta quando a fatura é paga.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Componentes</h2>
+    <div class="comp">
+      <a class="btn btn-lima" href="#">Criar conta grátis</a>
+      <a class="btn btn-contorno" href="#">Entrar</a>
+      <a class="link" href="#">Já tenho conta</a>
+      <span class="icone"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19M6 15h4"/></svg></span>
+      <span class="ok">Login próprio para cada pessoa</span>
+    </div>
+    <div class="escuro comp" style="margin-top:24px">
+      <a class="btn btn-lima" href="#">Criar conta grátis</a>
+      <a class="btn btn-contorno" href="#">Entrar</a>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Imagens</h2>
+    <div class="imgs">
+      <figure><img src="imagens/web/inicio-app-960.jpg" alt=""><figcaption>Abertura: o app no celular, fundo mata</figcaption></figure>
+      <figure><img src="imagens/web/inicio-contas-960.jpg" alt=""><figcaption>"Como funciona": as contas, fundo creme</figcaption></figure>
+      <figure><img src="imagens/web/equilibrio-900.jpg" alt=""><figcaption>Faixa "Equilíbrio"</figcaption></figure>
+    </div>
+  </div>
+</section>
+</body>
+</html>
