@@ -17,17 +17,23 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
- * Gerenciamento de dependentes — apenas o titular (account_owner_id null) acessa.
- * Dependente é um User com account_owner_id apontando para o titular; compartilha
- * a visão financeira da família. Cada dependente pode ter um saldo/limite de
- * gasto: as despesas que ELE lança (made_by_user_id) descontam desse valor.
+ * A página Família. Dependente é um User com account_owner_id apontando para o titular;
+ * compartilha a visão financeira da família.
+ *
+ * Quem faz o quê (out/2026 — permissões do titular em Configurações › Conta):
+ *  - ver a página: o titular sempre; os dependentes se `familia_visivel` (nasce ligado);
+ *  - adicionar e remover: só o titular;
+ *  - editar o cadastro de um dependente: o titular; e os outros dependentes, se ele também
+ *    ligar `familia_editavel` — nunca o próprio cadastro (é em Meu perfil) nem o do titular.
+ * As regras vivem no User (`podeVerAFamilia`, `podeEditarNaFamilia`).
  */
 class DependentController extends Controller
 {
     public function index(Request $request)
     {
-        $titular = $request->user();
-        abort_unless($titular->isTitular(), 403);
+        $quemVe = $request->user();
+        abort_unless($quemVe->podeVerAFamilia(), 403);
+        $titular = $quemVe->isTitular() ? $quemVe : $quemVe->titular;
 
         // `gasto` = soma das DESPESAS do MÊS CORRENTE lançadas por cada pessoa
         // (made_by_user_id), pré-agregada para evitar N+1 ao montar os cards.
@@ -59,7 +65,7 @@ class DependentController extends Controller
         // relação ao resto, e é essa comparação que a tela existe para dar.
         $gastoFamilia = $gastoTitular + (float) $dependents->sum('gasto');
 
-        return view('dependents.index', compact('dependents', 'gastoTitular', 'gastoFamilia'));
+        return view('dependents.index', compact('dependents', 'gastoTitular', 'gastoFamilia', 'titular', 'quemVe'));
     }
 
     public function store(StoreDependentRequest $request)
@@ -105,13 +111,14 @@ class DependentController extends Controller
 
     public function update(UpdateDependentRequest $request, User $dependent)
     {
-        // Segunda linha de defesa, com a MESMA regra do `destroy`: só o titular da família do
-        // dependente. O `authorize()` do UpdateDependentRequest já barra isso, mas era a única
-        // barreira — numa mutação que o removeu, o dependente de outra família foi editado de
-        // fato (nome, e-mail de acesso e senha). Uma regra de posse que vive num lugar só some
-        // no primeiro refactor desse lugar.
-        $titular = $request->user();
-        abort_unless($titular->isTitular() && $dependent->account_owner_id === $titular->id, 403);
+        // Segunda linha de defesa: o `authorize()` do UpdateDependentRequest já barra, mas era a
+        // única barreira — numa mutação que o removeu, o dependente de outra família foi editado
+        // de fato (nome, e-mail de acesso e senha). Uma regra de posse que vive num lugar só some
+        // no primeiro refactor desse lugar. Quem edita é o titular, ou — com as permissões dele
+        // ligadas — outro dependente (`User::podeEditarNaFamilia`); é ele que os avisos e o
+        // registro de atividade citam.
+        $quemEdita = $request->user();
+        abort_unless($quemEdita->podeEditarNaFamilia($dependent), 403);
 
         $data = $request->validated();
 
@@ -163,7 +170,7 @@ class DependentController extends Controller
             if ($trocouEmail) {
                 Notificador::avisar($antes, AlertaDeSeguranca::emailAlteradoPeloTitular(
                     $dependent,
-                    $titular,
+                    $quemEdita,
                     $dependent->email,
                     ContextoDeSeguranca::doRequest($request),
                 ));
@@ -177,12 +184,12 @@ class DependentController extends Controller
         Atividade::registrar(
             'dependente.senha_trocada',
             'trocou a senha de '.$dependent->name.' (os aparelhos dele(a) foram desconectados)',
-            $titular->ownerId(),
+            $quemEdita->ownerId(),
             $dependent,
         );
 
-        // Derruba TODAS as sessões do dependente, sem exceção. Quem troca é o titular, na
-        // sessão DELE: não há sessão "atual" do dependente a preservar, e uma senha trocada
+        // Derruba TODAS as sessões do dependente, sem exceção. Quem troca é o titular (ou outro
+        // dependente, com a permissão dele), na sessão DELE: não há sessão "atual" do dependente a preservar, e uma senha trocada
         // que deixa os aparelhos conectados não tira ninguém de dentro — nem o celular
         // perdido, nem quem já tinha entrado com a senha antiga, que costumam ser o motivo
         // da troca.
@@ -197,12 +204,12 @@ class DependentController extends Controller
         // avisam.
         Notificador::avisar($antes, AlertaDeSeguranca::senhaAlteradaPeloTitular(
             $dependent,
-            $titular,
+            $quemEdita,
             ContextoDeSeguranca::doRequest($request),
             emailNovo: $trocouEmail ? $dependent->email : null,
         ));
 
-        // O titular precisa saber do efeito colateral: sem isto, a reclamação de "fui
+        // Quem editou precisa saber do efeito colateral: sem isto, a reclamação de "fui
         // desconectado do nada" chega sem explicação.
         return redirect()->route('dependentes')->with(
             'status',

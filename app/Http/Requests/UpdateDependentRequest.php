@@ -8,8 +8,8 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 /**
- * Edição de dependente — só o titular dono pode. Senha é opcional (só troca se
- * preenchida); foto também opcional.
+ * Edição de dependente — o titular, ou outro dependente se o titular deixou
+ * (`User::podeEditarNaFamilia`). Senha é opcional (só troca se preenchida); foto também.
  */
 class UpdateDependentRequest extends FormRequest
 {
@@ -17,9 +17,10 @@ class UpdateDependentRequest extends FormRequest
     {
         $dependent = $this->route('dependent');
 
-        return $this->user()?->isTitular() === true
-            && $dependent instanceof User
-            && $dependent->account_owner_id === $this->user()->id;
+        // O titular, ou outro dependente com as permissões do titular ligadas (a regra é uma
+        // só, no User; o controller confere de novo).
+        return $dependent instanceof User
+            && $this->user()?->podeEditarNaFamilia($dependent) === true;
     }
 
     public function rules(): array

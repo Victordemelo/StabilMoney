@@ -84,8 +84,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12.6 2.7A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8 8a2 2 0 0 0 2.8 0l7.2-7.2a2 2 0 0 0 0-2.8Z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>
             <span class="nav-txt"><span class="nav-label">Categorias</span><span class="nav-desc">Tipos de gasto e receita</span></span>
         </a>
-        @if ($usuario->isTitular())
-            @php $numDep = $usuario->dependents()->count(); @endphp
+        {{-- Família: o titular sempre; os dependentes quando o titular deixa (Configurações ›
+             Conta, nasce ligado — `User::podeVerAFamilia`). O número é o de dependentes. --}}
+        @if ($usuario->podeVerAFamilia())
+            @php $numDep = ($usuario->isTitular() ? $usuario : $usuario->titular)?->dependents()->count() ?? 0; @endphp
         <a data-pjax class="nav-item {{ request()->routeIs('dependentes') ? 'active' : '' }}" href="{{ route('dependentes') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span class="nav-txt"><span class="nav-label">Família</span><span class="nav-desc">Quem usa a conta</span></span>

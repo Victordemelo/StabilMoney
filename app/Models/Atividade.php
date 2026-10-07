@@ -95,6 +95,10 @@ class Atividade extends Model
         'dependente.removido' => 'familia',
         'dependente.saiu' => 'familia',
         'perfil.editado' => 'familia',
+        'familia.visivel_ligada' => 'familia',
+        'familia.visivel_desligada' => 'familia',
+        'familia.edicao_ligada' => 'familia',
+        'familia.edicao_desligada' => 'familia',
         // Acesso e segurança
         'app.conta_criada' => 'acesso',
         'acesso.entrou' => 'acesso',

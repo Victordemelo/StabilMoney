@@ -11,7 +11,9 @@
             : mb_substr($p[0] ?? 'U', 0, 2));
     };
     $cores = ['var(--c-lazer)', 'var(--c-alimentacao)', 'var(--c-saude)', 'var(--brand-500)'];
-    $titular = auth()->user();
+    // `$titular` e `$quemVe` vêm do controller: desde out/2026 um dependente também pode ver
+    // esta página (se o titular deixar), e aí quem vê NÃO é o titular.
+    $ehTitular = $quemVe->isTitular();
     // Qual modal reabrir quando a validação volta com erro (store vs editar X).
     $formComErro = old('_form');
 
@@ -33,13 +35,15 @@
 <section class="view">
     <div class="section-head">
         <h2>Família</h2>
-        <span class="sub">Compartilhe o controle financeiro com a família</span>
-        <div class="head-actions">
-            <button class="btn-primary" type="button" id="depAddBtn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
-                Adicionar dependente
-            </button>
-        </div>
+        <span class="sub">{{ $ehTitular ? 'Compartilhe o controle financeiro com a família' : 'Quem usa a conta da família e quanto cada um gastou' }}</span>
+        @if ($ehTitular)
+            <div class="head-actions">
+                <button class="btn-primary" type="button" id="depAddBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+                    Adicionar dependente
+                </button>
+            </div>
+        @endif
     </div>
 
     <div class="grid">
@@ -67,7 +71,7 @@
             </div>
 
             <div class="dep-grid">
-                {{-- Titular (você) --}}
+                {{-- Titular --}}
                 <div class="dep-person titular">
                     <div class="dp-top">
                         <div class="dp-av" style="background: var(--brand-600)">
@@ -78,14 +82,17 @@
                             @endif
                         </div>
                         <div class="dp-id">
-                            <div class="dp-name">{{ $titular->name }}<span class="dp-badge titular">Titular</span></div>
+                            <div class="dp-name">{{ $titular->name }}<span class="dp-badges"><span class="dp-badge titular">Titular</span>@if ($ehTitular)<span class="dp-badge voce">Você</span>@endif</span></div>
                         </div>
-                        {{-- O titular não se edita aqui: o lápis leva às Configurações (out/2026). --}}
-                        <div class="dp-actions">
-                            <a class="dp-edit" href="{{ route('settings') }}" aria-label="Abrir as Configurações da sua conta" title="Configurações">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg>
-                            </a>
-                        </div>
+                        {{-- O titular não se edita aqui: o lápis leva às Configurações (out/2026). Os
+                             dependentes nunca editam o titular, nem com a edição liberada. --}}
+                        @if ($ehTitular)
+                            <div class="dp-actions">
+                                <a class="dp-edit" href="{{ route('settings') }}" aria-label="Abrir as Configurações da sua conta" title="Configurações">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg>
+                                </a>
+                            </div>
+                        @endif
                     </div>
                     {{-- E-mail por extenso, na largura do card (embaixo dos botões também); só
                          corta com reticências quando nem assim cabe — o completo fica no title. --}}
@@ -114,12 +121,20 @@
                                 @endif
                             </div>
                             <div class="dp-id">
-                                <div class="dp-name">{{ $dep->name }}<span class="dp-badge">{{ $dep->relationshipLabel() ?? 'Dependente' }}</span></div>
+                                <div class="dp-name">{{ $dep->name }}<span class="dp-badges"><span class="dp-badge">{{ $dep->relationshipLabel() ?? 'Dependente' }}</span>@if ($dep->is($quemVe))<span class="dp-badge voce">Você</span>@endif</span></div>
                             </div>
                             <div class="dp-actions">
-                                <button class="dp-edit" type="button" data-edit="{{ $dep->id }}" aria-label="Editar {{ $dep->name }}">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg>
-                                </button>
+                                @if ($quemVe->podeEditarNaFamilia($dep))
+                                    <button class="dp-edit" type="button" data-edit="{{ $dep->id }}" aria-label="Editar {{ $dep->name }}">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg>
+                                    </button>
+                                @elseif ($dep->is($quemVe))
+                                    {{-- O próprio cadastro é em Meu perfil (lá a troca de e-mail pede a senha atual). --}}
+                                    <a class="dp-edit" href="{{ route('profile.edit') }}" aria-label="Editar os seus dados em Meu perfil" title="Meu perfil">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17v3zM13.5 6.5l4 4"/></svg>
+                                    </a>
+                                @endif
+                                @if ($ehTitular)
                                 {{-- "Tem certeza?" pelo sm/confirmar.js. O `onsubmit` inline de
                                      antes era bloqueado pela CSP (removia sem perguntar) e ainda
                                      punha o nome dentro de uma string JS: um apóstrofo no nome a
@@ -132,6 +147,7 @@
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg>
                                     </button>
                                 </form>
+                                @endif
                             </div>
                         </div>
                         <div class="dp-rel dp-email" title="{{ $dep->email }}">{{ $dep->email }}</div>
@@ -149,7 +165,8 @@
                     </div>
                 @endforeach
 
-                {{-- Card "adicionar" tracejado --}}
+                {{-- Card "adicionar" tracejado (só o titular adiciona) --}}
+                @if ($ehTitular)
                 <button class="dep-person pm-add" type="button" id="depAddCard">
                     <div class="pm-add-inner">
                         <span class="pm-plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span>
@@ -157,13 +174,14 @@
                         <span class="dp-rel">Login próprio, mesma visão da família</span>
                     </div>
                 </button>
+                @endif
 
                 {{-- Card-fantasma: só enquanto a família é de um. Mostra o FORMATO
                      do card que a pessoa vai receber — um estado vazio que apenas
                      diz "não há nada" deixa o usuário adivinhando o que ganha em
                      troca de cadastrar alguém. Some no instante em que existe um
                      dependente de verdade. --}}
-                @if ($dependents->isEmpty())
+                @if ($ehTitular && $dependents->isEmpty())
                     <div class="dep-person dep-ghost" aria-hidden="true">
                         <div class="dp-top">
                             <div class="dp-av">
@@ -200,6 +218,7 @@
      do sm/dialogo.js, pelo script no fim desta view. --}}
 
 {{-- Modal: adicionar dependente --}}
+@if ($ehTitular)
 <div class="modal-scrim" id="depModal" data-close>
     <div class="modal modal-lg" role="dialog" aria-modal="true"
          aria-labelledby="depModal-titulo" aria-describedby="depModal-descricao">
@@ -275,9 +294,11 @@
         </form>
     </div>
 </div>
+@endif
 
 {{-- Modais: editar cada dependente (um por pessoa) --}}
 @foreach ($dependents as $dep)
+    @if ($quemVe->podeEditarNaFamilia($dep))
     <div class="modal-scrim" id="depEditModal-{{ $dep->id }}" data-close>
         <div class="modal modal-lg" role="dialog" aria-modal="true"
              aria-labelledby="depEditModal-{{ $dep->id }}-titulo" aria-describedby="depEditModal-{{ $dep->id }}-descricao">
@@ -364,6 +385,7 @@
             </form>
         </div>
     </div>
+    @endif
 @endforeach
 
 <script nonce="{{ Vite::cspNonce() }}">

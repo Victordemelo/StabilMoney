@@ -109,7 +109,15 @@ class FamilyAccountTest extends TestCase
         $titular = User::factory()->create();
         $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
 
-        $this->actingAs($dependent)->get('/dependentes')->assertForbidden();
+        // Vê a família (permissão padrão do titular), mas não adiciona ninguém.
+        $this->actingAs($dependent)->get('/dependentes')->assertOk()->assertDontSee('id="depAddBtn"', false);
+        $this->actingAs($dependent)->post('/dependentes', [
+            'name' => 'Novo', 'email' => 'novo@familia.test', 'password' => 'senha-bem-comprida-123',
+        ])->assertForbidden();
+
+        // Com a permissão desligada, nem a tela.
+        $titular->forceFill(['familia_visivel' => false])->save();
+        $this->actingAs($dependent->fresh())->get('/dependentes')->assertForbidden();
     }
 
     public function test_titular_removes_dependent(): void
@@ -166,9 +174,14 @@ class FamilyAccountTest extends TestCase
         $titular = User::factory()->create();
         $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
 
-        $this->actingAs($dependent)->get('/accounts')
+        // Com a permissão padrão do titular, o item aparece para o dependente também.
+        $this->actingAs($dependent)->get('/accounts')->assertOk()
+            ->assertSee('<span class="nav-label">Família</span>', false);
+
+        // Desligada (Configurações › Conta), o item "Família" do menu não aparece.
+        $titular->forceFill(['familia_visivel' => false])->save();
+        $this->actingAs($dependent->fresh())->get('/accounts')
             ->assertOk()
-            // A gestão da família é só do titular: o item "Família" do menu não aparece.
             ->assertDontSee('<span class="nav-label">Família</span>', false)
             ->assertDontSee(route('dependentes'));
     }

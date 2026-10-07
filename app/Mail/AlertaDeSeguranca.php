@@ -112,7 +112,7 @@ class AlertaDeSeguranca extends Mailable
         $nomeTitular = e($titular->name);
 
         $paragrafos = [
-            '<strong>'.$nomeTitular.'</strong>, titular da sua conta-família, definiu uma <strong>senha nova</strong> para a sua conta no Stabil Money.',
+            '<strong>'.$nomeTitular.'</strong>, '.self::papelNaFamilia($titular).', definiu uma <strong>senha nova</strong> para a sua conta no Stabil Money.',
             'Por segurança, a sua conta foi desconectada de todos os aparelhos, e eles vão pedir a senha nova no próximo acesso.',
         ];
 
@@ -243,7 +243,7 @@ class AlertaDeSeguranca extends Mailable
             titulo: 'O e-mail da sua conta foi trocado',
             preheader: $titular->name.' trocou o e-mail com que você entra no app.',
             paragrafos: [
-                '<strong>'.$nomeTitular.'</strong>, titular da sua conta-família, trocou o e-mail com que você entra no '
+                '<strong>'.$nomeTitular.'</strong>, '.self::papelNaFamilia($titular).', trocou o e-mail com que você entra no '
                     .'Stabil Money para <strong>'.e(self::mascararEmail($emailNovo)).'</strong>.',
                 'A partir de agora, entrar no app e recuperar a senha passam pelo endereço novo, e os próximos avisos da '
                     .'conta vão para lá. A sua senha não mudou.',
@@ -504,6 +504,15 @@ class AlertaDeSeguranca extends Mailable
                 'rodapeAvisoTexto' => $this->rodapeAviso ? self::semMarcacao($this->rodapeAviso) : null,
             ],
         );
+    }
+
+    /**
+     * Como o aviso apresenta quem mexeu no cadastro: o titular, ou — desde out/2026, com a
+     * permissão de edição da família ligada — outro dependente.
+     */
+    private static function papelNaFamilia(User $quem): string
+    {
+        return $quem->isTitular() ? 'titular da sua conta-família' : 'da sua conta-família';
     }
 
     /**

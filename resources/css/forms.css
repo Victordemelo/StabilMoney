@@ -901,6 +901,8 @@ a.tx { text-decoration: none; color: inherit; }
 }
 .lembrete-toggle:hover { background: var(--surface-3); }
 .lembrete-toggle:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
+/* As duas permissões da Família lado a lado; uma sob a outra em tela estreita. */
+.familia-permissoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 0 14px; }
 
 /* ============ 2FA: switch como controle + autenticadores da família ============ */
 

@@ -128,6 +128,93 @@
     @include('profile.partials.delete-user-form')
 </div>
 
+{{-- Família (out/2026 — pedido do Victor): o que os dependentes podem na página Família.
+     Duas permissões, decididas pelo TITULAR: ver (nasce ligada) e, a partir dela, editar o
+     cadastro uns dos outros. Cada linha é um interruptor como o dos lembretes (o hidden leva o
+     valor oposto). O titular nunca é editável por eles. Regras em `User::podeVerAFamilia` e
+     `User::podeEditarNaFamilia`. --}}
+<div class="card sec-card span12" id="familia">
+    <div class="card-head">
+        <h3>Família</h3>
+        <span class="chip">Permissões</span>
+    </div>
+
+    @if ($titular)
+        <p class="sec-card-desc">
+            O que os dependentes podem fazer na página <a href="{{ route('dependentes') }}">Família</a>.
+            Adicionar e remover pessoas continua sendo só com você.
+        </p>
+        <div class="familia-permissoes">
+            <form method="POST" action="{{ route('settings.familia') }}" class="lembrete-form">
+                @csrf
+                @method('PATCH')
+                <input type="hidden" name="permissao" value="familia_visivel">
+                <input type="hidden" name="ligada" value="{{ $user->familia_visivel ? 0 : 1 }}">
+                <button type="submit" class="sec-2fa-row lembrete-toggle" role="switch" data-familia="familia_visivel"
+                        aria-checked="{{ $user->familia_visivel ? 'true' : 'false' }}">
+                    <div class="sec-2fa-txt">
+                        <strong>Os dependentes veem a família</strong>
+                        <span>
+                            @if ($user->familia_visivel)
+                                A página Família aparece para eles também: quem usa a conta e quanto cada um gastou no mês — só para ver.
+                            @else
+                                Desligado. Só você vê a página Família e quanto cada pessoa gastou.
+                            @endif
+                        </span>
+                    </div>
+                    <span class="switch {{ $user->familia_visivel ? 'is-on' : 'is-off' }}" aria-hidden="true"><span class="switch-dot"></span></span>
+                </button>
+            </form>
+
+            @if ($user->familia_visivel)
+                <form method="POST" action="{{ route('settings.familia') }}" class="lembrete-form">
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="permissao" value="familia_editavel">
+                    <input type="hidden" name="ligada" value="{{ $user->familia_editavel ? 0 : 1 }}">
+                    <button type="submit" class="sec-2fa-row lembrete-toggle" role="switch" data-familia="familia_editavel"
+                            aria-checked="{{ $user->familia_editavel ? 'true' : 'false' }}">
+                        <div class="sec-2fa-txt">
+                            <strong>Quer deixar que eles editem?</strong>
+                            <span>
+                                @if ($user->familia_editavel)
+                                    Ligado: cada dependente edita o cadastro dos outros — nome, e-mail, foto, parentesco e senha. O seu cadastro continua só seu.
+                                @else
+                                    Desligado: eles só veem. Ligue para que editem o cadastro uns dos outros (nome, e-mail, foto, parentesco e senha) — nunca o seu.
+                                @endif
+                            </span>
+                        </div>
+                        <span class="switch {{ $user->familia_editavel ? 'is-on' : 'is-off' }}" aria-hidden="true"><span class="switch-dot"></span></span>
+                    </button>
+                </form>
+            @else
+                <div class="sec-2fa-row lembrete-form" data-familia="familia_editavel">
+                    <div class="sec-2fa-txt">
+                        <strong>Quer deixar que eles editem?</strong>
+                        <span>Ligue a opção ao lado primeiro: só quem vê a família pode editar.</span>
+                    </div>
+                </div>
+            @endif
+        </div>
+    @else
+        @php $dono = $user->titular; @endphp
+        <p class="sec-card-desc">Quem decide o que os dependentes podem na página Família é {{ $dono?->name ?? 'o titular' }}.</p>
+        <div class="sec-2fa-row lembrete-form">
+            <div class="sec-2fa-txt">
+                @if ($user->podeVerAFamilia())
+                    <strong>Você vê a página <a href="{{ route('dependentes') }}">Família</a></strong>
+                    <span>{{ $dono?->familia_editavel
+                        ? 'E pode editar o cadastro dos outros dependentes. O seu, edite em Meu perfil; o do titular, só ele.'
+                        : 'Só para ver: quem usa a conta e quanto cada um gastou no mês.' }}</span>
+                @else
+                    <strong>A página Família está fechada</strong>
+                    <span>Só {{ $dono?->name ?? 'o titular' }} vê quem usa a conta e quanto cada um gastou.</span>
+                @endif
+            </div>
+        </div>
+    @endif
+</div>
+
 {{-- Relógio da topbar: o fuso é só de EXIBIÇÃO. Preferência como o tema — sem senha. --}}
 <div class="card sec-card span12" id="relogio">
     <div class="card-head">

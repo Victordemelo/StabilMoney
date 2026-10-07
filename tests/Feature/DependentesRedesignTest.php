@@ -186,11 +186,16 @@ class DependentesRedesignTest extends TestCase
             ->assertSee(route('avatar.show', $this->titular), escape: false);
     }
 
-    public function test_dependente_nao_entra_na_tela(): void
+    public function test_dependente_so_entra_na_tela_com_a_permissao_do_titular(): void
     {
         $maria = $this->dependente('Maria Silva');
 
-        // A tela é do titular: quem gerencia acessos é quem criou a conta.
-        $this->actingAs($maria)->get(route('dependentes'))->assertForbidden();
+        // Desde out/2026 o titular decide (Configurações › Conta, nasce ligado): o dependente
+        // vê, sem gerenciar. Desligado, a tela volta a ser só do titular
+        // (`PermissoesDaFamiliaTest`).
+        $this->actingAs($maria)->get(route('dependentes'))->assertOk()->assertDontSee('id="depAddBtn"', false);
+
+        $this->titular->forceFill(['familia_visivel' => false])->save();
+        $this->actingAs($maria->fresh())->get(route('dependentes'))->assertForbidden();
     }
 }

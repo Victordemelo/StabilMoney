@@ -110,6 +110,9 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     protected $attributes = [
         'reminder_emails' => true,
+        // Permissões da página Família (o titular decide; ver `podeVerAFamilia`).
+        'familia_visivel' => true,
+        'familia_editavel' => false,
     ];
 
     /** Graus de parentesco de um dependente (valor no banco => rótulo PT-BR). */
@@ -205,6 +208,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'two_factor_trust_version' => 'integer',
             'reminder_emails' => 'boolean',
             'reminder_last_sent_on' => 'date:Y-m-d',
+            'familia_visivel' => 'boolean',
+            'familia_editavel' => 'boolean',
         ];
     }
 
@@ -512,6 +517,48 @@ class User extends Authenticatable implements MustVerifyEmail
     public function titular(): BelongsTo
     {
         return $this->belongsTo(User::class, 'account_owner_id');
+    }
+
+    /**
+     * Pode abrir a página Família? O titular sempre; o dependente, se o titular deixou
+     * (`familia_visivel`, Configurações › Conta — nasce ligado). Fora do `$fillable`: só o
+     * titular muda isso, pela rota própria (`settings.familia`).
+     */
+    public function podeVerAFamilia(): bool
+    {
+        if ($this->isTitular()) {
+            return true;
+        }
+
+        return (bool) $this->titular?->familia_visivel;
+    }
+
+    /**
+     * Pode editar o cadastro de `$alvo` (nome, e-mail, foto, parentesco, senha) pela página
+     * Família?
+     *  - o titular: qualquer dependente dele;
+     *  - um dependente: os OUTROS dependentes da mesma família, só com as duas permissões do
+     *    titular ligadas (ver e editar). O próprio cadastro ele edita em Meu perfil (que pede
+     *    a senha atual para trocar o e-mail); aqui não, senão isto viraria um atalho por cima
+     *    dessa exigência;
+     *  - ninguém edita o TITULAR por aqui — "o admin que criou a conta" (decisão do Victor).
+     */
+    public function podeEditarNaFamilia(User $alvo): bool
+    {
+        if ($alvo->isTitular() || $alvo->is($this)) {
+            return false;
+        }
+
+        if ($this->isTitular()) {
+            return $alvo->account_owner_id === $this->id;
+        }
+
+        $titular = $this->titular;
+
+        return $titular !== null
+            && $titular->familia_visivel
+            && $titular->familia_editavel
+            && $alvo->account_owner_id === $titular->id;
     }
 
     /**

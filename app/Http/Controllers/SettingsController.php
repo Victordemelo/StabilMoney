@@ -172,6 +172,62 @@ class SettingsController extends Controller
      * Só o titular: é ele quem recebe (o dinheiro é da família e ele responde por ele),
      * então um dependente não tem o que ligar — 403 em vez de um toggle sem efeito.
      */
+    /**
+     * As permissões da página Família (out/2026 — pedido do Victor), uma por envio:
+     *  - `familia_visivel`: os dependentes veem a página (quem usa a conta e quanto cada um
+     *    gastou), só para ver. Nasce ligada. Desligar volta ao de antes: só o titular a vê —
+     *    e desliga também a edição, para religar a visão não devolver a edição sem ninguém pedir;
+     *  - `familia_editavel`: além de ver, editam o cadastro dos OUTROS dependentes. Só existe
+     *    com a primeira ligada. O titular nunca é editável por eles (`User::podeEditarNaFamilia`).
+     */
+    public function atualizarFamilia(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->isTitular(), 403);
+
+        $dados = $request->validate([
+            'permissao' => ['required', Rule::in(['familia_visivel', 'familia_editavel'])],
+            'ligada' => ['required', 'boolean'],
+        ]);
+        $campo = $dados['permissao'];
+        $ligada = (bool) $dados['ligada'];
+
+        if ($campo === 'familia_editavel' && $ligada && ! $user->familia_visivel) {
+            return redirect()->route('settings', 'conta')->with('erro',
+                'Para deixar os dependentes editarem, primeiro deixe que eles vejam a página Família.');
+        }
+
+        $user->forceFill([$campo => $ligada]);
+        if ($campo === 'familia_visivel' && ! $ligada) {
+            $user->forceFill(['familia_editavel' => false]);
+        }
+
+        // Só quando mudou de fato (o reenvio do mesmo formulário não é uma ação nova).
+        $mudou = $user->isDirty($campo);
+        $user->save();
+
+        [$acao, $oQue, $aviso] = match (true) {
+            $campo === 'familia_visivel' && $ligada => ['familia.visivel_ligada',
+                'deixou os dependentes verem a página Família',
+                'Os dependentes agora veem a página Família, sem poder mudar nada.'],
+            $campo === 'familia_visivel' => ['familia.visivel_desligada',
+                'fechou a página Família para os dependentes',
+                'A página Família voltou a ser só sua.'],
+            $ligada => ['familia.edicao_ligada',
+                'deixou os dependentes editarem o cadastro uns dos outros',
+                'Os dependentes agora podem editar o cadastro uns dos outros. O seu continua só seu.'],
+            default => ['familia.edicao_desligada',
+                'tirou dos dependentes a edição do cadastro uns dos outros',
+                'Os dependentes voltaram a só ver a página Família.'],
+        };
+
+        if ($mudou) {
+            Atividade::registrar($acao, $oQue, $user->ownerId(), $user);
+        }
+
+        return redirect()->route('settings', 'conta')->with('status', $aviso);
+    }
+
     public function atualizarLembretes(Request $request): RedirectResponse
     {
         $user = $request->user();

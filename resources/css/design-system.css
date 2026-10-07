@@ -1062,6 +1062,9 @@ form[data-type="transfer"] .type-toggle.tt-3 .tt-pill {
 }
 .dp-badge.titular { background: var(--brand-50); color: var(--brand-700); border-color: var(--brand-200); }
 [data-theme="dark"] .dp-badge.titular { background: rgba(28,154,112,.14); color: var(--brand-300); border-color: rgba(28,154,112,.28); }
+/* Papel + "Você" lado a lado, embaixo do nome (out/2026: dependentes também veem a página). */
+.dp-badges { display: flex; flex-wrap: wrap; gap: 5px; }
+.dp-badge.voce { background: var(--surface); color: var(--ink-2); border-style: dashed; }
 
 /* Fatia do gasto da família. `--fatia` é escrito no style inline pelo Blade —
    largura em custom property mantém o valor fora do CSS e o CSS fora do Blade. */

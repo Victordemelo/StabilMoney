@@ -178,6 +178,10 @@ Route::middleware(['auth', 'verified', ExigeAceiteDaPoliticaAtual::class])->grou
     // então só ele muda). Preferência sem risco — não pede senha nem tem limite próprio.
     Route::patch('/configuracoes/lembretes', [SettingsController::class, 'atualizarLembretes'])
         ->name('settings.lembretes');
+    // Permissões da página Família (só o titular): os dependentes veem; e, se ele quiser,
+    // também editam o cadastro uns dos outros. Preferência como os lembretes — sem senha.
+    Route::patch('/configuracoes/familia', [SettingsController::class, 'atualizarFamilia'])
+        ->name('settings.familia');
     Route::patch('/configuracoes/relogio', [SettingsController::class, 'atualizarRelogio'])
         ->name('settings.relogio');
 
