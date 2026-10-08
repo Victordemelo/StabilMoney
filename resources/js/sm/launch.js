@@ -374,15 +374,11 @@ export function initLaunch() {
             if (form.dataset.type === 'transfer') excluirOrigemDoDestino();
         });
     }
-    radios.forEach((r) => r.addEventListener('change', () => {
-        // Trocar receita ↔ despesa ↔ transferência ZERA o valor. São naturezas
-        // diferentes de dinheiro; herdar o número digitado para o outro convida a
-        // salvar um valor que era de outra coisa — e num app de dinheiro isso vira
-        // lançamento errado, não só incômodo.
-        const valor = form.querySelector('#lm-amount');
-        if (valor) valor.value = '';
-        applyType();
-    }));
+    // Trocar receita ↔ despesa ↔ transferência MANTÉM valor, data, descrição e quem fez
+    // (out/2026 — pedido do Victor: quem escolheu o tipo errado e corrige não deve digitar
+    // tudo de novo). Só a categoria e o "Onde" mudam, porque dependem do tipo — o
+    // `applyType` limpa a categoria do outro tipo e troca a conta que não vale mais.
+    radios.forEach((r) => r.addEventListener('change', applyType));
     applyType();
 
     // Envio por AJAX.

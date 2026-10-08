@@ -109,3 +109,26 @@ describe('Parcelas no modal Lançar', () => {
         expect(new FormData(document.querySelector('form')).get('installments')).toBe('12');
     });
 });
+
+describe('trocar o tipo mantém os campos (out/2026)', () => {
+    it('valor, data e descrição continuam; a categoria e o "Onde" acompanham o tipo', () => {
+        montar();
+        const valor = document.getElementById('lm-amount');
+        const data = document.getElementById('lm-date');
+        const desc = document.getElementById('lm-description');
+        valor.value = '150,00';
+        data.value = '2026-10-03';
+        desc.value = 'Mercado';
+
+        escolherTipo('expense');
+        expect(valor.value).toBe('150,00');
+        expect(data.value).toBe('2026-10-03');
+        expect(desc.value).toBe('Mercado');
+        expect(document.getElementById('lm-account').selectedOptions[0].dataset.para).toBe('expense');
+
+        escolherTipo('income');
+        expect(valor.value).toBe('150,00');
+        expect(desc.value).toBe('Mercado');
+        expect(document.getElementById('lm-account').selectedOptions[0].textContent).toBe('Inter');
+    });
+});

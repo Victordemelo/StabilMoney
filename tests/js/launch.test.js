@@ -126,7 +126,6 @@ function abrirComDespesa(valor = '150,00') {
 
     const expense = document.getElementById('lm-tt-expense');
     expense.checked = true;
-    // O handler do radio ZERA o valor, então o preenchimento vem depois dele.
     expense.dispatchEvent(new Event('change', { bubbles: true }));
 
     document.getElementById('lm-amount').value = valor;
