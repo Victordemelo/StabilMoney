@@ -85,6 +85,9 @@ export function initShell() {
             e.stopPropagation();
             aberto ? api.fechar() : api.abrir();
         });
+        // Um link de dentro (ex.: "Abrir Contas a pagar") navega pelo pjax, que não troca o
+        // shell: sem isto o balão continuava aberto por cima da tela nova.
+        pop.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('a[href]')) api.fechar(); });
         popovers.push(api);
         return api;
     };
@@ -130,6 +133,8 @@ export function initShell() {
 
     // Notificações: posicionado via CSS absoluto (não precisa reposicionar)
     makePopover(document.getElementById('notifBtn'), document.getElementById('notifPop'));
+    // O sino do celular abre o mesmo balão, encostado nas margens da tela (CSS).
+    makePopover(document.getElementById('mNotif'), document.getElementById('mNotifPop'));
 
     // Clique fora fecha o popover aberto; Esc fecha todos
     document.addEventListener('click', (e) => {

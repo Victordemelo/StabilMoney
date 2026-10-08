@@ -2392,3 +2392,17 @@ body.pjax-loading #content { opacity: .5; }
   box-shadow: 0 10px 26px rgba(0,0,0,.25);
 }
 .selo-do-video img { width: 64%; height: 64%; object-fit: contain; filter: brightness(0) invert(1); opacity: .92; }
+
+/* ----- Sino do celular (out/2026): o mesmo balão do computador -----
+   `.m-notif` é estático: o balão se posiciona pela `.mobile-top` (sticky), nas margens. */
+.m-notif { margin-left: auto; }
+.mobile-top .m-notif-pop {
+  top: calc(100% - 2px); right: calc(12px + env(safe-area-inset-right, 0px)); left: auto;
+  width: min(360px, calc(100vw - 24px)); max-height: min(70vh, 520px); overflow-y: auto;
+}
+.notif-ver {
+  display: block; margin: 6px 4px 2px; padding: 10px 12px; border-radius: 12px; text-align: center;
+  font-size: 13px; font-weight: 600; color: var(--brand-600); background: var(--surface-2); text-decoration: none;
+}
+.notif-ver:hover { background: var(--surface-3); }
+[data-theme="dark"] .notif-ver { color: var(--brand-300); }
