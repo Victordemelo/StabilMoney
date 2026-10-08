@@ -202,10 +202,17 @@ export function bindCashflowHover(wrap, svg, tip, getState) {
 
 /* ---------- DONUT (gastos por categoria) ---------- */
 
-// Texto do centro quando nada está focado (ex.: "R$ 6,1k")
-function donutTotalLabel(total) {
-    if (total >= 1000) return `R$ ${(total / 1000).toFixed(1).replace('.', ',')}k`;
-    return `R$ ${BRL(total, 0)}`;
+// Texto do centro quando nada está focado: o valor REAL, com os centavos (out/2026 — o app
+// inteiro trabalha com duas casas; "R$ 476" ou "R$ 6,1k" escondiam a diferença da fatura).
+export function donutTotalLabel(total) {
+    return `R$ ${BRL(total)}`;
+}
+
+// Escreve no centro do donut e encolhe a fonte para o valor caber DENTRO do anel (o miolo
+// tem ~70 unidades do viewBox de 120): "R$ 476,20" cabe em 17, "R$ 12.345,67" pede menos.
+export function escreverNoCentro(el, texto) {
+    el.textContent = texto;
+    el.style.fontSize = `${Math.min(17, 70 / (texto.length * 0.56)).toFixed(2)}px`;
 }
 
 // Desenha o donut + legenda interativa. `cats` = [{ name, value, color }]
@@ -234,7 +241,7 @@ export function buildDonut(svg, legend, cats) {
             acc += span;
             return `<path class="donut-seg" data-i="${i}" d="${arc(d0, Math.max(d0 + 0.1, d1))}" fill="none" stroke="${c.color}" stroke-width="13" stroke-linecap="round"/>`;
         }).join('') +
-        `<g class="donut-center" text-anchor="middle"><text class="dc-amt" x="${C}" y="${C - 2}">${donutTotalLabel(total)}</text><text class="dc-lbl" x="${C}" y="${C + 14}">Total no mês</text></g>`;
+        `<g class="donut-center" text-anchor="middle"><text class="dc-amt" x="${C}" y="${C - 2}"></text><text class="dc-lbl" x="${C}" y="${C + 14}">Total no mês</text></g>`;
 
     // Legenda lista TODAS (inclusive as fixas zeradas, marcadas com .is-zero).
     // Montada com createElement + textContent, NÃO com innerHTML: `c.name` é o nome
@@ -256,7 +263,7 @@ export function buildDonut(svg, legend, cats) {
 
         const valor = document.createElement('span');
         valor.className = 'cv';
-        valor.textContent = `R$ ${BRL(c.value, 0)}`;
+        valor.textContent = `R$ ${BRL(c.value)}`;
 
         const pct = document.createElement('span');
         pct.className = 'cp';
@@ -267,6 +274,7 @@ export function buildDonut(svg, legend, cats) {
     }));
 
     const amtEl = $('.dc-amt', svg), lblEl = $('.dc-lbl', svg);
+    escreverNoCentro(amtEl, donutTotalLabel(total));
     // Sincroniza segmento <-> linha da legenda e troca o texto do centro
     function focus(i) {
         $$('.donut-seg', svg).forEach((s) => {
@@ -275,8 +283,8 @@ export function buildDonut(svg, legend, cats) {
             s.style.opacity = i == null || on ? 1 : .35;
         });
         $$('.cat-row', legend).forEach((r) => r.classList.toggle('hot', +r.dataset.i === i));
-        if (i == null) { amtEl.textContent = donutTotalLabel(total); lblEl.textContent = 'Total no mês'; }
-        else { amtEl.textContent = `R$ ${BRL(cats[i].value, 0)}`; lblEl.textContent = cats[i].name; }
+        if (i == null) { escreverNoCentro(amtEl, donutTotalLabel(total)); lblEl.textContent = 'Total no mês'; }
+        else { escreverNoCentro(amtEl, `R$ ${BRL(cats[i].value)}`); lblEl.textContent = cats[i].name; }
     }
     $$('.donut-seg', svg).forEach((s) => {
         s.addEventListener('mouseenter', () => focus(+s.dataset.i));
