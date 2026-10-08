@@ -95,8 +95,15 @@
         // com setembro vencido o outubro ficava sem lápis, e parecia que a conta só podia
         // ser alterada depois de pagar a vencida.
     @endphp
-    <div class="card fatura-card span12" style="margin-top:18px">
-        <div class="fatura-head">
+    @php
+        // Recolhido por padrão (out/2026 — pedido do Victor): abre sozinho quando há conta
+        // vencida ou vencendo em até 7 dias, e mostra essas primeiro; as outras (pagas, ou
+        // longe de vencer) ficam em "Ver as outras".
+        $fixasUrgentes = $contasFixas->filter(fn ($oc) => ! $oc['paga'] && ($oc['vencida'] || $oc['diasRestantes'] <= 7))->values();
+        $fixasOutras = $contasFixas->reject(fn ($oc) => ! $oc['paga'] && ($oc['vencida'] || $oc['diasRestantes'] <= 7))->values();
+    @endphp
+    <details class="card fatura-card span12 fatura-recolhe fixas-recolhe" style="margin-top:18px" @if ($fixasUrgentes->isNotEmpty()) open @endif>
+        <summary class="fatura-head">
             <div class="fh-card" style="background:linear-gradient(135deg,#6B4E9E,#3A2A5C)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" width="22" height="22"><path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/></svg>
             </div>
@@ -105,8 +112,12 @@
                 <span>
                     @if ($fixasVencidas->isNotEmpty())
                         <em class="fi-badge recorrente" style="color:var(--neg)">{{ $fixasVencidas->count() }} vencida{{ $fixasVencidas->count() > 1 ? 's' : '' }}</em>
+                    @elseif ($fixasUrgentes->isNotEmpty())
+                        {{ $fixasUrgentes->count() }} {{ $fixasUrgentes->count() === 1 ? 'vence' : 'vencem' }} nos próximos 7 dias
+                    @elseif ($contasFixas->isEmpty())
+                        Nenhuma cadastrada — abra para adicionar
                     @else
-                        Condomínio, aluguel, parcelas — o que vence todo mês
+                        Nada vencendo nos próximos 7 dias
                     @endif
                 </span>
             </div>
@@ -114,77 +125,37 @@
                 <span>Em aberto</span>
                 <b class="{{ $fixasVencidas->isNotEmpty() ? 'neg' : '' }}">@brl($totalFixas)</b>
             </div>
-        </div>
+            <svg class="fh-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <div class="fatura-corpo">
 
-        <div class="fatura-items">
-            @forelse ($contasFixas as $oc)
-                @php $bill = $oc['bill']; @endphp
-                <div class="fatura-item">
-                    <span class="fi-ico">{{ $bill->category?->icon ?: '🏠' }}</span>
-                    <div class="fi-txt">
-                        <strong>{{ $bill->name }}</strong>
-                        <span>
-                            {{ $oc['competence']->translatedFormat('F/Y') }} · vence dia {{ $bill->due_day }}
-                            @if ($oc['paga'])
-                                · <em class="fi-badge avista" style="color:var(--pos, #1FA06E)">paga</em>
-                            @elseif ($oc['vencida'])
-                                · <em class="fi-badge recorrente" style="color:var(--neg)">vencida há {{ abs($oc['diasRestantes']) }} {{ abs($oc['diasRestantes']) === 1 ? 'dia' : 'dias' }}</em>
-                            @elseif ($oc['diasRestantes'] === 0)
-                                · <em class="fi-badge parcelado">vence hoje</em>
-                            @else
-                                · vence em {{ $oc['diasRestantes'] }} {{ $oc['diasRestantes'] === 1 ? 'dia' : 'dias' }}
-                            @endif
-                        </span>
-                    </div>
-                    <div class="fi-val">
-                        <b class="{{ $oc['vencida'] ? 'neg' : '' }}">@brl($oc['valor'])</b>
-                        <small>{{ $oc['vencimento']->translatedFormat('d M') }}</small>
-                    </div>
-                    @if (! $oc['paga'] && $accounts->isNotEmpty())
-                        <button class="btn primary" type="button" data-fixa-pagar
-                                data-action="{{ route('contas-fixas.pagar', [$bill, $oc['competence']->format('Y-m')]) }}"
-                                data-nome="{{ $bill->name }}"
-                                data-valor="{{ number_format($oc['valor'], 2, ',', '.') }}"
-                                data-conta="{{ $bill->account_id }}"
-                                {{-- Já venceu = obrigação (passa mesmo deixando a conta negativa); antes
-                                     disso é gasto novo. A mesma régua do FixedBillController::pay. --}}
-                                data-obrigacao="{{ $oc['vencimento']->lessThanOrEqualTo(today()) ? '1' : '0' }}"
-                                {{-- Piso da data de pagamento = 1º dia do mês anterior à
-                                     competência (o mesmo do PayFixedBillRequest). --}}
-                                data-min="{{ $oc['competence']->subMonthNoOverflow()->startOfMonth()->format('Y-m-d') }}">
-                            Pagar
-                        </button>
-                    @endif
-
-                    {{-- Editar: corrige o previsto (1.800 digitado como 18.000 ficava
-                         projetado para sempre e ainda vinha pré-preenchido no pagamento). --}}
-                    <button class="fi-rm fi-ed" type="button" data-fixa-editar
-                            data-action="{{ route('contas-fixas.update', $bill) }}"
-                            data-nome="{{ $bill->name }}"
-                            data-valor="{{ number_format((float) $bill->amount, 2, ',', '.') }}"
-                            data-dia="{{ $bill->due_day }}"
-                            data-conta="{{ $bill->account_id }}"
-                            data-categoria="{{ $bill->category_id }}"
-                            data-inicio="{{ optional($bill->starts_on)->format('Y-m-d') }}"
-                            data-fim="{{ optional($bill->ends_on)->format('Y-m-d') }}"
-                            aria-label="Editar a conta fixa {{ $bill->name }}" title="Editar conta fixa">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z"/></svg>
-                    </button>
-                    {{-- Pede a SENHA (out/2026), pelo mesmo modal do "Remover despesa". --}}
-                    <form method="POST" action="{{ route('contas-fixas.destroy', $bill) }}"
-                          data-remover-despesa data-remover-tipo="fixa" data-titulo="Excluir conta fixa"
-                          data-pergunta="Excluir a conta fixa “{{ $bill->name }}”? As competências em aberto deixam de aparecer aqui; os pagamentos já feitos continuam no histórico.">
-                        @csrf
-                        @method('DELETE')
-                        <button class="fi-rm" type="submit" aria-label="Excluir a conta fixa {{ $bill->name }}" title="Excluir conta fixa">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                        </button>
-                    </form>
-                </div>
-            @empty
+        @if ($contasFixas->isEmpty())
+            <div class="fatura-items">
                 <div class="fi-empty">Nenhuma conta fixa cadastrada. Cadastre o condomínio, o aluguel ou a parcela do carro para nunca perder o vencimento.</div>
-            @endforelse
-        </div>
+            </div>
+        @else
+            @if ($fixasUrgentes->isNotEmpty())
+                <div class="fatura-items" data-fixas-urgentes>
+                    @foreach ($fixasUrgentes as $oc)
+                        @include('faturas._conta-fixa-linha')
+                    @endforeach
+                </div>
+            @endif
+            @if ($fixasOutras->isNotEmpty())
+                {{-- Sem nada urgente, as outras já aparecem abertas (é tudo o que há para ver). --}}
+                <details class="fixas-outras" data-fixas-outras @if ($fixasUrgentes->isEmpty()) open @endif>
+                    <summary>
+                        {{ $fixasUrgentes->isEmpty() ? 'Todas as contas fixas' : 'Ver as outras' }} <em class="fp-n">{{ $fixasOutras->count() }}</em>
+                        <svg class="fp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                    </summary>
+                    <div class="fatura-items">
+                        @foreach ($fixasOutras as $oc)
+                            @include('faturas._conta-fixa-linha')
+                        @endforeach
+                    </div>
+                </details>
+            @endif
+        @endif
 
         {{-- Fora do `.fatura-pay`: aquele bloco é a linha de PAGAR a fatura (tem
              `margin-left:auto` no botão primário), e o "+ Nova conta fixa" herdava
@@ -196,7 +167,8 @@
                 Nova conta fixa
             </button>
         </div>
-    </div>
+        </div>{{-- /.fatura-corpo --}}
+    </details>
 
     @if ($cards->isEmpty() && $accountExpenses->isEmpty())
         {{-- Estado vazio amigável (nenhum cartão e nenhuma despesa avulsa) --}}
@@ -265,9 +237,6 @@
                 $acc        = $card->account;
                 $cor        = $acc->color ?: $corPadrao;
                 $limite     = (float) ($acc->credit_limit ?? 0);
-                        @if ($card->proximas->isNotEmpty())
-                            <small class="fh-proximas">+ {{ $card->proximas->count() }} {{ $card->proximas->count() === 1 ? 'próxima fatura' : 'próximas faturas' }}</small>
-                        @endif
                 $usadoPct   = max(0, min(100, (float) ($card->limitUsedPct ?? 0)));
                 $usadoValor = max(0, $limite - (float) ($card->availableLimit ?? 0));
             @endphp
@@ -296,6 +265,9 @@
                     <div class="fh-total">
                         <span>Fatura atual @if ($vencida)<em class="fh-vencida">vencida</em>@endif</span>
                         <b>{{ $brl($card->currentInvoice) }}</b>
+                        @if ($card->proximas->isNotEmpty())
+                            <small class="fh-proximas">+ {{ $card->proximas->count() }} {{ $card->proximas->count() === 1 ? 'próxima fatura' : 'próximas faturas' }}</small>
+                        @endif
                     </div>
                     <svg class="fh-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                 </summary>
@@ -384,6 +356,34 @@
                          disso, o clique era irreversível pela interface. --}}
                     @if ($card->settlement)
                         <form method="POST" action="{{ route('faturas.fatura.estornar', $card->settlement) }}"
+                              class="fatura-estorno"
+                              data-confirmar="Estornar o pagamento de {{ $brl($card->settlement->amount) }}? As compras voltam para a fatura em aberto e o valor volta para a conta.">
+                            @csrf
+                            @method('DELETE')
+                            <button class="btn ghost" type="submit"
+                                    title="Pago em {{ optional($card->settlement->paid_at)->translatedFormat('d/m/Y') }}">
+                                Estornar pagamento
+                            </button>
+                        </form>
+                    @endif
+
+                    {{-- Desfazer a última quitação PELO CRÉDITO: as compras e o estorno
+                         voltam a ficar em aberto, sem dinheiro nenhum se mover. Sem isto
+                         a compra quitada assim não podia mais ser corrigida nem excluída. --}}
+                    @if ($card->quitacaoPeloCredito)
+                        <form method="POST" action="{{ route('faturas.fatura.desfazer-quitacao', $card->quitacaoPeloCredito) }}"
+                              class="fatura-estorno"
+                              data-confirmar="Desfazer a quitação pelo crédito do estorno? As compras e o estorno voltam para a fatura em aberto. Nenhum dinheiro entra nem sai de conta nenhuma.">
+                            @csrf
+                            @method('DELETE')
+                            <button class="btn ghost" type="submit"
+                                    title="Quitada pelo crédito do estorno em {{ $card->quitacaoPeloCredito->paid_at->translatedFormat('d/m/Y') }}">
+                                Desfazer quitação
+                            </button>
+                        </form>
+                    @endif
+                </div>
+
                 {{-- Próximas faturas (out/2026): as parcelas futuras e o que foi lançado com data
                      depois do fechamento, uma fatura por vencimento — como o app do banco mostra.
                      Recolhido: abre no toque. Quem calcula é o FaturaService (`proximasFaturas`). --}}
@@ -422,34 +422,6 @@
                         </ol>
                     </details>
                 @endif
-
-                              class="fatura-estorno"
-                              data-confirmar="Estornar o pagamento de {{ $brl($card->settlement->amount) }}? As compras voltam para a fatura em aberto e o valor volta para a conta.">
-                            @csrf
-                            @method('DELETE')
-                            <button class="btn ghost" type="submit"
-                                    title="Pago em {{ optional($card->settlement->paid_at)->translatedFormat('d/m/Y') }}">
-                                Estornar pagamento
-                            </button>
-                        </form>
-                    @endif
-
-                    {{-- Desfazer a última quitação PELO CRÉDITO: as compras e o estorno
-                         voltam a ficar em aberto, sem dinheiro nenhum se mover. Sem isto
-                         a compra quitada assim não podia mais ser corrigida nem excluída. --}}
-                    @if ($card->quitacaoPeloCredito)
-                        <form method="POST" action="{{ route('faturas.fatura.desfazer-quitacao', $card->quitacaoPeloCredito) }}"
-                              class="fatura-estorno"
-                              data-confirmar="Desfazer a quitação pelo crédito do estorno? As compras e o estorno voltam para a fatura em aberto. Nenhum dinheiro entra nem sai de conta nenhuma.">
-                            @csrf
-                            @method('DELETE')
-                            <button class="btn ghost" type="submit"
-                                    title="Quitada pelo crédito do estorno em {{ $card->quitacaoPeloCredito->paid_at->translatedFormat('d/m/Y') }}">
-                                Desfazer quitação
-                            </button>
-                        </form>
-                    @endif
-                </div>
 
                 @if ($limite > 0)
                     <div class="fh-limit">

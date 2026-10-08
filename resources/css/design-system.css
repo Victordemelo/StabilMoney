@@ -2460,3 +2460,17 @@ html[data-valores-ocultos]:not([data-valores-prontos]) .app {
 .fp-val { white-space: nowrap; font-weight: 600; }
 @media (max-width: 420px) { .fatura-proximas .fp-soma { margin-left: 28px; flex-basis: 100%; } }
 
+/* ----- Contas fixas recolhíveis (out/2026): as outras (pagas ou longe de vencer) ----- */
+.fixas-outras { margin: 4px 0 6px; }
+.fixas-outras > summary {
+  display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 4px; cursor: pointer; list-style: none;
+  font-size: 13px; font-weight: 600; color: var(--ink-2);
+}
+.fixas-outras > summary::-webkit-details-marker { display: none; }
+.fixas-outras > summary .fp-n {
+  font-style: normal; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px;
+  display: inline-grid; place-items: center; font-size: 11.5px; background: var(--surface-3); color: var(--ink-2);
+}
+.fixas-outras > summary .fp-chev { width: 16px; height: 16px; color: var(--ink-3); transition: transform .2s var(--ease); }
+.fixas-outras[open] > summary .fp-chev { transform: rotate(180deg); }
+.fixas-outras > summary:focus-visible { outline: 2px solid var(--brand-300); outline-offset: 2px; border-radius: 10px; }
