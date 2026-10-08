@@ -25,6 +25,7 @@ import { initVitrine } from './sm/vitrine';
 import { melhorarCamposDeData } from './sm/data-br';
 import { initRolagemSuave } from './sm/rolagem-suave';
 import { initSaldoGiro } from './sm/saldo-giro';
+import { initOcultarValores } from './sm/ocultar-valores';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -65,6 +66,7 @@ function initContent() {
 // elementos persistem entre navegações pjax.
 function init() {
     initTheme();
+    initOcultarValores(); // o "olho": marca os valores e liga o botão (antes do resto)
     initBaloes();
     initShell();
     initRelogio();

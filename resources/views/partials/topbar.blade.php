@@ -49,6 +49,12 @@
             @include('partials.notif-lista')
         </div>
     </div>
+    {{-- O "olho" (sm/ocultar-valores.js): esconde todos os valores em R$ com um toque, e a escolha
+         fica guardada neste aparelho. Ao lado do sino, no celular e no computador. --}}
+    <button class="icon-btn btn-olho" type="button" data-ocultar-valores aria-pressed="false" aria-label="Esconder os valores" title="Esconder os valores">
+        <svg class="olho-aberto" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg class="olho-fechado" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3l18 18M10.6 5.1A10.6 10.6 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7a10 10 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+    </button>
     <button class="icon-btn" id="mTheme" type="button" aria-label="Alternar tema">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
     </button>
@@ -86,6 +92,10 @@
     </a>
     <button class="icon-btn" id="themeBtn" type="button" aria-label="Alternar tema">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" id="themeIcon"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
+    </button>
+    <button class="icon-btn btn-olho" type="button" data-ocultar-valores aria-pressed="false" aria-label="Esconder os valores" title="Esconder os valores">
+        <svg class="olho-aberto" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg class="olho-fechado" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3l18 18M10.6 5.1A10.6 10.6 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7a10 10 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
     </button>
     {{-- Notificações: vencidas primeiro, depois as dos próximos 7 dias --}}
     <div class="topbar-notif">

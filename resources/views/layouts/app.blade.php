@@ -60,6 +60,12 @@
             // iOS: `black` = glifos claros (combina com o fundo escuro do tema escuro).
             var barra = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
             if (barra) barra.setAttribute('content', t === 'dark' ? 'black' : 'default');
+
+            // Valores escondidos pelo "olho" (sm/ocultar-valores.js): decidido ANTES da primeira
+            // pintura, senão o saldo aparecia por um instante a cada tela.
+            try {
+                if (localStorage.getItem('sm-ocultar-valores') === '1') document.documentElement.setAttribute('data-valores-ocultos', '');
+            } catch (e) { /* storage indisponível */ }
         })();
     </script>
 

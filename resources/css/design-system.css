@@ -2189,6 +2189,11 @@ body.pjax-loading #content { opacity: .5; }
 @media (max-width: 300px) {
   .bn-item { font-size: 0; gap: 0; }
   .mobile-top { gap: 6px; padding-top: 10px; padding-bottom: 10px; }
+  /* Com o "olho" são quatro botões no topo: em 34px eles cabem até 200px (o alvo segue ≥ 32). */
+  .mobile-top .icon-btn { width: 34px; height: 34px; }
+}
+@media (max-width: 260px) {
+  .mobile-top .mbrand-mark { display: none; }
 }
 @media (max-width: 240px) {
   .mobile-top { padding-left: 8px; padding-right: 8px; }
@@ -2392,6 +2397,22 @@ body.pjax-loading #content { opacity: .5; }
   box-shadow: 0 10px 26px rgba(0,0,0,.25);
 }
 .selo-do-video img { width: 64%; height: 64%; object-fit: contain; filter: brightness(0) invert(1); opacity: .92; }
+
+/* ----- O "olho": esconder os valores (out/2026 — sm/ocultar-valores.js) -----
+   Os valores em R$ ganham `.sm-valor` e ficam borrados com `html[data-valores-ocultos]`.
+   Até o JS marcar a tela, a página fica invisível (no máximo .8s): sem isso o saldo
+   aparecia por um instante a cada carga. */
+.btn-olho .olho-fechado { display: none; }
+html[data-valores-ocultos] .btn-olho .olho-aberto { display: none; }
+html[data-valores-ocultos] .btn-olho .olho-fechado { display: block; }
+.sm-valor { transition: filter .2s var(--ease); }
+html[data-valores-ocultos] .sm-valor { filter: blur(7px); user-select: none; }
+html[data-valores-ocultos] text.sm-valor { filter: none; opacity: 0; }
+html[data-valores-ocultos]:not([data-valores-prontos]) .app {
+  visibility: hidden; animation: sm-valores-prontos 0s .8s forwards;
+}
+@keyframes sm-valores-prontos { to { visibility: visible; } }
+@media (prefers-reduced-motion: reduce) { .sm-valor { transition: none; } }
 
 /* ----- Sino do celular (out/2026): o mesmo balão do computador -----
    `.m-notif` é estático: o balão se posiciona pela `.mobile-top` (sticky), nas margens. */
