@@ -137,4 +137,23 @@ class LancarParceladoPeloModalTest extends TestCase
         $this->assertStringContainsString('<option value="1">À vista</option>', $html);
         $this->assertStringContainsString('<option value="24">24x</option>', $html);
     }
+
+    public function test_a_pagina_cheia_tambem_parcela_e_a_edicao_nao_oferece(): void
+    {
+        $criar = $this->actingAs($this->user)->get(route('transactions.create'))->assertOk()->getContent();
+        $this->assertStringContainsString('id="installments" name="installments"', $criar);
+        $this->assertMatchesRegularExpression('#<option value="'.$this->cartao->id.'" data-para="expense" data-card="1"#', $criar);
+
+        // Sem JS o envio é um formulário comum: volta para Movimentações com as parcelas gravadas.
+        $this->actingAs($this->user)->post(route('transactions.store'), [
+            'type' => 'expense', 'amount' => '300,00', 'account_id' => $this->cartao->id,
+            'date' => '2027-01-15', 'description' => 'Bicicleta', 'installments' => 3,
+        ])->assertRedirect();
+        $this->assertSame(3, Transaction::where('description', 'Bicicleta')->count());
+
+        $linha = Transaction::where('description', 'Bicicleta')->first();
+        $editar = $this->actingAs($this->user)->get(route('transactions.edit', $linha))->assertOk()->getContent();
+        // (o modal Lançar, no shell, tem o dele: `lm-installments`.)
+        $this->assertStringNotContainsString('id="installments"', $editar);
+    }
 }

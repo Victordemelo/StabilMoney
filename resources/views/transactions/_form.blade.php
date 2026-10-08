@@ -95,11 +95,25 @@
                 @if (! $transferencia)
                 {{-- Valor --}}
                 <div class="field">
-                    <label for="amount">Valor (R$)</label>
+                    <label for="amount" data-tx-valor-rotulo>Valor (R$)</label>
+                    {{-- Parcelas ao lado do valor, só na CRIAÇÃO e só em despesa no cartão de crédito
+                         (out/2026, igual ao modal "Lançar"; o script abaixo liga e desliga). Sem JS o
+                         select fica escondido e desabilitado: a compra vai à vista. --}}
+                    <div class="lm-valor" data-tx-valor>
                     <input class="input @error('amount') input-error @enderror" type="text" inputmode="decimal"
                            id="amount" name="amount" placeholder="0,00" required
                            @if ($valorTravado) readonly aria-describedby="amount-travado" @endif
                            value="{{ $valorTravado ? number_format((float) $transaction->amount, 2, ',', '.') : old('amount', $editando ? number_format((float) $transaction->amount, 2, ',', '.') : '') }}">
+                    @unless ($editando)
+                        <select class="input lm-parcelas @error('installments') input-error @enderror" id="installments" name="installments"
+                                aria-label="Parcelas" data-tx-parcelas hidden disabled>
+                            @for ($n = 1; $n <= 24; $n++)
+                                <option value="{{ $n }}" @selected((int) old('installments', 1) === $n)>{{ $n === 1 ? 'À vista' : $n.'x' }}</option>
+                            @endfor
+                        </select>
+                    @endunless
+                    </div>
+                    @error('installments')<div class="field-error">{{ $message }}</div>@enderror
                     @if ($valorTravado)
                         <small class="field-hint" id="amount-travado">Já {{ $transaction->type === 'income' ? 'recebida' : 'paga' }}: o valor não muda mais. Para corrigir, exclua e lance de novo.</small>
                     @endif
@@ -136,7 +150,7 @@
                                          `isCard` é PROPRIEDADE. Chamar isCard() cairia no __call
                                          do Fluent, que devolve $this (truthy) e marcaria TODA
                                          conta como cartão — em "Receita" o select ficava vazio. --}}
-                                    <option value="{{ $conta->id }}" data-para="{{ $para }}"
+                                    <option value="{{ $conta->id }}" data-para="{{ $para }}" data-card="{{ $conta->isCard ? '1' : '0' }}"
                                             @selected((int) old('account_id', $transaction->account_id ?? 0) === $conta->id)>
                                         {{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}
                                     </option>
@@ -344,12 +358,46 @@
             }
 
             aplicarModoTransferencia(tipo === 'transfer');
+            atualizarParcelas();
         }
+
+        // Parcelas (só na criação): o select aparece em DESPESA no CARTÃO DE CRÉDITO; fora disso
+        // fica escondido e desabilitado (não vai no envio) e volta para "À vista". Cada opção diz
+        // quanto fica a parcela — a MAIOR, porque o servidor dá o centavo que sobra às primeiras.
+        var parcelasSel = form.querySelector('[data-tx-parcelas]');
+        var caixaDoValor = form.querySelector('[data-tx-valor]');
+        var rotuloDoValor = form.querySelector('[data-tx-valor-rotulo]');
+        var campoValor = form.querySelector('#amount');
+        function centavosDigitados() {
+            var t = (campoValor && campoValor.value || '').replace(/[^\d,]/g, '').replace(',', '.');
+            var v = parseFloat(t);
+            return isNaN(v) ? 0 : Math.round(v * 100);
+        }
+        function atualizarParcelas() {
+            if (!parcelasSel) return;
+            var opt = contaSel && contaSel.selectedOptions[0];
+            var ligado = form.dataset.type === 'expense' && !!opt && opt.dataset.card === '1' && !opt.disabled;
+            if (!ligado) parcelasSel.value = '1';
+            parcelasSel.hidden = !ligado;
+            parcelasSel.disabled = !ligado;
+            if (caixaDoValor) caixaDoValor.classList.toggle('com-parcelas', ligado);
+            var centavos = centavosDigitados();
+            Array.prototype.forEach.call(parcelasSel.options, function (o) {
+                var n = Number(o.value);
+                o.textContent = n <= 1 ? 'À vista' : (centavos > 0
+                    ? n + 'x de R$ ' + (Math.ceil(centavos / n) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : n + 'x');
+            });
+            if (rotuloDoValor) rotuloDoValor.textContent = ligado && Number(parcelasSel.value) > 1 ? 'Valor total (R$)' : 'Valor (R$)';
+        }
+        if (parcelasSel) parcelasSel.addEventListener('change', atualizarParcelas);
+        if (campoValor) campoValor.addEventListener('input', atualizarParcelas);
 
         radios.forEach(function (radio) { radio.addEventListener('change', aplicar); });
         if (contaSel) {
             contaSel.addEventListener('change', function () {
                 if (form.dataset.type === 'transfer') excluirOrigemDoDestino();
+                atualizarParcelas();
             });
         }
         aplicar();

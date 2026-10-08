@@ -71,3 +71,57 @@ describe('select "Onde" da página cheia', () => {
         expect(conta().value).toBe('12');
     });
 });
+
+describe('parcelas na página cheia (out/2026)', () => {
+    function montarComParcelas() {
+        const opcoes = Array.from({ length: 24 }, (_, i) => `<option value="${i + 1}">${i + 1}x</option>`).join('');
+        document.body.innerHTML = `
+            <form data-tx-form>
+                <input type="radio" id="tt-income" name="type" value="income">
+                <input type="radio" id="tt-expense" name="type" value="expense" checked>
+                <label for="amount" data-tx-valor-rotulo>Valor (R$)</label>
+                <div class="lm-valor" data-tx-valor>
+                    <input type="text" id="amount" name="amount" value="500,00">
+                    <select id="installments" name="installments" data-tx-parcelas hidden disabled>${opcoes}</select>
+                </div>
+                <select id="account_id" name="account_id" required>
+                    <optgroup label="Contas correntes" data-para="income transfer">
+                        <option value="9" data-para="income transfer" data-card="0">Corrente</option>
+                    </optgroup>
+                    <optgroup label="Cartões de crédito" data-para="expense">
+                        <option value="12" data-para="expense" data-card="1">Roxinho</option>
+                    </optgroup>
+                    <optgroup label="Pix e TED" data-para="expense">
+                        <option value="9" data-para="expense" data-card="0">Pix → Corrente</option>
+                    </optgroup>
+                </select>
+                <select id="category_id" name="category_id"><option value="">Selecione</option></select>
+            </form>`;
+        new Function(script)();
+    }
+    const parcelas = () => document.getElementById('installments');
+
+    it('despesa no cartão mostra as parcelas com o valor de cada uma', () => {
+        montarComParcelas();
+        expect(parcelas().hidden).toBe(false);
+        expect(parcelas().disabled).toBe(false);
+        parcelas().value = '12';
+        parcelas().dispatchEvent(new Event('change'));
+        expect(parcelas().selectedOptions[0].textContent).toBe('12x de R$ 41,67');
+        expect(document.querySelector('[data-tx-valor-rotulo]').textContent).toBe('Valor total (R$)');
+        expect(new FormData(document.querySelector('form')).get('installments')).toBe('12');
+    });
+
+    it('no Pix ou em receita as parcelas somem e não vão no envio', () => {
+        montarComParcelas();
+        const sel = document.getElementById('account_id');
+        [...sel.options].find((o) => o.textContent === 'Pix → Corrente').selected = true;
+        sel.dispatchEvent(new Event('change'));
+        expect(parcelas().hidden).toBe(true);
+        expect(new FormData(document.querySelector('form')).has('installments')).toBe(false);
+
+        escolher('income');
+        expect(parcelas().hidden).toBe(true);
+        expect(parcelas().value).toBe('1');
+    });
+});
