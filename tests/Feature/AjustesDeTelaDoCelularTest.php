@@ -43,7 +43,13 @@ class AjustesDeTelaDoCelularTest extends TestCase
 
     public function test_o_codigo_do_2fa_fica_no_centro_do_campo(): void
     {
-        $this->assertStringContainsString('padding-left: 46px; padding-right: 46px; text-align: center;', file_get_contents(resource_path('css/auth.css')));
+        // Sem ícone dentro do campo e com a mesma folga dos dois lados (out/2026).
+        $this->assertStringContainsString('padding-left: 18px; padding-right: 18px; text-align: center;', file_get_contents(resource_path('css/auth.css')));
+        $view = file_get_contents(resource_path('views/auth/two-factor-challenge.blade.php'));
+        $this->assertStringNotContainsString('<svg class="lead"', $view);
+        // A caixa e a frase juntas, no centro; a explicação embaixo.
+        $this->assertStringContainsString('.auth .tfa-confiar { margin: 4px 0 20px; text-align: center; }', file_get_contents(resource_path('css/auth.css')));
+        $this->assertStringContainsString('<small id="tfa-confiar-ajuda">', $view);
     }
 
     public function test_informacoes_do_sistema_tem_a_foto_e_o_github(): void

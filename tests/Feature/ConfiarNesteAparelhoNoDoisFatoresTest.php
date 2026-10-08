@@ -359,7 +359,7 @@ class ConfiarNesteAparelhoNoDoisFatoresTest extends TestCase
 
         foreach ([route('two-factor.login'), route('two-factor.login', ['recuperacao' => 1])] as $url) {
             $html = $this->get($url)->assertOk()->getContent();
-            $this->assertMatchesRegularExpression('#<input type="checkbox" name="confiar" value="1"\s*/>#', $html);
+            $this->assertMatchesRegularExpression('#<input type="checkbox" name="confiar" value="1" aria-describedby="tfa-confiar-ajuda"\s*/>#', $html);
             $this->assertStringContainsString('Confiar neste aparelho por 7 dias', $html);
         }
     }

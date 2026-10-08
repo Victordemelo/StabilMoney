@@ -63,7 +63,6 @@
             <label for="codigo">{{ $recuperacao ? 'Código de recuperação' : 'Código de verificação' }}</label>
             <div class="input">
                 @if ($recuperacao)
-                    <svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 7a4 4 0 1 1-3.4 6.1L9 15.7l-1.6.3-.3 1.6-1.6.3-.3 1.6H3v-2.6l5.9-5.9A4 4 0 0 1 15 7Z"/></svg>
                     {{-- autocapitalize: no celular o teclado começa minúsculo e o código é
                          maiúsculo. O servidor normaliza de qualquer jeito, mas ver o que se
                          digita igual ao que está no papel evita a sensação de erro. --}}
@@ -71,7 +70,6 @@
                            placeholder="XXXXX-XXXXX" maxlength="13" required autofocus
                            autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" />
                 @else
-                    <svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>
                     {{-- `one-time-code` é o que faz o iOS/Android oferecerem o código do
                          autenticador direto no teclado. --}}
                     <input type="text" id="codigo" name="codigo" class="otp"
@@ -84,15 +82,15 @@
         {{-- Desmarcada por padrão: confiar é uma escolha consciente, por aparelho. A senha
              continua sendo pedida em todo login; o que se dispensa é só o código, e só
              NESTE navegador e nesta conta (App\Support\AparelhoConfiavel). --}}
+        {{-- A caixa e a frase numa linha, centralizadas e alinhadas pelo meio; a explicação
+             embaixo, também no centro (out/2026 — pedido do Victor). --}}
         <div class="tfa-confiar">
             <label class="check">
-                <input type="checkbox" name="confiar" value="1" @checked(old('confiar')) />
+                <input type="checkbox" name="confiar" value="1" aria-describedby="tfa-confiar-ajuda" @checked(old('confiar')) />
                 <span class="box"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4 10-10"/></svg></span>
-                <span>
-                    Confiar neste aparelho por {{ \App\Support\AparelhoConfiavel::DIAS }} dias
-                    <small>O código não será pedido neste navegador até lá. Não marque em computador compartilhado.</small>
-                </span>
+                <span>Confiar neste aparelho por {{ \App\Support\AparelhoConfiavel::DIAS }} dias</span>
             </label>
+            <small id="tfa-confiar-ajuda">O código não será pedido neste navegador até lá. Não marque em computador compartilhado.</small>
         </div>
 
         <button type="submit" class="btn-primary spaced">
