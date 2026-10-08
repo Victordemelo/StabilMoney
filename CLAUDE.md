@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.322 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **432 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.331 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **432 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -249,7 +249,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.322 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.331 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1545,6 +1545,15 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   código do 2FA com a mesma folga dos dois lados (os dígitos ficavam tortos); "Instalar o app" no ANDROID
   aparece mesmo sem o convite do Chrome e o toque mostra o caminho pelo menu (`[data-instalar-android]`).
 - **Informações do sistema** com a foto do autor (`sistema.autor.foto`) e o GitHub.
+- **Próximas faturas do cartão** (`ProximasFaturasDoCartaoTest`, `FaturaService::proximasFaturas`): as
+  linhas EM ABERTO do cartão datadas depois do ciclo aberto (parcelas 2/N em diante, compra com data
+  futura), agrupadas pelo ciclo (`billingCycle`) com o vencimento de cada um (`dueDateForCycle`);
+  estorno futuro abate, total nunca negativo. No cabeçalho do cartão, "+ N próximas faturas"; dentro,
+  o `<details class="fatura-proximas">`. Recorrência não aparece (a próxima só nasce quando a atual fecha).
+- **Contas fixas recolhidas** (`ContasFixasRecolhidasTest`): o bloco é um `<details>` que abre sozinho
+  com conta vencida ou vencendo em até 7 dias (essas primeiro, `data-fixas-urgentes`); as outras ficam
+  em "Ver as outras" (`data-fixas-outras`, aberto quando não há urgente). A linha de cada competência
+  é o partial `faturas/_conta-fixa-linha`.
 - **Tela do código (2FA), 08/10/2026:** sem ícone dentro do campo (dígitos no centro, a mesma folga dos
   dois lados) e "Confiar neste aparelho" com a caixa e a frase numa linha, centralizadas e alinhadas
   pelo meio; a explicação embaixo (`#tfa-confiar-ajuda`, ligada por `aria-describedby`).
@@ -2737,7 +2746,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.322 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.331 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
