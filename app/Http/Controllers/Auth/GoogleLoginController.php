@@ -8,6 +8,8 @@ use App\Models\Atividade;
 use App\Models\User;
 use App\Support\AparelhoConfiavel;
 use App\Support\LoginComGoogle;
+use App\Support\Mailer;
+use App\Support\Notificador;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
@@ -82,18 +84,32 @@ class GoogleLoginController extends Controller
         $email = Str::lower(trim((string) $google->getEmail()));
         $verificado = filter_var($google->user['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-        if ($sub === '' || $email === '' || ! $verificado) {
-            return $this->falhou('Esta conta Google não tem um e-mail confirmado. Entre com e-mail e senha.');
+        if ($sub === '' || $email === '') {
+            return $this->falhou();
         }
 
-        $user = User::where('google_id', $sub)->first() ?? User::where('email', $email)->first();
+        // Já ligada a este Google: o identificador da conta Google basta (o e-mail não decide nada).
+        $user = User::where('google_id', $sub)->first();
 
         if ($user === null) {
-            // Conta nova: os dados ficam na sessão até a pessoa aceitar os Termos.
+            $user = User::where('email', $email)->first();
+
+            // E-mail que o Google NÃO confirmou nunca leva a uma conta que já existe: ligar
+            // por ele seria aceitar um endereço que ninguém provou ser de quem está entrando.
+            if ($user !== null && ! $verificado) {
+                return $this->falhou('Esta conta Google não tem o e-mail confirmado. Entre com e-mail e senha.');
+            }
+        }
+
+        if ($user === null) {
+            // Conta nova: os dados ficam na sessão até a pessoa aceitar os Termos. Com o e-mail
+            // confirmado pelo Google ela entra direto; sem isso, é um cadastro comum e pede a
+            // confirmação por e-mail (out/2026 — regra do Victor).
             $request->session()->put(self::CHAVE_CADASTRO, [
                 'sub' => $sub,
                 'email' => $email,
                 'name' => Str::limit(trim((string) $google->getName()) ?: Str::before($email, '@'), 255, ''),
+                'verificado' => $verificado,
                 'em' => now()->getTimestamp(),
             ]);
 
@@ -173,8 +189,10 @@ class GoogleLoginController extends Controller
             return $this->falhou('Já existe uma conta com este e-mail. Entre com o Google de novo.');
         }
 
-        // Titular e e-mail confirmado (o Google provou que a caixa é da pessoa), fora do mass
-        // assignment, como no cadastro pelo formulário.
+        // Titular, fora do mass assignment, como no cadastro pelo formulário. Nasce confirmada
+        // nos dois casos (o link de verificação do framework se cala diante de quem já é); sem a
+        // confirmação do Google, ela só deixa de estar confirmada DEPOIS que o nosso link sai —
+        // a mesma ordem do RegisteredUserController (ninguém fica trancado sem um link a caminho).
         $user->forceFill([
             'is_admin' => true,
             'google_id' => $pendente['sub'],
@@ -182,8 +200,16 @@ class GoogleLoginController extends Controller
         ])->save();
         $request->session()->forget(self::CHAVE_CADASTRO);
 
-        event(new Registered($user)); // categorias padrão; o link de verificação se cala (já verificado)
+        event(new Registered($user)); // categorias padrão
         Atividade::registrar('app.conta_criada', 'criou a conta no Stabil Money com o Google', $user->getKey(), $user, autor: $user);
+
+        if (($pendente['verificado'] ?? true) !== true && Mailer::entrega() && Notificador::tentarEnviar(
+            $user,
+            'link de verificação de e-mail (cadastro pelo Google sem e-mail confirmado)',
+            fn () => $user->sendEmailVerificationNotification(),
+        )) {
+            $user->forceFill(['email_verified_at' => null])->save();
+        }
 
         Auth::guard('web')->login($user);
         $request->session()->regenerate();
@@ -227,7 +253,9 @@ class GoogleLoginController extends Controller
             return redirect()->route('login')->withErrors(['email' => BloqueiaUsuarioBanido::mensagem()]);
         }
 
-        // Senha certa: é a dona da conta, e o Google provou que é dona do e-mail.
+        // Senha certa: é a dona da conta, e o Google provou que é dona do e-mail (só chega aqui
+        // com `email_verified`) — então a conta criada por senha e ainda não confirmada passa a
+        // estar confirmada ao ligar o Google (out/2026, decisão registrada no CLAUDE.md).
         $user->forceFill(['google_id' => $pendente['sub'], 'email_verified_at' => $user->email_verified_at ?? now()])->save();
         $request->session()->forget(self::CHAVE_LIGAR);
 

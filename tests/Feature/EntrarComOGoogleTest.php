@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Http\Controllers\Auth\GoogleLoginController;
 use App\Models\Atividade;
 use App\Models\User;
+use App\Notifications\VerificacaoDeEmail;
 use App\Support\Totp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\User as UsuarioDoGoogle;
@@ -165,7 +167,7 @@ class EntrarComOGoogleTest extends TestCase
         $this->post(route('google.ligar.confirmar'), ['password' => 'x'])->assertRedirect(route('login'))->assertSessionHasErrors('email');
     }
 
-    public function test_email_que_o_google_nao_verificou_nao_entra_em_conta_nenhuma(): void
+    public function test_email_que_o_google_nao_verificou_nao_entra_em_conta_que_ja_existe(): void
     {
         $user = User::factory()->create(['email' => 'eu@exemplo.test']);
         $this->googleResponde('g-3', 'eu@exemplo.test', verificado: false);
@@ -291,5 +293,57 @@ class EntrarComOGoogleTest extends TestCase
         $user = User::factory()->create(['google_id' => 'g-secreto']);
 
         $this->assertArrayNotHasKey('google_id', $user->toArray());
+    }
+
+    // ══════════════════════════════════════════════════ confirmação do e-mail (out/2026)
+
+    public function test_cadastro_pelo_google_com_email_confirmado_entra_direto_no_painel(): void
+    {
+        config()->set('mail.default', 'smtp');
+        Notification::fake();
+        $this->googleResponde('g-ok', 'ok@exemplo.test');
+        $this->get(route('google.callback'));
+        $this->post(route('google.criar-conta'), ['terms' => '1'])->assertRedirect(route('dashboard'));
+
+        $this->assertNotNull(User::where('email', 'ok@exemplo.test')->value('email_verified_at'));
+        Notification::assertNothingSent();
+        $this->get(route('dashboard'))->assertOk();
+    }
+
+    public function test_cadastro_pelo_google_sem_email_confirmado_pede_a_confirmacao_como_o_cadastro_comum(): void
+    {
+        config()->set('mail.default', 'smtp');
+        Notification::fake();
+        $this->googleResponde('g-sem', 'sem@exemplo.test', verificado: false);
+
+        $this->get(route('google.callback'))->assertRedirect(route('google.cadastro'));
+        $this->post(route('google.criar-conta'), ['terms' => '1'])->assertRedirect(route('dashboard'));
+
+        $user = User::where('email', 'sem@exemplo.test')->firstOrFail();
+        $this->assertNull($user->email_verified_at, 'Sem a confirmação do Google, o e-mail precisa ser confirmado.');
+        Notification::assertSentTo($user, VerificacaoDeEmail::class);
+        $this->get(route('dashboard'))->assertRedirect(route('verification.notice'));
+    }
+
+    public function test_sem_mailer_o_cadastro_sem_email_confirmado_nao_fica_trancado(): void
+    {
+        config()->set('mail.default', 'log');
+        $this->googleResponde('g-log', 'log@exemplo.test', verificado: false);
+        $this->get(route('google.callback'));
+        $this->post(route('google.criar-conta'), ['terms' => '1']);
+
+        $this->assertNotNull(User::where('email', 'log@exemplo.test')->value('email_verified_at'));
+    }
+
+    public function test_ligar_o_google_a_conta_por_senha_ainda_nao_confirmada_a_confirma(): void
+    {
+        $user = User::factory()->create(['email' => 'pendente@exemplo.test', 'email_verified_at' => null]);
+        $this->googleResponde('g-pend', 'pendente@exemplo.test');
+
+        $this->get(route('google.callback'))->assertRedirect(route('google.ligar'));
+        $this->post(route('google.ligar.confirmar'), ['password' => 'password'])->assertRedirect();
+
+        $this->assertNotNull($user->fresh()->email_verified_at);
+        $this->assertSame('g-pend', $user->fresh()->google_id);
     }
 }
