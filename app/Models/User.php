@@ -102,6 +102,12 @@ class User extends Authenticatable implements MustVerifyEmail
     public const AVATAR_DISK = 'local';
 
     /**
+     * Conta de titular que nunca confirmou o e-mail sai depois deste prazo
+     * (`contas:limpar-nao-confirmadas`, 08/10/2026). Mudou aqui, mude a Política de Privacidade.
+     */
+    public const DIAS_PARA_CONFIRMAR_O_EMAIL = 30;
+
+    /**
      * Lembrete de vencimento por e-mail nasce LIGADO. O default também está na coluna,
      * mas um `User::create()` só vê o valor do banco depois de `fresh()` — aqui o
      * objeto recém-criado já responde certo.

@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\Account;
 use App\Models\Atividade;
+use App\Models\User;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -81,6 +83,55 @@ Artisan::command('atividades:limpar', function () {
     ));
 })->purpose('Apaga o registro de atividade com mais de 180 dias — guarda IP e aparelho (LGPD)');
 
+/**
+ * Exclui a conta de TITULAR que nunca confirmou o e-mail há mais de 30 dias
+ * (`User::DIAS_PARA_CONFIRMAR_O_EMAIL`, 08/10/2026 — decisão do Victor).
+ *
+ * Sem a confirmação o middleware `verified` tranca o app inteiro: a conta não tem uso, e
+ * guardar nome, e-mail, IP do aceite e hash de senha de quem nunca entrou não tem finalidade
+ * (LGPD, minimização — a Política diz o prazo). Também devolve o e-mail a quem é dono dele.
+ * Não manda lembrete de propósito: quem errou o próprio e-mail ao se cadastrar faria o app
+ * escrever para um estranho; o "Reenviar" já existe na tela.
+ *
+ * Exclui pelo MESMO caminho da exclusão de conta (`$user->delete()` numa transação — o hook
+ * apaga foto, sessões, tokens e o registro de atividade). Conta com conta de banco ou
+ * lançamento nunca sai por aqui, por segurança (não deveria existir: o app estava trancado).
+ */
+Artisan::command('contas:limpar-nao-confirmadas {--dry-run : só lista, não exclui}', function () {
+    $limite = now()->subDays(User::DIAS_PARA_CONFIRMAR_O_EMAIL);
+    $candidatas = User::whereNull('email_verified_at')
+        ->whereNull('account_owner_id')
+        ->where('created_at', '<', $limite)
+        ->whereNotExists(fn ($q) => $q->from((new Account)->getTable())->whereColumn('accounts.user_id', 'users.id'))
+        ->whereNotExists(fn ($q) => $q->from('transactions')->whereColumn('transactions.user_id', 'users.id'))
+        ->orderBy('id')
+        ->get();
+
+    if ($this->option('dry-run')) {
+        $candidatas->each(fn (User $u) => $this->line("#{$u->id} criada em {$u->created_at->format('d/m/Y')}"));
+        $this->info($candidatas->count().' conta(s) seriam excluídas.');
+
+        return;
+    }
+
+    $excluidas = 0;
+    foreach ($candidatas as $user) {
+        try {
+            DB::transaction(fn () => $user->delete());
+            $excluidas++;
+        } catch (Throwable $e) {
+            report($e); // uma falha não segura as outras; a próxima passada tenta de novo
+        }
+    }
+
+    $this->info(sprintf(
+        'Contas nunca confirmadas há mais de %d dias: %d %s.',
+        User::DIAS_PARA_CONFIRMAR_O_EMAIL,
+        $excluidas,
+        $excluidas === 1 ? 'excluída' : 'excluídas',
+    ));
+})->purpose('Exclui contas de titular que nunca confirmaram o e-mail em 30 dias (LGPD)');
+
 /*
 |--------------------------------------------------------------------------
 | Agendamentos
@@ -101,6 +152,10 @@ Schedule::command('sessoes:limpar')
 
 Schedule::command('atividades:limpar')
     ->dailyAt('03:20')
+    ->withoutOverlapping();
+
+Schedule::command('contas:limpar-nao-confirmadas')
+    ->dailyAt('03:30')
     ->withoutOverlapping();
 
 // Lembrete de vencimento por e-mail — só notifica, nunca cria dado (ver o comando).

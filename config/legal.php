@@ -17,11 +17,11 @@ return [
     |
     */
 
-    'version' => '3.5',
+    'version' => '3.6',
 
-    'updated_at' => '7 de outubro de 2026',
+    'updated_at' => '8 de outubro de 2026',
     // A mesma data em AAAA-MM-DD (o <lastmod> do sitemap.xml). Mude junto com a de cima.
-    'updated_at_iso' => '2026-10-07',
+    'updated_at_iso' => '2026-10-08',
 
     /*
     |--------------------------------------------------------------------------
@@ -38,6 +38,9 @@ return [
         '3.4' => [
             'Novo e-mail de contato, também para assuntos de privacidade e para o encarregado dos dados: victor.rosa.system@gmail.com.',
             'Os e-mails do aplicativo (confirmação de cadastro, redefinição de senha, alertas e lembretes) passam a ser enviados pelo serviço de e-mail da Oracle, na região de São Paulo (Brasil) — a mesma empresa e a mesma região do servidor.',
+        ],
+        '3.6' => [
+            'A conta cadastrada que nunca teve o e-mail confirmado é excluída automaticamente 30 dias depois do cadastro (seção 11). Sem a confirmação a conta não tem acesso ao aplicativo.',
         ],
         '3.5' => [
             'Você pode entrar com a sua conta Google ("Continuar com o Google"), se quiser. Nesse caso recebemos do Google só o identificador da conta, o seu nome e o seu e-mail — nunca a sua senha do Google, a foto ou os contatos.',

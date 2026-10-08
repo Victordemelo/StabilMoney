@@ -468,6 +468,12 @@
                     <td>Enquanto sua conta existir. São <strong>apagados na exclusão da conta</strong>.</td>
                 </tr>
                 <tr>
+                    <td>Conta cadastrada que nunca teve o e-mail confirmado</td>
+                    <td>Excluída automaticamente <strong>{{ \App\Models\User::DIAS_PARA_CONFIRMAR_O_EMAIL }} dias</strong>
+                        depois do cadastro, com tudo o que estiver ligado a ela. Sem a confirmação a conta não
+                        tem acesso ao aplicativo, e o e-mail volta a ficar livre para quem é dono dele.</td>
+                </tr>
+                <tr>
                     <td>Dependentes vinculados a você</td>
                     <td>Removidos junto com a conta do titular.</td>
                 </tr>
