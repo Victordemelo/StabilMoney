@@ -171,6 +171,9 @@ Route::middleware(['auth', 'verified', ExigeAceiteDaPoliticaAtual::class])->grou
     // Menu do perfil (out/2026): o tour guiado e as informações do sistema.
     Route::get('/tutorial', [SistemaController::class, 'tutorial'])->name('tutorial');
     Route::get('/sistema', [SistemaController::class, 'informacoes'])->name('sistema');
+    // "Primeiros passos" (08/10/2026): esconder o card da Visão geral e trazê-lo de volta.
+    Route::patch('/primeiros-passos/ocultar', [SistemaController::class, 'ocultarPrimeirosPassos'])->name('primeiros-passos.ocultar');
+    Route::patch('/primeiros-passos/mostrar', [SistemaController::class, 'mostrarPrimeirosPassos'])->name('primeiros-passos.mostrar');
 
     Route::get('/configuracoes/{tab?}', [SettingsController::class, 'index'])->name('settings');
 

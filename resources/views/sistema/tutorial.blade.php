@@ -24,6 +24,9 @@
             </button>
         </div>
 
+        {{-- Os primeiros passos ficam sempre aqui, também depois de escondidos na Visão geral. --}}
+        @include('partials.primeiros-passos', ['passos' => $primeirosPassos, 'contexto' => 'tutorial', 'oculto' => $passosOcultos])
+
         @php
             $telas = [
                 ['Visão geral', 'dashboard', 'Seu saldo disponível, receitas, despesas e economia do período, gráficos e as movimentações recentes. O "+" no topo lança uma receita, despesa ou transferência em qualquer tela.'],

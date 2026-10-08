@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\DashboardService;
+use App\Support\PrimeirosPassos;
 
 class DashboardController extends Controller
 {
@@ -12,6 +13,12 @@ class DashboardController extends Controller
      */
     public function index(DashboardService $dashboard)
     {
-        return view('dashboard', $dashboard->build(auth()->user()->ownerId()));
+        $user = auth()->user();
+        $passos = $user->primeiros_passos_ocultos_at === null ? PrimeirosPassos::de($user) : null;
+
+        return view('dashboard', $dashboard->build($user->ownerId()) + [
+            // O card "Primeiros passos" (08/10/2026): só enquanto falta algum passo e a pessoa não o escondeu.
+            'primeirosPassos' => $passos && PrimeirosPassos::aparece($user, $passos) ? $passos : null,
+        ]);
     }
 }

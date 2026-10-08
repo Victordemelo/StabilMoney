@@ -75,6 +75,13 @@
         </div>
     </div>
 
+    {{-- Primeiros passos (08/10/2026): só para quem ainda tem passo por fazer e não escondeu. --}}
+    @if ($primeirosPassos ?? null)
+        <div class="grid passos-grid">
+            @include('partials.primeiros-passos', ['passos' => $primeirosPassos, 'contexto' => 'painel'])
+        </div>
+    @endif
+
     <div class="grid dashboard-overview-grid">
         {{-- Stat cards (valores do mês renderizados no servidor; o JS anima/troca o período) --}}
         @foreach ($statCards as $card)
