@@ -4,6 +4,7 @@ use App\Http\Controllers\SaudeController;
 use App\Http\Middleware\BloqueiaUsuarioBanido;
 use App\Http\Middleware\PaginaInicialParaVisitante;
 use App\Http\Middleware\PainelAdminLigado;
+use App\Http\Middleware\RegistraUltimaVisita;
 use App\Http\Middleware\SecurityHeaders;
 use App\Support\EnderecoPublico;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
@@ -75,6 +76,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             SecurityHeaders::class,
             BloqueiaUsuarioBanido::class,
+            // Última visita ao app (no máximo 1 gravação por hora) — ver o middleware.
+            RegistraUltimaVisita::class,
         ]);
 
         // A página inicial pública roda ANTES do `auth` na rota `/` (out/2026). Só a ordem

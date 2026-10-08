@@ -40,6 +40,8 @@ class AdminPanelService
         'is_admin', 'account_owner_id', 'relationship',
         'banned_at', 'banned_reason', 'banned_by_admin_id',
         'terms_accepted_at', 'terms_version', 'two_factor_confirmed_at', 'created_at',
+        // Último login e última visita (08/10/2026) — datas, nunca o que a pessoa fez.
+        'last_login_at', 'last_seen_at',
     ];
 
     /** Contagens exibidas por pessoa — quantidade de registros, jamais soma de valores. */
@@ -94,7 +96,10 @@ class AdminPanelService
     }
 
     /**
-     * Último acesso por usuário, lido da tabela `sessions`.
+     * Último acesso por usuário: o MAIS RECENTE entre a última visita gravada na conta
+     * (`users.last_seen_at`, 08/10/2026) e a atividade das sessões abertas. Antes era só das
+     * sessões — que somem no logout e na expiração, e quem tinha saído aparecia como "nunca
+     * acessou".
      *
      * É o sinal de "esta conta é usada" — o que separa cadastro real de conta fantasma,
      * e o único jeito de saber isso sem olhar dinheiro nenhum.
@@ -108,12 +113,22 @@ class AdminPanelService
             return collect();
         }
 
-        return DB::table('sessions')
+        $sessoes = DB::table('sessions')
             ->select('user_id', DB::raw('MAX(last_activity) as ultimo'))
             ->whereIn('user_id', $userIds)
             ->groupBy('user_id')
             ->pluck('ultimo', 'user_id')
             ->map(fn ($ts) => Carbon::createFromTimestamp((int) $ts));
+
+        $visitas = DB::table('users')->whereIn('id', $userIds)->whereNotNull('last_seen_at')
+            ->pluck('last_seen_at', 'id')
+            ->map(fn ($data) => Carbon::parse($data));
+
+        return $visitas->union($sessoes)->map(function (Carbon $data, int $id) use ($sessoes, $visitas) {
+            $outra = $sessoes[$id] ?? $visitas[$id] ?? $data;
+
+            return $data->max($outra);
+        });
     }
 
     /**

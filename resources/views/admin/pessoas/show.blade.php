@@ -27,6 +27,7 @@
                 'Cadastro' => $titular->created_at->format('d/m/Y H:i'),
                 'E-mail confirmado' => $titular->email_verified_at ? $titular->email_verified_at->format('d/m/Y') : 'Não',
                 'Último acesso' => $acessos->has($titular->id) ? $acessos[$titular->id]->diffForHumans() : 'Nunca',
+                'Último login' => $titular->last_login_at ? $titular->last_login_at->format('d/m/Y H:i') : 'Nunca',
                 'Aceite dos termos' => $titular->terms_accepted_at
                     ? $titular->terms_accepted_at->format('d/m/Y') . ' (v' . $titular->terms_version . ')'
                     : '—',

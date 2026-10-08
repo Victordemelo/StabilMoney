@@ -102,6 +102,10 @@
             <em>user-agent</em>) e <strong>data do último acesso</strong> — guardados junto da sua sessão
             para que você veja, em <em>Configurações › Segurança</em>, quais dispositivos estão conectados
             e possa encerrá-los.</li>
+        <li><strong>Data do último login e da última visita ao aplicativo</strong> — duas datas guardadas
+            na sua conta (a da visita, atualizada no máximo uma vez por hora). Não registramos as telas
+            que você abre: servem só para sabermos se a conta está em uso e para a administração do
+            aplicativo entender como ele é usado.</li>
         <li><strong>Registros técnicos do servidor</strong> (logs) — podem conter IP, data, página acessada
             e mensagens de erro. Servem para diagnosticar falhas e detectar abuso.</li>
         <li><strong>Registro do aceite</strong> — a <strong>data e hora</strong>, a
@@ -190,7 +194,7 @@
                 </tr>
                 <tr>
                     <td>IP, navegador, sessões ativas, logs, contagem de tentativas, pedidos de redefinição
-                        de senha</td>
+                        de senha, datas do último login e da última visita</td>
                     <td>Segurança da conta, prevenção a acesso indevido, diagnóstico de falhas e
                         cumprimento do Marco Civil da Internet</td>
                     <td>Legítimo interesse — art. 7º, IX, e cumprimento de obrigação legal — art. 7º, II</td>
