@@ -178,6 +178,9 @@ function melhorar(original) {
     if ('showPicker' in nativo && !original.readOnly && !original.disabled) {
         nativo.tabIndex = -1;
         nativo.className = 'data-br-nativo';
+        // Ele também é um campo de data: sem a marca, a próxima passada (toda troca de tela
+        // pelo pjax roda de novo) o "melhorava" e aparecia um segundo calendário.
+        nativo.setAttribute('data-sem-br', '');
         nativo.setAttribute('aria-hidden', 'true');
         const botao = doc.createElement('button');
         botao.type = 'button';

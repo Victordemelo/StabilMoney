@@ -167,6 +167,16 @@ describe('O campo na página', () => {
         expect(new FormData(form).get('date')).toBe('2026-03-15');
     });
 
+    it('rodar de novo com o calendário ligado não cria um segundo calendário', () => {
+        HTMLInputElement.prototype.showPicker = vi.fn();
+        montar('<input type="date" name="date">');
+        melhorarCamposDeData(document);
+        melhorarCamposDeData(document);
+        expect(document.querySelectorAll('.data-br')).toHaveLength(1);
+        expect(document.querySelectorAll('.data-br-cal')).toHaveLength(1);
+        expect(document.querySelectorAll('input[type="date"]')).toHaveLength(1);
+    });
+
     it('sem o calendário do navegador, fica só a digitação (sem botão quebrado)', () => {
         montar('<input type="date" name="date">');
         expect(document.querySelector('.data-br-cal')).toBeNull();
