@@ -1038,6 +1038,17 @@ class Account extends Model
      * Antes o vencimento era calculado ignorando o ciclo, o que exibia datas
      * ANTERIORES ao fechamento da fatura que elas deveriam pagar.
      */
+    /**
+     * O melhor dia para comprar no cartão: o dia SEGUINTE ao fechamento (out/2026). A compra do
+     * dia do fechamento ainda entra na fatura que está fechando (`billingCycle`: o ciclo vai até o
+     * fechamento, inclusive); a do dia seguinte cai no ciclo novo e só é cobrada no vencimento
+     * depois — o prazo mais longo para pagar. Sem dia de fechamento, null.
+     */
+    public function melhorDiaDeCompra(): ?int
+    {
+        return $this->closing_day ? ((int) $this->closing_day % 31) + 1 : null;
+    }
+
     public function dueDateForCycle(CarbonImmutable $cycleEnd): ?CarbonImmutable
     {
         if (! $this->due_day) {

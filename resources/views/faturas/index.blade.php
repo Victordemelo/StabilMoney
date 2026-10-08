@@ -257,9 +257,12 @@
                     </div>
                     <div class="fh-info">
                         <strong>{{ $acc->name }}</strong>
+                        {{-- O dia fixo do vencimento e o melhor dia de compra (o dia seguinte ao
+                             fechamento — `Account::melhorDiaDeCompra`), em vez da data do próximo
+                             vencimento, que repetia o mesmo número (out/2026 — pedido do Victor). --}}
                         <span>
-                            @if ($acc->due_day)vence dia {{ $acc->due_day }}@endif
-                            @if ($card->dueDate) · {{ $card->dueDate->translatedFormat('d \d\e M') }}@endif
+                            @if ($acc->due_day)Vence todo dia {{ $acc->due_day }}@endif
+                            @if ($acc->melhorDiaDeCompra()) · melhor dia de compra: {{ $acc->melhorDiaDeCompra() }}@endif
                         </span>
                     </div>
                     <div class="fh-total">
