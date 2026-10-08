@@ -97,12 +97,18 @@
                 $ehSaldo = $card['key'] === 'saldo';
                 $tiposDoSaldo = $ehSaldo ? ($saldoPorTipo ?? []) : [];
                 $rotulo = $card['label'] . (count($tiposDoSaldo) === 1 ? ' · ' . $tiposDoSaldo[0]['rotulo'] : '');
+                // Contas de banco (out/2026): com uma, o selo do banco fica no lugar da variação;
+                // com mais de uma, o saldo GIRA de banco em banco e volta ao total (sm/saldo-giro.js).
+                $contasDoCard = $ehSaldo ? ($contasDoSaldo ?? []) : [];
+                $gira = count($contasDoCard) > 1;
             @endphp
             <div @class(['card', 'stat', 'span3', 'dashboard-balance-hero' => $ehSaldo, 'com-tipos' => count($tiposDoSaldo) > 1]) style="animation-delay:{{ $card['delay'] }}">
                 <div class="stat-top">
                     <div class="ico {{ $card['g'] }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor">{!! $card['icon'] !!}</svg></div>
                     <span class="label" title="{{ $card['hint'] }}">{{ $rotulo }}</span>
-                    @if ($trend === null)
+                    @if ($contasDoCard)
+                        {{-- O selo do banco no lugar da variação (abaixo, fora do .stat-top). --}}
+                    @elseif ($trend === null)
                         <span class="trend neutral" data-trend="{{ $card['key'] }}">—</span>
                     @else
                         <span class="trend {{ $bom ? 'up' : 'down' }}" data-trend="{{ $card['key'] }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="{{ $subiu ? $arrowUp : $arrowDown }}"/></svg>{{ $pct($trend) }}</span>
@@ -112,7 +118,41 @@
                 {{-- Sinal ANTES do "R$" (regra do app: −R$ 1.234,56, traço U+2212), num
                      span próprio para o dashboard.js poder ligá-lo/desligá-lo ao trocar
                      de período sem remontar o número. O .num anima o valor ABSOLUTO. --}}
-                <div class="value {{ $value < 0 ? 'neg' : '' }}"><span class="sign">{{ $value < 0 ? '−' : '' }}</span><span class="cur">R$</span><span class="num" data-count="{{ $value }}" data-dec="2">{{ $money(abs($value)) }}</span></div>
+                @if ($gira)
+                    {{-- Os slides ficam empilhados na mesma célula: o 0 é o TOTAL (o `.num` que o
+                         dashboard.js anima e casa por índice); os outros são as contas, sem `.num`
+                         nem `data-count`, para não entrarem nesse casamento. --}}
+                    <div class="saldo-giro" data-saldo-giro>
+                        <div class="value ativo {{ $value < 0 ? 'neg' : '' }}" data-giro-item="0"><span class="sign">{{ $value < 0 ? '−' : '' }}</span><span class="cur">R$</span><span class="num" data-count="{{ $value }}" data-dec="2">{{ $money(abs($value)) }}</span></div>
+                        @foreach ($contasDoCard as $i => $conta)
+                            <div class="value {{ $conta['valor'] < 0 ? 'neg' : '' }}" data-giro-item="{{ $i + 1 }}" aria-hidden="true"><span class="sign">{{ $conta['valor'] < 0 ? '−' : '' }}</span><span class="cur">R$</span><span class="valor-conta">{{ $money(abs($conta['valor'])) }}</span></div>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="value {{ $value < 0 ? 'neg' : '' }}"><span class="sign">{{ $value < 0 ? '−' : '' }}</span><span class="cur">R$</span><span class="num" data-count="{{ $value }}" data-dec="2">{{ $money(abs($value)) }}</span></div>
+                @endif
+                @if ($contasDoCard)
+                    {{-- Selo do banco: a miniatura do cartão do banco e o nome. No giro, um selo por
+                         slide (o 0 = todas as contas); tocar nele passa para o próximo. --}}
+                    <div class="saldo-bancos" @if ($gira) data-giro-selos role="button" tabindex="0" aria-label="Mostrar o saldo da próxima conta" @endif>
+                        @if ($gira)
+                            <span class="saldo-banco ativo" data-giro-item="0">
+                                <span class="saldo-banco-pilha" aria-hidden="true">
+                                    @foreach (array_slice($contasDoCard, 0, 3) as $conta)
+                                        @if ($conta['imagem'])<img src="{{ $conta['imagem'] }}" alt="" width="34" height="21">@else<span class="saldo-banco-sem"></span>@endif
+                                    @endforeach
+                                </span>
+                                <span class="saldo-banco-nome">Todas as contas <small>{{ count($contasDoCard) }}</small></span>
+                            </span>
+                        @endif
+                        @foreach ($contasDoCard as $i => $conta)
+                            <span @class(['saldo-banco', 'ativo' => ! $gira]) @if ($gira) data-giro-item="{{ $i + 1 }}" aria-hidden="true" @endif title="{{ $conta['apelido'] }} ({{ $conta['tipo'] }})">
+                                @if ($conta['imagem'])<img src="{{ $conta['imagem'] }}" alt="" width="34" height="21">@else<span class="saldo-banco-sem" aria-hidden="true"></span>@endif
+                                <span class="saldo-banco-nome">{{ $conta['banco'] }} <small>{{ $conta['tipo'] }}</small></span>
+                            </span>
+                        @endforeach
+                    </div>
+                @endif
                 @if (count($tiposDoSaldo) > 1)
                     {{-- Fora do `.num`/`data-count`: o dashboard.js casa os stat cards por índice
                          e não pode confundir estes valores com o do card. --}}

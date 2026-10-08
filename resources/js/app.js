@@ -24,6 +24,7 @@ import { initTutorial, tutorialAposTrocarDeTela } from './sm/tutorial';
 import { initVitrine } from './sm/vitrine';
 import { melhorarCamposDeData } from './sm/data-br';
 import { initRolagemSuave } from './sm/rolagem-suave';
+import { initSaldoGiro } from './sm/saldo-giro';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -50,6 +51,7 @@ function initContent() {
     promoverFlashes(); // aviso de sucesso que veio com a tela vira balão no canto
     tutorialAposTrocarDeTela();
     initDashboard();
+    initSaldoGiro();      // painel: o saldo gira de banco em banco
     initCategories();
     initMetas();
     initInvestimentos();

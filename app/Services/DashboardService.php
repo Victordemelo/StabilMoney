@@ -120,6 +120,9 @@ class DashboardService
         // O mesmo disponível, separado por TIPO de conta (out/2026 — Victor): com corrente e
         // poupança, o card mostra o saldo de cada uma; com uma só, o rótulo diz qual é.
         $saldoPorTipo = $this->saldoPorTipo($nonCardAccounts);
+        // E por CONTA (out/2026 — Victor): com uma conta, o card mostra o banco dela no lugar
+        // da variação; com mais de uma, o saldo gira de banco em banco e volta ao total.
+        $contasDoSaldo = $this->contasDoSaldo($nonCardAccounts);
 
         $hasData = Transaction::where('user_id', $userId)->exists();
 
@@ -260,6 +263,7 @@ class DashboardService
             'accounts' => $accounts,
             'totalBalance' => $totalBalance,
             'saldoPorTipo' => $saldoPorTipo,
+            'contasDoSaldo' => $contasDoSaldo,
             // Exibe "quem fez a compra" nas recentes só quando a família tem dependentes.
             'showAuthor' => User::where('account_owner_id', $userId)->exists(),
             // Resumos das features (metas, faturas a pagar, investimentos) p/ os cards.
@@ -298,6 +302,35 @@ class DashboardService
         }
 
         return $tipos;
+    }
+
+    /**
+     * Cada conta de banco com o disponível dela, para o card do saldo: corrente primeiro,
+     * depois poupança, e pelo nome. `banco` é o nome que aparece no selo ("Banco Itaú",
+     * "Nubank"); sem banco cadastrado, o apelido da conta.
+     *
+     * @return list<array{id: int, banco: string, tipo: string, apelido: string, imagem: ?string, valor: float}>
+     */
+    private function contasDoSaldo(Collection $contasDeBanco): array
+    {
+        $ordem = ['checking' => 0, 'savings' => 1];
+        $comPrefixo = ['inter', 'itau', 'santander', 'bradesco'];
+
+        return $contasDeBanco
+            ->whereIn('type', array_keys($ordem))
+            ->sortBy(fn ($c) => [$ordem[$c->type], mb_strtolower((string) $c->name)])
+            ->map(fn ($c) => [
+                'id' => (int) $c->id,
+                'banco' => $c->bankLabel() !== null
+                    ? (in_array($c->bank, $comPrefixo, true) ? 'Banco '.$c->bankLabel() : $c->bankLabel())
+                    : (string) $c->name,
+                'tipo' => $c->type === 'checking' ? 'Conta corrente' : 'Conta poupança',
+                'apelido' => (string) $c->name,
+                'imagem' => $c->bankImageUrl(),
+                'valor' => round((float) $c->current_balance, 2),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

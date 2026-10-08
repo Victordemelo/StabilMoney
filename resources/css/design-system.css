@@ -1999,6 +1999,43 @@ body.pjax-loading #content { opacity: .5; }
   }
 }
 
+/* Saldo que GIRA de banco em banco (out/2026 — sm/saldo-giro.js): os slides ficam na MESMA
+   célula da grade (a altura é a do maior) e só o `.ativo` aparece; o próximo sobe e o
+   anterior se apaga. O selo do banco fica onde estava a variação. */
+.dashboard-balance-hero .saldo-giro { order: 2; position: relative; z-index: 1; display: grid; }
+.dashboard-balance-hero .saldo-giro > .value,
+.dashboard-balance-hero .saldo-bancos > .saldo-banco { grid-area: 1 / 1; transition: opacity .45s var(--ease), transform .45s var(--ease); }
+.dashboard-balance-hero .saldo-giro > .value:not(.ativo) { opacity: 0; transform: translateY(10px); pointer-events: none; }
+.dashboard-balance-hero .saldo-bancos {
+  order: 3; position: relative; z-index: 1; margin-top: auto; display: grid; justify-items: start;
+  border-radius: 999px; cursor: default;
+}
+.dashboard-balance-hero .saldo-bancos[data-giro-selos] { cursor: pointer; }
+.dashboard-balance-hero .saldo-bancos:focus-visible { outline: 2px solid var(--brand-300); outline-offset: 3px; }
+.dashboard-balance-hero .saldo-banco {
+  display: inline-flex; align-items: center; gap: 10px; max-width: 100%; min-height: 34px;
+  padding: 5px 14px 5px 5px; border-radius: 999px; background: rgba(255,255,255,.1); color: #fff;
+}
+.dashboard-balance-hero .saldo-banco:not(.ativo) { opacity: 0; transform: translateY(6px); pointer-events: none; }
+.dashboard-balance-hero .saldo-banco img,
+.dashboard-balance-hero .saldo-banco-sem {
+  width: 34px; height: 21px; flex: none; border-radius: 5px; object-fit: cover;
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+}
+.dashboard-balance-hero .saldo-banco-sem { background: rgba(255,255,255,.22); }
+.dashboard-balance-hero .saldo-banco-pilha { display: inline-flex; flex: none; }
+.dashboard-balance-hero .saldo-banco-pilha > * + * { margin-left: -18px; }
+.dashboard-balance-hero .saldo-banco-nome { min-width: 0; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dashboard-balance-hero .saldo-banco-nome small { margin-left: 4px; font-size: 11px; font-weight: 500; color: rgba(255,255,255,.62); }
+@media (min-width: 601px) {
+  .dashboard-balance-hero.com-tipos .saldo-giro { grid-column: 1; grid-row: 2; }
+  .dashboard-balance-hero.com-tipos .saldo-bancos { grid-column: 1; grid-row: 3; align-self: end; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-balance-hero .saldo-giro > .value,
+  .dashboard-balance-hero .saldo-bancos > .saldo-banco { transition: none; }
+}
+
 /* As artes dos cartões passam a ser reconhecíveis sem disputar com os dados. */
 .cc-list { --cc-item-h: 94px; gap: 16px; max-height: calc(var(--cc-item-h) * 2 + 16px); }
 .cc-item { align-items: center; }
