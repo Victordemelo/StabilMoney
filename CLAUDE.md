@@ -1558,6 +1558,9 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   futura), agrupadas pelo ciclo (`billingCycle`) com o vencimento de cada um (`dueDateForCycle`);
   estorno futuro abate, total nunca negativo. No cabeçalho do cartão, "+ N próximas faturas"; dentro,
   o `<details class="fatura-proximas">`. Recorrência não aparece (a próxima só nasce quando a atual fecha).
+  ⚠️ O commit `92d219a` (que introduziu isto) tem a view `faturas/index` QUEBRADA sozinho — trechos
+  aplicados sem contexto caíram no lugar errado; o `3130ceb`, logo depois, a deixa certa. Num
+  `git bisect`, pule o `92d219a` (decisão do Victor: não reescrever o histórico).
 - **Contas fixas recolhidas** (`ContasFixasRecolhidasTest`): o bloco é um `<details>` que abre sozinho
   com conta vencida ou vencendo em até 7 dias (essas primeiro, `data-fixas-urgentes`); as outras ficam
   em "Ver as outras" (`data-fixas-outras`, aberto quando não há urgente). A linha de cada competência
