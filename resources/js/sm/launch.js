@@ -26,6 +26,17 @@ function paraJson(fd) {
     return obj;
 }
 
+/**
+ * O texto de cada opção de parcelas: "À vista" ou "12x de R$ 41,67". A parcela mostrada é a
+ * MAIOR — o servidor divide em centavos e as primeiras levam o centavo que sobra.
+ */
+export function textoDaParcela(n, centavos) {
+    if (n <= 1) return 'À vista';
+    if (!(centavos > 0)) return `${n}x`;
+    const parcela = Math.ceil(centavos / n) / 100;
+    return `${n}x de R$ ${parcela.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export function initLaunch() {
     const modal = document.getElementById('launchModal');
     if (!modal) return;
@@ -180,7 +191,31 @@ export function initLaunch() {
      */
     const ROTULO_DO_VALOR = { income: 'Esta receita', expense: 'Esta despesa', transfer: 'Esta transferência' };
 
+    /**
+     * Parcelas (out/2026): o select ao lado do Valor só existe em DESPESA no CARTÃO DE CRÉDITO —
+     * fora disso fica escondido e desabilitado (não viaja no FormData) e volta para "À vista".
+     * Cada opção diz quanto fica a parcela ("12x de R$ 41,67"), recalculada a cada tecla.
+     */
+    const parcelasSel = form.querySelector('[data-lm-parcelas]');
+    const caixaDoValor = form.querySelector('[data-lm-valor]');
+    const rotuloDoValor = form.querySelector('[data-lm-valor-rotulo]');
+    const atualizarParcelas = () => {
+        if (!parcelasSel) return;
+        const opt = contaSel?.selectedOptions[0];
+        const ligado = form.dataset.type === 'expense' && opt?.dataset.card === '1' && !opt.disabled;
+        if (!ligado) parcelasSel.value = '1';
+        parcelasSel.hidden = !ligado;
+        parcelasSel.disabled = !ligado;
+        caixaDoValor?.classList.toggle('com-parcelas', ligado);
+        const valor = lerValorDoCampo(form.querySelector('#lm-amount'));
+        const centavos = Math.round((valor ?? 0) * 100);
+        Array.from(parcelasSel.options).forEach((o) => { o.textContent = textoDaParcela(Number(o.value), centavos); });
+        if (rotuloDoValor) rotuloDoValor.textContent = ligado && Number(parcelasSel.value) > 1 ? 'Valor total (R$)' : 'Valor (R$)';
+    };
+    parcelasSel?.addEventListener('change', atualizarParcelas);
+
     const mostrarSaldo = () => {
+        atualizarParcelas();
         const alvo = modal.querySelector('[data-lm-saldo]');
         if (!alvo || !contaSel) return;
 

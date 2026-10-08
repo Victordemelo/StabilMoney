@@ -80,7 +80,7 @@ select.input {
    A decisão "entra ou sai?" é a mais importante do lançamento, então ela se
    move e a cor viaja junto (verde = receita, âmbar = despesa). */
 .type-toggle {
-  position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px;
   background: var(--surface-3); border: 1px solid var(--line);
   border-radius: 13px; padding: 4px;
 }
@@ -97,7 +97,7 @@ form[data-type="income"]  .tt-pill { transform: translateX(0); background: color
 form[data-type="expense"] .tt-pill { transform: translateX(calc(100% + 4px)); background: color-mix(in srgb, var(--warn) 16%, var(--surface)); }
 .type-toggle input { position: absolute; opacity: 0; pointer-events: none; }
 .type-toggle label {
-  position: relative; z-index: 1;
+  position: relative; z-index: 1; min-width: 0; white-space: nowrap;
   display: flex; align-items: center; justify-content: center; gap: 7px;
   height: 38px; border-radius: 10px; cursor: pointer;
   font-size: 13.5px; font-weight: 600; color: var(--ink-3);

@@ -47,7 +47,9 @@ class LancamentoPorMetodoTest extends TestCase
             ->mapWithKeys(fn ($g) => [$g['rotulo'] => [$g['para'], $g['opcoes']->pluck('type')->all()]]);
 
         $this->assertSame([
-            'Contas de banco' => ['income transfer', ['checking', 'savings']],
+            // Um grupo por tipo (out/2026): o tipo no título e o nome curto na opção.
+            'Contas correntes' => ['income transfer', ['checking']],
+            'Contas poupança' => ['income transfer', ['savings']],
             'Cartões de crédito' => ['expense', ['credit_card']],
             'Cartões de débito' => ['expense', ['debit_card']],
             'Pix e TED' => ['expense', ['pix']],
@@ -59,7 +61,7 @@ class LancamentoPorMetodoTest extends TestCase
         $html = $this->actingAs($this->user)->get(route('dashboard'))->assertOk()->getContent();
         $select = $this->select($html, 'lm-account');
 
-        $this->assertStringContainsString('<optgroup label="Contas de banco" data-para="income transfer">', $select);
+        $this->assertStringContainsString('<optgroup label="Contas correntes" data-para="income transfer">', $select);
         $this->assertStringContainsString('<optgroup label="Pix e TED" data-para="expense">', $select);
         // O Pix aparece no grupo dele, mas submete o id da conta.
         $this->assertMatchesRegularExpression('#<optgroup label="Pix e TED" data-para="expense">\s*<option value="'.$this->corrente->id.'" data-para="expense"#', $select);
@@ -70,7 +72,8 @@ class LancamentoPorMetodoTest extends TestCase
         $html = $this->actingAs($this->user)->get(route('faturas.index'))->assertOk()->getContent();
         $select = $this->select($html, 'lanc-method');
 
-        $this->assertStringNotContainsString('Contas de banco', $select);
+        $this->assertStringNotContainsString('Contas correntes', $select);
+        $this->assertStringNotContainsString('Contas poupança', $select);
         $this->assertStringNotContainsString('>Poupança', $select);
         foreach (['Cartões de crédito', 'Cartões de débito', 'Pix e TED'] as $grupo) {
             $this->assertStringContainsString('<optgroup label="'.$grupo.'">', $select);
@@ -84,12 +87,12 @@ class LancamentoPorMetodoTest extends TestCase
         ]);
 
         $criar = $this->select($this->actingAs($this->user)->get(route('transactions.create'))->assertOk()->getContent(), 'account_id');
-        $this->assertStringContainsString('<optgroup label="Contas de banco" data-para="income transfer">', $criar);
+        $this->assertStringContainsString('<optgroup label="Contas correntes" data-para="income transfer">', $criar);
 
         // Na edição a conta de banco vale também para despesa: senão o filtro trocaria a conta
         // sozinho, e trocar a conta reconcilia o dinheiro.
         $editar = $this->select($this->actingAs($this->user)->get(route('transactions.edit', $antiga))->assertOk()->getContent(), 'account_id');
-        $this->assertStringContainsString('<optgroup label="Contas de banco" data-para="income transfer expense">', $editar);
+        $this->assertStringContainsString('<optgroup label="Contas correntes" data-para="income transfer expense">', $editar);
     }
 
     public function test_sem_metodo_o_lancar_despesa_explica_o_que_falta(): void

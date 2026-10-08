@@ -138,7 +138,7 @@
                                          conta como cartão — em "Receita" o select ficava vazio. --}}
                                     <option value="{{ $conta->id }}" data-para="{{ $para }}"
                                             @selected((int) old('account_id', $transaction->account_id ?? 0) === $conta->id)>
-                                        {{ $conta->rotulo ?? $conta->name }}
+                                        {{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}
                                     </option>
                                 @endforeach
                             </optgroup>
@@ -156,8 +156,12 @@
                     <div class="field" data-tx-transfer-only>
                         <label for="to_account_id">Para</label>
                         <select class="input @error('to_account_id') input-error @enderror" id="to_account_id" name="to_account_id">
-                            @foreach ($contasCaixa as $conta)
-                                <option value="{{ $conta->id }}" @selected((int) old('to_account_id', 0) === $conta->id)>{{ $conta->rotulo ?? $conta->name }}</option>
+                            @foreach (\App\Models\Account::gruposDeLancamento($contasCaixa) as $grupo)
+                                <optgroup label="{{ $grupo['rotulo'] }}">
+                                    @foreach ($grupo['opcoes'] as $conta)
+                                        <option value="{{ $conta->id }}" @selected((int) old('to_account_id', 0) === $conta->id)>{{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}</option>
+                                    @endforeach
+                                </optgroup>
                             @endforeach
                         </select>
                         @error('to_account_id')<div class="field-error">{{ $message }}</div>@enderror

@@ -84,8 +84,18 @@
 
                     <div class="form-row">
                         <div class="field">
-                            <label for="lm-amount">Valor (R$)</label>
-                            <input class="input" type="text" inputmode="decimal" id="lm-amount" name="amount" placeholder="0,00" required>
+                            <label for="lm-amount" data-lm-valor-rotulo>Valor (R$)</label>
+                            {{-- Parcelas ao lado do valor (out/2026): só em despesa no cartão de
+                                 crédito (launch.js liga/desliga). Ficar NA MESMA LINHA do valor
+                                 mantém a altura do modal igual nos três tipos. 1 = à vista. --}}
+                            <div class="lm-valor" data-lm-valor>
+                                <input class="input" type="text" inputmode="decimal" id="lm-amount" name="amount" placeholder="0,00" required>
+                                <select class="input lm-parcelas" id="lm-installments" name="installments" aria-label="Parcelas" data-lm-parcelas hidden disabled>
+                                    @for ($n = 1; $n <= 24; $n++)
+                                        <option value="{{ $n }}">{{ $n === 1 ? 'À vista' : $n.'x' }}</option>
+                                    @endfor
+                                </select>
+                            </div>
                         </div>
                         <div class="field">
                             <label for="lm-date">Data</label>
@@ -118,7 +128,7 @@
                                                     data-saldo="{{ \App\Support\Brl::format($conta->saldo ?? 0) }}"
                                                     data-saldo-valor="{{ number_format((float) ($conta->saldo ?? 0), 2, '.', '') }}"
                                                     data-saldo-rotulo="{{ $conta->saldoRotulo ?? 'disponível' }}"
-                                                    data-negativo="{{ ($conta->saldo ?? 0) < 0 ? '1' : '0' }}">{{ $conta->rotulo ?? $conta->name }}</option>
+                                                    data-negativo="{{ ($conta->saldo ?? 0) < 0 ? '1' : '0' }}">{{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}</option>
                                         @endforeach
                                     </optgroup>
                                 @endforeach
@@ -136,8 +146,13 @@
                             <div class="field" data-lm-transfer-only hidden>
                                 <label for="lm-to-account">Para</label>
                                 <select class="input" id="lm-to-account" name="to_account_id" disabled>
-                                    @foreach ($lmContasCaixa as $conta)
-                                        <option value="{{ $conta->id }}">{{ $conta->rotulo ?? $conta->name }}</option>
+                                    {{-- Agrupado por tipo, como o "De": o tipo no título do grupo e o nome curto na opção. --}}
+                                    @foreach (\App\Models\Account::gruposDeLancamento($lmContasCaixa) as $grupo)
+                                        <optgroup label="{{ $grupo['rotulo'] }}">
+                                            @foreach ($grupo['opcoes'] as $conta)
+                                                <option value="{{ $conta->id }}">{{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}</option>
+                                            @endforeach
+                                        </optgroup>
                                     @endforeach
                                 </select>
                             </div>

@@ -27,4 +27,10 @@ class UpdateTransactionRequest extends StoreTransactionRequest
     {
         return false;
     }
+
+    /** Edição não parcela (nem desparcela): a compra parcelada se refaz excluindo e lançando de novo. */
+    protected function aceitaParcelamento(): bool
+    {
+        return false;
+    }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Http\Requests\Concerns\NormalizesMoneyInput;
 use App\Models\Account;
 use App\Models\Category;
+use App\Support\Brl;
 use App\Support\FundingSource;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -123,7 +124,52 @@ class StoreTransactionRequest extends FormRequest
                 'after_or_equal:2000-01-01',
                 'before_or_equal:'.now()->addYears(10)->toDateString(),
             ],
-        ];
+        ] + ($this->aceitaParcelamento() ? [
+            // Parcelas da compra no cartão de crédito (out/2026 — o modal "Lançar" só
+            // lançava à vista). 1 = à vista; 2..24 = uma linha por ciclo de fatura, pelas
+            // MESMAS regras do "Lançar despesa" de Contas a pagar (`Parcelamento`).
+            'installments' => ['nullable', 'integer', 'between:1,24'],
+        ] : []);
+    }
+
+    /**
+     * Só a CRIAÇÃO parcela. Na edição o campo nem tem regra: sem regra, `validated()` não o
+     * devolve e o `update()` não consegue mexer na coluna `installments` de uma linha.
+     */
+    protected function aceitaParcelamento(): bool
+    {
+        return true;
+    }
+
+    /** Parcelado só em DESPESA no cartão de crédito, e cada parcela com pelo menos R$ 0,01. */
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            if (! $this->aceitaParcelamento()) {
+                return;
+            }
+            $parcelas = (int) $this->input('installments');
+            if ($parcelas < 2 || $validator->errors()->has('installments')) {
+                return;
+            }
+
+            $conta = Account::where('id', $this->input('account_id'))
+                ->where('user_id', $this->user()->ownerId())
+                ->first();
+            if ($this->input('type') !== 'expense' || ($conta && ! $conta->isCard())) {
+                $validator->errors()->add('installments', 'Parcelar só dá numa despesa no cartão de crédito.');
+
+                return;
+            }
+
+            $valor = $this->input('amount');
+            if (is_numeric($valor) && (int) round((float) $valor * 100) < $parcelas) {
+                $validator->errors()->add(
+                    'amount',
+                    'Com '.$parcelas.' parcelas, o valor precisa ser de pelo menos '.Brl::format($parcelas / 100).'.',
+                );
+            }
+        });
     }
 
     /**
@@ -198,6 +244,7 @@ class StoreTransactionRequest extends FormRequest
             'category_id' => 'categoria',
             'description' => 'descrição',
             'date' => 'data',
+            'installments' => 'parcelas',
         ];
     }
 
@@ -227,6 +274,8 @@ class StoreTransactionRequest extends FormRequest
             'date.date_format' => 'Data inválida.',
             'date.after_or_equal' => 'A data deve ser a partir de 01/01/2000.',
             'date.before_or_equal' => 'A data está longe demais no futuro.',
+            'installments.integer' => 'O número de parcelas deve ser inteiro.',
+            'installments.between' => 'O parcelamento vai de 1 a 24 vezes.',
         ];
     }
 }

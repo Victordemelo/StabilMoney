@@ -317,6 +317,7 @@ class Account extends Model
                         'id' => $conta->id,
                         'name' => $conta->name,
                         'rotulo' => $conta->rotulo,
+                        'rotuloCurto' => $conta->rotuloCurto,
                         'icon' => $conta->icon,
                         'type' => $conta->type,
                         'isCard' => $conta->isCard(),
@@ -342,6 +343,7 @@ class Account extends Model
                     'id' => $destino->id,
                     'name' => $conta->name.' → '.$destino->name,
                     'rotulo' => $conta->rotulo.' → '.$destino->name,
+                    'rotuloCurto' => $conta->rotuloCurto.' → '.$destino->name,
                     'icon' => $conta->icon,
                     'type' => $conta->type,
                     'isCard' => false,
@@ -373,7 +375,11 @@ class Account extends Model
     public static function gruposDeLancamento(Collection $opcoes): array
     {
         $grupos = [
-            ['rotulo' => 'Contas de banco', 'para' => 'income transfer', 'tipos' => ['checking', 'savings']],
+            // Um grupo por TIPO (out/2026, pedido do Victor): o tipo vira o título do grupo e a
+            // opção fica só com o nome. "Mercado Pago (Conta corrente)" quebrava em duas linhas
+            // na lista do celular; agora "Contas correntes" vem em cima e "Mercado Pago" embaixo.
+            ['rotulo' => 'Contas correntes', 'para' => 'income transfer', 'tipos' => ['checking']],
+            ['rotulo' => 'Contas poupança', 'para' => 'income transfer', 'tipos' => ['savings']],
             ['rotulo' => 'Cartões de crédito', 'para' => 'expense', 'tipos' => ['credit_card']],
             ['rotulo' => 'Cartões de débito', 'para' => 'expense', 'tipos' => ['debit_card']],
             ['rotulo' => 'Pix e TED', 'para' => 'expense', 'tipos' => self::TIPOS_DE_UMA_CONTA],
@@ -463,6 +469,20 @@ class Account extends Model
         }
 
         return $extras ? $nome.' ('.implode(' · ', $extras).')' : $nome;
+    }
+
+    /**
+     * O rótulo dentro de um select AGRUPADO POR TIPO (`gruposDeLancamento`): o tipo já está no
+     * título do grupo, então fica o apelido e, entre parênteses, o banco — só quando o apelido
+     * ainda não diz. "Roxinho (Nubank)", "Mercado Pago", "Inter".
+     */
+    public function getRotuloCurtoAttribute(): string
+    {
+        $nome = trim((string) $this->name);
+        $banco = $this->bankLabel();
+        $normalizar = fn (string $texto) => Str::lower(Str::ascii($texto));
+
+        return $banco && ! str_contains($normalizar($nome), $normalizar($banco)) ? $nome.' ('.$banco.')' : $nome;
     }
 
     /** Tipo curto do rótulo do select e a palavra que, já no apelido, o dispensa. */

@@ -19,12 +19,14 @@ use App\Services\FundingService;
 use App\Support\Atividades\Descritor;
 use App\Support\Brl;
 use App\Support\FundingSource;
+use App\Support\Parcelamento;
 use App\Support\PeriodoDoFiltro;
 use App\Support\Texto;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -266,7 +268,9 @@ class TransactionController extends Controller
         $fonte = $data['funding_source'] ?? null;
         $investimentoId = $data['funding_investment_id'] ?? null;
         $maxFonte = $data['funding_max_amount'] ?? null;
-        unset($data['funding_source'], $data['funding_investment_id'], $data['funding_max_amount']);
+        // Parcelas é instrução também: 1 (ou nada) = à vista, numa linha só sem `installments`.
+        $parcelas = (int) ($data['installments'] ?? 1);
+        unset($data['funding_source'], $data['funding_investment_id'], $data['funding_max_amount'], $data['installments']);
 
         try {
             // Receita não gasta nada: grava direto. Despesa passa pelo guard.
@@ -281,7 +285,11 @@ class TransactionController extends Controller
                 amount: (float) $data['amount'],
                 source: $fonte,
                 investmentId: $investimentoId ? (int) $investimentoId : null,
-                write: fn (array $auditoria) => Transaction::create($data + $auditoria),
+                // Parcelado no cartão: N linhas, uma por ciclo de fatura, as mesmas regras do
+                // "Lançar despesa" de Contas a pagar. O limite é conferido pelo TOTAL da compra.
+                write: fn (array $auditoria) => $parcelas > 1 && $conta->isCard()
+                    ? Parcelamento::criar(Arr::except($data, ['amount', 'date']) + $auditoria, (float) $data['amount'], CarbonImmutable::parse($data['date']), $parcelas, $conta)
+                    : Transaction::create($data + $auditoria),
                 madeByUserId: $data['made_by_user_id'],
                 date: $data['date'],
                 maxFonte: $maxFonte !== null ? (float) $maxFonte : null,

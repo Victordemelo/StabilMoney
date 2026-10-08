@@ -927,6 +927,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .fatura-estorno { display: inline-flex; }
 .fatura-estorno .btn { padding: 7px 12px; font-size: 12.5px; border-radius: 10px; }
 /* Saldo do método escolhido, sob o select do modal de lançar. */
+/* Valor + parcelas lado a lado no modal "Lançar" (as parcelas só no cartão de crédito). */
+.lm-valor { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.lm-valor.com-parcelas { grid-template-columns: minmax(0, 1fr) minmax(0, 168px); }
+@media (max-width: 380px) { .lm-valor.com-parcelas { grid-template-columns: minmax(0, 1fr); } }
 .lm-saldo { display: block; margin-top: 6px; font-size: 12px; color: var(--ink-3); min-height: 1.5em; }
 .lm-saldo.reservado { visibility: hidden; }
 .lm-saldo.neg { color: var(--neg); font-weight: 600; }
@@ -935,7 +939,10 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    Terceiro segmento do type-toggle: a pílula passa a ter 1/3 da largura e um
    terceiro destino; a cor da marca (nem verde de receita, nem âmbar de despesa)
    diz que o dinheiro só está trocando de conta. */
-.type-toggle.tt-3 { grid-template-columns: 1fr 1fr 1fr; }
+/* `minmax(0, 1fr)`, nunca `1fr` (= minmax(auto, 1fr)): com `1fr` a palavra mais longa
+   ("Transferência") alargava a própria coluna, e a pílula — que tem 1/3 fixo — saía
+   torta, mais estreita que a Receita e passando por cima da borda na Transferência. */
+.type-toggle.tt-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .type-toggle.tt-3 .tt-pill { width: calc((100% - 16px) / 3); }
 form[data-type="transfer"] .type-toggle.tt-3 .tt-pill {
   transform: translateX(calc(200% + 8px));
@@ -943,7 +950,12 @@ form[data-type="transfer"] .type-toggle.tt-3 .tt-pill {
 }
 .type-toggle input:checked + label.tt-transfer { color: var(--brand-500); }
 .form-card form[data-type="transfer"] { --tt-accent: var(--brand-500); }
-@media (max-width: 420px) { .type-toggle.tt-3 label { font-size: 12px; gap: 5px; } }
+/* No celular os três segmentos só cabem sem os ícones (num de 412px, "Transferência" com
+   ícone passava da coluna). */
+@media (max-width: 520px) {
+  .type-toggle.tt-3 label { font-size: 12.5px; gap: 5px; }
+  .type-toggle.tt-3 label svg { display: none; }
+}
 
 /* Selo "Transferência" na lista do Histórico (a linha não tem categoria). */
 .tx-tag {

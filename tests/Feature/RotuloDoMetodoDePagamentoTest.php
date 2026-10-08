@@ -39,9 +39,22 @@ class RotuloDoMetodoDePagamentoTest extends TestCase
         $opcoes = Account::paymentOptions($u->id);
         $this->assertContains('Débito Nubank → Conta Corrente', $opcoes->pluck('rotulo')->all());
 
-        $this->actingAs($u)->get(route('dashboard'))->assertOk()
-            ->assertSee('Nubank Roxinho (Crédito)')
-            ->assertSee('Conta Corrente (Nubank)')
-            ->assertSee('Débito Nubank → Conta Corrente');
+        // No select o tipo vai no TÍTULO do grupo (out/2026): a opção fica só com o nome curto,
+        // sem quebrar em duas linhas na lista do celular.
+        $html = $this->actingAs($u)->get(route('dashboard'))->assertOk()->getContent();
+        $this->assertStringContainsString('<optgroup label="Cartões de crédito" data-para="expense">', $html);
+        $this->assertMatchesRegularExpression('#>Nubank Roxinho</option>#', $html);
+        $this->assertMatchesRegularExpression('#>Conta Corrente \(Nubank\)</option>#', $html);
+        $this->assertMatchesRegularExpression('#>Débito Nubank → Conta Corrente</option>#', $html);
+        $this->assertStringNotContainsString('Nubank Roxinho (Crédito)</option>', $html);
+    }
+
+    public function test_o_rotulo_curto_tira_o_tipo_e_mantem_o_banco_quando_falta(): void
+    {
+        $u = User::factory()->create();
+
+        $this->assertSame('Mercado Pago', Account::factory()->for($u)->create(['type' => 'checking', 'name' => 'Mercado Pago', 'bank' => 'mercado_pago', 'initial_balance' => 0])->rotuloCurto);
+        $this->assertSame('Reserva (Itaú)', Account::factory()->for($u)->create(['type' => 'savings', 'name' => 'Reserva', 'bank' => 'itau', 'initial_balance' => 0])->rotuloCurto);
+        $this->assertSame('Cartão crédito Inter', Account::factory()->for($u)->creditCard()->create(['name' => 'Cartão crédito Inter', 'bank' => 'inter'])->rotuloCurto);
     }
 }

@@ -644,7 +644,7 @@
                                                 data-card="{{ $account->isCard ? '1' : '0' }}"
                                                 data-saldo-valor="{{ number_format((float) ($account->saldo ?? 0), 2, '.', '') }}" data-saldo-rotulo="{{ $account->saldoRotulo ?? 'disponível' }}"
                                                 @selected($reabreLancar && (int) old('account_id') === $account->id)>
-                                            {{ $account->rotulo ?? $account->name }}
+                                            {{ $account->rotuloCurto ?? $account->rotulo ?? $account->name }}
                                         </option>
                                     @endforeach
                                 </optgroup>
