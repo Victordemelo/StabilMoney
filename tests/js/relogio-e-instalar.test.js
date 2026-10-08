@@ -24,6 +24,7 @@ describe('instalar o app', () => {
         document.body.innerHTML = `
             <button data-instalar-app hidden>Instalar o app</button>
             <span data-instalar-ios hidden>No iPhone…</span>
+            <span data-instalar-android hidden>No Chrome: ⋮</span>
             <span data-instalado hidden>Já instalado</span>`;
         window.matchMedia = vi.fn(() => ({ matches: false }));
     });
@@ -56,6 +57,24 @@ describe('instalar o app', () => {
         initInstalar();
 
         expect(document.querySelector('[data-instalado]').hidden).toBe(false);
+        expect(botao().hidden).toBe(true);
+    });
+
+    it('no Android sem o convite do navegador o botão aparece e o toque mostra o caminho pelo menu', async () => {
+        const ua = vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (Linux; Android 14) Chrome/130 Mobile');
+        const { initInstalar } = await import('../../resources/js/sm/instalar.js');
+        initInstalar();
+
+        expect(botao().hidden).toBe(false);
+        expect(document.querySelector('[data-instalar-android]').hidden).toBe(true);
+        botao().click();
+        expect(document.querySelector('[data-instalar-android]').hidden).toBe(false);
+        ua.mockRestore();
+    });
+
+    it('no computador sem convite o botão continua escondido', async () => {
+        const { initInstalar } = await import('../../resources/js/sm/instalar.js');
+        initInstalar();
         expect(botao().hidden).toBe(true);
     });
 });

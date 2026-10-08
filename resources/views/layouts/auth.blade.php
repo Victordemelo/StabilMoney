@@ -80,6 +80,14 @@
     {{-- Painel do formulário --}}
     <section class="auth-panel">
         <div class="auth-card">
+            {{-- De volta à página inicial (out/2026 — pedido do Victor): no celular o painel do
+                 vídeo, com a marca que levava para lá, fica quase fora da tela. --}}
+            @if (request()->routeIs('login', 'register', 'password.request'))
+                <a class="ac-voltar" href="{{ url('/') }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+                    Voltar para o início
+                </a>
+            @endif
             {{-- Marca dentro do card (visível só no mobile) --}}
             <div class="ac-brand">
                 <span class="b"><img src="{{ asset('assets/stabilmoney-mark.png') }}" alt="" /></span>

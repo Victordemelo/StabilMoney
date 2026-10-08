@@ -94,6 +94,15 @@
   animation: sm-auth-card-up .6s var(--ease-out) both;
 }
 @keyframes sm-auth-card-up { from { transform: translateY(18px); } to { transform: none; } }
+/* "Voltar para o início" no topo do cartão (login, cadastro, esqueci a senha). */
+.auth .ac-voltar {
+  display: inline-flex; align-items: center; gap: 8px; margin-bottom: 26px; min-height: 36px;
+  padding: 6px 14px 6px 10px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: 13.5px; font-weight: 600; color: var(--ink-2); text-decoration: none;
+  transition: background .15s, border-color .15s;
+}
+.auth .ac-voltar:hover { background: var(--surface-2); border-color: var(--ink-3); }
+.auth .ac-voltar svg { width: 16px; height: 16px; flex: none; }
 .auth .ac-brand { display: none; align-items: center; gap: 11px; margin-bottom: 28px; }
 .auth .ac-brand .b { width: 40px; height: 40px; border-radius: 12px; background: var(--brand-50); display: grid; place-items: center; }
 .auth .ac-brand .b img { width: 30px; height: 30px; }
@@ -259,7 +268,9 @@
 /* Campo de código: fonte de título, grande e espaçada. Digitar 6 dígitos é uma
    transcrição — o olho precisa conferir dígito a dígito com a tela do celular. */
 .auth .input input.otp {
-  padding-left: 46px; text-align: center; letter-spacing: .38em; text-indent: .38em;
+  /* A MESMA folga dos dois lados: só a da esquerda (do ícone) empurrava os dígitos para a
+     direita, e o código ficava torto em relação ao campo e ao resto do cartão. */
+  padding-left: 46px; padding-right: 46px; text-align: center; letter-spacing: .38em; text-indent: .38em;
   font-family: var(--font-head); font-size: 21px; font-weight: 600;
 }
 /* O de recuperação tem letras e hífen: espaçamento menor para caber sem quebrar. */

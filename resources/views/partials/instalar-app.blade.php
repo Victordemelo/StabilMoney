@@ -7,5 +7,6 @@
         Instalar o app
     </button>
     <span class="hint" data-instalar-ios hidden>No iPhone: toque em <strong>Compartilhar</strong> e depois em <strong>Adicionar à Tela de Início</strong>.</span>
+    <span class="hint" data-instalar-android hidden>No Chrome: toque em <strong>⋮</strong> (no canto de cima) e depois em <strong>Instalar app</strong> ou <strong>Adicionar à tela inicial</strong>.</span>
     <span class="hint" data-instalado hidden>O app já está instalado neste aparelho.</span>
 </div>
