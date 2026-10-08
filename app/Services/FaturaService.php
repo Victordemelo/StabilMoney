@@ -283,6 +283,9 @@ class FaturaService
                 // ciclo": a ocorrência fechada não está na lista do ciclo aberto,
                 // e sem este bloco a recorrência não teria como avançar.
                 'recorrenciasParaAvancar' => $this->recorrenciasParaAvancar($card, $cycle),
+                // As faturas dos PRÓXIMOS ciclos (parcelas futuras, compras datadas depois do
+                // fechamento), uma por vencimento — "Próximas faturas", como no app do banco.
+                'proximas' => $this->proximasFaturas($card, $cycle),
             ]);
         });
     }
@@ -424,6 +427,50 @@ class FaturaService
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->get();
+    }
+
+    /**
+     * As PRÓXIMAS faturas do cartão (out/2026 — pedido do Victor: "não consigo ver as faturas
+     * dos próximos meses de uma compra parcelada"). São as linhas EM ABERTO datadas depois do
+     * fim do ciclo aberto — as parcelas 2/N em diante e o que foi lançado com data futura —,
+     * agrupadas pelo ciclo em que caem (`billingCycle`, a mesma régua que datou as parcelas),
+     * cada uma com o vencimento dela (`dueDateForCycle`). Estorno datado no futuro abate a
+     * fatura dele, como no ciclo aberto; o total não fica negativo.
+     *
+     * A recorrência não aparece: a próxima cobrança dela só nasce quando a atual fecha
+     * (`FaturaController::pay`), então não há linha futura para mostrar.
+     *
+     * @param  array{0: CarbonImmutable, 1: CarbonImmutable}|null  $cycle
+     * @return Collection<int, array{fechamento: CarbonImmutable, vencimento: ?CarbonImmutable, total: float, itens: Collection<int, Transaction>}>
+     */
+    private function proximasFaturas(Account $card, ?array $cycle): Collection
+    {
+        if (! $cycle) {
+            return collect();
+        }
+
+        return Transaction::with('category')
+            ->where('account_id', $card->id)
+            ->whereIn('type', ['expense', 'income'])
+            ->whereNull('paid_at')
+            ->where('date', '>', $cycle[1]->toDateString())
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn (Transaction $t) => $card->billingCycle(CarbonImmutable::parse($t->date->toDateString()))[1]->toDateString())
+            ->map(function (Collection $itens, string $fechamento) use ($card) {
+                $fim = CarbonImmutable::parse($fechamento);
+                $centavos = $itens->sum(fn (Transaction $t) => (int) round((float) $t->amount * 100) * ($t->type === 'income' ? -1 : 1));
+
+                return [
+                    'fechamento' => $fim,
+                    'vencimento' => $card->dueDateForCycle($fim),
+                    'total' => round(max(0, $centavos) / 100, 2),
+                    'itens' => $itens->values(),
+                ];
+            })
+            ->sortKeys()
+            ->values();
     }
 
     /**

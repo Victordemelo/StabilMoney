@@ -2428,3 +2428,35 @@ html[data-valores-ocultos]:not([data-valores-prontos]) .app {
 }
 .notif-ver:hover { background: var(--surface-3); }
 [data-theme="dark"] .notif-ver { color: var(--brand-300); }
+
+/* ----- Próximas faturas do cartão (out/2026 — FaturaService::proximasFaturas) ----- */
+.fh-proximas { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 600; color: var(--brand-600); }
+[data-theme="dark"] .fh-proximas { color: var(--brand-300); }
+.fatura-proximas { margin: 0 0 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+.fatura-proximas > summary {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; min-height: 44px;
+  cursor: pointer; list-style: none; font-size: 13.5px; font-weight: 600; color: var(--ink);
+}
+.fatura-proximas > summary::-webkit-details-marker { display: none; }
+.fatura-proximas > summary > svg { width: 18px; height: 18px; flex: none; color: var(--brand-600); }
+.fatura-proximas .fp-n {
+  font-style: normal; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px;
+  display: inline-grid; place-items: center; font-size: 11.5px; background: var(--brand-50); color: var(--brand-700);
+}
+.fatura-proximas .fp-soma { margin-left: auto; font-size: 12.5px; font-weight: 500; color: var(--ink-3); }
+.fatura-proximas .fp-chev { color: var(--ink-3) !important; transition: transform .2s var(--ease); }
+.fatura-proximas[open] .fp-chev { transform: rotate(180deg); }
+.fatura-proximas:focus-within > summary:focus-visible { outline: 2px solid var(--brand-300); outline-offset: 2px; border-radius: 12px; }
+.fp-lista { list-style: none; margin: 0; padding: 0 14px 6px; }
+.fp-fatura { padding: 12px 0; border-top: 1px solid var(--line); }
+.fp-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.fp-cab strong { display: block; font-size: 13.5px; }
+.fp-cab small { font-size: 11.5px; color: var(--ink-3); }
+.fp-cab b { font-family: var(--font-head); font-size: 15px; white-space: nowrap; }
+.fp-itens { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.fp-itens li { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--ink-2); }
+.fp-desc { min-width: 0; overflow-wrap: anywhere; }
+.fp-desc .fi-badge { margin-left: 6px; }
+.fp-val { white-space: nowrap; font-weight: 600; }
+@media (max-width: 420px) { .fatura-proximas .fp-soma { margin-left: 28px; flex-basis: 100%; } }
+

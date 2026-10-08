@@ -265,6 +265,9 @@
                 $acc        = $card->account;
                 $cor        = $acc->color ?: $corPadrao;
                 $limite     = (float) ($acc->credit_limit ?? 0);
+                        @if ($card->proximas->isNotEmpty())
+                            <small class="fh-proximas">+ {{ $card->proximas->count() }} {{ $card->proximas->count() === 1 ? 'próxima fatura' : 'próximas faturas' }}</small>
+                        @endif
                 $usadoPct   = max(0, min(100, (float) ($card->limitUsedPct ?? 0)));
                 $usadoValor = max(0, $limite - (float) ($card->availableLimit ?? 0));
             @endphp
@@ -381,6 +384,45 @@
                          disso, o clique era irreversível pela interface. --}}
                     @if ($card->settlement)
                         <form method="POST" action="{{ route('faturas.fatura.estornar', $card->settlement) }}"
+                {{-- Próximas faturas (out/2026): as parcelas futuras e o que foi lançado com data
+                     depois do fechamento, uma fatura por vencimento — como o app do banco mostra.
+                     Recolhido: abre no toque. Quem calcula é o FaturaService (`proximasFaturas`). --}}
+                @if ($card->proximas->isNotEmpty())
+                    <details class="fatura-proximas">
+                        <summary>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
+                            <span>Próximas faturas</span>
+                            <em class="fp-n">{{ $card->proximas->count() }}</em>
+                            <span class="fp-soma">{{ $brl($card->proximas->sum('total')) }} em aberto</span>
+                            <svg class="fp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                        </summary>
+                        <ol class="fp-lista">
+                            @foreach ($card->proximas as $proxima)
+                                <li class="fp-fatura">
+                                    <div class="fp-cab">
+                                        <span>
+                                            <strong>{{ $proxima['vencimento'] ? 'Vence em '.$proxima['vencimento']->translatedFormat('d \d\e M \d\e Y') : 'Fecha em '.$proxima['fechamento']->translatedFormat('d \d\e M') }}</strong>
+                                            <small>fecha em {{ $proxima['fechamento']->translatedFormat('d/m') }}</small>
+                                        </span>
+                                        <b>{{ $brl($proxima['total']) }}</b>
+                                    </div>
+                                    <ul class="fp-itens">
+                                        @foreach ($proxima['itens'] as $item)
+                                            @php $estornoFuturo = $item->type === 'income'; @endphp
+                                            <li>
+                                                <span class="fp-desc">{{ $item->description ?: ($item->category?->name ?? 'Compra') }}
+                                                    @if ($estornoFuturo)<em class="fi-badge estorno">Estorno</em>@elseif ($item->badge && str_contains($item->badge, '/'))<em class="fi-badge parcelado">{{ $item->badge }}</em>@endif
+                                                </span>
+                                                <span class="fp-val">{{ $estornoFuturo ? \App\Support\Brl::format(-$item->amount) : $brl($item->amount) }}</span>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </li>
+                            @endforeach
+                        </ol>
+                    </details>
+                @endif
+
                               class="fatura-estorno"
                               data-confirmar="Estornar o pagamento de {{ $brl($card->settlement->amount) }}? As compras voltam para a fatura em aberto e o valor volta para a conta.">
                             @csrf
