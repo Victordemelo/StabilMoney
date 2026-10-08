@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.286 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **409 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.310 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **430 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -249,7 +249,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.286 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.310 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1493,6 +1493,50 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   texto; data que não existe ou fora do limite deixa o original vazio e marca o campo. Campo que não
   deve virar texto: `data-sem-br`. Sem JS, fica o campo do navegador.
 - **Aceite da versão nova no celular:** "Aceitar e continuar" e "Sair da conta" centralizados (≤ 600px).
+  O campo nativo escondido que abre o calendário leva `data-sem-br` — sem isso a passada seguinte
+  (toda troca de tela pelo pjax) o "melhorava" e aparecia um SEGUNDO calendário (bug visto no Android).
+- **Parcelar pelo modal Lançar** (`LancarParceladoPeloModalTest`, `tests/js/launch-parcelas.test.js`):
+  em DESPESA no CARTÃO DE CRÉDITO aparece, ao lado do valor, o select `installments` (À vista, 2x…24x,
+  cada opção com o valor da parcela; o rótulo vira "Valor total"). `POST /transactions` com 2..24 grava
+  pelo `App\Support\Parcelamento` (saiu do FaturaController: uma linha por CICLO, rateio em centavos,
+  uuid só na 1ª) — o mesmo do "Lançar despesa" de Contas a pagar. Fora do cartão ou em receita: 422 em
+  `installments`. Só a CRIAÇÃO aceita o campo (`aceitaParcelamento()`; a edição devolve false).
+- **Selects de conta agrupados por TIPO** (`Account::gruposDeLancamento`): Contas correntes · Contas
+  poupança · Cartões de crédito · Cartões de débito · Pix e TED; a opção mostra o `rotuloCurto` (apelido +
+  banco quando falta, sem o tipo, que está no título do grupo) — "Mercado Pago (Conta corrente)" quebrava
+  em duas linhas na lista do celular. O "Para" da transferência também é agrupado.
+- **"Gastos por categoria" com centavos** (`tests/js/donut.test.js`): centro e legenda em `R$ 476,20`
+  (antes `R$ 476` e `R$ 6,1k`); a fonte do centro encolhe para caber no anel (`escreverNoCentro`).
+- **Seletor de tipo (Receita/Despesa/Transferência) com colunas `minmax(0, 1fr)`**: com `1fr` a palavra
+  "Transferência" alargava a coluna e a pílula saía torta; ≤ 520px os três ficam sem ícone.
+- **Saldo que gira de banco em banco** (`SaldoGiraDeBancoEmBancoTest`, `sm/saldo-giro.js`): o card de
+  destaque recebe `contasDoSaldo` (`DashboardService::contasDoSaldo`, contas corrente/poupança com o
+  disponível de cada uma). Com UMA conta, o selo do banco (miniatura do cartão `assets/banks/` + "Banco
+  Itaú · Conta corrente") fica no lugar da variação; com mais de uma, os slides (`data-giro-item`, na
+  mesma célula da grade) giram a cada 4 s: total → cada conta → total, o selo junto ("Todas as contas"
+  no total). Só o slide 0 tem `.num`/`data-count` (o `dashboard.js` casa por índice). Pausa com a aba
+  escondida e com MOUSE em cima (toque não pausa: no celular nunca vinha o "sair"); tocar no selo passa;
+  "reduzir movimento" não gira sozinho.
+- **O olho que esconde os valores** (`sm/ocultar-valores.js`, `tests/js/ocultar-valores.test.js`,
+  `AjustesDeTelaDoCelularTest`): botão `[data-ocultar-valores]` ao lado do sino (celular e computador).
+  Todo texto "R$ + número" é marcado com `.sm-valor` (no elemento que contém o valor inteiro; frase longa,
+  campo, select e opção nunca) e um MutationObserver marca o que chega depois (pjax, modais, giro, contagem).
+  `html[data-valores-ocultos]` borra os marcados; a escolha fica em `localStorage` `sm-ocultar-valores` e o
+  script do `<head>` do `layouts/app` liga o modo antes da primeira pintura (a `.app` espera até .8s pela
+  marcação). Valor novo em tela nova não precisa de nada: basta ter "R$" no texto.
+- **Sino do celular abre o balão** (`SinoDoCelularAbreOBalaoTest`): o mesmo conteúdo do computador
+  (`partials/notif-lista`, com "Abrir Contas a pagar" no pé); sem nada vencendo, "Nada perto de vencer".
+  Link dentro de um popover o fecha (o pjax não troca o shell).
+- **Remover dependente pede a SENHA** (`RemoverDependentePedeASenhaTest`): um modal por dependente
+  (`depRemoverModal-{id}`), `current_password` na bag `remocao`, `throttle:senha`; sem JS o formulário do
+  card vai sem senha e o servidor devolve o modal ABERTO (`_form=remover-{id}`). Teste que chame a rota
+  manda `['password' => 'password']`. ⚠️ Na view da Família há um `@php(...)` de uma linha: um bloco de
+  PHP com abertura e fechamento depois dele faz o Blade engolir tudo entre os dois — e o Blade lê esses
+  blocos ANTES de tirar os comentários (citar a diretiva num comentário também quebra).
+- **Telas de entrada:** "Voltar para o início" (`.ac-voltar`) no login, cadastro e "Esqueci a senha"; o
+  código do 2FA com a mesma folga dos dois lados (os dígitos ficavam tortos); "Instalar o app" no ANDROID
+  aparece mesmo sem o convite do Chrome e o toque mostra o caminho pelo menu (`[data-instalar-android]`).
+- **Informações do sistema** com a foto do autor (`sistema.autor.foto`) e o GitHub.
 - **Olho para mostrar a senha** (`OlhoDaSenhaNaFamiliaTest`, `tests/js/mostrar-senha.test.js`): campo
   de senha em tela do app = `<div class="input-pw">` + `<button type="button" class="pw-toggle"
   data-toggle="<id do campo>">`. Um ouvinte delegado no document (`sm/mostrar-senha.js`, ligado uma
@@ -2674,7 +2718,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.286 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.310 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
