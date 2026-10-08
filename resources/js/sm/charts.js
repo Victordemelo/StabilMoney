@@ -215,7 +215,16 @@ export function escreverNoCentro(el, texto) {
     el.style.fontSize = `${Math.min(17, 70 / (texto.length * 0.56)).toFixed(2)}px`;
 }
 
-// Desenha o donut + legenda interativa. `cats` = [{ name, value, color }]
+// Abre a URL pelo pjax (sem recarregar o shell) quando ele existe; com Ctrl/⌘ ou o botão do
+// meio, deixa o navegador abrir em outra aba.
+function irPara(e, url) {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+    e.preventDefault();
+    if (typeof window.smPjaxIr === 'function') window.smPjaxIr(url);
+    else window.location.assign(url);
+}
+
+// Desenha o donut + legenda interativa. `cats` = [{ name, value, color, url? }]
 export function buildDonut(svg, legend, cats) {
     if (!svg || !legend || !Array.isArray(cats) || !cats.length) return;
     const total = cats.reduce((s, c) => s + c.value, 0);
@@ -249,9 +258,16 @@ export function buildDonut(svg, legend, cats) {
     // — interpolar isso em HTML deixava um dependente executar script no dashboard do
     // titular (ex.: categoria chamada `<img src=x onerror=...>`).
     legend.replaceChildren(...cats.map((c, i) => {
-        const row = document.createElement('div');
+        // Com `url` (out/2026), a linha é um LINK para as Movimentações da categoria no mês;
+        // "Outros" e "Sem categoria" não têm um filtro só e continuam texto.
+        const row = document.createElement(c.url ? 'a' : 'div');
         row.className = 'cat-row' + (c.value > 0 ? '' : ' is-zero');
         row.dataset.i = i;
+        if (c.url) {
+            row.href = c.url;
+            row.setAttribute('aria-label', `${c.name}: ver as despesas do mês em Movimentações`);
+            row.addEventListener('click', (e) => irPara(e, c.url));
+        }
 
         const dot = document.createElement('span');
         dot.className = 'cd';
@@ -289,6 +305,9 @@ export function buildDonut(svg, legend, cats) {
     $$('.donut-seg', svg).forEach((s) => {
         s.addEventListener('mouseenter', () => focus(+s.dataset.i));
         s.addEventListener('mouseleave', () => focus(null));
+        // A fatia também leva às Movimentações da categoria.
+        const url = cats[+s.dataset.i]?.url;
+        if (url) s.addEventListener('click', (e) => irPara(e, url));
     });
     $$('.cat-row', legend).forEach((r) => {
         r.addEventListener('mouseenter', () => focus(+r.dataset.i));

@@ -414,7 +414,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .cf-tip .row .v { margin-left: auto; font-weight: 700; font-family: var(--font-head); }
 
 /* ===== Donut ===== */
-.donut-card { display: flex; flex-direction: column; }
+.donut-card { display: flex; flex-direction: column; container-type: inline-size; }
+/* Cartão estreito: o gráfico em cima e a legenda embaixo, com a largura inteira — lado a lado,
+   com os valores em centavos, os nomes saíam cortados ("Tran…", "Outr…"). */
+@container (max-width: 400px) { .donut-wrap { flex-direction: column; } .cat-legend { width: 100%; } }
+a.cat-row { color: inherit; text-decoration: none; }
+a.cat-row:focus-visible { outline: 2px solid var(--brand-300); outline-offset: 1px; }
 .donut-wrap { display: flex; align-items: center; gap: 6px; }
 .donut-svg { width: 132px; height: 132px; flex: none; }
 .donut-seg { transition: stroke-width .25s var(--ease), opacity .25s; cursor: pointer; transform-origin: center; }

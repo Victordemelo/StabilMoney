@@ -271,4 +271,6 @@ export function initNav(reinitContent) {
 
     // Recarrega a página atual sem reload (usado pelo modal "Lançar" após salvar).
     window.smPjaxReload = () => load(location.href, { push: false, recarga: true });
+    // Navegar pelo pjax a partir de um link criado depois do init (ex.: a legenda do donut).
+    window.smPjaxIr = (url) => load(url);
 }

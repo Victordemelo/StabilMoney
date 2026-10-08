@@ -902,13 +902,14 @@ class DashboardService
             ->whereBetween('transactions.date', [$monthStart->toDateString(), $monthEnd->toDateString()])
             ->groupBy('transactions.category_id', 'categories.name', 'categories.color', 'categories.is_locked')
             ->selectRaw(
-                'categories.name AS cat_name, categories.color AS cat_color, categories.is_locked AS cat_locked, '.
+                'transactions.category_id AS cat_id, categories.name AS cat_name, categories.color AS cat_color, categories.is_locked AS cat_locked, '.
                 "COALESCE(SUM(CASE WHEN transactions.type = 'expense' AND NOT ({$emCartao}) THEN transactions.amount END), 0) AS caixa_total, ".
                 "COALESCE(SUM(CASE WHEN {$emCartao} THEN (CASE WHEN transactions.type = 'expense' THEN transactions.amount ELSE -transactions.amount END) END), 0) AS cartao_total",
             )
             ->get();
 
         $items = $rows->map(fn ($row) => [
+            'id' => $row->cat_name === null ? null : (int) $row->cat_id,
             'name' => $row->cat_name ?? 'Sem categoria',
             // Piso 0 só no líquido do CARTÃO: o caixa da categoria fica inteiro.
             'value' => round((float) $row->caixa_total + max(0.0, (float) $row->cartao_total), 2),
@@ -930,7 +931,7 @@ class DashboardService
         $livres = $items->where('locked', false)->values();
         if ($livres->count() > 6) {
             $rest = round($livres->slice(5)->sum('value'), 2);
-            $livres = $livres->take(5)->push(['name' => 'Outros', 'value' => $rest, 'color' => null, 'locked' => false]);
+            $livres = $livres->take(5)->push(['id' => null, 'name' => 'Outros', 'value' => $rest, 'color' => null, 'locked' => false]);
         }
 
         // Com gasto no período, ordenadas do maior para o menor.
@@ -943,12 +944,18 @@ class DashboardService
             ->where('is_locked', true)
             ->whereNotIn('name', $fixas->pluck('name')->all())
             ->orderBy('name')
-            ->get(['name', 'color'])
-            ->map(fn (Category $c) => ['name' => $c->name, 'value' => 0.0, 'color' => $c->color ?: null, 'locked' => true]);
+            ->get(['id', 'name', 'color'])
+            ->map(fn (Category $c) => ['id' => (int) $c->id, 'name' => $c->name, 'value' => 0.0, 'color' => $c->color ?: null, 'locked' => true]);
 
-        return $comGasto->concat($zeradas)->values()->map(function (array $cat, int $i) {
+        return $comGasto->concat($zeradas)->values()->map(function (array $cat, int $i) use ($monthStart, $monthEnd) {
             $cat['color'] = $cat['color'] ?? self::PALETTE[$i % count(self::PALETTE)];
-            unset($cat['locked']); // uso interno; o contrato do payload é {name, value, color}
+            // Tocar na categoria leva às Movimentações dela no mês (out/2026 — pedido do Victor).
+            // "Outros" e "Sem categoria" não têm um filtro só: ficam sem link.
+            $cat['url'] = $cat['id'] ? route('transactions.index', [
+                'type' => 'expense', 'category' => $cat['id'],
+                'de' => $monthStart->toDateString(), 'ate' => $monthEnd->toDateString(),
+            ], false) : null;
+            unset($cat['locked'], $cat['id']); // uso interno; o contrato do payload é {name, value, color, url}
 
             return $cat;
         })->all();

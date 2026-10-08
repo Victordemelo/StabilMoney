@@ -44,3 +44,28 @@ describe('Donut de gastos por categoria', () => {
         expect(document.querySelector('.dc-lbl').textContent).toBe('Saúde');
     });
 });
+
+describe('Categoria do donut leva às Movimentações (out/2026)', () => {
+    it('a linha com url vira link e o clique navega pelo pjax', () => {
+        const ir = [];
+        window.smPjaxIr = (url) => ir.push(url);
+        document.body.innerHTML = '<svg id="d" viewBox="0 0 120 120"></svg><div id="l"></div>';
+        buildDonut(document.getElementById('d'), document.getElementById('l'), [
+            { name: 'Transporte', value: 540.87, color: '#4C7BC0', url: '/transactions?type=expense&category=7&de=2026-10-01&ate=2026-10-31' },
+            { name: 'Outros', value: 256.37, color: '#777', url: null },
+        ]);
+
+        const [transporte, outros] = document.querySelectorAll('.cat-row');
+        expect(transporte.tagName).toBe('A');
+        expect(transporte.getAttribute('href')).toContain('category=7');
+        expect(outros.tagName).toBe('DIV');
+
+        transporte.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        document.querySelector('.donut-seg[data-i="0"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        expect(ir).toEqual([
+            '/transactions?type=expense&category=7&de=2026-10-01&ate=2026-10-31',
+            '/transactions?type=expense&category=7&de=2026-10-01&ate=2026-10-31',
+        ]);
+        delete window.smPjaxIr;
+    });
+});
