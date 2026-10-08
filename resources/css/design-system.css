@@ -2327,6 +2327,7 @@ body.pjax-loading #content { opacity: .5; }
 .sis-lista a { color: var(--brand-600); font-weight: 600; }
 .sis-autor { margin: 0 0 2px; font-family: var(--font-head); font-size: 18px; font-weight: 600; }
 .sis-autor-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.sis-autor-foto { object-fit: cover; object-position: center 20%; }
 .sis-autor-av { width: 56px; height: 56px; flex: none; border-radius: 50%; display: grid; place-items: center;
   font-family: var(--font-head); font-size: 19px; font-weight: 700; color: #fff;
   background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); }

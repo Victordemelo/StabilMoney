@@ -43,7 +43,12 @@
                 $iniciais = mb_strtoupper(mb_substr($partes[0], 0, 1).mb_substr(end($partes), 0, 1));
             @endphp
             <div class="sis-autor-head">
-                <span class="sis-autor-av" aria-hidden="true">{{ $iniciais }}</span>
+                {{-- A foto do autor (a mesma de "Quem fez" da página inicial); sem ela, as iniciais. --}}
+                @if (config('sistema.autor.foto'))
+                    <img class="sis-autor-av sis-autor-foto" src="{{ asset(config('sistema.autor.foto')) }}" alt="Foto de {{ config('sistema.autor.nome') }}" width="56" height="56" loading="lazy" decoding="async">
+                @else
+                    <span class="sis-autor-av" aria-hidden="true">{{ $iniciais }}</span>
+                @endif
                 <div>
                     <p class="sis-autor">{{ config('sistema.autor.nome') }}</p>
                     <span class="sis-sub">Criador e desenvolvedor do Stabil Money</span>
@@ -58,6 +63,12 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10.5V16M8 7.8h.01M11.5 16v-3.2a2.3 2.3 0 0 1 4.6 0V16M11.5 10.5V16"/></svg>
                     LinkedIn
                 </a>
+                @if (config('sistema.autor.github'))
+                    <a class="btn-ghost" href="{{ config('sistema.autor.github') }}" target="_blank" rel="noopener noreferrer">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg>
+                        GitHub
+                    </a>
+                @endif
             </div>
             <dl class="sis-lista">
                 <div><dt>Contato</dt><dd><a href="mailto:{{ config('legal.contact_email') }}">{{ config('legal.contact_email') }}</a></dd></div>

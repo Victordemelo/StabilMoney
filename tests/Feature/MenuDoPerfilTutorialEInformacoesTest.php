@@ -35,7 +35,8 @@ class MenuDoPerfilTutorialEInformacoesTest extends TestCase
             ->assertSee('<title>Informações do sistema', false)
             ->assertSee('Versão 1.0.0')
             ->assertSee('Victor de Melo da Rosa')
-            ->assertSee('<span class="sis-autor-av" aria-hidden="true">VR</span>', false)
+            // A foto do autor (out/2026); as iniciais só sem foto configurada.
+            ->assertSee('class="sis-autor-av sis-autor-foto"', false)
             ->assertSee('Criador e desenvolvedor do Stabil Money')
             ->assertSee('Sugestões')
             ->assertSee('href="https://victordemelo.com.br"', false)
