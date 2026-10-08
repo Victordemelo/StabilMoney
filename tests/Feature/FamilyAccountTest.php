@@ -125,7 +125,7 @@ class FamilyAccountTest extends TestCase
         $titular = User::factory()->create();
         $dependent = User::factory()->create(['account_owner_id' => $titular->id]);
 
-        $this->actingAs($titular)->delete("/dependentes/{$dependent->id}")->assertRedirect();
+        $this->actingAs($titular)->delete("/dependentes/{$dependent->id}", ['password' => 'password'])->assertRedirect();
         $this->assertDatabaseMissing('users', ['id' => $dependent->id]);
     }
 

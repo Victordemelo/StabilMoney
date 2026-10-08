@@ -139,11 +139,14 @@
                                      antes era bloqueado pela CSP (removia sem perguntar) e ainda
                                      punha o nome dentro de uma string JS: um apóstrofo no nome a
                                      quebrava. Aqui o nome é só texto de atributo. --}}
-                                <form method="POST" action="{{ route('dependentes.destroy', $dep) }}"
-                                      data-confirmar="Remover {{ $dep->name }}? O acesso dele será excluído (os lançamentos da família permanecem).">
+                                {{-- Remover pede a SENHA do titular (out/2026): o botão abre o modal
+                                     `depRemoverModal-{id}`. Sem JS este formulário vai sem senha, e o
+                                     servidor volta com o modal já aberto pedindo-a. --}}
+                                <form method="POST" action="{{ route('dependentes.destroy', $dep) }}">
                                     @csrf
                                     @method('DELETE')
-                                    <button class="dp-rm" type="submit" aria-label="Remover {{ $dep->name }}">
+                                    <input type="hidden" name="_form" value="remover-{{ $dep->id }}">
+                                    <button class="dp-rm" type="submit" data-remover="{{ $dep->id }}" aria-label="Remover {{ $dep->name }}">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg>
                                     </button>
                                 </form>
@@ -296,6 +299,59 @@
 </div>
 @endif
 
+{{-- Modais: remover cada dependente, com a senha de quem remove (out/2026) --}}
+{{-- Forma de UMA linha de propósito: com a diretiva de uma linha da lista acima, um bloco de
+     PHP com abertura e fechamento aqui faria o Blade engolir tudo o que fica entre os dois
+     (o Blade lê esses blocos ANTES de tirar os comentários: nem cite o nome dela aqui). --}}
+@php($removerComErro = $errors->remocao->any() && str_starts_with((string) old('_form'), 'remover-') ? (int) \Illuminate\Support\Str::after(old('_form'), 'remover-') : null)
+@if ($ehTitular)
+    @foreach ($dependents as $dep)
+        @if (! $dep->isTitular())
+        <div @class(['modal-scrim', 'open' => $removerComErro === $dep->id]) id="depRemoverModal-{{ $dep->id }}" data-close>
+            <div class="modal" role="dialog" aria-modal="true"
+                 aria-labelledby="depRemoverModal-{{ $dep->id }}-titulo" aria-describedby="depRemoverModal-{{ $dep->id }}-descricao">
+                <div class="modal-head">
+                    <span class="modal-ico perigo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12"/></svg></span>
+                    <div>
+                        <h3 id="depRemoverModal-{{ $dep->id }}-titulo">Remover {{ $dep->name }}</h3>
+                        <p id="depRemoverModal-{{ $dep->id }}-descricao">O acesso dele à conta-família é excluído. Os lançamentos da família continuam.</p>
+                    </div>
+                    <button class="modal-x" type="button" data-close-btn aria-label="Fechar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+                </div>
+                <form method="POST" action="{{ route('dependentes.destroy', $dep) }}">
+                    @csrf
+                    @method('DELETE')
+                    <input type="hidden" name="_form" value="remover-{{ $dep->id }}">
+                    <div class="modal-body">
+                        <div class="field">
+                            <label for="dep-rm-senha-{{ $dep->id }}">Sua senha</label>
+                            <div class="input-pw">
+                                <input class="input @if ($removerComErro === $dep->id && $errors->remocao->has('password')) input-error @endif"
+                                       type="password" id="dep-rm-senha-{{ $dep->id }}" name="password"
+                                       autocomplete="current-password" required>
+                                <button type="button" class="pw-toggle" data-toggle="dep-rm-senha-{{ $dep->id }}" aria-label="Mostrar senha">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                            @if ($removerComErro === $dep->id)
+                                @error('password', 'remocao')<div class="field-error">{{ $message }}</div>@enderror
+                            @endif
+                            <span class="field-hint">Para confirmar que é você quem está removendo.</span>
+                        </div>
+                    </div>
+                    <div class="modal-foot">
+                        <button class="btn ghost" type="button" data-close-btn>Cancelar</button>
+                        <button class="btn-danger" type="submit">Remover</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        @endif
+    @endforeach
+@endif
+
 {{-- Modais: editar cada dependente (um por pessoa) --}}
 @foreach ($dependents as $dep)
     @if ($quemVe->podeEditarNaFamilia($dep))
@@ -434,7 +490,19 @@
         // fonte, do shell, e somava ouvintes neles a cada visita pelo pjax. O Esc é do
         // utilitário de diálogo; o atalho antigo fechava TODO modal aberto, inclusive o
         // de fonte sem responder a quem esperava a escolha.
-        document.querySelectorAll('#depModal, [id^="depEditModal-"]').forEach(function (modal) {
+        // Abrir: remover (pede a senha). O botão é o submit do formulário do card — sem JS
+        // ele vai e o servidor devolve o modal aberto; com JS abre o modal aqui.
+        document.querySelectorAll('[data-remover]').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                var modal = document.getElementById('depRemoverModal-' + btn.getAttribute('data-remover'));
+                if (!modal) return;
+                e.preventDefault();
+                if (window.smDialogo) window.smDialogo.abrir(modal, { foco: modal.querySelector('input[name="password"]'), retorno: btn });
+                else modal.classList.add('open');
+            });
+        });
+
+        document.querySelectorAll('#depModal, [id^="depEditModal-"], [id^="depRemoverModal-"]').forEach(function (modal) {
             modal.addEventListener('click', function (e) { if (e.target === modal) fechar(modal); });
             modal.querySelectorAll('[data-close-btn]').forEach(function (b) {
                 b.addEventListener('click', function () { fechar(modal); });
@@ -475,6 +543,18 @@
         // botão que o teria aberto recebendo o foco de volta ao fechar. O id vem de
         // `old('_form')`, que é dado do cliente: vai pela diretiva de JSON do Blade
         // (escapa aspas e sinais de tag), nunca cru.
+        // Senha errada ao remover: o modal volta aberto pelo servidor (classe `open`); aqui ele
+        // passa a ser diálogo (foco na senha, Tab preso, Esc).
+        @if ($removerComErro)
+            quandoPronto(function () {
+                var modalRm = document.getElementById('depRemoverModal-' + String(@json($removerComErro)));
+                if (modalRm && window.smDialogo) {
+                    modalRm.classList.remove('open');
+                    window.smDialogo.abrir(modalRm, { foco: modalRm.querySelector('input[name="password"]') });
+                }
+            });
+        @endif
+
         @if ($formComErro && $errors->any())
             quandoPronto(function () {
                 @if ($formComErro === 'store')

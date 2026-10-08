@@ -134,7 +134,7 @@ class PermissoesDaFamiliaTest extends TestCase
         $this->actingAs($this->ana)->post(route('dependentes.store'), [
             'name' => 'Nova', 'email' => 'nova@familia.test', 'password' => 'senha-bem-comprida-123',
         ])->assertForbidden();
-        $this->actingAs($this->ana)->delete(route('dependentes.destroy', $this->bia))->assertForbidden();
+        $this->actingAs($this->ana)->delete(route('dependentes.destroy', $this->bia), ['password' => 'password'])->assertForbidden();
 
         $this->assertModelExists($this->bia);
         $this->assertFalse(User::where('email', 'nova@familia.test')->exists());

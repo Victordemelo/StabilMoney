@@ -66,7 +66,7 @@ class RemoverDependenteETudoOuNadaTest extends TestCase
 
     private function remover()
     {
-        return $this->actingAs($this->titular)->delete(route('dependentes.destroy', $this->dependente));
+        return $this->actingAs($this->titular)->delete(route('dependentes.destroy', $this->dependente), ['password' => 'password']);
     }
 
     public function test_falha_no_meio_da_remocao_nao_apaga_nada(): void
@@ -113,7 +113,7 @@ class RemoverDependenteETudoOuNadaTest extends TestCase
         $outro = User::factory()->create(['is_admin' => true]);
 
         // Titular de OUTRA família: o dependente nem existe para ele (o 404 de um id que não existe).
-        $this->actingAs($outro)->delete(route('dependentes.destroy', $this->dependente))->assertNotFound();
+        $this->actingAs($outro)->delete(route('dependentes.destroy', $this->dependente), ['password' => 'password'])->assertNotFound();
 
         $this->assertModelExists($this->dependente);
     }

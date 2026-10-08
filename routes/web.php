@@ -236,7 +236,9 @@ Route::middleware(['auth', 'verified', ExigeAceiteDaPoliticaAtual::class])->grou
         ->middleware('throttle:credencial')
         ->name('dependentes.store');
     Route::patch('/dependentes/{dependent}', [DependentController::class, 'update'])->name('dependentes.update');
-    Route::delete('/dependentes/{dependent}', [DependentController::class, 'destroy'])->name('dependentes.destroy');
+    Route::delete('/dependentes/{dependent}', [DependentController::class, 'destroy'])
+        ->middleware('throttle:senha') // pede a senha: sem limite, seria oráculo de força bruta
+        ->name('dependentes.destroy');
 
     // Metas (objetivos de poupança — modelo "cofrinho"). Compartilhadas na família.
     Route::get('/metas', [GoalController::class, 'index'])->name('metas.index');

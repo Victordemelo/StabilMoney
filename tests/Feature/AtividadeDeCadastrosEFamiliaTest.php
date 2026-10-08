@@ -131,7 +131,7 @@ class AtividadeDeCadastrosEFamiliaTest extends TestCase
             Atividade::where('acao', 'dependente.senha_trocada')->sole()->descricao,
         );
 
-        $this->actingAs($this->titular)->delete(route('dependentes.destroy', $maria))->assertSessionHasNoErrors();
+        $this->actingAs($this->titular)->delete(route('dependentes.destroy', $maria), ['password' => 'password'])->assertSessionHasNoErrors();
 
         $this->assertSame(
             'Victor removeu Maria Clara da família',
@@ -152,7 +152,7 @@ class AtividadeDeCadastrosEFamiliaTest extends TestCase
         $lancamento = Atividade::where('acao', 'transacao.criada')->sole();
         $this->assertNotNull($lancamento->ip);
 
-        $this->actingAs($this->titular)->delete(route('dependentes.destroy', $maria))->assertSessionHasNoErrors();
+        $this->actingAs($this->titular)->delete(route('dependentes.destroy', $maria), ['password' => 'password'])->assertSessionHasNoErrors();
 
         $lancamento->refresh();
         $this->assertSame('Maria lançou a despesa “Padaria” de R$ 50,00 em '.$conta->rotulo, $lancamento->descricao);

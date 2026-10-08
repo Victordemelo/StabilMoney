@@ -47,7 +47,7 @@ class FalhaNaoApareceNoVerdeDeSucessoTest extends TestCase
 
         $pagina = $this->actingAs($titular)
             ->followingRedirects()
-            ->delete(route('dependentes.destroy', $dependente))
+            ->delete(route('dependentes.destroy', $dependente), ['password' => 'password'])
             ->assertOk();
 
         $html = $pagina->getContent();
@@ -68,7 +68,7 @@ class FalhaNaoApareceNoVerdeDeSucessoTest extends TestCase
 
         $html = $this->actingAs($titular)
             ->followingRedirects()
-            ->delete(route('dependentes.destroy', $dependente))
+            ->delete(route('dependentes.destroy', $dependente), ['password' => 'password'])
             ->assertOk()
             ->getContent();
 

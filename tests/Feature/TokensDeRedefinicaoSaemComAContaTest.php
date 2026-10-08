@@ -89,7 +89,7 @@ class TokensDeRedefinicaoSaemComAContaTest extends TestCase
     public function test_remover_o_dependente_apaga_so_o_token_dele(): void
     {
         $this->actingAs($this->titular)
-            ->delete(route('dependentes.destroy', $this->dependente))
+            ->delete(route('dependentes.destroy', $this->dependente), ['password' => self::SENHA])
             ->assertRedirect(route('dependentes'));
 
         $this->assertSemToken('dependente@familia.test');
@@ -137,7 +137,7 @@ class TokensDeRedefinicaoSaemComAContaTest extends TestCase
     {
         $tokenAntigo = Password::broker()->createToken($this->dependente);
 
-        $this->actingAs($this->titular)->delete(route('dependentes.destroy', $this->dependente));
+        $this->actingAs($this->titular)->delete(route('dependentes.destroy', $this->dependente), ['password' => self::SENHA]);
 
         $this->actingAs($this->titular)->post(route('dependentes.store'), [
             'name' => 'Dependente de Novo',

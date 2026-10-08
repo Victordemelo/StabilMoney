@@ -65,8 +65,10 @@ class ExcluirPedeConfirmacaoSemScriptInlineTest extends TestCase
         );
     }
 
-    public function test_remover_dependente_pergunta_pelo_atributo(): void
+    public function test_remover_dependente_pede_a_senha_num_modal(): void
     {
+        // Desde out/2026 remover um dependente não é mais um "tem certeza?": o botão abre um
+        // modal que pede a SENHA (RemoverDependentePedeASenhaTest). Sem script inline também.
         $dependente = User::factory()->create([
             'name' => self::NOME_TRAICOEIRO, 'account_owner_id' => $this->user->id, 'is_admin' => false,
         ]);
@@ -74,10 +76,9 @@ class ExcluirPedeConfirmacaoSemScriptInlineTest extends TestCase
         $xp = $this->pagina(route('dependentes'));
 
         $this->assertSemManipuladorInline($xp, 'dependentes');
-        $this->assertSame(
-            ['Remover '.self::NOME_TRAICOEIRO.'? O acesso dele será excluído (os lançamentos da família permanecem).'],
-            $this->perguntas($xp, route('dependentes.destroy', $dependente)),
-        );
+        $modal = $xp->query('//*[@id="depRemoverModal-'.$dependente->id.'"]//form[@action="'.route('dependentes.destroy', $dependente).'"]//input[@name="password"]');
+        $this->assertSame(1, $modal->length);
+        $this->assertSame(1, $xp->query('//button[@data-remover="'.$dependente->id.'"]')->length);
     }
 
     // ================================================================ asserções

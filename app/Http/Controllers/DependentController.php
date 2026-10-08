@@ -235,6 +235,15 @@ class DependentController extends Controller
         $titular = $request->user();
         abort_unless($titular->isTitular() && $dependent->account_owner_id === $titular->id, 403);
 
+        // A SENHA de quem remove (out/2026 — pedido do Victor): remover tira o acesso de uma
+        // pessoa de vez. Na bag `remocao`, com `_form` para a tela reabrir o modal certo.
+        $request->validateWithBag('remocao', [
+            'password' => ['required', 'current_password'],
+        ], [
+            'password.required' => 'Digite a sua senha para remover.',
+            'password.current_password' => 'Senha incorreta.',
+        ]);
+
         try {
             DB::transaction(fn () => $dependent->delete());
         } catch (\Throwable $e) {
