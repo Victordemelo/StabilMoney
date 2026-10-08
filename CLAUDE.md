@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.331 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **432 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.333 testes PHP** (1 deles só roda no MySQL) (~52 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **434 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -249,7 +249,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.331 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.333 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -516,8 +516,9 @@ virava link comum depois de qualquer navegação.
 
 **Modal "Lançar" — abre SEMPRE zerado e em RECEITA.** O `checked` está no HTML (vale sem JS) e o
 JS reforça a cada abertura: reabrir não herda valor digitado, tipo trocado nem categoria da vez
-anterior. **Trocar receita ↔ despesa zera o valor** — são naturezas diferentes de dinheiro, e
-herdar o número convida a salvar um valor que era de outra coisa. Abaixo do select de método, o
+anterior. **Trocar receita ↔ despesa ↔ transferência MANTÉM valor, data, descrição e quem fez**
+(out/2026 — o Victor reverteu a regra antiga, que zerava o valor: quem escolheu o tipo errado não
+digita tudo de novo); só a categoria e o "Onde" mudam, porque dependem do tipo. Abaixo do select de método, o
 modal mostra o **saldo daquele método** (`data-saldo` na option, de `Account::paymentOptions()`):
 é o que evita a surpresa de digitar, salvar e só então receber o 409 perguntando a fonte. Em
 receita a linha some. ⚠️ `paymentOptions()` passou a ler saldo por conta — mantenha o
@@ -576,7 +577,7 @@ pelo `DashboardService` (consumido por `resources/js/sm/dashboard.js` — sem es
     }
   },
   "sparks": { "saldo": [...], "receitas": [...], "despesas": [...], "economia": [...] }, // últimos 7 dias; [] sem dados
-  "cats": [ { "name": "Alimentação", "value": 0.0, "color": "#0F6B47" } ], // despesas do mês, top 5 + "Outros"
+  "cats": [ { "name": "Alimentação", "value": 0.0, "color": "#0F6B47", "url": "/transactions?type=expense&category=3&de=…&ate=…" } ], // despesas do mês, top 5 + "Outros"; `url` null em "Outros"/"Sem categoria"
   "hasData": true                    // usuário tem transações?
 }
 ```
@@ -1545,6 +1546,13 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   código do 2FA com a mesma folga dos dois lados (os dígitos ficavam tortos); "Instalar o app" no ANDROID
   aparece mesmo sem o convite do Chrome e o toque mostra o caminho pelo menu (`[data-instalar-android]`).
 - **Informações do sistema** com a foto do autor (`sistema.autor.foto`) e o GitHub.
+- **"Gastos por categoria" leva ao detalhe** (`CartaoECategoriasLevamAoDetalheTest`, `tests/js/donut.test.js`):
+  cada categoria do payload traz `url` (Movimentações, despesas da categoria no mês); a linha da
+  legenda vira `<a>` e a fatia também navega, pelo pjax (`window.smPjaxIr`, exposto pelo `nav.js` para
+  link criado depois do init). Cartão estreito (container query ≤ 400px) empilha gráfico e legenda.
+- **Cartão em Contas a pagar:** "Vence todo dia X · melhor dia de compra: Y", com Y =
+  `Account::melhorDiaDeCompra()` = o dia SEGUINTE ao FECHAMENTO (a compra do dia do fechamento ainda
+  entra na fatura que fecha; a do dia seguinte é a que demora mais para ser cobrada).
 - **Próximas faturas do cartão** (`ProximasFaturasDoCartaoTest`, `FaturaService::proximasFaturas`): as
   linhas EM ABERTO do cartão datadas depois do ciclo aberto (parcelas 2/N em diante, compra com data
   futura), agrupadas pelo ciclo (`billingCycle`) com o vencimento de cada um (`dueDateForCycle`);
@@ -2746,7 +2754,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.331 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.333 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
