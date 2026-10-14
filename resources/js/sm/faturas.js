@@ -21,6 +21,7 @@
 import { abrirDialogo, fecharDialogo } from './dialogo';
 import { enviarComFonte, respostaOk } from './funding';
 import { desenharResumo, lerValorDoCampo, saldoDaOpcao } from './resumo-saldo';
+import { atualizarIcone } from './select-icone';
 
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 
@@ -334,6 +335,7 @@ export function initFaturas() {
         const fixaResumo = fixaModal.querySelector('[data-resumo-saldo]');
         let fixaObrigacao = false;
         const syncResumoFixa = () => {
+            atualizarIcone(fixaConta); // a conta padrão da conta fixa é marcada por código
             const opt = fixaConta?.selectedOptions?.[0];
             desenharResumo(fixaResumo, {
                 saldo: saldoDaOpcao(fixaConta)?.saldo ?? null,
@@ -386,7 +388,12 @@ export function initFaturas() {
     if (editFixa) {
         const editForm = editFixa.querySelector('[data-fixaedit-form]');
         const campo = (sel) => editFixa.querySelector(sel);
-        const preencher = (sel, valor) => { const el = campo(sel); if (el) el.value = valor || ''; };
+        const preencher = (sel, valor) => {
+            const el = campo(sel);
+            if (!el) return;
+            el.value = valor || '';
+            if (el.tagName === 'SELECT') atualizarIcone(el);
+        };
         ligarFechamento(editFixa, '[data-fixaedit-close]');
 
         $$('[data-fixa-editar]').forEach((btn) => btn.addEventListener('click', () => {

@@ -37,6 +37,20 @@ select.input {
   background-repeat: no-repeat; background-position: right 12px center; background-size: 16px;
 }
 
+/* ----- Ícone ao lado do select de conta (`sm/select-icone.js`, 14/10/2026) -----
+   O desenho da opção escolhida DENTRO do campo, à esquerda: o quadrado do banco (ou do Pix/TED)
+   ou o cartãozinho dos cartões. Sem ícone para a opção, o campo volta ao normal. */
+.sel-ico { position: relative; display: block; width: 100%; min-width: 0; }
+.sel-ico-img {
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; border-radius: 7px; object-fit: cover;
+  pointer-events: none; z-index: 1;
+  box-shadow: 0 0 0 1px var(--line); /* o ícone de fundo branco (Pix) não some no campo branco */
+}
+.sel-ico[data-forma="cartao"] .sel-ico-img { width: 36px; height: 23px; border-radius: 4px; box-shadow: 0 1px 3px rgba(15,35,27,.18); }
+.sel-ico.com-icone > select.input { padding-left: 44px; }
+.sel-ico.com-icone[data-forma="cartao"] > select.input { padding-left: 54px; }
+
 /* Celular: 16px é o PISO que desliga o zoom automático do Safari no iPhone — ele
    amplia a página sozinho ao focar um campo com fonte menor que isso. Como os
    modais são `position: fixed`, depois do zoom eles saem de enquadramento e o

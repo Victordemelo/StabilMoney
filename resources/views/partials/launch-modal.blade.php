@@ -114,6 +114,8 @@
                             {{-- `data-pjax-atualizar`: o modal mora no SHELL, que o pjax não troca. Sem isto o saldo
                                  de cada opção (o resumo "saldo atual − valor") ficava o de quando a
                                  aba abriu, mesmo depois de lançar ou pagar algo. --}}
+                            {{-- `.sel-ico`: o ícone do banco/cartão escolhido dentro do campo (`sm/select-icone.js`). --}}
+                            <div class="sel-ico">
                             <select class="input" id="lm-account" name="account_id" required data-pjax-atualizar>
                                 @foreach (\App\Models\Account::gruposDeLancamento($lmAccounts) as $grupo)
                                     <optgroup label="{{ $grupo['rotulo'] }}" data-para="{{ $grupo['para'] }}">
@@ -129,11 +131,13 @@
                                                     data-saldo="{{ \App\Support\Brl::format($conta->saldo ?? 0) }}"
                                                     data-saldo-valor="{{ number_format((float) ($conta->saldo ?? 0), 2, '.', '') }}"
                                                     data-saldo-rotulo="{{ $conta->saldoRotulo ?? 'disponível' }}"
-                                                    data-negativo="{{ ($conta->saldo ?? 0) < 0 ? '1' : '0' }}">{{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}</option>
+                                                    data-negativo="{{ ($conta->saldo ?? 0) < 0 ? '1' : '0' }}"
+                                                    data-icone="{{ $conta->icone }}" data-icone-forma="{{ $conta->iconeForma }}">{{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}</option>
                                         @endforeach
                                     </optgroup>
                                 @endforeach
                             </select>
+                            </div>
                             {{-- Quanto ainda dá para gastar por este método, atualizado ao
                                  trocar o select. É a informação que evita a surpresa: sem
                                  ela a pessoa digita o valor, salva, e só então o servidor
@@ -147,16 +151,18 @@
                                  origem da lista, porque transferir para a mesma conta não existe. --}}
                             <div class="field" data-lm-transfer-only hidden>
                                 <label for="lm-to-account">Para</label>
+                                <div class="sel-ico">
                                 <select class="input" id="lm-to-account" name="to_account_id" disabled>
                                     {{-- Agrupado por tipo, como o "De": o tipo no título do grupo e o nome curto na opção. --}}
                                     @foreach (\App\Models\Account::gruposDeLancamento($lmContasCaixa) as $grupo)
                                         <optgroup label="{{ $grupo['rotulo'] }}">
                                             @foreach ($grupo['opcoes'] as $conta)
-                                                <option value="{{ $conta->id }}">{{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}</option>
+                                                <option value="{{ $conta->id }}" data-icone="{{ $conta->icone }}" data-icone-forma="{{ $conta->iconeForma }}">{{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}</option>
                                             @endforeach
                                         </optgroup>
                                     @endforeach
                                 </select>
+                                </div>
                             </div>
                         @endif
                         <div class="field" data-lm-not-transfer>

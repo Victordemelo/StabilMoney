@@ -13,6 +13,7 @@ import { pedirFonte } from './funding';
 import { enfileirarLancamento, refreshCsrfToken } from './offline-queue';
 import { abrirDialogo, fecharDialogo } from './dialogo';
 import { desenharResumo, lerValorDoCampo, saldoDaOpcao } from './resumo-saldo';
+import { atualizarIcone } from './select-icone';
 
 // FormData → objeto simples, que é o formato que a fila reenvia (JSON).
 // `_token`/`_method` ficam de fora: são controle do Laravel, não do lançamento —
@@ -216,6 +217,9 @@ export function initLaunch() {
 
     const mostrarSaldo = () => {
         atualizarParcelas();
+        // O ícone ao lado do select acompanha a escolha — também a feita por código (trocar o
+        // tipo marca a primeira opção válida sem disparar `change`).
+        atualizarIcone(contaSel);
         const alvo = modal.querySelector('[data-lm-saldo]');
         if (!alvo || !contaSel) return;
 
@@ -362,6 +366,7 @@ export function initLaunch() {
             const valida = Array.from(destinoSel.options).find((o) => !o.disabled);
             if (valida) destinoSel.value = valida.value;
         }
+        atualizarIcone(destinoSel);
     };
 
     // Digitar o valor refaz o resumo do saldo.

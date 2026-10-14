@@ -329,6 +329,9 @@ class Account extends Model
                             ? $conta->availableLimitDisplay
                             : $conta->available,
                         'saldoRotulo' => $conta->isCard() ? 'limite livre' : 'disponível',
+                        // O desenho ao lado do select (`iconeDoSelect`).
+                        'icone' => $conta->iconeDoSelect()[0],
+                        'iconeForma' => $conta->iconeDoSelect()[1],
                         // Cartão: data até a qual uma compra cai em fatura JÁ VENCIDA (a tela
                         // oferece "já paguei fora do app" — `Parcelamento::pagaForaDoApp`).
                         'corteVencidas' => $conta->isCard() ? $conta->corteDasFaturasVencidas()?->toDateString() : null,
@@ -355,6 +358,8 @@ class Account extends Model
                     // Método espelho: o dinheiro é o da conta vinculada.
                     'saldo' => $destino->available,
                     'saldoRotulo' => 'disponível',
+                    'icone' => $conta->iconeDoSelect()[0],
+                    'iconeForma' => $conta->iconeDoSelect()[1],
                 ]);
             })
             ->filter()
@@ -584,6 +589,22 @@ class Account extends Model
     public function iconeDoCard(): ?string
     {
         return $this->usaUmaContaSo() ? asset("assets/banks/icones/{$this->type}.png") : $this->bankIconUrl();
+    }
+
+    /**
+     * O desenho ao lado de um select de conta (14/10/2026 — pedido do Victor: "o ícone do lado do
+     * Pagar com"): o cartãozinho do banco nos cartões de crédito e débito; o quadrado do banco nas
+     * contas, e o do Pix/TED nos dois. [url ou null, 'cartao' | 'quadrado'].
+     *
+     * @return array{0: ?string, 1: string}
+     */
+    public function iconeDoSelect(): array
+    {
+        if (($this->isCard() || $this->isDebit()) && $this->bankImageUrl()) {
+            return [$this->bankImageUrl(), 'cartao'];
+        }
+
+        return [$this->iconeDoCard(), 'quadrado'];
     }
 
     /** A conta cujo banco aparece no canto do ícone do Pix/TED: a de onde o dinheiro sai. */

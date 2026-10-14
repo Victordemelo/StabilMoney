@@ -209,12 +209,14 @@
                             <div class="field">
                                 {{-- Só o que vale para o tipo (`TransactionController::gruposDaEdicao`). --}}
                                 <label for="account_id">{{ $entrada ? 'Onde entrou' : 'Por onde saiu' }}</label>
+                                <div class="sel-ico">
                                 <select class="input @error('account_id') input-error @enderror" id="account_id" name="account_id" required>
                                     @foreach ($gruposDeOnde as $gi => $grupo)
                                         <optgroup label="{{ $grupo['rotulo'] }}" data-para="{{ $grupo['para'] }}">
                                             @foreach ($grupo['opcoes'] as $oi => $op)
                                                 {{-- Fluent: `isCard` é PROPRIEDADE, nunca isCard(). --}}
                                                 <option value="{{ $op->id }}" data-para="{{ $grupo['para'] }}" data-card="{{ $op->isCard ? '1' : '0' }}"
+                                                        data-icone="{{ $op->icone }}" data-icone-forma="{{ $op->iconeForma }}"
                                                         @selected($opcaoEscolhida === $gi.'-'.$oi)>
                                                     {{ $op->rotuloCurto ?? $op->rotulo ?? $op->name }}
                                                 </option>
@@ -222,6 +224,7 @@
                                         </optgroup>
                                     @endforeach
                                 </select>
+                                </div>
                                 @error('account_id')<div class="field-error">{{ $message }}</div>@enderror
                             </div>
                         @endunless

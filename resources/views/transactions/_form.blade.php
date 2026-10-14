@@ -141,6 +141,7 @@
                          banco; despesa só por um método. Na EDIÇÃO a conta de banco vale também
                          para despesa: há despesas antigas lançadas direto nela, e o filtro não pode
                          trocar a conta sozinho (trocar a conta reconcilia o dinheiro). --}}
+                    <div class="sel-ico">
                     <select class="input @error('account_id') input-error @enderror" id="account_id" name="account_id" required>
                         @foreach (\App\Models\Account::gruposDeLancamento($accounts) as $grupo)
                             @php $para = $editando && $grupo['para'] === 'income transfer' ? 'income transfer expense' : $grupo['para']; @endphp
@@ -151,6 +152,7 @@
                                          do Fluent, que devolve $this (truthy) e marcaria TODA
                                          conta como cartão — em "Receita" o select ficava vazio. --}}
                                     <option value="{{ $conta->id }}" data-para="{{ $para }}" data-card="{{ $conta->isCard ? '1' : '0' }}"
+                                            data-icone="{{ $conta->icone }}" data-icone-forma="{{ $conta->iconeForma }}"
                                             @if (! $editando && $conta->corteVencidas) data-corte-vencidas="{{ $conta->corteVencidas }}" @endif
                                             @selected((int) old('account_id', $transaction->account_id ?? 0) === $conta->id)>
                                         {{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}
@@ -159,6 +161,7 @@
                             </optgroup>
                         @endforeach
                     </select>
+                    </div>
                     @error('account_id')<div class="field-error">{{ $message }}</div>@enderror
                     @unless ($editando)
                         @include('partials.faturas-vencidas-pagas', ['conta' => 'account_id', 'data' => 'date'])
@@ -173,15 +176,17 @@
                          transferência, então a página funciona nos dois casos sem JS. --}}
                     <div class="field" data-tx-transfer-only>
                         <label for="to_account_id">Para</label>
+                        <div class="sel-ico">
                         <select class="input @error('to_account_id') input-error @enderror" id="to_account_id" name="to_account_id">
                             @foreach (\App\Models\Account::gruposDeLancamento($contasCaixa) as $grupo)
                                 <optgroup label="{{ $grupo['rotulo'] }}">
                                     @foreach ($grupo['opcoes'] as $conta)
-                                        <option value="{{ $conta->id }}" @selected((int) old('to_account_id', 0) === $conta->id)>{{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}</option>
+                                        <option value="{{ $conta->id }}" data-icone="{{ $conta->icone }}" data-icone-forma="{{ $conta->iconeForma }}" @selected((int) old('to_account_id', 0) === $conta->id)>{{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}</option>
                                     @endforeach
                                 </optgroup>
                             @endforeach
                         </select>
+                        </div>
                         @error('to_account_id')<div class="field-error">{{ $message }}</div>@enderror
                     </div>
                 @endif

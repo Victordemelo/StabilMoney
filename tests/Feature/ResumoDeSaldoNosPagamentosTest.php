@@ -59,7 +59,7 @@ class ResumoDeSaldoNosPagamentosTest extends TestCase
         $this->assertStringContainsString('data-rs-rotulo-valor>Esta despesa<', $html);
 
         // "Debitar de": disponível da corrente, já fora a meta.
-        $this->assertMatchesRegularExpression('/<option value="'.$this->corrente->id.'" data-saldo-valor="800.00" data-saldo-rotulo="disponível">/', $html);
+        $this->assertMatchesRegularExpression('/<option value="'.$this->corrente->id.'" data-saldo-valor="800.00" data-saldo-rotulo="disponível"[ >]/', $html);
         // A conta fixa diz se já venceu (obrigação): muda o aviso do resumo, como muda a regra no servidor.
         $this->assertMatchesRegularExpression('/data-fixa-pagar[^>]*data-obrigacao="[01]"/s', $html);
         // O botão de pagar a fatura leva o valor cru.

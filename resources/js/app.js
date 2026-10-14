@@ -31,6 +31,7 @@ import { initDetailsSuave, sincronizarPares } from './sm/details-suave';
 import { initEdicaoTravada } from './sm/edicao-travada';
 import { initListasRolaveis } from './sm/lista-rolavel';
 import { initAncora, irParaAncora } from './sm/ancora';
+import { initSelectIcone } from './sm/select-icone';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -69,6 +70,7 @@ function initContent() {
     initEdicaoTravada();        // editar movimentação: campos travados até o "Editar"
     sincronizarPares();         // Contas a pagar: os dois cards da linha no mesmo estado
     initListasRolaveis();       // Contas a pagar: lista longa rola por dentro (depois de abrir os pares)
+    initSelectIcone();          // o ícone do banco/cartão ao lado dos selects de conta
 }
 
 // Inicialização do shell (sidebar/topbar/modal/PWA) — roda UMA vez; esses
