@@ -38,12 +38,25 @@
                 </div>
                 <div class="field">
                     <label for="f-account">Conta</label>
+                    {{-- Separadas por tipo e com o ícone de cada uma (14/10/2026 — pedido do Victor).
+                         Débito, Pix e TED não entram: não guardam lançamento (o que sai por eles
+                         fica na conta que espelham), e filtrar por eles daria sempre a lista vazia. --}}
+                    <div class="sel-ico">
                     <select class="input" id="f-account" name="account">
                         <option value="">Todas</option>
-                        @foreach ($accounts as $conta)
-                            <option value="{{ $conta->id }}" @selected((int) request('account') === $conta->id)>{{ $conta->rotulo ?? $conta->name }}</option>
+                        @foreach (['checking' => 'Contas correntes', 'savings' => 'Contas poupança', 'credit_card' => 'Cartões de crédito'] as $tipo => $rotuloDoGrupo)
+                            @php $doTipo = $accounts->where('type', $tipo); @endphp
+                            @if ($doTipo->isNotEmpty())
+                                <optgroup label="{{ $rotuloDoGrupo }}">
+                                    @foreach ($doTipo as $conta)
+                                        @php [$icone, $forma] = $conta->iconeDoSelect(); @endphp
+                                        <option value="{{ $conta->id }}" data-icone="{{ $icone }}" data-icone-forma="{{ $forma }}" @selected((int) request('account') === $conta->id)>{{ $conta->rotuloCurto }}</option>
+                                    @endforeach
+                                </optgroup>
+                            @endif
                         @endforeach
                     </select>
+                    </div>
                 </div>
                 {{-- Categoria: agrupada por tipo com <optgroup>. Sem o agrupamento,
                      "Outros" (que existe nos dois tipos) apareceria duas vezes sem

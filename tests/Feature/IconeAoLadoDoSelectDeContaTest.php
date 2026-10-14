@@ -55,6 +55,24 @@ class IconeAoLadoDoSelectDeContaTest extends TestCase
         }
     }
 
+    public function test_o_filtro_de_movimentacoes_separa_as_contas_por_tipo_com_o_icone(): void
+    {
+        $html = $this->actingAs($this->user)->get(route('transactions.index'))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('#<div class="sel-ico">\s*<select class="input" id="f-account"#', $html);
+        $select = substr($html, strpos($html, 'id="f-account"'));
+        $select = substr($select, 0, strpos($select, '</select>'));
+
+        $ordem = array_map(fn ($g) => strpos($select, '<optgroup label="'.$g.'">'), ['Contas correntes', 'Contas poupança', 'Cartões de crédito']);
+        $this->assertNotContains(false, $ordem);
+        $ordenada = $ordem;
+        sort($ordenada);
+        $this->assertSame($ordenada, $ordem);
+        $this->assertMatchesRegularExpression('#data-icone="[^"]*icones/itau\.png" data-icone-forma="quadrado"[^>]*>Corrente \(Itaú\)</option>#', $select);
+        $this->assertMatchesRegularExpression('#data-icone="[^"]*banks/nubank\.png\?v=\d+" data-icone-forma="cartao"#', $select);
+        // O Pix não guarda lançamento: filtrar por ele daria sempre vazio.
+        $this->assertStringNotContainsString('>Pix<', $select);
+    }
+
     public function test_contas_a_pagar_tem_o_icone_no_pagar_com_e_no_debitar_de(): void
     {
         $html = $this->actingAs($this->user)->get(route('faturas.index'))->assertOk()->getContent();
