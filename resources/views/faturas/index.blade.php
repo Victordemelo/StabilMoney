@@ -812,8 +812,12 @@
                 <div class="field">
                     <label for="fixa-conta">Pagar com</label>
                     <select class="input" id="fixa-conta" name="account_id" required>
-                        @foreach ($accounts as $acc)
-                            <option value="{{ $acc->id }}" data-card="{{ $acc->isCard ? '1' : '0' }}" data-saldo-valor="{{ number_format((float) ($acc->saldo ?? 0), 2, '.', '') }}" data-saldo-rotulo="{{ $acc->saldoRotulo ?? 'disponível' }}">{{ $acc->rotulo ?? $acc->name }}</option>
+                        @foreach (\App\Models\Account::gruposDePagamento($accounts) as $grupo)
+                            <optgroup label="{{ $grupo['rotulo'] }}">
+                                @foreach ($grupo['opcoes'] as $acc)
+                                    <option value="{{ $acc->id }}" data-card="{{ $acc->isCard ? '1' : '0' }}" data-saldo-valor="{{ number_format((float) ($acc->saldo ?? 0), 2, '.', '') }}" data-saldo-rotulo="{{ $acc->saldoRotulo ?? 'disponível' }}">{{ $acc->rotuloCurto ?? $acc->rotulo ?? $acc->name }}</option>
+                                @endforeach
+                            </optgroup>
                         @endforeach
                     </select>
                 </div>
@@ -865,8 +869,12 @@
                         <label for="cf-conta">Pagar com <span class="hint">(opcional)</span></label>
                         <select class="input" id="cf-conta" name="account_id">
                             <option value="">Escolher na hora</option>
-                            @foreach ($accounts as $acc)
-                                <option value="{{ $acc->id }}">{{ $acc->rotulo ?? $acc->name }}</option>
+                            @foreach (\App\Models\Account::gruposDePagamento($accounts) as $grupo)
+                                <optgroup label="{{ $grupo['rotulo'] }}">
+                                    @foreach ($grupo['opcoes'] as $acc)
+                                        <option value="{{ $acc->id }}">{{ $acc->rotuloCurto ?? $acc->rotulo ?? $acc->name }}</option>
+                                    @endforeach
+                                </optgroup>
                             @endforeach
                         </select>
                     </div>
@@ -946,8 +954,12 @@
                         <label for="cfe-conta">Pagar com <span class="hint">(opcional)</span></label>
                         <select class="input" id="cfe-conta" name="account_id">
                             <option value="">Escolher na hora</option>
-                            @foreach ($accounts as $acc)
-                                <option value="{{ $acc->id }}">{{ $acc->rotulo ?? $acc->name }}</option>
+                            @foreach (\App\Models\Account::gruposDePagamento($accounts) as $grupo)
+                                <optgroup label="{{ $grupo['rotulo'] }}">
+                                    @foreach ($grupo['opcoes'] as $acc)
+                                        <option value="{{ $acc->id }}">{{ $acc->rotuloCurto ?? $acc->rotulo ?? $acc->name }}</option>
+                                    @endforeach
+                                </optgroup>
                             @endforeach
                         </select>
                     </div>

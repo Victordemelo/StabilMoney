@@ -408,9 +408,11 @@ class Account extends Model
             // na lista do celular; agora "Contas correntes" vem em cima e "Mercado Pago" embaixo.
             ['rotulo' => 'Contas correntes', 'para' => 'income transfer', 'tipos' => ['checking']],
             ['rotulo' => 'Contas poupança', 'para' => 'income transfer', 'tipos' => ['savings']],
-            ['rotulo' => 'Cartões de crédito', 'para' => 'expense', 'tipos' => ['credit_card']],
-            ['rotulo' => 'Cartões de débito', 'para' => 'expense', 'tipos' => ['debit_card']],
+            // Despesa: Pix e TED primeiro, depois débito, depois crédito (14/10/2026 — pedido
+            // do Victor). A primeira opção é a que vem marcada ao escolher "Despesa".
             ['rotulo' => 'Pix e TED', 'para' => 'expense', 'tipos' => self::TIPOS_DE_UMA_CONTA],
+            ['rotulo' => 'Cartões de débito', 'para' => 'expense', 'tipos' => ['debit_card']],
+            ['rotulo' => 'Cartões de crédito', 'para' => 'expense', 'tipos' => ['credit_card']],
         ];
 
         return array_values(array_filter(array_map(fn (array $g) => [
@@ -418,6 +420,21 @@ class Account extends Model
             'para' => $g['para'],
             'opcoes' => $opcoes->whereIn('type', $g['tipos'])->values(),
         ], $grupos), fn (array $g) => $g['opcoes']->isNotEmpty()));
+    }
+
+    /**
+     * Os grupos do "Pagar com" de uma conta fixa (14/10/2026): os MÉTODOS primeiro, na ordem da
+     * despesa (Pix e TED, débito, crédito), e as contas de banco no fim — uma conta fixa antiga
+     * pode estar presa a uma corrente, e ela precisa continuar no select.
+     *
+     * @param  Collection<int, Fluent>  $opcoes
+     * @return list<array{rotulo: string, para: string, opcoes: Collection<int, Fluent>}>
+     */
+    public static function gruposDePagamento(Collection $opcoes): array
+    {
+        $grupos = collect(self::gruposDeLancamento($opcoes));
+
+        return $grupos->where('para', 'expense')->concat($grupos->where('para', '!=', 'expense'))->values()->all();
     }
 
     /** É um cartão de débito? (Espelha o saldo das contas vinculadas.) */

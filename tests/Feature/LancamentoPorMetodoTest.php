@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\FixedBill;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -50,9 +51,10 @@ class LancamentoPorMetodoTest extends TestCase
             // Um grupo por tipo (out/2026): o tipo no título e o nome curto na opção.
             'Contas correntes' => ['income transfer', ['checking']],
             'Contas poupança' => ['income transfer', ['savings']],
-            'Cartões de crédito' => ['expense', ['credit_card']],
-            'Cartões de débito' => ['expense', ['debit_card']],
+            // Despesa: Pix e TED, débito, crédito (14/10/2026 — pedido do Victor).
             'Pix e TED' => ['expense', ['pix']],
+            'Cartões de débito' => ['expense', ['debit_card']],
+            'Cartões de crédito' => ['expense', ['credit_card']],
         ], $grupos->all());
     }
 
@@ -65,6 +67,24 @@ class LancamentoPorMetodoTest extends TestCase
         $this->assertStringContainsString('<optgroup label="Pix e TED" data-para="expense">', $select);
         // O Pix aparece no grupo dele, mas submete o id da conta.
         $this->assertMatchesRegularExpression('#<optgroup label="Pix e TED" data-para="expense">\s*<option value="'.$this->corrente->id.'" data-para="expense"#', $select);
+    }
+
+    public function test_pagar_conta_fixa_lista_os_metodos_primeiro_e_as_contas_no_fim(): void
+    {
+        FixedBill::factory()->create([
+            'user_id' => $this->user->id, 'name' => 'Aluguel', 'amount' => 100, 'due_day' => 28,
+            'account_id' => $this->corrente->id, 'starts_on' => now()->startOfMonth()->toDateString(), 'active' => true,
+        ]);
+        $html = $this->actingAs($this->user)->get(route('faturas.index'))->assertOk()->getContent();
+
+        foreach (['fixa-conta', 'cf-conta', 'cfe-conta'] as $id) {
+            $select = $this->select($html, $id);
+            $ordem = array_map(fn ($g) => strpos($select, '<optgroup label="'.$g.'">'), ['Pix e TED', 'Cartões de débito', 'Cartões de crédito', 'Contas correntes']);
+            $this->assertNotContains(false, $ordem, "O select {$id} precisa de todos os grupos.");
+            $ordenada = $ordem;
+            sort($ordenada);
+            $this->assertSame($ordenada, $ordem, "O select {$id} vem na ordem Pix e TED, débito, crédito, contas.");
+        }
     }
 
     public function test_lancar_despesa_em_contas_a_pagar_so_oferece_metodos(): void
