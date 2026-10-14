@@ -2157,6 +2157,14 @@ body.pjax-loading #content { opacity: .5; }
 [data-theme="dark"] .tx-d-parcelas li.atual { background: rgba(28,154,112,.12); }
 .tx-d-parcelas .st { text-align: right; font-size: 11px; color: var(--ink-3); }
 .tx-d-parcelas .st.paga { color: var(--pos); }
+/* Editar travado (out/2026): os campos nascem só para ler; o "Editar movimentação" os libera. */
+.tx-ed-form .form-actions[hidden], .tx-editar[hidden] { display: none; }
+.tx-ed-form[data-tx-travada] .input:disabled,
+.tx-ed-form[data-tx-travada] .data-br input:disabled { background: var(--surface-2); color: var(--ink); opacity: 1; cursor: default; -webkit-text-fill-color: var(--ink); }
+.tx-ed-form[data-tx-travada] .data-br-cal { visibility: hidden; }
+.tx-editar .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; max-width: 100%; white-space: normal; text-align: center; }
+.tx-editar .btn-primary svg { width: 16px; height: 16px; }
+.tx-parc-cab { display: grid; grid-template-columns: 40px 1fr auto 74px; gap: 8px; padding: 0 10px 6px; font-size: 11px; color: var(--ink-3); }
 .tx-excluir { border-color: color-mix(in srgb, var(--neg) 22%, var(--line)); }
 .tx-excluir h4 { color: var(--neg); }
 .tx-excluir-texto { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
@@ -2287,6 +2295,7 @@ body.pjax-loading #content { opacity: .5; }
   .cards-sum .right { text-align: left; }
   /* Editar transação › parcelas: nº e data em cima, valor e situação embaixo. */
   .tx-d-parcelas li { grid-template-columns: auto minmax(0, 1fr); }
+  .tx-parc-cab { display: none; }
   .tx-ed-valor small { white-space: normal; }
   /* Sessões: o selo "Atual" desce para baixo do nome do aparelho. */
   .sess-item { flex-wrap: wrap; row-gap: 6px; }

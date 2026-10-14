@@ -168,4 +168,32 @@ class CompraParceladaNaEdicaoTest extends TestCase
         $this->assertStringContainsString('Mercado', $categorias);
         $this->assertStringNotContainsString('Salário extra', $categorias);
     }
+
+    /**
+     * A tela de editar nasce TRAVADA (13/10/2026 — pedido do Victor): o "Editar movimentação" do
+     * lado libera os campos (`sm/edicao-travada.js`). O servidor manda o formulário e o cartão do
+     * botão; com erro de validação, o formulário já vem liberado. E cada parcela diz a fatura dela.
+     */
+    public function test_a_edicao_nasce_travada_e_as_parcelas_dizem_a_fatura(): void
+    {
+        $primeira = $this->parcelar('2026-10-05', 3);
+
+        $html = $this->actingAs($this->user)->get(route('transactions.edit', $primeira))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('#<form [^>]*data-tx-form\s+data-tx-travavel\s*>#', $html);
+        $this->assertStringContainsString('<section class="card tx-lado-card tx-editar" data-tx-editar hidden>', $html);
+        $this->assertStringContainsString('data-tx-liberar>', $html);
+        $this->assertLessThan(strpos($html, 'tx-excluir"'), strpos($html, 'data-tx-editar'), 'O Editar vem em cima do Excluir.');
+        $this->assertStringContainsString('<div class="form-actions" data-tx-acoes>', $html);
+
+        // Fecha dia 2, vence dia 9: compra em 05/10 cai na fatura de novembro; as outras, dez e jan.
+        $this->assertStringContainsString('<span>Parcela</span><span>Fatura</span>', $html);
+        foreach (['nov/26', 'dez/26', 'jan/27'] as $mes) {
+            $this->assertMatchesRegularExpression('#title="Compra em [^"]+">'.preg_quote($mes, '#').'</span>#i', $html);
+        }
+
+        // Com erro de validação, abre liberada.
+        $this->editar($primeira, ['amount' => '1,00']);
+        $comErro = $this->actingAs($this->user)->get(route('transactions.edit', $primeira))->getContent();
+        $this->assertMatchesRegularExpression('#data-tx-travavel\s+data-tx-liberado#', $comErro);
+    }
 }

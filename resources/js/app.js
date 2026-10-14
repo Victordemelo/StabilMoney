@@ -28,6 +28,7 @@ import { initSaldoGiro } from './sm/saldo-giro';
 import { initOcultarValores } from './sm/ocultar-valores';
 import { initFaturasVencidas, atualizarFaturasVencidas } from './sm/faturas-vencidas';
 import { initDetailsSuave } from './sm/details-suave';
+import { initEdicaoTravada } from './sm/edicao-travada';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -63,6 +64,7 @@ function initContent() {
     initMoney();
     aplicarEstadoDeInstalacao();
     atualizarFaturasVencidas(); // "já paguei fora do app" nos formulários desta tela
+    initEdicaoTravada();        // editar movimentação: campos travados até o "Editar"
 }
 
 // Inicialização do shell (sidebar/topbar/modal/PWA) — roda UMA vez; esses

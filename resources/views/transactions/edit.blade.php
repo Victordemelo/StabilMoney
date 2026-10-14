@@ -113,7 +113,8 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('transactions.update', $t) }}" class="tx-ed-form" data-type="{{ $t->type }}" data-tx-form>
+            <form method="POST" action="{{ route('transactions.update', $t) }}" class="tx-ed-form" data-type="{{ $t->type }}" data-tx-form
+                  data-tx-travavel @if ($errors->any()) data-tx-liberado @endif>
                 @csrf
                 @method('PUT')
                 {{-- O tipo não muda depois de lançado: vai num hidden (o servidor confere). --}}
@@ -260,8 +261,10 @@
                     <p class="tx-d-aviso" role="note">{{ \App\Http\Controllers\TransactionController::mensagemDoValorTravado($t) }}</p>
                 @endif
 
-                <div class="form-actions">
-                    <a class="btn-ghost" href="{{ route('transactions.index') }}">Cancelar</a>
+                {{-- Sem JS os campos já vêm liberados; com JS eles nascem travados e o "Editar" do lado
+                     os libera (`sm/edicao-travada.js`). O "Cancelar" volta a travar e desfaz o digitado. --}}
+                <div class="form-actions" data-tx-acoes>
+                    <a class="btn-ghost" href="{{ route('transactions.index') }}" data-tx-cancelar>Cancelar</a>
                     <button class="btn-primary" type="submit">Salvar {{ $compraParcelada ? 'a compra' : 'alterações' }}</button>
                 </div>
             </form>
@@ -274,11 +277,18 @@
                     <div class="tx-parc-barra" role="img" aria-label="{{ $pagas }} de {{ $t->installments }} parcelas pagas">
                         <span style="width: {{ $t->installments > 0 ? round($pagas / $t->installments * 100) : 0 }}%"></span>
                     </div>
+                    {{-- Cada parcela com a FATURA em que cai (o mês do vencimento dela) — o que a pessoa
+                         confere com o app do banco (out/2026 — pedido do Victor). --}}
+                    <div class="tx-parc-cab" aria-hidden="true"><span>Parcela</span><span>Fatura</span><span>Valor</span><span></span></div>
                     <ol class="scroll">
                         @foreach ($parcelas as $parcela)
+                            @php
+                                $cicloDaParcela = $conta?->billingCycle(\Carbon\CarbonImmutable::parse($parcela->date));
+                                $vencDaParcela = $cicloDaParcela ? $conta->dueDateForCycle($cicloDaParcela[1]) : null;
+                            @endphp
                             <li @class(['atual' => $parcela->id === $t->id])>
                                 <span>{{ $parcela->installment_no }}/{{ $parcela->installments }}</span>
-                                <span>{{ $parcela->date->format('d/m/Y') }}</span>
+                                <span title="Compra em {{ $parcela->date->format('d/m/Y') }}{{ $vencDaParcela ? ' · vence em '.$vencDaParcela->format('d/m/Y') : '' }}">{{ $vencDaParcela ? $vencDaParcela->translatedFormat('M/y') : $parcela->date->format('d/m/Y') }}</span>
                                 <span>@brl($parcela->amount)</span>
                                 <span class="st {{ $parcela->paid_at ? 'paga' : '' }}">{{ $parcela->pago_fora_do_app ? 'paga fora' : ($parcela->paid_at ? 'paga' : 'em aberto') }}</span>
                             </li>
@@ -300,6 +310,17 @@
                     @endif
                     <div><dt>Lançada em</dt><dd>{{ $t->created_at ? $t->created_at->format('d/m/Y').' às '.$t->created_at->format('H:i') : '—' }}</dd></div>
                 </dl>
+            </section>
+
+            {{-- Editar: os campos nascem travados (nada muda sem querer) — com JS; o botão os libera.
+                 Escondido sem JS, quando o formulário já vem liberado. --}}
+            <section class="card tx-lado-card tx-editar" data-tx-editar hidden>
+                <h4>Editar</h4>
+                <p class="tx-excluir-texto">Os campos ficam travados para nada mudar sem querer.</p>
+                <button class="btn-primary" type="button" data-tx-liberar>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m13.5 6.5 3 3"/></svg>
+                    Editar movimentação
+                </button>
             </section>
 
             {{-- Excluir: o que sai junto, dito ANTES do clique. --}}
