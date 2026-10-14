@@ -192,7 +192,7 @@ class ResgateAcompanhaADataDaDespesaTest extends TestCase
      * A reconciliação (valor mudou) recria o resgate — e ele também não nasce no futuro.
      *
      * A despesa já nasce AGENDADA (20/08, depois do "hoje" de 12/08): desde out/2026 o
-     * valor de movimentação já paga/recebida não muda — `MovimentacaoPagaNaoMudaDeValorTest`.
+     * valor de movimentação já paga/recebida não muda — a trava de out/2026, revertida em 14/10/2026 — `ValorEditavelNaEdicaoTest`.
      */
     public function test_reconciliar_com_data_futura_tambem_nao_grava_resgate_no_futuro(): void
     {

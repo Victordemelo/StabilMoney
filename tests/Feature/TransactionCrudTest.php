@@ -74,7 +74,7 @@ class TransactionCrudTest extends TestCase
 
     /**
      * Lançamento AGENDADO (data futura): desde out/2026 o valor de movimentação já
-     * paga/recebida não muda — `MovimentacaoPagaNaoMudaDeValorTest`. Agendada, ela
+     * paga/recebida não muda — a trava de out/2026, revertida em 14/10/2026 — `ValorEditavelNaEdicaoTest`. Agendada, ela
      * segue editável por inteiro.
      */
     public function test_transaction_can_be_updated(): void
@@ -102,8 +102,8 @@ class TransactionCrudTest extends TestCase
         $this->assertSame('99.90', (string) $transaction->amount);
     }
 
-    /** Já paga (data de hoje): o valor é recusado; a descrição continua editável. */
-    public function test_paid_transaction_keeps_its_amount_but_description_can_be_updated(): void
+    /** Já paga (data de hoje): desde 14/10/2026 o valor também muda, e o saldo acompanha. */
+    public function test_paid_transaction_amount_and_description_can_be_updated(): void
     {
         $transaction = Transaction::factory()->for($this->user)->for($this->account)->expense()->create([
             'description' => 'Descrição antiga',
@@ -111,30 +111,20 @@ class TransactionCrudTest extends TestCase
             'date' => now()->toDateString(),
         ]);
 
-        $payload = [
-            'type' => 'expense',
-            'amount' => '99,90',
-            'account_id' => $this->account->id,
-            'description' => 'Descrição nova',
-            'date' => now()->toDateString(),
-        ];
-
         $this->actingAs($this->user)->from(route('transactions.edit', $transaction))
-            ->put("/transactions/{$transaction->id}", $payload)
-            ->assertSessionHasErrors('amount');
-
-        $transaction->refresh();
-        $this->assertSame('Descrição antiga', $transaction->description, 'A edição recusada não grava nada.');
-        $this->assertSame('10.00', (string) $transaction->amount);
-
-        $this->actingAs($this->user)
-            ->put("/transactions/{$transaction->id}", ['amount' => '10,00'] + $payload)
+            ->put("/transactions/{$transaction->id}", [
+                'type' => 'expense',
+                'amount' => '9,90',
+                'account_id' => $this->account->id,
+                'description' => 'Descrição nova',
+                'date' => now()->toDateString(),
+            ])
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('transactions.index'));
 
         $transaction->refresh();
         $this->assertSame('Descrição nova', $transaction->description);
-        $this->assertSame('10.00', (string) $transaction->amount);
+        $this->assertSame('9.90', (string) $transaction->amount);
     }
 
     public function test_transaction_can_be_deleted(): void

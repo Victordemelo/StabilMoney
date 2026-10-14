@@ -509,7 +509,7 @@ class TransactionController extends Controller
             // na compra parcelada, todas as parcelas dela.
             'travaDeEdicao' => $this->travaDeEdicao($transaction, null),
             // Já paga ou recebida: o formulário trava valor e tipo (a mesma regra do `update`).
-            'valorTravado' => ! $transaction->isTransferencia() && $transaction->jaFoiPagaOuRecebida(),
+            'valorTravado' => self::valorTravado($transaction),
             'parcelas' => $transaction->group_id && (int) $transaction->installments > 1
                 ? Transaction::where('user_id', $userId)
                     ->where('group_id', $transaction->group_id)
@@ -660,9 +660,11 @@ class TransactionController extends Controller
                 ->with('status', 'Transferência atualizada nas duas contas.');
         }
 
-        // JÁ PAGA OU RECEBIDA: valor e tipo não mudam mais (out/2026 — regra do Victor). O
-        // dinheiro já saiu ou entrou de verdade; corrigir é excluir e lançar de novo. Antes de
-        // qualquer ramo de gravação, como as outras guardas (a de receita grava cru).
+        // JÁ PAGA OU RECEBIDA: o TIPO não muda mais; o VALOR muda (14/10/2026 — o Victor reverteu
+        // a trava de out/2026: "no edit deve dar para alterar o valor, aí ele altera o saldo"),
+        // menos na compra de cartão já paga numa fatura — a fatura paga ficaria diferente do que
+        // saiu da conta. Antes de qualquer ramo de gravação, como as outras guardas (a de receita
+        // grava cru). O valor novo passa pela reconciliação de sempre (piso, fonte, saldo).
         if ($motivo = $this->travaDoValor($transaction, $data)) {
             return back()->withErrors(['amount' => $motivo])->withInput();
         }
@@ -878,8 +880,9 @@ class TransactionController extends Controller
     }
 
     /**
-     * Movimentação já paga ou recebida (`Transaction::jaFoiPagaOuRecebida`) não muda de valor
-     * nem de tipo. Devolve a mensagem PT-BR, ou null quando nada disso mudou.
+     * Movimentação já paga ou recebida (`Transaction::jaFoiPagaOuRecebida`) não muda de TIPO; o
+     * VALOR só fica preso na compra de cartão já paga numa fatura (`valorTravado`). Devolve a
+     * mensagem PT-BR, ou null quando nada disso mudou.
      */
     private function travaDoValor(Transaction $transaction, array $data): ?string
     {
@@ -891,21 +894,30 @@ class TransactionController extends Controller
             && (int) round((float) $data['amount'] * 100) !== (int) round((float) $transaction->amount * 100);
         $tipoMudou = isset($data['type']) && $data['type'] !== $transaction->type;
 
-        if (! $valorMudou && ! $tipoMudou) {
-            return null;
+        if ($tipoMudou) {
+            $o_que = $transaction->type === 'income' ? 'recebida' : 'paga';
+
+            return 'Esta movimentação já foi '.$o_que.', então o tipo não muda mais. '
+                .'Para trocar receita por despesa, exclua e lance de novo.';
         }
 
-        return self::mensagemDoValorTravado($transaction);
+        return $valorMudou && self::valorTravado($transaction) ? self::mensagemDoValorTravado($transaction) : null;
+    }
+
+    /** O valor não muda: compra de cartão já paga numa fatura (o resto ajusta o saldo ao salvar). */
+    public static function valorTravado(Transaction $transaction): bool
+    {
+        return ! $transaction->isTransferencia()
+            && (bool) $transaction->account?->isCard()
+            && $transaction->paid_at !== null;
     }
 
     /** O porquê da trava, para o `update` e para o painel "Detalhes" da edição. */
     public static function mensagemDoValorTravado(Transaction $transaction): string
     {
-        $o_que = $transaction->type === 'income' ? 'recebida' : 'paga';
-
-        return 'Esta movimentação já foi '.$o_que.', então o valor e o tipo não mudam mais. '
-            .'Descrição, categoria, data e quem fez continuam editáveis; para corrigir o valor, '
-            .'exclua a movimentação e lance de novo.';
+        return 'Esta compra já foi paga numa fatura do cartão, então o valor não muda mais — a fatura paga '
+            .'ficaria diferente do que saiu da conta. Para corrigir, estorne o pagamento da fatura em '
+            .'Contas a pagar, ajuste o valor e pague de novo.';
     }
 
     /**

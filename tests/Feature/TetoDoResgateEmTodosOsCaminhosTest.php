@@ -100,7 +100,7 @@ class TetoDoResgateEmTodosOsCaminhosTest extends TestCase
      * Despesa de R$ 100 já gravada (disponível 0); editar para 300 → faltante 200.
      *
      * AGENDADA (10/08, depois do "hoje" travado): desde out/2026 o valor de
-     * movimentação já paga/recebida não muda — `MovimentacaoPagaNaoMudaDeValorTest`.
+     * movimentação já paga/recebida não muda — a trava de out/2026, revertida em 14/10/2026 — `ValorEditavelNaEdicaoTest`.
      */
     private function despesaExistente(): Transaction
     {

@@ -39,7 +39,7 @@ use Tests\TestCase;
  * resto (inclusive entrar no cheque especial) passa como antes.
  *
  * Desde out/2026 o valor (e o tipo) de movimentação já paga/recebida não muda —
- * `MovimentacaoPagaNaoMudaDeValorTest`. Nos cenários que mudam VALOR ou TIPO da receita,
+ * a trava de out/2026, revertida em 14/10/2026 — `ValorEditavelNaEdicaoTest`. Nos cenários que mudam VALOR ou TIPO da receita,
  * ela é AGENDADA (`AGENDADA`, depois do "hoje" travado): o saldo não olha a data (D-4),
  * então o dinheiro dela sustenta a despesa do mesmo jeito, e a conferência do piso que
  * estes testes cobram continua alcançável.

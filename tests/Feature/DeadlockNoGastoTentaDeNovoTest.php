@@ -196,7 +196,7 @@ class DeadlockNoGastoTentaDeNovoTest extends TestCase
      * resgate de R$ 200 pendurado nela, e a tela respondia "Transação atualizada".
      *
      * A despesa é AGENDADA: desde out/2026 o valor de movimentação já paga/recebida não
-     * muda — `MovimentacaoPagaNaoMudaDeValorTest`.
+     * muda — a trava de out/2026, revertida em 14/10/2026 — `ValorEditavelNaEdicaoTest`.
      */
     public function test_deadlock_depois_do_write_nao_repete_e_nao_grava_pela_metade(): void
     {

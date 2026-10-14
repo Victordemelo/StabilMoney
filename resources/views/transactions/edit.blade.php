@@ -158,7 +158,10 @@
                                    @if ($valorTravado) readonly aria-describedby="amount-travado" @endif
                                    value="{{ $valorTravado ? $valorFormatado : old('amount', $valorFormatado) }}">
                             @if ($valorTravado)
-                                <small class="field-hint" id="amount-travado">Já {{ $entrada ? 'recebida' : 'paga' }}: o valor não muda mais.</small>
+                                <small class="field-hint" id="amount-travado">Já paga numa fatura do cartão: o valor não muda mais.</small>
+                            @elseif ($t->jaFoiPagaOuRecebida() && ! $transf)
+                                {{-- 14/10/2026: o valor de uma movimentação já feita muda, e o saldo acompanha. --}}
+                                <small class="field-hint">Ao salvar, o saldo da conta acompanha o valor novo.</small>
                             @endif
                             @error('amount')<div class="field-error">{{ $message }}</div>@enderror
                         </div>

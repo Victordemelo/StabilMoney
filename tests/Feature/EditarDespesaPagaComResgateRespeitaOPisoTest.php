@@ -30,7 +30,7 @@ use Tests\TestCase;
  * vermelho — e mais 500 de cheque (−500, o limite todo).
  *
  * Desde out/2026 o valor e o tipo de movimentação já paga/recebida não mudam —
- * `MovimentacaoPagaNaoMudaDeValorTest`. Transformar em receita, então, só é alcançável
+ * a trava de out/2026, revertida em 14/10/2026 — `ValorEditavelNaEdicaoTest`. Transformar em receita, então, só é alcançável
  * com a despesa AGENDADA (o saldo não olha a data, então o cenário é o mesmo); mudar só
  * de conta continua valendo para a despesa de hoje.
  */

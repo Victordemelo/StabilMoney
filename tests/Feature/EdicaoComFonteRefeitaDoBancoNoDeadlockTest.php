@@ -114,7 +114,7 @@ class EdicaoComFonteRefeitaDoBancoNoDeadlockTest extends TestCase
      * ficava em R$ 150, o resgate voltava a R$ 50, e a tela dizia "Transação atualizada".
      *
      * A despesa é AGENDADA: desde out/2026 o valor de movimentação já paga/recebida não
-     * muda — `MovimentacaoPagaNaoMudaDeValorTest`.
+     * muda — a trava de out/2026, revertida em 14/10/2026 — `ValorEditavelNaEdicaoTest`.
      */
     public function test_deadlock_depois_do_update_refaz_a_edicao_inteira_com_o_valor_novo(): void
     {

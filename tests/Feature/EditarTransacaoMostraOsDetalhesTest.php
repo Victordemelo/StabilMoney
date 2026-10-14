@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Http\Controllers\TransactionController;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Models\User;
@@ -42,11 +41,11 @@ class EditarTransacaoMostraOsDetalhesTest extends TestCase
     }
 
     /**
-     * Despesa na conta já paga (data de hoje): desde out/2026 o valor de movimentação já
-     * paga/recebida não muda — `MovimentacaoPagaNaoMudaDeValorTest` —, e o painel diz isso
-     * antes do Salvar, com a mesma mensagem que o `update` devolveria.
+     * Despesa na conta já paga (data de hoje): desde 14/10/2026 o valor muda na edição
+     * (`ValorEditavelNaEdicaoTest`) — o painel não mostra trava, e o campo avisa que o saldo
+     * acompanha o valor novo.
      */
-    public function test_despesa_na_conta_diz_que_saiu_da_conta_e_avisa_que_o_valor_nao_muda(): void
+    public function test_despesa_na_conta_diz_que_saiu_da_conta_e_que_o_saldo_acompanha_o_valor(): void
     {
         $user = User::factory()->create(['name' => 'Ana']);
         $conta = Account::factory()->for($user)->create(['type' => 'checking', 'initial_balance' => 500]);
@@ -58,8 +57,8 @@ class EditarTransacaoMostraOsDetalhesTest extends TestCase
         $this->actingAs($user)->get(route('transactions.edit', $linha))->assertOk()
             ->assertSee('Paga — saiu da conta')
             ->assertSee('<dt>Quem fez</dt><dd>Ana</dd>', false)
-            ->assertSee('<p class="tx-d-aviso" role="note">', false)
-            ->assertSee(TransactionController::mensagemDoValorTravado($linha));
+            ->assertDontSee('<p class="tx-d-aviso" role="note">', false)
+            ->assertSee('Ao salvar, o saldo da conta acompanha o valor novo.');
     }
 
     /** Agendada (data futura): nada trava, o painel não mostra aviso nenhum. */

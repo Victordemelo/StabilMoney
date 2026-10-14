@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
-use App\Models\Atividade;
 use App\Models\Category;
 use App\Models\FixedBill;
 use App\Models\Transaction;
@@ -13,20 +12,20 @@ use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
- * Movimentação JÁ PAGA ou JÁ RECEBIDA não muda de valor nem de tipo (out/2026 — regra do
- * Victor).
+ * O VALOR de uma movimentação já paga ou recebida muda na edição, e o saldo acompanha
+ * (14/10/2026 — o Victor reverteu a trava de out/2026: "no edit deve dar para alterar o valor,
+ * aí ele altera o saldo total"). O valor novo passa pela reconciliação de sempre: o piso do
+ * cheque especial, a escolha de fonte, o resgate ligado.
  *
- * O dinheiro já saiu ou já entrou de verdade: mudar o número dela pelo Histórico era
- * reescrever o passado da conta (e, numa despesa financiada, refazer a escolha da fonte
- * em cima de um resgate que já aconteceu no banco). Para corrigir o valor, a pessoa exclui
- * e lança de novo. O resto — descrição, categoria, data, autor, conta — continua editável.
+ * O que continua preso:
+ * - o TIPO de uma movimentação que já aconteceu (receita ↔ despesa: excluir e lançar de novo);
+ * - o valor da compra de CARTÃO já paga numa fatura — a fatura paga ficaria diferente do que
+ *   saiu da conta (`TransactionController::valorTravado`): estornar o pagamento antes.
  *
- * "Já paga/recebida" é `Transaction::jaFoiPagaOuRecebida()`: compra de cartão de crédito
- * quando tem `paid_at` (a fatura dela foi paga); qualquer outra movimentação quando a data
- * dela já chegou (`date <= hoje`). Lançamento AGENDADO e compra de cartão em aberto seguem
- * editáveis por inteiro — é por eles que a reconciliação de valor/tipo continua alcançável.
+ * "Já paga/recebida" é `Transaction::jaFoiPagaOuRecebida()`: compra de cartão de crédito quando
+ * tem `paid_at`; qualquer outra movimentação quando a data dela já chegou.
  */
-class MovimentacaoPagaNaoMudaDeValorTest extends TestCase
+class ValorEditavelNaEdicaoTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -80,21 +79,28 @@ class MovimentacaoPagaNaoMudaDeValorTest extends TestCase
 
     // ============================================================ (a) despesa de hoje
 
-    public function test_despesa_de_hoje_nao_muda_de_valor_e_nada_e_gravado(): void
+    public function test_despesa_de_hoje_muda_de_valor_e_o_saldo_acompanha(): void
     {
-        $despesa = $this->lancamento('expense', 100, '2026-08-05');
-        Atividade::query()->delete();
+        $despesa = $this->lancamento('expense', 14.38, '2026-08-05');
 
-        $erro = $this->erroDoValor($this->editar($despesa, ['amount' => '150,00', 'description' => 'Nova']));
-
-        $this->assertStringContainsString('já foi paga', $erro);
-        $this->assertStringContainsString('exclua a movimentação e lance de novo', $erro);
+        $this->editar($despesa, ['amount' => '14,29', 'description' => 'Jogo'])
+            ->assertSessionHasNoErrors()->assertRedirect(route('transactions.index'));
 
         $atual = $despesa->fresh();
-        $this->assertSame('100.00', (string) $atual->amount);
-        $this->assertSame('Original', $atual->description, 'A edição recusada não grava nada, nem os campos livres.');
+        $this->assertSame('14.29', (string) $atual->amount);
+        $this->assertSame('Jogo', $atual->description);
+        $this->assertSame(985.71, $this->conta->fresh()->available);
+    }
+
+    public function test_despesa_de_hoje_maior_respeita_o_piso_da_conta(): void
+    {
+        // Sem cheque especial: a despesa não pode passar do que a conta tem.
+        $despesa = $this->lancamento('expense', 100, '2026-08-05');
+
+        $this->editar($despesa, ['amount' => '1.500,00'])->assertSessionHasErrors();
+
+        $this->assertSame('100.00', (string) $despesa->fresh()->amount);
         $this->assertSame(900.0, $this->conta->fresh()->available);
-        $this->assertSame(0, Atividade::where('acao', 'transacao.editada')->count());
     }
 
     public function test_despesa_de_hoje_nao_muda_de_tipo(): void
@@ -103,7 +109,7 @@ class MovimentacaoPagaNaoMudaDeValorTest extends TestCase
 
         $erro = $this->erroDoValor($this->editar($despesa, ['type' => 'income']));
 
-        $this->assertStringContainsString('o valor e o tipo não mudam mais', $erro);
+        $this->assertStringContainsString('o tipo não muda mais', $erro);
         $this->assertSame('expense', $despesa->fresh()->type);
         $this->assertSame(900.0, $this->conta->fresh()->available);
     }
@@ -141,20 +147,17 @@ class MovimentacaoPagaNaoMudaDeValorTest extends TestCase
 
     // ============================================================ (b) receita de ontem
 
-    public function test_receita_de_ontem_nao_muda_de_valor_nem_de_tipo_e_a_mensagem_diz_recebida(): void
+    public function test_receita_de_ontem_muda_de_valor_mas_nao_de_tipo(): void
     {
         $receita = $this->lancamento('income', 500, '2026-08-04');
 
-        $erro = $this->erroDoValor($this->editar($receita, ['amount' => '50,00']));
-        $this->assertStringContainsString('já foi recebida', $erro);
-        $this->assertStringNotContainsString('já foi paga', $erro);
-        $this->assertSame('500.00', (string) $receita->fresh()->amount);
+        $this->editar($receita, ['amount' => '450,00'])->assertSessionHasNoErrors();
+        $this->assertSame('450.00', (string) $receita->fresh()->amount);
+        $this->assertSame(1450.0, $this->conta->fresh()->available);
 
-        $erro = $this->erroDoValor($this->editar($receita, ['type' => 'expense']));
+        $erro = $this->erroDoValor($this->editar($receita->fresh(), ['type' => 'expense']));
         $this->assertStringContainsString('já foi recebida', $erro);
         $this->assertSame('income', $receita->fresh()->type);
-
-        $this->assertSame(1500.0, $this->conta->fresh()->available);
     }
 
     public function test_receita_de_ontem_muda_descricao_e_data(): void
@@ -202,9 +205,26 @@ class MovimentacaoPagaNaoMudaDeValorTest extends TestCase
         $this->assertSame(250.0, $cartao->fresh()->committed);
     }
 
+    public function test_compra_de_cartao_ja_paga_numa_fatura_nao_muda_de_valor(): void
+    {
+        $cartao = Account::factory()->for($this->user)->creditCard()->create([
+            'credit_limit' => 5000, 'closing_day' => 10, 'due_day' => 20,
+        ]);
+        $compra = $this->lancamento('expense', 200, '2026-07-01', $cartao);
+        $compra->forceFill(['paid_at' => '2026-07-20 10:00:00'])->save();
+
+        // A guarda do topo do `update` (compra de cartão já paga) recusa antes de chegar ao valor.
+        $this->editar($compra->fresh(), ['amount' => '250,00'])->assertSessionHasErrors('transaction');
+        $this->assertStringContainsString('Estorne o pagamento', (string) session('errors')->first('transaction'));
+        $this->assertSame('200.00', (string) $compra->fresh()->amount);
+
+        $html = $this->actingAs($this->user)->get(route('transactions.edit', $compra))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/<input[^>]*id="amount"[^>]*\sreadonly[\s>]/s', $html);
+    }
+
     // ============================================================ (e) conta fixa paga
 
-    public function test_pagamento_de_conta_fixa_nao_muda_de_valor(): void
+    public function test_pagamento_de_conta_fixa_muda_de_valor_e_o_saldo_acompanha(): void
     {
         $bill = FixedBill::create([
             'user_id' => $this->user->id,
@@ -224,31 +244,25 @@ class MovimentacaoPagaNaoMudaDeValorTest extends TestCase
 
         $pagamento = Transaction::where('fixed_bill_id', $bill->id)->sole();
 
-        $erro = $this->erroDoValor($this->editar($pagamento, ['amount' => '850,00']));
-        $this->assertStringContainsString('já foi paga', $erro);
+        $this->editar($pagamento, ['amount' => '850,00'])->assertSessionHasNoErrors();
 
         $atual = $pagamento->fresh();
-        $this->assertSame('800.00', (string) $atual->amount);
-        $this->assertSame('2026-08-01', $atual->competence->toDateString());
-        $this->assertSame(200.0, $this->conta->fresh()->available);
-
-        // A descrição continua corrigível.
-        $this->editar($pagamento, ['description' => 'Condomínio de agosto'])->assertSessionHasNoErrors();
-        $this->assertSame('Condomínio de agosto', $pagamento->fresh()->description);
-        $this->assertSame('800.00', (string) $pagamento->fresh()->amount);
+        $this->assertSame('850.00', (string) $atual->amount);
+        $this->assertSame('2026-08-01', $atual->competence->toDateString(), 'A competência paga continua a mesma.');
+        $this->assertSame(150.0, $this->conta->fresh()->available);
     }
 
     // ============================================================ (f) a tela
 
-    public function test_a_edicao_de_movimentacao_paga_mostra_o_valor_so_leitura(): void
+    public function test_a_edicao_de_movimentacao_paga_deixa_o_valor_editavel_e_avisa_do_saldo(): void
     {
         $despesa = $this->lancamento('expense', 100, '2026-08-05');
 
         $html = $this->actingAs($this->user)->get(route('transactions.edit', $despesa))->assertOk()->getContent();
 
-        $this->assertMatchesRegularExpression('/<input[^>]*id="amount"[^>]*\sreadonly[\s>]/s', $html);
-        $this->assertStringContainsString('o valor não muda mais', $html);
-        // O tipo vai num hidden (os rádios ficam desabilitados e não seriam enviados).
+        $this->assertDoesNotMatchRegularExpression('/<input[^>]*id="amount"[^>]*\sreadonly[\s>]/s', $html);
+        $this->assertStringContainsString('Ao salvar, o saldo da conta acompanha o valor novo.', $html);
+        // O tipo vai num hidden (a edição não oferece trocar receita por despesa).
         $this->assertStringContainsString('<input type="hidden" name="type" value="expense">', $html);
     }
 

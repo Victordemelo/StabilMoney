@@ -26,7 +26,7 @@ use Tests\TestCase;
  * direto e preserva `funding_*` e o resgate ligado.
  *
  * Desde out/2026 o valor (e o tipo) de movimentação já paga/recebida não muda —
- * `MovimentacaoPagaNaoMudaDeValorTest`. As edições neutras abaixo continuam sobre a
+ * a trava de out/2026, revertida em 14/10/2026 — `ValorEditavelNaEdicaoTest`. As edições neutras abaixo continuam sobre a
  * despesa de HOJE (já paga: é o caso real); os cenários que mudam valor ou tipo
  * usam a mesma despesa AGENDADA (`agendarDespesa()`), onde a reconciliação segue.
  */

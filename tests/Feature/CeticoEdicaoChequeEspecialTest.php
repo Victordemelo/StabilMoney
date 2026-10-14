@@ -19,7 +19,7 @@ use Tests\TestCase;
  * 9997f07) e com a lógica atual do working tree.
  *
  * A despesa é AGENDADA (data futura): desde out/2026 o valor de movimentação já
- * paga/recebida não muda — `MovimentacaoPagaNaoMudaDeValorTest`. Com ela já paga, a
+ * paga/recebida não muda — a trava de out/2026, revertida em 14/10/2026 — `ValorEditavelNaEdicaoTest`. Com ela já paga, a
  * recusa viria da trava do valor e não do guard, e o teste do HEAD passaria sem medir nada.
  */
 class CeticoEdicaoChequeEspecialTest extends TestCase

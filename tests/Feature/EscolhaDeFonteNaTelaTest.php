@@ -229,7 +229,7 @@ class EscolhaDeFonteNaTelaTest extends TestCase
      * esta feature veio resolver.
      *
      * A transação é AGENDADA: desde out/2026 o valor de movimentação já paga/recebida
-     * não muda — `MovimentacaoPagaNaoMudaDeValorTest` —, e só mudando o valor a edição
+     * não muda — a trava de out/2026, revertida em 14/10/2026 — `ValorEditavelNaEdicaoTest` —, e só mudando o valor a edição
      * chega à escolha de fonte.
      */
     public function test_fallback_preserva_o_metodo_original_da_requisicao(): void

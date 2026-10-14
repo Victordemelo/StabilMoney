@@ -99,9 +99,9 @@ class Transaction extends Model
     }
 
     /**
-     * Já foi PAGA ou RECEBIDA? (out/2026 — `MovimentacaoPagaNaoMudaDeValorTest`.) Então o valor e
-     * o tipo não mudam mais: o dinheiro já saiu ou entrou de verdade, e corrigir é excluir e
-     * lançar de novo.
+     * Já foi PAGA ou RECEBIDA? Então o TIPO não muda mais (receita ↔ despesa: excluir e lançar de
+     * novo). O VALOR muda desde 14/10/2026, com o saldo acompanhando — menos na compra de cartão
+     * paga numa fatura (`ValorEditavelNaEdicaoTest`).
      *
      * - compra de CARTÃO: quando a fatura dela foi paga (`paid_at`); antes disso a dívida ainda
      *   está em aberto e o valor pode ser corrigido;

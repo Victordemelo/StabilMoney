@@ -28,7 +28,7 @@ use Tests\TestCase;
  * ficam no TOPO do método, antes dos dois ramos de gravação.
  *
  * Desde out/2026 o valor (e o tipo) de movimentação já paga/recebida não muda —
- * `MovimentacaoPagaNaoMudaDeValorTest`. A máquina de reconciliação que estes
+ * a trava de out/2026, revertida em 14/10/2026 — `ValorEditavelNaEdicaoTest`. A máquina de reconciliação que estes
  * testes exercitam (estorno do resgate, nova pergunta da fonte, auditoria do
  * cheque especial) continua valendo para lançamentos AGENDADOS: por isso as
  * despesas dos cenários de valor/tipo nascem com data futura (`AGENDADA`).
@@ -278,36 +278,19 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
         $this->assertSame(1, $bill->payments()->count());
     }
 
-    public function test_caso2_corrigir_o_valor_pago_da_conta_fixa_e_excluir_e_pagar_de_novo(): void
+    public function test_caso2_corrigir_o_valor_pago_da_conta_fixa_pela_edicao(): void
     {
         [$bill, $pagamento] = $this->condominioPago();
 
-        // Desde out/2026 o pagamento já feito não muda de valor pela edição
-        // (`MovimentacaoPagaNaoMudaDeValorTest`): o dinheiro já saiu da conta.
-        $this->editar($pagamento, ['amount' => '850,00'])
-            ->assertSessionHasErrors('amount');
+        // Conta de luz varia: desde 14/10/2026 o valor de um pagamento já feito muda pela
+        // edição (`ValorEditavelNaEdicaoTest`), e o saldo acompanha. A competência continua a
+        // mesma — o que a marca é a existência da linha.
+        $this->editar($pagamento, ['amount' => '850,00'])->assertSessionHasNoErrors();
 
         $atual = $pagamento->fresh();
-        $this->assertSame('800.00', (string) $atual->amount);
+        $this->assertSame('850.00', (string) $atual->amount);
         $this->assertSame($bill->id, $atual->fixed_bill_id);
         $this->assertSame('2026-08-01', $atual->competence->toDateString());
-        $this->assertSame(200.0, $this->conta->fresh()->available);
-
-        // Conta de luz varia: o valor REAL continua corrigível pelo caminho que a
-        // mensagem indica — excluir o pagamento e pagar a competência de novo.
-        $this->actingAs($this->user)->from(route('transactions.index'))
-            ->delete(route('transactions.destroy', $pagamento))
-            ->assertSessionHasNoErrors();
-
-        $this->actingAs($this->user)
-            ->post(route('contas-fixas.pagar', [$bill, '2026-08']), [
-                'account_id' => $this->conta->id,
-                'amount' => '850,00',
-            ])->assertSessionHasNoErrors();
-
-        $novo = Transaction::where('fixed_bill_id', $bill->id)->firstOrFail();
-        $this->assertSame('850.00', (string) $novo->amount);
-        $this->assertSame('2026-08-01', $novo->competence->toDateString());
         $this->assertSame(1, $bill->payments()->count());
         $this->assertSame(150.0, $this->conta->fresh()->available);
     }
