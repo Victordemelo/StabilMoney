@@ -466,6 +466,21 @@ a.cat-row:focus-visible { outline: 2px solid var(--brand-300); outline-offset: 1
   background: var(--surface-3); color: var(--ink-2); font-size: 19px;
 }
 .tx .tx-ico svg { width: 20px; height: 20px; stroke-width: 1.9; }
+/* O banco da movimentação num cartãozinho no canto do ícone (out/2026 — `transactions/_icone`):
+   a cor do cartão (roxo Nubank, laranja Itaú, azul Mercado Pago…) diz por onde saiu sem ler a
+   linha de baixo. A borda na cor do card separa o cartão do fundo do ícone. */
+.tx-ico { position: relative; }
+.tx-ico .tx-banco {
+  position: absolute; right: -6px; bottom: -4px; width: 23px; height: 14px; border-radius: 3.5px;
+  object-fit: cover; border: 1.5px solid var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.18);
+}
+.tx-ico.tx-ico-grande { width: 58px; height: 58px; border-radius: 18px; font-size: 27px; background: var(--surface-3); display: grid; place-items: center; flex: none; }
+.tx-ico.tx-ico-grande svg { width: 26px; height: 26px; }
+.tx-ico.tx-ico-grande .tx-banco { width: 30px; height: 18px; right: -8px; bottom: -5px; border-radius: 4.5px; border-width: 2px; }
+/* Título de cada dia em Movimentações (a lista vem pela data, a mais recente primeiro). */
+.tx-dia { padding: 14px 4px 6px; font-size: 12.5px; font-weight: 600; color: var(--ink-3); }
+.tx-dia:first-child { padding-top: 2px; }
+.tx-dia span { font-weight: 500; margin-left: 4px; }
 /* `min-width: 0` no bloco do meio: sem ele o texto não encolhe abaixo do
    min-content e empurra o valor para fora do card, que então o recorta. É a
    mesma proteção que `.fi-txt`, `.invr-main` e `.dp-id` já tinham. */

@@ -245,15 +245,7 @@
                     @foreach ($recent as $transaction)
                         @php $isIncome = $transaction->type === 'income'; @endphp
                         <div class="tx">
-                            <div class="tx-ico">
-                                @if ($transaction->category?->icon)
-                                    {{ $transaction->category->icon }}
-                                @elseif ($isIncome)
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 19V5M12 5l-6 6M12 5l6 6"/></svg>
-                                @else
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 7h14l-1.2 8.5a2 2 0 0 1-2 1.7H8.2a2 2 0 0 1-2-1.7L5 7Z"/><path d="M9 7a3 3 0 0 1 6 0M9 11v2M15 11v2"/></svg>
-                                @endif
-                            </div>
+                            @include('transactions._icone', ['t' => $transaction])
                             <div>
                                 <div class="tx-name">{{ $transaction->description ?: ($transaction->category->name ?? ($isIncome ? 'Receita' : 'Despesa')) }}</div>
                                 <div class="tx-meta">{{ $transaction->category->name ?? 'Sem categoria' }} · {{ $transaction->date_human }}@if ((int) $transaction->installments > 1) · em {{ $transaction->installments }}x @endif @if (! empty($showAuthor)) · {{ $transaction->madeBy?->name ?? 'Removido' }}@endif</div>

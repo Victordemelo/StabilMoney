@@ -109,7 +109,25 @@
                 </div>
             @else
                 <div class="tx-list tx-list-cheia">
+                    {{-- A lista vem pela DATA da movimentação, a mais recente primeiro; o título de
+                         cada dia deixa a ordem à vista (out/2026 — pedido do Victor). --}}
+                    @php $diaAnterior = null; @endphp
                     @foreach ($transactions as $transacao)
+                        @php
+                            $diaDaLinha = $transacao->date->toDateString();
+                        @endphp
+                        @if ($diaDaLinha !== $diaAnterior)
+                            @php
+                                $diaAnterior = $diaDaLinha;
+                                $rotuloDoDia = match (true) {
+                                    $transacao->date->isToday() => 'Hoje',
+                                    $transacao->date->isYesterday() => 'Ontem',
+                                    $transacao->date->isTomorrow() => 'Amanhã',
+                                    default => $transacao->date->translatedFormat($transacao->date->year === now()->year ? 'j \d\e F' : 'j \d\e F \d\e Y'),
+                                };
+                            @endphp
+                            <div class="tx-dia">{{ $rotuloDoDia }}@if ($transacao->date->isFuture() && ! $transacao->date->isTomorrow()) <span>agendado</span>@endif</div>
+                        @endif
                         @if (! $transacao instanceof \App\Models\Transaction)
                             {{-- Aporte/resgate de meta ou investimento: não é lançamento (não se edita
                                  aqui), e o link leva à tela de onde ele é feito. Aporte tira do saldo
@@ -126,7 +144,7 @@
                                 </div>
                                 <div>
                                     <div class="tx-name">{{ $resgate ? 'Resgate de' : 'Aporte em' }} {{ $pai?->name ?? $rotuloPai }} <span class="tx-tag">{{ $rotuloPai }}</span></div>
-                                    <div class="tx-meta">{{ $resgate ? 'Voltou para' : 'Saiu de' }} {{ $transacao->account?->name ?? 'conta removida' }} · {{ $transacao->date->format('d/m/Y') }}@if (! empty($showAuthor)) · {{ $transacao->madeBy?->name ?? 'Removido' }}@endif</div>
+                                    <div class="tx-meta">{{ $resgate ? 'Voltou para' : 'Saiu de' }} {{ $transacao->account?->name ?? 'conta removida' }}@if (! empty($showAuthor)) · {{ $transacao->madeBy?->name ?? 'Removido' }}@endif</div>
                                 </div>
                                 <div class="tx-amt {{ $resgate ? 'pos' : '' }}">
                                     {{ $resgate ? '+' : '−' }} R$ {{ number_format((float) $transacao->amount, 2, ',', '.') }}
@@ -143,17 +161,11 @@
                                 ?: ($transacao->category->name ?? ($transferencia ? 'Transferência' : ($receita ? 'Receita' : 'Despesa')));
                         @endphp
                         <a class="tx" href="{{ route('transactions.edit', $transacao) }}">
-                            <div class="tx-ico" @if ($transacao->category?->color) style="background: color-mix(in srgb, {{ $transacao->category->color }} 16%, transparent)" @endif>
-                                @if ($transferencia)
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 8h13M7 8l3-3M7 8l3 3M17 16H4M17 16l-3-3M17 16l-3 3"/></svg>
-                                @else
-                                    {{ $transacao->category->icon ?? ($receita ? '💰' : '💸') }}
-                                @endif
-                            </div>
+                            @include('transactions._icone', ['t' => $transacao])
                             <div>
                                 <div class="tx-name">{{ $nome }}@if ($transferencia) <span class="tx-tag">Transferência</span>@elseif ($parcelas) <span class="tx-tag">em {{ $parcelas }}x</span>@endif</div>
                                 {{-- Ponta de transferência não tem categoria — o selo acima já diz o que ela é. --}}
-                                <div class="tx-meta">@if (! $transferencia){{ $transacao->category->name ?? 'Sem categoria' }} · @endif{{ $transacao->account->name }} · {{ $transacao->date->format('d/m/Y') }}@if (! empty($showAuthor)) · {{ $transacao->madeBy?->name ?? 'Removido' }}@endif</div>
+                                <div class="tx-meta">@if (! $transferencia){{ $transacao->category->name ?? 'Sem categoria' }} · @endif{{ $transacao->account->name }}@if (! empty($showAuthor)) · {{ $transacao->madeBy?->name ?? 'Removido' }}@endif</div>
                             </div>
                             <div class="tx-amt {{ $receita ? 'pos' : '' }}">
                                 {{ $receita ? '+' : '−' }} R$ {{ number_format($transacao->valor_exibido, 2, ',', '.') }}
