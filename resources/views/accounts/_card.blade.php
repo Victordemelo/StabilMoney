@@ -3,6 +3,11 @@
 {{-- Card compacto (out/2026 — pedido do Victor): o ÍCONE quadrado do banco no lugar da imagem do
      cartão, cinco por linha, nome e saldo menores, todos do mesmo tamanho. --}}
 <div class="card acct-card">
+    @if (($conta->isCard() || $conta->isDebit()) && $conta->bankImageUrl())
+        {{-- Cartões (débito e crédito) seguem com a IMAGEM do cartão do banco (pedido do Victor:
+             só as contas e o Pix/TED viraram ícone). --}}
+        <div class="bankcard"><img src="{{ $conta->bankImageUrl() }}" alt="{{ $conta->bankLabel() }}" loading="lazy"></div>
+    @else
     <div class="acct-topo">
         @php $canto = $conta->contaDoCanto(); @endphp
         <span class="acct-ico-caixa">
@@ -18,6 +23,7 @@
             @endif
         </span>
     </div>
+    @endif
 
     <div class="acct-info">
         <div class="acct-info-top">
@@ -72,7 +78,14 @@
             @endif
         @endif
 
-        {{-- Cheque especial: barra de uso ou o limite livre --}}
+        {{-- Cheque especial: barra de uso. A conta SEM cheque especial mostra a mesma linha, vazia
+             ("Sem cheque especial"): sem ela os cards da mesma fileira ficavam desalinhados. --}}
+        @if ($conta->isCash() && $conta->overdraftLimitValue <= 0)
+            <div class="fh-limit acct-sem-cheque">
+                <div class="dp-bar cheque"><i style="width:0%"></i></div>
+                <div class="dp-meta"><span>Sem cheque especial</span><span>@brl(0) de @brl(0)</span></div>
+            </div>
+        @endif
         @if ($conta->overdraftLimitValue > 0)
             @php $pctCheque = (int) min(100, round($conta->overdraftUsed / $conta->overdraftLimitValue * 100)); @endphp
             <div class="fh-limit">

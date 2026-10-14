@@ -78,6 +78,9 @@ class AjustesDeTelaMetasFamiliaPerfilCartoesTest extends TestCase
         // Desde out/2026 o card mostra o ÍCONE quadrado do banco, do mesmo tamanho em todos
         // (antes a imagem do cartão, de proporção diferente em cada banco).
         $this->assertMatchesRegularExpression('/\.acct-ico \{[^}]*width: 48px; height: 48px;/', $css);
+        // Os cartões (débito e crédito) seguem com a imagem do cartão, em caixa de proporção fixa.
+        $this->assertMatchesRegularExpression('/\.bankcard \{[^}]*position: relative;[^}]*aspect-ratio: 1\.586;[^}]*min-height: 0;/', $css);
+        $this->assertMatchesRegularExpression('/\.bankcard img \{[^}]*position: absolute; inset: 0;/', $css);
         // Nome e tipo numa linha cada; Editar/Excluir presos ao pé.
         $this->assertMatchesRegularExpression('/\.acct-name \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/', $css);
         $this->assertMatchesRegularExpression('/\.acct-card \{ display: flex; flex-direction: column; \}/', $css);

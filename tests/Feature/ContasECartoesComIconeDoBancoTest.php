@@ -45,8 +45,12 @@ class ContasECartoesComIconeDoBancoTest extends TestCase
 
         $this->assertStringContainsString('<div class="acct-grade">', $html);
         $this->assertMatchesRegularExpression('#<img class="acct-ico" src="[^"]*assets/banks/icones/itau\.png" alt="Itaú"#', $html);
-        $this->assertMatchesRegularExpression('#<img class="acct-ico" src="[^"]*assets/banks/icones/nubank\.png" alt="Nubank"#', $html);
-        $this->assertStringNotContainsString('class="bankcard"', $html);
+        // O cartão de crédito segue com a IMAGEM do cartão (só contas e Pix/TED viraram ícone).
+        $this->assertMatchesRegularExpression('#<div class="bankcard"><img src="[^"]*assets/banks/nubank\.png" alt="Nubank"#', $html);
+        $this->assertDoesNotMatchRegularExpression('#class="acct-ico" src="[^"]*icones/nubank\.png"#', $html);
+        // Conta sem cheque especial: a mesma linha, vazia, para alinhar com as que têm.
+        $this->assertStringContainsString('<div class="fh-limit acct-sem-cheque">', $html);
+        $this->assertStringContainsString('<span>Sem cheque especial</span>', $html);
         // Sem banco: as iniciais no mesmo quadrado.
         $this->assertStringContainsString('<span class="acct-ico acct-ico-sem" aria-hidden="true">RE</span>', $html);
         // A linha embaixo do apelido: o tipo nas contas, o banco só quando o apelido não o diz.
@@ -99,6 +103,7 @@ class ContasECartoesComIconeDoBancoTest extends TestCase
         $this->assertMatchesRegularExpression('#<img class="acct-ico" src="[^"]*icones/pix\.png" alt="Pix"#', $html);
         $this->assertMatchesRegularExpression('#<img class="acct-ico" src="[^"]*icones/ted\.png" alt="TED"#', $html);
         $this->assertSame(2, substr_count($html, 'class="acct-ico-canto"'), 'Só Pix e TED levam o banco no canto.');
+        $this->assertSame(2, substr_count($html, '<div class="bankcard">'), 'Débito e crédito com a imagem do cartão.');
         $this->assertStringContainsString('title="Sai de Conta"', $html);
     }
 }

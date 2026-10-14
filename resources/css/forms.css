@@ -253,6 +253,13 @@ a.tx { text-decoration: none; color: inherit; }
 @media (max-width: 760px) { .acct-grade, .acct-grade.acct-grade-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
 @media (max-width: 340px) { .acct-grade, .acct-grade.acct-grade-4 { grid-template-columns: minmax(0, 1fr); } }
 
+/* Cartões de débito e crédito: a IMAGEM do cartão do banco (proporção de cartão real). Absoluta na
+   caixa: cada imagem tem a proporção dela (a do Santander é 695×441, as outras 164×100), e com
+   `aspect-ratio` o conteúdo esticaria a caixa — um cartão sairia mais alto que os vizinhos. */
+.bankcard { position: relative; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 22px rgba(15,35,27,.12); aspect-ratio: 1.586; min-height: 0; background: var(--surface-3); }
+.bankcard img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
+.acct-sem-cheque .dp-meta { color: var(--ink-3); }
+
 /* Card inteiro em coluna: Editar/Excluir presos ao pé, alinhados entre os vizinhos. */
 .acct-card { display: flex; flex-direction: column; }
 .acct-grade > .acct-card { padding: 16px; min-width: 0; }
@@ -280,7 +287,8 @@ a.tx { text-decoration: none; color: inherit; }
 .acct-balance { margin-top: 10px; font-family: var(--font-head); font-size: 18px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; overflow-wrap: anywhere; }
 .acct-balance-lbl { display: block; font-family: var(--font-body); font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; margin-top: 2px; }
 .acct-card .fh-limit { margin-top: 10px; }
-.acct-card .dp-meta { font-size: 11px; flex-wrap: wrap; gap: 2px 8px; }
+/* Rótulo em cima e valor embaixo em TODA conta (com ou sem cheque especial): a mesma altura. */
+.acct-card .dp-meta { font-size: 11px; flex-direction: column; align-items: flex-start; gap: 1px; }
 
 /* Preview do banco no formulário: o mesmo ícone, maior */
 .bank-preview { margin: 0 auto 16px; display: flex; justify-content: center; }
