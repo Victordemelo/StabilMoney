@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.366 testes PHP** (1 deles só roda no MySQL) (~56 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **438 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.373 testes PHP** (1 deles só roda no MySQL) (~56 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **446 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -249,7 +249,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.366 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.373 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -1622,6 +1622,25 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   UMA linha, `Account::linhaDoCard()` (corrente/poupança nas contas + o banco só quando o apelido não o
   diz); sem banco, as iniciais no mesmo quadrado. O mesmo ícone vai no canto do `transactions/_icone`
   e na prévia do formulário. Banco novo em `BANKS` precisa do cartão E do ícone (o teste cobra o ícone).
+- **Pix e TED com ícone próprio e a ordem da tela** (13/10/2026 — `ContasECartoesComIconeDoBancoTest`):
+  Contas → Pix e TED → Cartões de débito → Cartões de crédito; contas, Pix e TED cinco por linha, cartões
+  quatro (`.acct-grade-4`). Pix e TED usam `Account::iconeDoCard()` (`icones/pix.png`/`ted.png`, desenhados
+  pelo `gerar-icones.py` — o símbolo do Pix é uma aproximação: o PNG que o Victor mandou não chegou como
+  arquivo; trocar = salvar `design_stabilmoney/imagens/originais/bancos/pix.png` e recortar) com o banco
+  da conta de onde sai no canto (`contaDoCanto`).
+- **Contas a pagar (13/10/2026 — `UmBotaoDePagarPorCartaoTest`, `tests/js/details-suave.test.js`):** com
+  fatura fechada em aberto o cartão fala SÓ dela — cabeçalho com o valor dela, a lista das compras dela
+  (`itensFechados` do `FaturaService`) e "A fatura atual aparece aqui depois que esta for paga"; a fatura
+  do ciclo aberto e as próximas voltam depois de pagar. Cada compra e cada despesa em conta é um link
+  (`a.fi-txt`) para a edição da movimentação; as despesas em conta usam o `transactions/_icone` (banco no
+  canto). Duas colunas a partir de 1280px (`.faturas-colunas`: contas fixas | despesas em conta, e os
+  cartões dois a dois — `grid-column: auto` anula o `span12`). Os `details[data-suave]` abrem e fecham
+  deslizando (`sm/details-suave.js`, Web Animations; sem ela ou com "reduzir movimento", o nativo).
+- **Editar movimentação TRAVADA** (13/10/2026 — `tests/js/edicao-travada.test.js`, `CompraParceladaNaEdicaoTest`):
+  com JS os campos nascem desabilitados e o Salvar escondido; o cartão "Editar movimentação" (acima do
+  Excluir, `[data-tx-editar]`) libera; o "Cancelar" desfaz e trava de novo (`sm/edicao-travada.js`). Sem JS
+  o formulário vem liberado; com erro de validação o servidor marca `data-tx-liberado`. As parcelas da
+  compra mostram a FATURA de cada uma (mês do vencimento, `dueDateForCycle(billingCycle(data))`).
 - **Rótulo do débito/Pix/TED** (13/10/2026): o " → conta" só aparece com dúvida (corrente e poupança
   no mesmo banco, ou banco diferente) — "Pix Itaú → Itaú" repetia o banco (`deOndeSaiOEspelho`).
 - **Tela do código (2FA), 08/10/2026:** sem ícone dentro do campo (dígitos no centro, a mesma folga dos
@@ -2816,7 +2835,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.366 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.373 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
