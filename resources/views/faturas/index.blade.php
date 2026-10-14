@@ -20,23 +20,23 @@
     // Cor padrão de cartão quando a conta não tem cor definida.
     $corPadrao = '#0E5A3F';
 
-    // Há mais de uma pessoa na família? (controla o seletor "quem fez a compra")
-    $temFamilia = $familyMembers->count() > 1;
 @endphp
 
-<section class="view">
+<section class="view" data-contas-a-pagar>
     <div class="section-head">
         <h2>Contas a pagar</h2>
         <span class="sub">Pague a fatura do cartão; débito, Pix e conta já descontam na hora</span>
         <div class="head-actions">
-            <button class="btn-primary" type="button" id="lancarBtn">
+            {{-- O MESMO modal Lançar do topo, já em Despesa (14/10/2026 — pedido do Victor: "tem um
+                 Lançar despesa diferente"). Sem JS, a página cheia de nova transação. --}}
+            <a class="btn-primary" href="{{ route('transactions.create', ['type' => 'expense']) }}" id="lancarBtn" data-launch-open data-launch-tipo="expense">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
                 Lançar despesa
-            </button>
+            </a>
         </div>
     </div>
 
-    {{-- Banner de erro (validação do servidor) — o JS reabre o modal de lançar via data-reopen --}}
+    {{-- Banner de erro (validação do servidor: pagar fatura, conta fixa…) --}}
     @if ($errors->any())
         <div class="flash-error" role="alert">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
@@ -238,7 +238,7 @@
                     <div class="eb-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/></svg></div>
                     <strong>Nenhuma despesa por aqui ainda</strong>
                     <span>Cadastre um cartão de crédito em Contas e cartões e lance suas despesas — elas viram fatura aqui.</span>
-                    <button class="btn primary" type="button" id="lancarBtnVazio" style="margin-top:14px">Lançar primeira despesa</button>
+                    <a class="btn primary" href="{{ route('transactions.create', ['type' => 'expense']) }}" id="lancarBtnVazio" data-launch-open data-launch-tipo="expense" style="margin-top:14px">Lançar primeira despesa</a>
                 </div>
             </div>
         </div>
@@ -627,153 +627,6 @@
             <div class="modal-foot">
                 <button class="btn ghost" type="button" data-remover-close>Cancelar</button>
                 <button class="btn-danger" type="submit" data-rd-botao>{{ $reabreRemocao && $remocaoFixa ? 'Excluir' : 'Remover' }}</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-{{-- ============================ MODAL: LANÇAR DESPESA ============================ --}}
-{{-- Único form que valida nesta tela é o de lançar despesa → o bag padrão já o identifica. --}}
-@php $reabreLancar = $errors->any(); @endphp
-<div class="modal-scrim" id="lancarModal" data-lancar-modal data-reopen="{{ $reabreLancar ? '1' : '' }}">
-    <div class="modal modal-xl" role="dialog" aria-modal="true"
-         aria-labelledby="lancarModal-titulo" aria-describedby="lancarModal-descricao">
-        <div class="modal-head">
-            <span class="modal-ico ico-out" id="lancarIco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 7 17 17M17 17h-7M17 17v-7"/></svg></span>
-            <div>
-                <h3 id="lancarModal-titulo">Lançar despesa</h3>
-                <p id="lancarModal-descricao">Registre uma compra no cartão ou um gasto em conta.</p>
-            </div>
-            <button class="modal-x" type="button" data-lancar-close aria-label="Fechar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
-            </button>
-        </div>
-
-        <form method="POST" action="{{ route('faturas.lancar') }}" id="lancarForm">
-            @csrf
-            {{-- Idempotência: identifica a COMPRA, não a requisição. Duplo clique,
-                 "voltar" e reenvio chegam com o mesmo uuid e o servidor devolve o
-                 lançamento existente em vez de criar outro (e, no parcelado, outras
-                 N parcelas). O `old()` preserva o uuid quando a validação falha e o
-                 modal reabre; um lançamento bem-sucedido recarrega a página e sorteia
-                 outro. --}}
-            <input type="hidden" name="client_uuid" value="{{ old('client_uuid', (string) \Illuminate\Support\Str::uuid()) }}">
-            <div class="modal-body">
-                @if ($reabreLancar)
-                    <div class="flash-error" role="alert">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5M12 15.8h.01"/></svg>
-                        <ul>@foreach ($errors->all() as $erro)<li>{{ $erro }}</li>@endforeach</ul>
-                    </div>
-                @endif
-                {{-- Duas colunas, quatro linhas: o modal é LARGO e baixo para caber sem rolar.
-                     As parcelas ficam ao lado da forma de lançamento, então aparecer/sumir
-                     não muda a altura. --}}
-                <div class="form-row">
-                    {{-- Descrição --}}
-                    <div class="field">
-                        <label for="lanc-desc">Descrição</label>
-                        <input class="input" type="text" id="lanc-desc" name="description"
-                               value="{{ $reabreLancar ? old('description') : '' }}" placeholder="Ex.: Supermercado, passagem aérea…" required>
-                    </div>
-                    {{-- Método de pagamento: despesa só sai por um MÉTODO (crédito, débito, Pix,
-                         TED) — os mesmos grupos de despesa do modal "Lançar"
-                         (`Account::gruposDeLancamento`); conta de banco não aparece aqui. --}}
-                    @php $gruposDeDespesa = collect(\App\Models\Account::gruposDeLancamento($accounts))->where('para', 'expense'); @endphp
-                    <div class="field">
-                        <label for="lanc-method">Método de pagamento</label>
-                        <select class="input" id="lanc-method" name="account_id" required>
-                            @foreach ($gruposDeDespesa as $grupo)
-                                <optgroup label="{{ $grupo['rotulo'] }}">
-                                    @foreach ($grupo['opcoes'] as $account)
-                                        <option value="{{ $account->id }}"
-                                                data-card="{{ $account->isCard ? '1' : '0' }}"
-                                                @if ($account->corteVencidas) data-corte-vencidas="{{ $account->corteVencidas }}" @endif
-                                                data-saldo-valor="{{ number_format((float) ($account->saldo ?? 0), 2, '.', '') }}" data-saldo-rotulo="{{ $account->saldoRotulo ?? 'disponível' }}"
-                                                @selected($reabreLancar && (int) old('account_id') === $account->id)>
-                                            {{ $account->rotuloCurto ?? $account->rotulo ?? $account->name }}
-                                        </option>
-                                    @endforeach
-                                </optgroup>
-                            @endforeach
-                        </select>
-                        @if ($gruposDeDespesa->isEmpty())
-                            <small class="field-hint">Para lançar uma despesa, cadastre um cartão, Pix ou TED em Contas e cartões.</small>
-                        @endif
-                    </div>
-                </div>
-                <div class="form-row">
-                    {{-- Valor (total) --}}
-                    <div class="field">
-                        <label for="lanc-valor">Valor</label>
-                        <input class="input" type="text" id="lanc-valor" name="amount" inputmode="decimal"
-                               value="{{ $reabreLancar ? old('amount') : '' }}" placeholder="R$ 0,00" required>
-                    </div>
-                    {{-- Data --}}
-                    <div class="field">
-                        <label for="lanc-data">Data</label>
-                        <input class="input" type="date" id="lanc-data" name="date"
-                               value="{{ $reabreLancar ? old('date', now()->format('Y-m-d')) : now()->format('Y-m-d') }}" required>
-                        @include('partials.faturas-vencidas-pagas', ['conta' => 'lanc-method', 'data' => 'lanc-data', 'modo' => 'lanc-mode'])
-                    </div>
-                </div>
-                <div class="form-row">
-                    {{-- Categoria (despesas) --}}
-                    <div class="field">
-                        <label for="lanc-cat">Categoria <span class="hint">(opcional)</span></label>
-                        <select class="input" id="lanc-cat" name="category_id">
-                            <option value="">Sem categoria</option>
-                            @foreach ($categories as $categoria)
-                                <option value="{{ $categoria->id }}" @selected($reabreLancar && (int) old('category_id') === $categoria->id)>
-                                    {{ $categoria->icon ? $categoria->icon . '  ' : '' }}{{ $categoria->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    {{-- Quem fez a compra (só quando a família tem mais de uma pessoa) --}}
-                    @if ($temFamilia)
-                        <div class="field">
-                            <label for="lanc-who">Quem fez essa compra?</label>
-                            <select class="input" id="lanc-who" name="made_by_user_id">
-                                @foreach ($familyMembers as $member)
-                                    <option value="{{ $member->id }}"
-                                            @selected((int) old('made_by_user_id', auth()->id()) === $member->id)>
-                                        {{ $member->name }}{{ $member->isTitular() ? ' (Titular)' : '' }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                    @endif
-                </div>
-                <div class="form-row">
-                    {{-- Modo (À vista / Parcelado / Recorrente) — habilitado conforme o método.
-                         O JS mostra "parcelas" só em parcelado e força "à vista" se o método não for cartão. --}}
-                    <div class="field" data-lanc-modewrap>
-                        <label>Forma de lançamento</label>
-                        <div class="pay-mode" id="lancModes">
-                            <button type="button" class="active" data-m="avista">À vista</button>
-                            <button type="button" data-m="parcelado">Parcelado</button>
-                            <button type="button" data-m="recorrente">Recorrente</button>
-                        </div>
-                        {{-- valor real enviado ao servidor (atualizado pelos botões acima) --}}
-                        <input type="hidden" name="mode" id="lanc-mode" value="{{ old('mode', 'avista') }}">
-                        <small class="field-hint" data-lanc-modehint></small>
-                    </div>
-                    {{-- Número de parcelas (visível só no modo parcelado) --}}
-                    <div class="field" id="lancParcelasField" hidden>
-                        <label for="lanc-parcelas">Número de parcelas</label>
-                        <select class="input" id="lanc-parcelas" name="installments">
-                            @for ($i = 2; $i <= 24; $i++)
-                                <option value="{{ $i }}" @selected((int) old('installments') === $i)>{{ $i }}x</option>
-                            @endfor
-                        </select>
-                        <small class="field-hint" id="lancParcelaHint"></small>
-                    </div>
-                </div>
-                @include('partials.resumo-de-saldo', ['rotuloValor' => 'Esta despesa'])
-            </div>
-            <div class="modal-foot">
-                <button class="btn ghost" type="button" data-lancar-close>Cancelar</button>
-                <button class="btn primary" type="submit">Lançar despesa</button>
             </div>
         </form>
     </div>

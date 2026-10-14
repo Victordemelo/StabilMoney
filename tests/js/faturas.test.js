@@ -6,8 +6,10 @@ import { initFaturas } from '../../resources/js/sm/faturas.js';
 import { abrirDialogo, fecharDialogo, liberarDialogosOrfaos } from '../../resources/js/sm/dialogo.js';
 
 /**
- * Tela Pagar despesas (`resources/js/sm/faturas.js`) — os cinco modais viraram DIÁLOGOS
- * (achado A-2 da auditoria de acessibilidade, a última tela que faltava).
+ * Tela Contas a pagar (`resources/js/sm/faturas.js`) — os modais viraram DIÁLOGOS
+ * (achado A-2 da auditoria de acessibilidade, a última tela que faltava). O "Lançar despesa"
+ * daqui deixou de ter modal próprio em 14/10/2026: é o Lançar do topo, já em Despesa
+ * (tests/js/launch-tipo.test.js).
  *
  * Antes cada modal abria e fechava pela classe `.open`: o foco ficava na página por trás
  * do véu, o Tab passeava pela sidebar e pela barra de cookies, e cada modal prendia um
@@ -17,7 +19,7 @@ import { abrirDialogo, fecharDialogo, liberarDialogosOrfaos } from '../../resour
  *
  * Agora todos passam por `abrirDialogo`/`fecharDialogo` (sm/dialogo.js): foco dentro,
  * página inerte, Esc fecha só o do topo e o foco volta ao botão que abriu. O DOM imita o
- * `faturas/index.blade.php`: os gatilhos no #content e os cinco modais logo depois, fora
+ * `faturas/index.blade.php`: os gatilhos no #content e os modais logo depois, fora
  * da `.card`. O jsdom não implementa `inert` nem o Tab do navegador — o que se confere é o
  * atributo e para onde o foco vai.
  */
@@ -35,13 +37,12 @@ function modal(id, titulo, corpo, rodape) {
         </div>`;
 }
 
-function montarPagina({ reabrirLancar = false } = {}) {
+function montarPagina() {
     document.body.innerHTML = `
         <div class="app" id="app">
             <aside class="sidebar" id="sidebar"><a href="/metas" id="linkSidebar">Metas</a></aside>
             <main class="content" id="content">
-                <section class="view">
-                    <button class="btn-primary" type="button" id="lancarBtn">Lançar despesa</button>
+                <section class="view" data-contas-a-pagar>
                     <button class="btn primary" type="button" id="pagarFatura" data-pay-open
                             data-action="/faturas/cartao/7/pagar" data-name="Nubank" data-amount="R$ 300,00"
                             data-ciclo="aberto" data-min="2026-09-01">Marcar como paga</button>
@@ -56,33 +57,6 @@ function montarPagina({ reabrirLancar = false } = {}) {
                             data-conta="2" data-categoria="9" data-inicio="2026-09-01" data-fim="2027-08-31">✎</button>
                     <button class="btn ghost" type="button" id="novaContaFixaBtn">Nova conta fixa</button>
                 </section>
-
-                ${modal('lancarModal', 'Lançar despesa', `
-                    <form method="POST" action="/faturas/lancar" id="lancarForm">
-                        <div class="modal-body">
-                            <input class="input" type="text" id="lanc-desc" name="description">
-                            <input class="input" type="text" id="lanc-valor" name="amount" inputmode="decimal">
-                            <select class="input" id="lanc-method" name="account_id">
-                                <option value="7" data-card="1">Nubank</option>
-                                <option value="2" data-card="0">Corrente</option>
-                            </select>
-                            <div class="pay-mode" id="lancModes">
-                                <button type="button" class="active" data-m="avista">À vista</button>
-                                <button type="button" data-m="parcelado">Parcelado</button>
-                                <button type="button" data-m="recorrente">Recorrente</button>
-                            </div>
-                            <input type="hidden" name="mode" id="lanc-mode" value="avista">
-                            <small data-lanc-modehint></small>
-                            <div id="lancParcelasField" hidden>
-                                <select id="lanc-parcelas" name="installments"><option value="2">2x</option><option value="3">3x</option></select>
-                                <small id="lancParcelaHint"></small>
-                            </div>
-                        </div>
-                        <div class="modal-foot">
-                            <button class="btn ghost" type="button" data-lancar-close id="lancarCancelar">Cancelar</button>
-                            <button class="btn primary" type="submit">Lançar despesa</button>
-                        </div>
-                    </form>`, { x: '<button class="modal-x" type="button" data-lancar-close id="lancarX">×</button>' })}
 
                 ${modal('fixaPagarModal', 'Pagar conta fixa', `
                     <form method="POST" action="" data-fixa-form>
@@ -160,8 +134,6 @@ function montarPagina({ reabrirLancar = false } = {}) {
             </div>
         </div>`;
 
-    // Erro de validação do servidor: a view marca o modal de lançar para reabrir.
-    document.getElementById('lancarModal').dataset.reopen = reabrirLancar ? '1' : '';
     initFaturas();
 }
 
@@ -190,24 +162,7 @@ afterEach(() => {
     delete window.smPjaxReload;
 });
 
-describe('os cinco modais abrem e fecham como diálogos', () => {
-    it('"Lançar despesa": foco na descrição, página inerte, Esc fecha e devolve o foco ao botão', () => {
-        $('lancarBtn').click();
-
-        expect(aberto('lancarModal')).toBe(true);
-        expect(document.activeElement).toBe($('lanc-desc'));
-        expect($('sidebar').hasAttribute('inert')).toBe(true);
-        // O modal está DENTRO do #content: os irmãos dele ficam inertes, ele não.
-        expect(document.querySelector('.view').hasAttribute('inert')).toBe(true);
-        expect($('lancarModal').closest('[inert]')).toBeNull();
-
-        tecla('Escape');
-
-        expect(aberto('lancarModal')).toBe(false);
-        expect(document.activeElement).toBe($('lancarBtn'));
-        expect(document.querySelectorAll('[inert]')).toHaveLength(0);
-    });
-
+describe('os modais abrem e fecham como diálogos', () => {
     it('"Marcar como paga": preenche o modal, foca "Debitar de" e o X devolve o foco ao botão', () => {
         $('pagarFatura').click();
 
@@ -309,19 +264,6 @@ describe('o Esc é do utilitário de diálogo', () => {
 
         const deTeclado = noDocumento.mock.calls.filter(([tipo]) => tipo === 'keydown');
         expect(deTeclado).toHaveLength(0);
-    });
-});
-
-describe('reabrir depois de erro de validação', () => {
-    it('o modal de lançar reabre sozinho — e fechar devolve o foco ao botão do topo, não ao <body>', () => {
-        document.querySelectorAll('.modal-scrim.open').forEach((s) => fecharDialogo(s, { devolverFoco: false }));
-        montarPagina({ reabrirLancar: true });
-
-        expect(aberto('lancarModal')).toBe(true);
-        expect(document.activeElement).toBe($('lanc-desc'));
-
-        $('lancarCancelar').click();
-        expect(document.activeElement).toBe($('lancarBtn'));
     });
 });
 

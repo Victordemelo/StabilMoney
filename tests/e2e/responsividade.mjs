@@ -132,7 +132,12 @@ export const TELAS = [
     { id: 'modal-lancar-receita', url: '/', preparar: lancar(null) },
     { id: 'modal-lancar-despesa', url: '/', preparar: lancar('lm-tt-expense') },
     { id: 'modal-lancar-transferencia', url: '/', preparar: lancar('lm-tt-transfer') },
-    { id: 'modal-lancar-despesa-faturas', url: '/faturas', preparar: abrirDialogo('lancarModal') },
+    // O "Lançar despesa" de Contas a pagar é o Lançar do shell, já em Despesa (14/10/2026).
+    { id: 'modal-lancar-despesa-faturas', url: '/faturas', preparar: async (page) => {
+        await page.evaluate(() => document.getElementById('lancarBtn').click());
+        await page.waitForTimeout(250);
+        return '#launchModal .modal';
+    } },
     { id: 'modal-remover-despesa', url: '/faturas', preparar: async (page) => {
         await page.evaluate(() => {
             document.querySelectorAll('details.fatura-recolhe').forEach((d) => { d.open = true; });

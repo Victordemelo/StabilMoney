@@ -143,7 +143,7 @@ class ModaisSaoDialogosTest extends TestCase
         }
     }
 
-    public function test_os_cinco_modais_de_pagar_despesas_sao_dialogos(): void
+    public function test_os_modais_de_contas_a_pagar_sao_dialogos(): void
     {
         // Sem conta de caixa, "Pagar fatura" e "Pagar conta fixa" nem são renderizados.
         Account::factory()->for($this->user)->create(['type' => 'checking', 'name' => 'Corrente']);
@@ -151,9 +151,9 @@ class ModaisSaoDialogosTest extends TestCase
         $xp = $this->pagina(route('faturas.index'));
 
         $this->assertModaisSaoDialogos($xp, [
-            'lancarModal', 'payInvoiceModal', 'fixaPagarModal', 'fixaNovaModal', 'fixaEditarModal',
+            'payInvoiceModal', 'fixaPagarModal', 'fixaNovaModal', 'fixaEditarModal',
         ]);
-        $this->assertSame('Lançar despesa', $this->nomeDoDialogo($xp, 'lancarModal'));
+        // O "Lançar despesa" daqui é o Lançar do shell, já em Despesa (14/10/2026).
         $this->assertSame('Pagar fatura', $this->nomeDoDialogo($xp, 'payInvoiceModal'));
         $this->assertSame('Pagar conta fixa', $this->nomeDoDialogo($xp, 'fixaPagarModal'));
         $this->assertSame('Nova conta fixa', $this->nomeDoDialogo($xp, 'fixaNovaModal'));

@@ -1,22 +1,19 @@
-// Página de Faturas / Despesas (design v2): faturas por cartão, parcelas,
-// despesas em conta e o modal "Lançar despesa".
+// Página Contas a pagar (design v2): faturas por cartão, parcelas, despesas em conta e
+// contas fixas.
 //
-// O app é server-routed — o lançamento é um <form> Laravel real (POST faturas.lancar)
-// e a remoção de compra também (DELETE via form inline). Este módulo cuida só da UI:
-//   • abrir/fechar os CINCO modais da tela (lançar, pagar fatura, pagar conta fixa,
-//     nova conta fixa, editar conta fixa) como DIÁLOGOS (sm/dialogo.js: foco dentro,
-//     Tab preso, Esc fecha só o do topo, resto da página inerte e o foco de volta a quem
-//     abriu), com clique no véu;
-//   • o TOGGLE de modo (À vista / Parcelado / Recorrente): só faz sentido em cartão —
-//     quando o método não é cartão, força "à vista" e desabilita os outros (espelha
-//     lanc.syncMethod/syncMode do finance.js); o campo de parcelas aparece só em parcelado;
-//   • o hint "Nx de R$ Y (sem juros)" recalculado ao mudar valor/parcelas (lanc.syncHint);
-//   • reabrir o modal com os dados digitados quando a validação do servidor volta com erro.
+// O app é server-routed — pagar, estornar e remover são <form> Laravel reais. Este módulo
+// cuida só da UI:
+//   • abrir/fechar os modais da tela (pagar fatura, pagar conta fixa, nova conta fixa,
+//     editar conta fixa, remover despesa) como DIÁLOGOS (sm/dialogo.js: foco dentro, Tab
+//     preso, Esc fecha só o do topo, resto da página inerte e o foco de volta a quem abriu),
+//     com clique no véu;
+//   • o resumo "saldo atual − valor = depois" de cada pagamento.
 //
-// O "Tem certeza?" das exclusões da tela NÃO mora aqui: é o `data-confirmar` de cada
-// formulário (sm/confirmar.js), que vale também sem este módulo.
+// O "Lançar despesa" desta tela é o modal Lançar do topo, já em Despesa (14/10/2026 — antes
+// era um modal próprio, com outro formato). O "Tem certeza?" das exclusões NÃO mora aqui: é o
+// `data-confirmar` de cada formulário (sm/confirmar.js), que vale também sem este módulo.
 //
-// Só roda na tela de faturas (guard pelo modal de lançar da view).
+// Só roda na tela de Contas a pagar (guard pela marca `data-contas-a-pagar` da view).
 
 import { abrirDialogo, fecharDialogo } from './dialogo';
 import { enviarComFonte, respostaOk } from './funding';
@@ -126,28 +123,9 @@ function ligarPagamentoAjax(form, modal, fechar) {
     });
 }
 
-// Converte "1.234,56" / "R$ 80" em número (espelha parseMoney do protótipo).
-function parseMoney(str) {
-    if (str == null) return 0;
-    const limpo = String(str).replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
-    const n = parseFloat(limpo);
-    return Number.isFinite(n) ? n : 0;
-}
-
-// Formata número em R$ pt-BR com centavos (espelha BRL do protótipo).
-function brl(v) {
-    return (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 export function initFaturas() {
-    // A view de faturas tem sempre o modal de lançar; sem ele, não é esta tela.
-    const modal = document.getElementById('lancarModal');
-    if (!modal) return;
-
-    // `gatilho` = o botão que abriu: recebe o foco de volta ao fechar. Vai explícito
-    // porque o Safari não dá foco a botão clicado com o mouse.
-    const abrir = (gatilho = null) => abrirDialogo(modal, { foco: '#lanc-desc', retorno: gatilho });
-    ligarFechamento(modal, '[data-lancar-close]');
+    // Só a tela de Contas a pagar tem a marca.
+    if (!document.querySelector('[data-contas-a-pagar]')) return;
 
     // ---- Remover despesa: o "x" de cada linha abre um modal que pede a SENHA ----
     // O <form> da linha continua existindo (sem JS ele envia sem senha e o servidor recusa
@@ -190,94 +168,6 @@ export function initFaturas() {
         // Senha errada: o servidor volta com o erro e a ação remontada pelo id.
         if (remover.dataset.reabrirAcao) abrirDialogo(remover, { foco: '#rd-senha' });
     }
-
-    // ---- Abrir (botão do topo + botão do estado vazio) ----
-    ['lancarBtn', 'lancarBtnVazio'].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('click', () => abrir(el));
-    });
-
-    // ---- Elementos do modal ----
-    const methodSel   = document.getElementById('lanc-method');
-    const modeButtons = $$('#lancModes button');
-    const modeInput   = document.getElementById('lanc-mode');         // hidden enviado ao servidor
-    const modeHint    = modal.querySelector('[data-lanc-modehint]');
-    const parcelasField = document.getElementById('lancParcelasField');
-    const parcelasSel = document.getElementById('lanc-parcelas');
-    const parcelaHint = document.getElementById('lancParcelaHint');
-    const valorInput  = document.getElementById('lanc-valor');
-
-    // Método selecionado é cartão? (data-card="1" na <option>)
-    const metodoEhCartao = () => {
-        const opt = methodSel ? methodSel.selectedOptions[0] : null;
-        return !!(opt && opt.dataset.card === '1');
-    };
-
-    // Modo atual (lê do hidden; default "avista").
-    const modoAtual = () => (modeInput ? modeInput.value : 'avista') || 'avista';
-
-    // Pinta o botão ativo + mostra/esconde parcelas + atualiza hints.
-    const syncMode = () => {
-        const modo = modoAtual();
-        modeButtons.forEach((b) => b.classList.toggle('active', b.dataset.m === modo));
-        if (parcelasField) parcelasField.hidden = modo !== 'parcelado';
-        syncHint();
-    };
-
-    // Habilita parcelado/recorrente só em cartão; fora de cartão, força "à vista".
-    const syncMethod = () => {
-        const isCard = metodoEhCartao();
-        modeButtons.forEach((b) => {
-            const soCartao = b.dataset.m !== 'avista';
-            b.disabled = soCartao && !isCard;
-            b.classList.toggle('is-disabled', soCartao && !isCard);
-        });
-        if (!isCard && modeInput) modeInput.value = 'avista';
-        if (modeHint) {
-            modeHint.textContent = isCard
-                ? ''
-                : 'Parcelado e recorrente disponíveis apenas para cartão de crédito.';
-        }
-        syncMode();
-    };
-
-    // Hint "Nx de R$ Y (sem juros)" no campo de parcelas.
-    const syncHint = () => {
-        if (!parcelaHint) return;
-        if (modoAtual() !== 'parcelado') { parcelaHint.textContent = ''; return; }
-        const total = parseMoney(valorInput ? valorInput.value : '');
-        const n = parseInt(parcelasSel ? parcelasSel.value : '2', 10) || 2;
-        parcelaHint.textContent = total > 0 ? `${n}x de R$ ${brl(total / n)} (sem juros)` : '';
-    };
-
-    // ---- Eventos ----
-    if (methodSel) methodSel.addEventListener('change', syncMethod);
-    modeButtons.forEach((b) => b.addEventListener('click', () => {
-        if (b.disabled) return;
-        if (modeInput) modeInput.value = b.dataset.m;
-        syncMode();
-    }));
-    if (parcelasSel) parcelasSel.addEventListener('change', syncHint);
-    if (valorInput) valorInput.addEventListener('input', syncHint);
-
-    // Resumo "saldo atual − esta despesa = depois" (no cartão, o limite livre). Parcelada,
-    // a compra inteira sai do limite na hora — o valor é o total.
-    const lancResumo = modal.querySelector('[data-resumo-saldo]');
-    const syncResumoLanc = () => {
-        const conta = saldoDaOpcao(methodSel);
-        desenharResumo(lancResumo, {
-            saldo: conta?.saldo ?? null,
-            valor: lerValorDoCampo(valorInput),
-            rotuloValor: 'Esta despesa',
-            cartao: metodoEhCartao(),
-        });
-    };
-    if (methodSel) methodSel.addEventListener('change', syncResumoLanc);
-    if (valorInput) valorInput.addEventListener('input', syncResumoLanc);
-    syncResumoLanc();
-
-    // Estado inicial (respeita old() após erro de validação).
-    syncMethod();
 
     // ---- Modal "Pagar fatura" (marcar fatura do cartão como paga) ----
     const payModal = document.getElementById('payInvoiceModal');
@@ -410,8 +300,4 @@ export function initFaturas() {
         }));
     }
 
-    // ---- Reabrir o modal após erro de validação do servidor ----
-    // Quem "abriu" é o botão do topo: sem ele, fechar jogaria o foco no <body> e quem usa
-    // teclado recomeçaria da primeira linha da página.
-    if (modal.dataset.reopen === '1') abrir(document.getElementById('lancarBtn'));
 }

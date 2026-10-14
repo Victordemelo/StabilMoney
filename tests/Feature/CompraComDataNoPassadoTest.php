@@ -154,9 +154,9 @@ class CompraComDataNoPassadoTest extends TestCase
         $this->assertStringContainsString('data-vencidas-pagas data-conta="account_id" data-data="date"', $html);
         $this->assertMatchesRegularExpression('#name="faturas_vencidas_pagas" value="1" checked disabled#', $html);
 
-        // O modal Lançar (no shell) e o "Lançar despesa" de Contas a pagar também.
+        // O modal Lançar (no shell) também — e ele é o "Lançar despesa" de Contas a pagar (14/10/2026).
         $this->assertStringContainsString('data-conta="lm-account" data-data="lm-date"', $html);
         $faturas = $this->actingAs($this->user)->get(route('faturas.index'))->assertOk()->getContent();
-        $this->assertMatchesRegularExpression('#data-conta="lanc-method" data-data="lanc-data"\s+data-modo="lanc-mode"#', $faturas);
+        $this->assertStringContainsString('data-conta="lm-account" data-data="lm-date"', $faturas);
     }
 }

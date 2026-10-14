@@ -29,6 +29,11 @@ class StoreTransactionRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->normalizeMoneyField('amount');
+        // O seletor de parcelas do Lançar tem a opção "Repete todo mês" (14/10/2026): ela chega
+        // como `installments=recorrente` e vira o par à vista + `recorrente` (sem JS também).
+        if ($this->aceitaParcelamento() && $this->input('installments') === 'recorrente') {
+            $this->merge(['installments' => 1, 'recorrente' => true]);
+        }
     }
 
     public function rules(): array
@@ -133,6 +138,10 @@ class StoreTransactionRequest extends FormRequest
             // entram como pagas fora do app (`Parcelamento::pagaForaDoApp`). A tela manda
             // marcado; fora do cartão o servidor ignora.
             'faturas_vencidas_pagas' => ['nullable', 'boolean'],
+            // Compra que se repete todo mês no cartão (14/10/2026 — o "Lançar despesa" de Contas
+            // a pagar passou a ser o mesmo modal Lançar, e a recorrência veio junto). Uma linha
+            // só, com `group_id` + `recurring`: a próxima nasce quando esta fatura fechar.
+            'recorrente' => ['nullable', 'boolean'],
         ] : []);
     }
 
@@ -151,6 +160,21 @@ class StoreTransactionRequest extends FormRequest
         $validator->after(function ($validator) {
             if (! $this->aceitaParcelamento()) {
                 return;
+            }
+            if ($this->boolean('recorrente') && ! $validator->errors()->has('recorrente')) {
+                $cartao = Account::where('id', $this->input('account_id'))
+                    ->where('user_id', $this->user()->ownerId())
+                    ->first();
+                if ($this->input('type') !== 'expense' || ($cartao && ! $cartao->isCard())) {
+                    $validator->errors()->add('recorrente', 'Repetir todo mês só dá numa despesa no cartão de crédito.');
+
+                    return;
+                }
+                if ((int) $this->input('installments') > 1) {
+                    $validator->errors()->add('recorrente', 'Uma compra é parcelada ou se repete todo mês — escolha uma das duas.');
+
+                    return;
+                }
             }
             $parcelas = (int) $this->input('installments');
             if ($parcelas < 2 || $validator->errors()->has('installments')) {

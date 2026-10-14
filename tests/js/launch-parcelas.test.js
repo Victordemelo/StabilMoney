@@ -11,9 +11,11 @@ import { initLaunch, textoDaParcela } from '../../resources/js/sm/launch.js';
 
 function montar() {
     document.head.innerHTML = '<meta name="csrf-token" content="t">';
-    const opcoes = Array.from({ length: 24 }, (_, i) => `<option value="${i + 1}">${i + 1}x</option>`).join('');
+    const opcoes = Array.from({ length: 24 }, (_, i) => `<option value="${i + 1}">${i + 1}x</option>`).join('')
+        + '<option value="recorrente">Repete todo mês</option>';
     document.body.innerHTML = `
         <button type="button" data-launch-open>Lançar</button>
+        <a href="/transactions/create?type=expense" id="lancarDespesa" data-launch-open data-launch-tipo="expense">Lançar despesa</a>
         <div class="modal-scrim" id="launchModal">
             <div class="modal">
                 <div class="flash-error" data-lm-error hidden><span data-lm-error-msg></span></div>
@@ -87,7 +89,7 @@ describe('Parcelas no modal Lançar', () => {
         escolherTipo('expense');
         escolherConta('Crédito Itaú');
         expect(parcelas().hidden).toBe(false);
-        expect(parcelas().options).toHaveLength(24);
+        expect(parcelas().options).toHaveLength(25); // 1x a 24x + "Repete todo mês"
         expect(document.querySelector('[data-lm-valor]').classList.contains('com-parcelas')).toBe(true);
 
         escolherConta('Pix → Inter');
@@ -130,5 +132,35 @@ describe('trocar o tipo mantém os campos (out/2026)', () => {
         expect(valor.value).toBe('150,00');
         expect(desc.value).toBe('Mercado');
         expect(document.getElementById('lm-account').selectedOptions[0].textContent).toBe('Inter');
+    });
+
+    it('"Repete todo mês": o texto da opção não vira número, e o rótulo diz que o valor é por mês', () => {
+        montar();
+        escolherTipo('expense');
+        escolherConta('Crédito Itaú');
+        digitar('50000');
+        const recorrente = [...parcelas().options].find((o) => o.value === 'recorrente');
+        expect(recorrente.textContent).toBe('Repete todo mês');
+        parcelas().value = 'recorrente';
+        parcelas().dispatchEvent(new Event('change', { bubbles: true }));
+        expect(document.querySelector('[data-lm-valor-rotulo]').textContent).toBe('Valor por mês (R$)');
+    });
+});
+
+describe('o Lançar despesa de Contas a pagar é este mesmo modal (14/10/2026)', () => {
+    it('o gatilho com data-launch-tipo abre já em Despesa, com um método de despesa marcado', () => {
+        montar();
+        document.querySelector('[data-close-btn]').click();
+        document.getElementById('lancarDespesa').click();
+
+        expect(document.getElementById('lm-tt-expense').checked).toBe(true);
+        expect(document.querySelector('[data-launch-form]').dataset.type).toBe('expense');
+        const escolhida = document.getElementById('lm-account').selectedOptions[0];
+        expect(escolhida.dataset.para).toBe('expense');
+    });
+
+    it('o gatilho comum continua abrindo em Receita', () => {
+        montar();
+        expect(document.getElementById('lm-tt-income').checked).toBe(true);
     });
 });

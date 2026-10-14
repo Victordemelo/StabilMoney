@@ -94,6 +94,9 @@
                                     @for ($n = 1; $n <= 24; $n++)
                                         <option value="{{ $n }}">{{ $n === 1 ? 'À vista' : $n.'x' }}</option>
                                     @endfor
+                                    {{-- Compra que se repete todo mês no cartão (assinatura, academia): o servidor
+                                         a grava como série recorrente (`StoreTransactionRequest`). --}}
+                                    <option value="recorrente">Repete todo mês</option>
                                 </select>
                             </div>
                         </div>

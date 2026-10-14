@@ -87,17 +87,19 @@ class LancamentoPorMetodoTest extends TestCase
         }
     }
 
-    public function test_lancar_despesa_em_contas_a_pagar_so_oferece_metodos(): void
+    public function test_lancar_despesa_em_contas_a_pagar_e_o_modal_lancar_ja_em_despesa(): void
     {
+        // 14/10/2026 — pedido do Victor: "tem um Lançar despesa diferente". O botão abre o MESMO
+        // modal Lançar do topo, já em Despesa; sem JS, a página cheia de nova transação.
         $html = $this->actingAs($this->user)->get(route('faturas.index'))->assertOk()->getContent();
-        $select = $this->select($html, 'lanc-method');
 
-        $this->assertStringNotContainsString('Contas correntes', $select);
-        $this->assertStringNotContainsString('Contas poupança', $select);
-        $this->assertStringNotContainsString('>Poupança', $select);
-        foreach (['Cartões de crédito', 'Cartões de débito', 'Pix e TED'] as $grupo) {
-            $this->assertStringContainsString('<optgroup label="'.$grupo.'">', $select);
-        }
+        $this->assertMatchesRegularExpression(
+            '#<a class="btn-primary" href="'.preg_quote(route('transactions.create', ['type' => 'expense']), '#').'" id="lancarBtn" data-launch-open data-launch-tipo="expense">#',
+            $html,
+        );
+        $this->assertStringNotContainsString('id="lancarModal"', $html);
+        $this->assertStringNotContainsString('id="lanc-method"', $html);
+        $this->assertStringContainsString('id="launchModal"', $html);
     }
 
     public function test_na_pagina_cheia_a_edicao_mantem_a_conta_de_banco_para_despesa_antiga(): void
@@ -123,8 +125,15 @@ class LancamentoPorMetodoTest extends TestCase
         $sozinho = User::factory()->create();
         Account::factory()->for($sozinho)->create(['type' => 'checking', 'initial_balance' => 100]);
 
-        $this->actingAs($sozinho)->get(route('faturas.index'))->assertOk()
-            ->assertSee('Para lançar uma despesa, cadastre um cartão, Pix ou TED em Contas e cartões.');
+        // O "Lançar despesa" de Contas a pagar é o modal Lançar (14/10/2026), que diz o que falta
+        // quando não há método (`launch.js`, coberto em tests/js/launch-metodos.test.js).
+        $html = $this->actingAs($sozinho)->get(route('faturas.index'))->assertOk()->getContent();
+        $this->assertStringContainsString('data-launch-open data-launch-tipo="expense"', $html);
+        $this->assertStringContainsString('id="launchModal"', $html);
+        $this->assertStringContainsString(
+            'Para lançar uma despesa, cadastre um cartão, Pix ou TED em Contas e cartões.',
+            file_get_contents(resource_path('js/sm/launch.js')),
+        );
     }
 
     private function select(string $html, string $id): string

@@ -52,8 +52,9 @@ class ResumoDeSaldoNosPagamentosTest extends TestCase
 
         $html = $this->actingAs($this->user)->get(route('faturas.index'))->assertOk()->getContent();
 
-        // Os três modais de pagamento da tela têm o resumo — e o Lançar do shell, o quarto.
-        $this->assertSame(4, substr_count($html, 'data-resumo-saldo'));
+        // Os dois modais de pagamento da tela têm o resumo — e o Lançar do shell, que desde
+        // 14/10/2026 é também o "Lançar despesa" daqui.
+        $this->assertSame(3, substr_count($html, 'data-resumo-saldo'));
         $this->assertStringContainsString('data-rs-rotulo-valor>Esta fatura<', $html);
         $this->assertStringContainsString('data-rs-rotulo-valor>Esta conta<', $html);
         $this->assertStringContainsString('data-rs-rotulo-valor>Esta despesa<', $html);

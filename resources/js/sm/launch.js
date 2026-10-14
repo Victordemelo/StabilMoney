@@ -136,6 +136,15 @@ export function initLaunch() {
         // salvo, tipo trocado, categoria escolhida. Quem abre o modal está começando
         // um lançamento novo.
         zerar();
+        // Gatilho que já diz o tipo (14/10/2026): o "Lançar despesa" de Contas a pagar abre
+        // este mesmo modal, já em Despesa — antes era outro modal, com outro formato.
+        const tipo = gatilho?.dataset?.launchTipo;
+        const radio = form && ['income', 'expense', 'transfer'].includes(tipo)
+            ? form.querySelector(`input[name="type"][value="${tipo}"]`) : null;
+        if (radio) {
+            radio.checked = true;
+            applyType();
+        }
         abrirDialogo(modal, { foco: modal.querySelector('#lm-amount'), retorno: gatilho });
     };
     const close = () => fecharDialogo(modal);
@@ -210,8 +219,15 @@ export function initLaunch() {
         caixaDoValor?.classList.toggle('com-parcelas', ligado);
         const valor = lerValorDoCampo(form.querySelector('#lm-amount'));
         const centavos = Math.round((valor ?? 0) * 100);
-        Array.from(parcelasSel.options).forEach((o) => { o.textContent = textoDaParcela(Number(o.value), centavos); });
-        if (rotuloDoValor) rotuloDoValor.textContent = ligado && Number(parcelasSel.value) > 1 ? 'Valor total (R$)' : 'Valor (R$)';
+        // "Repete todo mês" (value="recorrente") não é número de parcelas: o texto dele fica.
+        Array.from(parcelasSel.options).forEach((o) => {
+            if (/^\d+$/.test(o.value)) o.textContent = textoDaParcela(Number(o.value), centavos);
+        });
+        if (rotuloDoValor) {
+            rotuloDoValor.textContent = !ligado ? 'Valor (R$)'
+                : parcelasSel.value === 'recorrente' ? 'Valor por mês (R$)'
+                    : Number(parcelasSel.value) > 1 ? 'Valor total (R$)' : 'Valor (R$)';
+        }
     };
     parcelasSel?.addEventListener('change', atualizarParcelas);
 

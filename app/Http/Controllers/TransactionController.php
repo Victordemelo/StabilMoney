@@ -273,7 +273,9 @@ class TransactionController extends Controller
         $parcelas = (int) ($data['installments'] ?? 1);
         // Data no passado no cartão: o que caiu em fatura já vencida entra pago fora do app.
         $vencidasPagas = (bool) ($data['faturas_vencidas_pagas'] ?? false);
-        unset($data['funding_source'], $data['funding_investment_id'], $data['funding_max_amount'], $data['installments'], $data['faturas_vencidas_pagas']);
+        // Repete todo mês (só no cartão, validado no Form Request): instrução, não coluna.
+        $recorrente = (bool) ($data['recorrente'] ?? false);
+        unset($data['funding_source'], $data['funding_investment_id'], $data['funding_max_amount'], $data['installments'], $data['faturas_vencidas_pagas'], $data['recorrente']);
 
         try {
             // Receita não gasta nada: grava direto. Despesa passa pelo guard.
@@ -282,8 +284,10 @@ class TransactionController extends Controller
             }
 
             $conta = Account::whereKey($data['account_id'])->firstOrFail();
-            $vencidasPagas = $vencidasPagas && $conta->isCard();
-            $parcelado = $parcelas > 1 && $conta->isCard();
+            $recorrente = $recorrente && $conta->isCard();
+            // Recorrente não usa "paga fora do app" (como em `faturas.lancar`).
+            $vencidasPagas = $vencidasPagas && $conta->isCard() && ! $recorrente;
+            $parcelado = $parcelas > 1 && $conta->isCard() && ! $recorrente;
             $base = CarbonImmutable::parse($data['date']);
 
             $transaction = $funding->spend(
@@ -295,9 +299,13 @@ class TransactionController extends Controller
                 investmentId: $investimentoId ? (int) $investimentoId : null,
                 // Parcelado no cartão: N linhas, uma por ciclo de fatura, as mesmas regras do
                 // "Lançar despesa" de Contas a pagar.
-                write: fn (array $auditoria) => $parcelado
-                    ? Parcelamento::criar(Arr::except($data, ['amount', 'date']) + $auditoria, (float) $data['amount'], $base, $parcelas, $conta, $vencidasPagas)
-                    : Transaction::create($data + $auditoria + ($vencidasPagas ? Parcelamento::pagaForaDoApp($conta, $base) : [])),
+                // Recorrente: UMA linha que abre a série (a mesma do `faturas.lancar`) — a próxima
+                // ocorrência nasce quando esta fatura fecha (`FaturaController::pay`).
+                write: fn (array $auditoria) => match (true) {
+                    $parcelado => Parcelamento::criar(Arr::except($data, ['amount', 'date']) + $auditoria, (float) $data['amount'], $base, $parcelas, $conta, $vencidasPagas),
+                    $recorrente => Transaction::create($data + $auditoria + ['group_id' => (string) Str::uuid(), 'recurring' => true]),
+                    default => Transaction::create($data + $auditoria + ($vencidasPagas ? Parcelamento::pagaForaDoApp($conta, $base) : [])),
+                },
                 madeByUserId: $data['made_by_user_id'],
                 date: $data['date'],
                 maxFonte: $maxFonte !== null ? (float) $maxFonte : null,
