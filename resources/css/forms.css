@@ -844,6 +844,16 @@ a.tx { text-decoration: none; color: inherit; }
 .fatura-items { margin-top: 8px; }
 .fatura-item { display: flex; align-items: center; gap: 13px; padding: 12px 4px; border-top: 1px solid var(--line-2); }
 .fatura-item:first-child { border-top: none; }
+/* O bloco a que um aviso do sino levou (`sm/ancora.js`): um contorno que acende e apaga. */
+.alvo-destacado { animation: alvo-destacado 2.4s ease-out; }
+@keyframes alvo-destacado {
+  0%, 35% { box-shadow: 0 0 0 3px var(--brand-400, #9FE870); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
+.fatura-item.alvo-destacado { border-radius: 12px; }
+@media (prefers-reduced-motion: reduce) {
+  .alvo-destacado { animation: none; box-shadow: 0 0 0 3px var(--brand-400, #9FE870); }
+}
 /* Lista longa (`data-rolagem`, `sm/lista-rolavel.js`): da altura dos N primeiros itens, rolando por
    dentro — 8 nas contas fixas e despesas em conta, 10 nos cartões. A rolagem não "vaza" para a página. */
 .fatura-items.rolando {

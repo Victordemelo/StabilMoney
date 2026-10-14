@@ -9,6 +9,7 @@
 // deixa preso.
 
 import { EVENTO_VERSAO_NOVA } from './pwa';
+import { irParaAncora } from './ancora';
 
 // Nonce do documento VIVO, capturado uma vez (ele não muda enquanto a página existe).
 //
@@ -95,7 +96,10 @@ export function initNav(reinitContent) {
         // ficava no link clicado (achado moderado da auditoria de acessibilidade de 07/09).
         if (!recarga) {
             anunciar(document.title);
-            focarConteudo();
+            // Endereço com âncora (os avisos do sino: `/faturas#cartao-3`): o alvo abre, a tela
+            // rola até ele e o foco vai junto. Sem alvo na tela, o foco vai para o título.
+            const hash = new URL(url, location.href).hash;
+            if (!(hash && irParaAncora(hash))) focarConteudo();
         } else if (focoNoConteudo) {
             focarConteudo();
         }

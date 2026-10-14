@@ -336,6 +336,19 @@ describe('o resto da troca de conteúdo', () => {
         expect(location.pathname).toBe('/metas');
     });
 
+    it('endereço com âncora (aviso do sino): depois da troca, o alvo abre e recebe o foco', async () => {
+        // O aviso navega pelo `smPjaxIr` (o clique delegado do `sm/ancora.js`), não pelo `#ir`.
+        await montarShell(pagina('<h2 tabindex="-1">Contas a pagar</h2>'
+            + '<details id="cartao-3"><summary>Nubank</summary><div>compras</div></details>'));
+        window.smPjaxIr('/faturas#cartao-3');
+        await flush();
+
+        const card = document.getElementById('cartao-3');
+        expect(location.hash).toBe('#cartao-3');
+        expect(card.open).toBe(true);
+        expect(document.activeElement).toBe(card.querySelector('summary'));
+    });
+
     it('move o estado ativo do menu para o item navegado', async () => {
         const navegar = await montarShell(pagina('<p>metas</p>'));
         await navegar();

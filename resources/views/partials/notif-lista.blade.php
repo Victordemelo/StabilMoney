@@ -3,7 +3,9 @@
 <div class="notif-head"><strong>Vencimentos</strong><span class="notif-sub">{{ $temVencida ? 'há contas vencidas' : 'próximos 7 dias' }}</span></div>
 @forelse ($vencimentos as $v)
     @php($dias = (int) $v['diasRestantes'])
-    <div class="notif-item">
+    {{-- Cada aviso leva ao que ele cobra (14/10/2026): a fatura ao cartão em Contas a pagar, a conta
+         fixa à linha dela. Delegado no documento (`sm/ancora.js`): o pjax troca estes filhos. --}}
+    <a class="notif-item" href="{{ $v['url'] ?? route('faturas.index') }}" data-ir-para>
         <span class="ni-ico ni-{{ $v['tipo'] }}">
             @if ($v['tipo'] === 'fatura')
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/></svg>
@@ -21,7 +23,7 @@
             </span>
         </div>
         <b class="ni-val">@brl($v['valor'])</b>
-    </div>
+    </a>
 @empty
     <div class="notif-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M8 2v3M16 2v3M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/><path d="m9.4 13.6 1.9 1.9 3.6-4"/></svg>
@@ -29,4 +31,4 @@
         <span>Faturas de cartão, contas fixas e recorrências a vencer nos próximos 7 dias aparecem aqui.</span>
     </div>
 @endforelse
-<a class="notif-ver" href="{{ route('faturas.index') }}" data-pjax>Abrir Contas a pagar</a>
+<a class="notif-ver" href="{{ route('faturas.index') }}" data-ir-para>Abrir Contas a pagar</a>

@@ -917,6 +917,9 @@ a.cat-row:focus-visible { outline: 2px solid var(--brand-300); outline-offset: 1
 }
 .notif-sub { font-size: 11px; color: var(--ink-3); font-weight: 600; }
 .notif-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-top: 1px solid var(--line); }
+a.notif-item { color: inherit; text-decoration: none; border-radius: 10px; transition: background .15s ease; }
+a.notif-item:hover { background: var(--surface-2); }
+a.notif-item:focus-visible { outline: 2px solid var(--brand-300); outline-offset: -2px; }
 .ni-ico { width: 34px; height: 34px; border-radius: 10px; flex: none; display: grid; place-items: center; background: var(--surface-2); color: var(--ink-2); }
 .ni-ico svg { width: 18px; height: 18px; stroke-width: 1.9; }
 .ni-ico.ni-fatura { background: var(--brand-50); color: var(--brand-600); }

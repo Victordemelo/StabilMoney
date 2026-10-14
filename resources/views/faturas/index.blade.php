@@ -257,7 +257,7 @@
             {{-- Cada cartão é RECOLHÍVEL (fechado mostra só o cabeçalho, com a fatura atual):
                  com vários cartões a tela virava uma parede de compras. Abre sozinho quando
                  há fatura vencida — é o caso que pede ação. --}}
-            <details class="card fatura-card span12 fatura-recolhe" data-suave @if ($vencida) open @endif>
+            <details class="card fatura-card span12 fatura-recolhe" id="cartao-{{ $acc->id }}" data-suave @if ($vencida) open @endif>
                 <summary class="fatura-head">
                     <div class="fh-card {{ $acc->bankImageUrl() ? 'has-bank-art' : '' }}" style="background:linear-gradient(135deg,{{ $cor }},color-mix(in srgb,{{ $cor }} 55%,#000))">
                         @if ($acc->bankImageUrl())

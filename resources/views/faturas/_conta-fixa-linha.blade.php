@@ -1,7 +1,7 @@
 {{-- Uma competência de conta fixa na tela Contas a pagar (o pagar, editar e excluir).
      Espera $oc (FixedBillService) e $accounts. --}}
 @php $bill = $oc['bill']; @endphp
-<div class="fatura-item">
+<div class="fatura-item" id="{{ \App\Services\FaturaService::ancoraDaContaFixa($bill->id, $oc['competence']) }}">
     <span class="fi-ico">{{ $bill->category?->icon ?: '🏠' }}</span>
     <div class="fi-txt">
         <strong>{{ $bill->name }}</strong>

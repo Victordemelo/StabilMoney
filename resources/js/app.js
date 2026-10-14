@@ -30,6 +30,7 @@ import { initFaturasVencidas, atualizarFaturasVencidas } from './sm/faturas-venc
 import { initDetailsSuave, sincronizarPares } from './sm/details-suave';
 import { initEdicaoTravada } from './sm/edicao-travada';
 import { initListasRolaveis } from './sm/lista-rolavel';
+import { initAncora, irParaAncora } from './sm/ancora';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -102,6 +103,10 @@ function init() {
     initContent();          // primeira renderização
     initTutorial();         // tour guiado: retoma o passo desta tela, se houver
     initNav(initContent);   // pjax: reusa initContent após cada troca de #content
+    // Os avisos do sino levam ao bloco que cobram (`/faturas#cartao-3`); chegando por um
+    // carregamento completo, o alvo abre e a tela rola até ele.
+    initAncora();
+    irParaAncora(location.hash);
 }
 
 if (document.readyState === 'loading') {

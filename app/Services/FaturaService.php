@@ -93,6 +93,21 @@ class FaturaService
      * da topbar: faturas de cartão em aberto (com vencimento) + recorrências não
      * pagas. Ordenadas por data de vencimento (mais perto primeiro).
      */
+    /**
+     * Para onde cada aviso do sino leva (14/10/2026 — pedido do Victor): a fatura abre o cartão em
+     * Contas a pagar, a conta fixa abre a linha da competência dela. A âncora é o `id` do bloco na
+     * tela (`faturas/index`); o `sm/ancora.js` abre o que estiver fechado e rola até lá.
+     */
+    public static function urlDoCartao(Account $card): string
+    {
+        return route('faturas.index').'#cartao-'.$card->id;
+    }
+
+    public static function ancoraDaContaFixa(int $billId, \DateTimeInterface $competencia): string
+    {
+        return 'conta-fixa-'.$billId.'-'.$competencia->format('Y-m');
+    }
+
     public function upcomingDue(int $userId, int $days = 7): Collection
     {
         $today = CarbonImmutable::today();
@@ -112,6 +127,7 @@ class FaturaService
                 $itens->push(new Fluent([
                     'tipo' => 'fatura',
                     'nome' => 'Fatura '.$card->name,
+                    'url' => self::urlDoCartao($card),
                     'valor' => $fechada['valor'],
                     'due' => $vencFechada,
                     'diasRestantes' => $fechada['vencida']
@@ -130,6 +146,7 @@ class FaturaService
             $itens->push(new Fluent([
                 'tipo' => 'fatura',
                 'nome' => 'Fatura '.$card->name,
+                'url' => self::urlDoCartao($card),
                 'valor' => $devido,
                 'due' => $due,
                 'diasRestantes' => (int) $today->diffInDays($due, false),
@@ -147,6 +164,7 @@ class FaturaService
             $itens->push(new Fluent([
                 'tipo' => 'conta_fixa',
                 'nome' => $ocorrencia['bill']->name,
+                'url' => route('faturas.index').'#'.self::ancoraDaContaFixa($ocorrencia['bill']->id, $ocorrencia['competence']),
                 'valor' => $ocorrencia['valor'],
                 'due' => $ocorrencia['vencimento'],
                 'diasRestantes' => $ocorrencia['diasRestantes'],
@@ -184,6 +202,7 @@ class FaturaService
             $itens->push(new Fluent([
                 'tipo' => 'recorrente',
                 'nome' => $t->description ?: 'Recorrência',
+                'url' => route('transactions.edit', $t->id),
                 'valor' => (float) $t->amount,
                 'due' => $due,
                 'diasRestantes' => (int) $today->diffInDays($due, false),
