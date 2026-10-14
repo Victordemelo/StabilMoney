@@ -79,7 +79,7 @@ class ContaEspelhadaNaoTrocaDeTipoTest extends TestCase
         $this->assertStringContainsString('viraria fatura', $erro);
 
         // E o débito continua mandando o dinheiro para a CORRENTE, não para um cartão.
-        $opcao = Account::paymentOptions($this->user->id)->firstWhere('name', 'Débito Itaú → Conta Principal');
+        $opcao = Account::paymentOptions($this->user->id)->firstWhere('type', 'debit_card');
         $this->assertNotNull($opcao);
         $this->assertSame($this->corrente->id, $opcao->id);
         $this->assertFalse($opcao->isCard);

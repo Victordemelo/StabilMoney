@@ -339,11 +339,13 @@ class Account extends Model
                     return null; // cartão órfão: nada a debitar
                 }
 
+                $deOnde = self::deOndeSaiOEspelho($conta, $destino, $contas);
+
                 return new Fluent([
                     'id' => $destino->id,
-                    'name' => $conta->name.' → '.$destino->name,
-                    'rotulo' => $conta->rotulo.' → '.$destino->name,
-                    'rotuloCurto' => $conta->rotuloCurto.' → '.$destino->name,
+                    'name' => $conta->name.$deOnde,
+                    'rotulo' => $conta->rotulo.$deOnde,
+                    'rotuloCurto' => $conta->rotuloCurto.$deOnde,
                     'icon' => $conta->icon,
                     'type' => $conta->type,
                     'isCard' => false,
@@ -354,6 +356,29 @@ class Account extends Model
             })
             ->filter()
             ->values();
+    }
+
+    /**
+     * O " → conta" do rótulo de um débito/Pix/TED, SÓ quando ajuda (out/2026 — pedido do Victor:
+     * "Pix Itaú → Itaú" repetia o banco). Com uma conta só daquele banco, o método já diz de onde
+     * sai; com duas (corrente e poupança no Itaú), ou banco diferente, o destino aparece — pelo
+     * apelido dele, ou pelo tipo quando o apelido é só o nome do banco.
+     *
+     * @param  Collection<int, Account>  $contas
+     */
+    private static function deOndeSaiOEspelho(Account $metodo, Account $destino, Collection $contas): string
+    {
+        $doMesmoBanco = $contas->filter(fn (Account $c) => $c->isCash() && $c->bank === $destino->bank)->count();
+        if ($destino->bank && $metodo->bank === $destino->bank && $doMesmoBanco <= 1) {
+            return '';
+        }
+
+        $normalizar = fn (?string $texto) => Str::lower(Str::ascii(trim((string) $texto)));
+        $nome = $normalizar($destino->name) === $normalizar($destino->bankLabel())
+            ? (self::TIPO_NO_ROTULO[$destino->type][0] ?? $destino->name)
+            : $destino->name;
+
+        return ' → '.$nome;
     }
 
     /**

@@ -37,7 +37,8 @@ class RotuloDoMetodoDePagamentoTest extends TestCase
         Account::factory()->for($u)->debitCard($corrente->id)->create(['name' => 'Débito Nubank', 'bank' => 'nubank']);
 
         $opcoes = Account::paymentOptions($u->id);
-        $this->assertContains('Débito Nubank → Conta Corrente', $opcoes->pluck('rotulo')->all());
+        // Uma conta só no Nubank: o débito já diz de onde sai, sem " → Conta Corrente" (13/10/2026).
+        $this->assertContains('Débito Nubank', $opcoes->pluck('rotulo')->all());
 
         // No select o tipo vai no TÍTULO do grupo (out/2026): a opção fica só com o nome curto,
         // sem quebrar em duas linhas na lista do celular.
@@ -45,7 +46,7 @@ class RotuloDoMetodoDePagamentoTest extends TestCase
         $this->assertStringContainsString('<optgroup label="Cartões de crédito" data-para="expense">', $html);
         $this->assertMatchesRegularExpression('#>Nubank Roxinho</option>#', $html);
         $this->assertMatchesRegularExpression('#>Conta Corrente \(Nubank\)</option>#', $html);
-        $this->assertMatchesRegularExpression('#>Débito Nubank → Conta Corrente</option>#', $html);
+        $this->assertMatchesRegularExpression('#>Débito Nubank</option>#', $html);
         $this->assertStringNotContainsString('Nubank Roxinho (Crédito)</option>', $html);
     }
 
@@ -56,5 +57,25 @@ class RotuloDoMetodoDePagamentoTest extends TestCase
         $this->assertSame('Mercado Pago', Account::factory()->for($u)->create(['type' => 'checking', 'name' => 'Mercado Pago', 'bank' => 'mercado_pago', 'initial_balance' => 0])->rotuloCurto);
         $this->assertSame('Reserva (Itaú)', Account::factory()->for($u)->create(['type' => 'savings', 'name' => 'Reserva', 'bank' => 'itau', 'initial_balance' => 0])->rotuloCurto);
         $this->assertSame('Cartão crédito Inter', Account::factory()->for($u)->creditCard()->create(['name' => 'Cartão crédito Inter', 'bank' => 'inter'])->rotuloCurto);
+    }
+
+    /**
+     * O " → conta" do débito/Pix só aparece quando ajuda (13/10/2026 — pedido do Victor: "Pix Itaú
+     * → Itaú" repetia o banco). Com corrente E poupança no mesmo banco, diz qual delas.
+     */
+    public function test_o_espelho_so_diz_a_conta_quando_ha_duvida(): void
+    {
+        $u = User::factory()->create();
+        $corrente = Account::factory()->for($u)->create(['type' => 'checking', 'name' => 'Itaú', 'bank' => 'itau', 'initial_balance' => 0]);
+        Account::factory()->for($u)->create(['type' => 'pix', 'name' => 'Pix Itaú', 'bank' => 'itau', 'checking_account_id' => $corrente->id, 'initial_balance' => null]);
+
+        $this->assertSame(['Pix Itaú'], Account::paymentOptions($u->id)->where('type', 'pix')->pluck('rotuloCurto')->values()->all());
+
+        // Agora com uma poupança no Itaú também: o Pix precisa dizer de qual conta sai.
+        $poupanca = Account::factory()->for($u)->create(['type' => 'savings', 'name' => 'Itaú', 'bank' => 'itau', 'initial_balance' => 0]);
+        Account::factory()->for($u)->create(['type' => 'pix', 'name' => 'Pix da reserva', 'bank' => 'itau', 'savings_account_id' => $poupanca->id, 'initial_balance' => null]);
+
+        $rotulos = Account::paymentOptions($u->id)->where('type', 'pix')->pluck('rotuloCurto')->sort()->values()->all();
+        $this->assertSame(['Pix Itaú → Conta corrente', 'Pix da reserva (Itaú) → Poupança'], $rotulos);
     }
 }
