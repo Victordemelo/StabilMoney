@@ -1622,6 +1622,10 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   UMA linha, `Account::linhaDoCard()` (corrente/poupança nas contas + o banco só quando o apelido não o
   diz); sem banco, as iniciais no mesmo quadrado. O mesmo ícone vai no canto do `transactions/_icone`
   e na prévia do formulário. Banco novo em `BANKS` precisa do cartão E do ícone (o teste cobra o ícone).
+- **Só contas e Pix/TED com o ícone** (14/10/2026 — pedido do Victor): cartões de débito e de crédito
+  voltaram para a IMAGEM do cartão (`.bankcard`, `bankImageUrl`). Conta corrente/poupança SEM cheque
+  especial mostra a mesma linha vazia ("Sem cheque especial · R$ 0,00 de R$ 0,00", `.acct-sem-cheque`) e o
+  `.dp-meta` do card é rótulo em cima, valor embaixo — os cards da fileira ficam alinhados.
 - **Pix e TED com ícone próprio e a ordem da tela** (13/10/2026 — `ContasECartoesComIconeDoBancoTest`):
   Contas → Pix e TED → Cartões de débito → Cartões de crédito; contas, Pix e TED cinco por linha, cartões
   quatro (`.acct-grade-4`). Pix e TED usam `Account::iconeDoCard()` (`icones/pix.png`/`ted.png`, desenhados
