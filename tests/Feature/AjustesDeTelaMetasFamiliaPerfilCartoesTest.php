@@ -75,10 +75,9 @@ class AjustesDeTelaMetasFamiliaPerfilCartoesTest extends TestCase
     {
         $css = file_get_contents(resource_path('css/forms.css'));
 
-        // A imagem do banco fica absoluta na caixa com proporção fixa: a do Santander (695×441)
-        // não estica mais o cartão.
-        $this->assertMatchesRegularExpression('/\.bankcard \{[^}]*position: relative;[^}]*aspect-ratio: 1\.586;[^}]*min-height: 0;/', $css);
-        $this->assertMatchesRegularExpression('/\.bankcard img \{[^}]*position: absolute; inset: 0;/', $css);
+        // Desde out/2026 o card mostra o ÍCONE quadrado do banco, do mesmo tamanho em todos
+        // (antes a imagem do cartão, de proporção diferente em cada banco).
+        $this->assertMatchesRegularExpression('/\.acct-ico \{[^}]*width: 48px; height: 48px;/', $css);
         // Nome e tipo numa linha cada; Editar/Excluir presos ao pé.
         $this->assertMatchesRegularExpression('/\.acct-name \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/', $css);
         $this->assertMatchesRegularExpression('/\.acct-card \{ display: flex; flex-direction: column; \}/', $css);

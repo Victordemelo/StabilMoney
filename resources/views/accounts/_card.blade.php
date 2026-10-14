@@ -1,26 +1,23 @@
 {{-- Card de UMA conta/cartão na tela Contas e cartões. Espera: $conta (Account, com o
      dinheiro pré-carregado por `Account::preloadMoney`). --}}
-<div class="card span4 acct-card">
-    {{-- Visual do cartão: imagem do banco, ou gradiente padrão p/ contas antigas sem banco --}}
-    @if ($conta->bankImageUrl())
-        <div class="bankcard"><img src="{{ $conta->bankImageUrl() }}" alt="{{ $conta->bankLabel() }}" loading="lazy"></div>
-    @else
-        <div class="cc"
-             @if ($conta->color)
-                 style="background: linear-gradient(135deg, {{ $conta->color }} 0%, color-mix(in srgb, {{ $conta->color }} 55%, #07140E) 60%, color-mix(in srgb, {{ $conta->color }} 38%, #07140E) 100%)"
-             @endif>
-            <div class="cc-top"><span class="net">{{ $conta->name }}</span></div>
-            <div class="cc-chip"></div>
-            <div class="cc-bot">
-                <div><div class="lbl">Saldo em conta</div><div class="cc-balance {{ $conta->available < 0 ? 'neg' : '' }}">@brl($conta->available)</div></div>
-            </div>
-        </div>
-    @endif
+{{-- Card compacto (out/2026 — pedido do Victor): o ÍCONE quadrado do banco no lugar da imagem do
+     cartão, cinco por linha, nome e saldo menores, todos do mesmo tamanho. --}}
+<div class="card acct-card">
+    <div class="acct-topo">
+        @if ($conta->bankIconUrl())
+            <img class="acct-ico" src="{{ $conta->bankIconUrl() }}" alt="{{ $conta->bankLabel() }}" width="48" height="48" loading="lazy">
+        @else
+            {{-- Conta antiga sem banco: as iniciais do apelido num quadrado do mesmo tamanho. --}}
+            <span class="acct-ico acct-ico-sem" aria-hidden="true">{{ mb_strtoupper(mb_substr(trim($conta->name), 0, 2)) }}</span>
+        @endif
+    </div>
 
     <div class="acct-info">
         <div class="acct-info-top">
             <span class="acct-name" title="{{ $conta->name }}">{{ $conta->name }}</span>
-            <span class="acct-type">{{ $conta->typeLabel() }}{{ $conta->bankLabel() ? ' · ' . $conta->bankLabel() : '' }}</span>
+            {{-- Uma linha: corrente/poupança (o grupo "Contas" junta as duas) e o banco, só o que o
+                 apelido ainda não diz — "Bradesco" não vira "Bradesco · Bradesco". --}}
+            <span class="acct-type">{{ $conta->linhaDoCard() }}</span>
         </div>
 
         @if ($conta->isDebit())

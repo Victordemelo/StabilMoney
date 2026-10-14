@@ -66,7 +66,8 @@
                         Adicionar
                     </a>
                 </div>
-                <div class="grid">
+                {{-- Cinco por linha no computador (menos conforme a tela estreita). --}}
+                <div class="acct-grade">
                     @foreach ($grupo['itens'] as $conta)
                         @include('accounts._card')
                     @endforeach

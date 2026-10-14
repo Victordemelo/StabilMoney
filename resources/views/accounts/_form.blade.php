@@ -100,7 +100,7 @@
     {{-- Preview do cartão do banco escolhido. Sem banco ainda, fica escondido — um
          `src` montado com banco vazio seria uma imagem quebrada no topo do form. --}}
     <div class="bank-preview" data-bank-preview-box @if (! $bancoAtual) hidden @endif>
-        <img data-bank-preview @if ($bancoAtual) src="{{ asset('assets/banks/' . $bancoAtual . '.png') }}" @endif alt="Cartão do banco">
+        <img data-bank-preview @if ($bancoAtual) src="{{ asset('assets/banks/icones/' . $bancoAtual . '.png') }}" @endif alt="Ícone do banco">
     </div>
 
     {{-- Nome --}}
@@ -335,7 +335,7 @@
         // imagem quebrada apontando para ".png".
         function aplicarBanco() {
             if (!preview || !banco) return;
-            if (banco.value) preview.src = "{{ asset('assets/banks') }}/" + banco.value + '.png';
+            if (banco.value) preview.src = "{{ asset('assets/banks/icones') }}/" + banco.value + '.png';
             if (caixaPreview) caixaPreview.hidden = !banco.value;
         }
 

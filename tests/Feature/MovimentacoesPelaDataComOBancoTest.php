@@ -12,7 +12,7 @@ use Tests\TestCase;
 /**
  * Movimentações pela DATA, a mais recente primeiro, com o título de cada dia (13/10/2026 — pedido
  * do Victor: "quero na ordem das movimentações, as mais recentes primeiro"), e o ícone de cada
- * linha com o cartãozinho do banco no canto ("tá fácil de identificar o item?").
+ * linha com o ícone do banco no canto ("tá fácil de identificar o item?").
  */
 class MovimentacoesPelaDataComOBancoTest extends TestCase
 {
@@ -56,8 +56,8 @@ class MovimentacoesPelaDataComOBancoTest extends TestCase
 
         foreach ([route('transactions.index'), route('dashboard')] as $url) {
             $html = $this->actingAs($user)->get($url)->assertOk()->getContent();
-            $this->assertSame(1, substr_count($html, 'class="tx-banco"'), "Só a linha com banco ganha o cartãozinho ({$url}).");
-            $this->assertStringContainsString('assets/banks/nubank.png', $html);
+            $this->assertSame(1, substr_count($html, 'class="tx-banco"'), "Só a linha com banco ganha o ícone do banco ({$url}).");
+            $this->assertStringContainsString('assets/banks/icones/nubank.png', $html);
         }
     }
 }

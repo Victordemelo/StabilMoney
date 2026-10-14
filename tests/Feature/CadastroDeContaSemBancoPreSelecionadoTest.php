@@ -60,7 +60,7 @@ class CadastroDeContaSemBancoPreSelecionadoTest extends TestCase
         // Sem banco, o preview some — nada de imagem apontando para ".png".
         $preview = $this->previewDoBanco($resposta, 'novo');
         $this->assertStringContainsString('hidden', $preview);
-        $this->assertStringNotContainsString('banks/.png', $resposta->getContent());
+        $this->assertStringNotContainsString('banks/icones/.png', $resposta->getContent());
     }
 
     /** O mesmo no modal de "Novo método" da lista. */
@@ -83,7 +83,7 @@ class CadastroDeContaSemBancoPreSelecionadoTest extends TestCase
         $this->assertMatchesRegularExpression('/value="itau"\s+selected/', $select);
         $this->assertSame(0, preg_match('/value="nubank"\s+selected/', $select));
         $this->assertStringNotContainsString('<option value="" selected>', $select);
-        $this->assertStringContainsString('banks/itau.png', $this->previewDoBanco($resposta, 'c'.$conta->id));
+        $this->assertStringContainsString('banks/icones/itau.png', $this->previewDoBanco($resposta, 'c'.$conta->id));
     }
 
     /** Conta antiga sem banco gravado também não ganha "Nubank" de presente na edição. */

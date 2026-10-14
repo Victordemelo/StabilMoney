@@ -1609,11 +1609,19 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
 - **Movimentações por dia** (13/10/2026 — `MovimentacoesPelaDataComOBancoTest`): a lista segue a data
   (a mais recente primeiro) com o título de cada dia (`.tx-dia`: Hoje, Ontem, "1 de outubro"); a data
   saiu de cada linha. **O ícone traz o banco** (`transactions/_icone`, também nas recentes do painel e
-  na edição): o cartãozinho `assets/banks/` no canto do emoji da categoria.
+  na edição): o ícone quadrado do banco (`bankIconUrl`) no canto do emoji da categoria.
 - **Um botão de pagar por cartão** (13/10/2026 — `UmBotaoDePagarPorCartaoTest`): com fatura fechada em
   aberto, só ela tem botão ("Pagar fatura vencida"/"Pagar fatura fechada") e a atual vira "Depois dela,
   a fatura atual: R$ X"; sem ela, "Pagar fatura" (era "Marcar como paga"). O servidor segue aceitando
   pagar o ciclo aberto.
+- **Contas e cartões com o ÍCONE do banco** (13/10/2026 — `ContasECartoesComIconeDoBancoTest`): no lugar
+  da imagem do cartão (proporção diferente em cada banco), o ícone quadrado `Account::bankIconUrl()`
+  (`public/assets/banks/icones/`, 256×256, mesmo canto, fundo transparente — gerados por
+  `resources/bancos/gerar-icones.py` a partir de `design_stabilmoney/imagens/originais/bancos`). Cards
+  compactos em `.acct-grade`, 5 por linha (4 ≤ 1360px, 3 ≤ 1100, 2 ≤ 760, 1 ≤ 340); embaixo do apelido
+  UMA linha, `Account::linhaDoCard()` (corrente/poupança nas contas + o banco só quando o apelido não o
+  diz); sem banco, as iniciais no mesmo quadrado. O mesmo ícone vai no canto do `transactions/_icone`
+  e na prévia do formulário. Banco novo em `BANKS` precisa do cartão E do ícone (o teste cobra o ícone).
 - **Rótulo do débito/Pix/TED** (13/10/2026): o " → conta" só aparece com dúvida (corrente e poupança
   no mesmo banco, ou banco diferente) — "Pix Itaú → Itaú" repetia o banco (`deOndeSaiOEspelho`).
 - **Tela do código (2FA), 08/10/2026:** sem ícone dentro do campo (dígitos no centro, a mesma folga dos

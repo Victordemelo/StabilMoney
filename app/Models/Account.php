@@ -529,6 +529,37 @@ class Account extends Model
         return self::BANKS[$this->bank] ?? null;
     }
 
+    /**
+     * URL pública do ÍCONE do banco (quadrado arredondado, fundo transparente — out/2026), ou null
+     * se sem banco. É o que aparece em Contas e cartões e no canto do ícone das movimentações; o
+     * cartão (`bankImageUrl`) segue no selo do saldo do painel e no cabeçalho do cartão em Contas a
+     * pagar. Banco novo em `BANKS` precisa dos dois arquivos.
+     */
+    public function bankIconUrl(): ?string
+    {
+        return isset(self::BANKS[$this->bank]) ? asset("assets/banks/icones/{$this->bank}.png") : null;
+    }
+
+    /**
+     * A linha embaixo do apelido no card de Contas e cartões: "Corrente · Banco do Brasil" — o tipo só
+     * nas contas (o grupo dos cartões já diz o tipo), o banco só quando o apelido não o diz; sem
+     * nada a dizer, o tipo por extenso ("Cartão de crédito").
+     */
+    public function linhaDoCard(): string
+    {
+        $normalizar = fn (?string $texto) => Str::lower(Str::ascii(trim((string) $texto)));
+        $partes = [];
+        if ($this->isCash()) {
+            $partes[] = $this->type === 'savings' ? 'Poupança' : 'Corrente';
+        }
+        $banco = $this->bankLabel();
+        if ($banco && ! str_contains($normalizar($this->name), $normalizar($banco))) {
+            $partes[] = $banco;
+        }
+
+        return $partes ? implode(' · ', $partes) : $this->typeLabel();
+    }
+
     /** URL pública da imagem do cartão do banco, ou null se sem banco. */
     public function bankImageUrl(): ?string
     {
