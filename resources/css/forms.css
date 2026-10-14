@@ -259,6 +259,10 @@ a.tx { text-decoration: none; color: inherit; }
 .bankcard { position: relative; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 22px rgba(15,35,27,.12); aspect-ratio: 1.586; min-height: 0; background: var(--surface-3); }
 .bankcard img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
 .acct-sem-cheque .dp-meta { color: var(--ink-3); }
+/* Sem cheque especial a barra é só o trilho, em cinza neutro: o verde-claro do trilho comum
+   parecia um limite disponível (14/10/2026, pedido do Victor). */
+.acct-sem-cheque .dp-bar { background: #D5D9D6; }
+[data-theme="dark"] .acct-sem-cheque .dp-bar { background: rgba(255, 255, 255, .16); }
 
 /* Card inteiro em coluna: Editar/Excluir presos ao pé, alinhados entre os vizinhos. */
 .acct-card { display: flex; flex-direction: column; }

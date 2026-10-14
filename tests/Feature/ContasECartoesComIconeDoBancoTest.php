@@ -68,6 +68,10 @@ class ContasECartoesComIconeDoBancoTest extends TestCase
         // Conta sem cheque especial: a mesma linha, vazia, para alinhar com as que têm.
         $this->assertStringContainsString('<div class="fh-limit acct-sem-cheque">', $html);
         $this->assertStringContainsString('<span>Sem cheque especial</span>', $html);
+        // ...e o trilho dela é cinza neutro, não o verde-claro do trilho comum (14/10/2026).
+        $css = file_get_contents(resource_path('css/forms.css'));
+        $this->assertMatchesRegularExpression('/\.acct-sem-cheque \.dp-bar \{ background: #D5D9D6; \}/', $css);
+        $this->assertMatchesRegularExpression('/\[data-theme="dark"\] \.acct-sem-cheque \.dp-bar \{/', $css);
         // Sem banco: as iniciais no mesmo quadrado.
         $this->assertStringContainsString('<span class="acct-ico acct-ico-sem" aria-hidden="true">RE</span>', $html);
         // A linha embaixo do apelido: o tipo nas contas, o banco só quando o apelido não o diz.
