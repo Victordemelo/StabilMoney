@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.373 testes PHP** (1 deles só roda no MySQL) (~56 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **446 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.373 testes PHP** (1 deles só roda no MySQL) (~56 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **448 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -1636,6 +1636,9 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   canto). Duas colunas a partir de 1280px (`.faturas-colunas`: contas fixas | despesas em conta, e os
   cartões dois a dois — `grid-column: auto` anula o `span12`). Os `details[data-suave]` abrem e fecham
   deslizando (`sm/details-suave.js`, Web Animations; sem ela ou com "reduzir movimento", o nativo).
+  Com duas colunas os cards da MESMA LINHA têm a mesma altura (`align-items: stretch`) e abrem e fecham
+  JUNTOS (`parDe`/`sincronizarPares`: se um nasce aberto, os dois abrem) — "Despesas em conta" virou
+  recolhível (aberto) para fazer par com as contas fixas. Numa coluna só, cada um é independente.
 - **Editar movimentação TRAVADA** (13/10/2026 — `tests/js/edicao-travada.test.js`, `CompraParceladaNaEdicaoTest`):
   com JS os campos nascem desabilitados e o Salvar escondido; o cartão "Editar movimentação" (acima do
   Excluir, `[data-tx-editar]`) libera; o "Cancelar" desfaz e trava de novo (`sm/edicao-travada.js`). Sem JS
