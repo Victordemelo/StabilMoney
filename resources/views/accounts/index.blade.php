@@ -48,11 +48,14 @@
              e conta corrente, cartão de crédito e débito apareciam misturados. --}}
         @php
             $alfabetica = fn ($lista) => $lista->sortBy(fn ($c) => mb_strtolower($c->name), SORT_NATURAL)->values();
+            // Ordem (out/2026 — pedido do Victor): as contas, logo embaixo o Pix e o TED (que saem
+            // delas), depois os cartões — débito antes do crédito. Contas, Pix e TED cinco por
+            // linha; cartões quatro (`colunas`).
             $grupos = array_filter([
-                ['titulo' => 'Contas', 'sub' => 'Corrente e poupança — onde o dinheiro está', 'itens' => $alfabetica($accounts->whereIn('type', ['checking', 'savings']))],
-                ['titulo' => 'Cartões de crédito', 'sub' => 'Viram fatura em Contas a pagar', 'itens' => $alfabetica($accounts->where('type', 'credit_card'))],
-                ['titulo' => 'Cartões de débito', 'sub' => 'Saem direto da conta vinculada', 'itens' => $alfabetica($accounts->where('type', 'debit_card'))],
-                ['titulo' => 'Pix e TED', 'sub' => 'Saem na hora da conta escolhida', 'itens' => $alfabetica($accounts->whereIn('type', \App\Models\Account::TIPOS_DE_UMA_CONTA))],
+                ['titulo' => 'Contas', 'sub' => 'Corrente e poupança — onde o dinheiro está', 'colunas' => 5, 'itens' => $alfabetica($accounts->whereIn('type', ['checking', 'savings']))],
+                ['titulo' => 'Pix e TED', 'sub' => 'Saem na hora da conta escolhida', 'colunas' => 5, 'itens' => $alfabetica($accounts->whereIn('type', \App\Models\Account::TIPOS_DE_UMA_CONTA))],
+                ['titulo' => 'Cartões de débito', 'sub' => 'Saem direto da conta vinculada', 'colunas' => 4, 'itens' => $alfabetica($accounts->where('type', 'debit_card'))],
+                ['titulo' => 'Cartões de crédito', 'sub' => 'Viram fatura em Contas a pagar', 'colunas' => 4, 'itens' => $alfabetica($accounts->where('type', 'credit_card'))],
             ], fn ($g) => $g['itens']->isNotEmpty());
         @endphp
 
@@ -66,8 +69,8 @@
                         Adicionar
                     </a>
                 </div>
-                {{-- Cinco por linha no computador (menos conforme a tela estreita). --}}
-                <div class="acct-grade">
+                {{-- Cinco (ou quatro, nos cartões) por linha no computador; menos na tela estreita. --}}
+                <div class="acct-grade{{ $grupo['colunas'] === 4 ? ' acct-grade-4' : '' }}">
                     @foreach ($grupo['itens'] as $conta)
                         @include('accounts._card')
                     @endforeach

@@ -1,6 +1,6 @@
 """
 Ícones dos bancos (out/2026): os logos que o Victor mandou (design_stabilmoney/imagens/originais/bancos)
-viram quadrados arredondados do MESMO tamanho, com o mesmo canto e fundo transparente fora dele —
+viram quadrados arredondados do MESMO tamanho (e o Pix e o TED, desenhados aqui), com o mesmo canto e fundo transparente fora dele —
 public/assets/banks/icones/{banco}.png. Quem já vinha num quadrado (Itaú, Inter, Caixa) é recortado;
 quem não vinha, ou tinha brilho 3D, é refeito: o logo sobre a cor lisa da marca.
 
@@ -107,6 +107,51 @@ def logo_colorido_sobre(arquivo, nome, fundo_original_xy, fundo, escala, regiao,
 logo_sobre('santander.png', 'santander', lambda a: (a[..., :3].min(-1) > 225) & (a[..., 3] > 200), (236, 0, 0), (255, 255, 255), 0.66, regiao=(120, 120, 580, 580))
 logo_colorido_sobre('mercado_pago.png', 'mercado_pago', (10, 10), (238, 241, 250), 0.76, regiao=(185, 165, 795, 855), limiar=70)
 logo_sobre('nubank.png', 'nubank', lambda a: (a[..., :3].min(-1) > 200), (130, 10, 209), (255, 255, 255), 0.74, regiao=(300, 108, 980, 612))
+
+# --- Pix e TED (out/2026): não são bancos, mas aparecem na mesma grade de Contas e cartões ---
+from PIL import ImageFont
+
+def pix(nome='pix'):
+    """O símbolo do Pix desenhado: quatro losangos de canto arredondado (a grade 2×2 girada 45°)
+    no turquesa do Pix, sobre branco — como o logo que o Victor mandou."""
+    k = 4
+    lado = N * k
+    camada = Image.new('L', (lado, lado), 0)
+    d = ImageDraw.Draw(camada)
+    peca, vao = int(lado * 0.245), int(lado * 0.02)
+    total = 2 * peca + vao
+    x0 = (lado - total) // 2
+    for i in range(2):
+        for j in range(2):
+            x, y = x0 + i * (peca + vao), x0 + j * (peca + vao)
+            d.rounded_rectangle((x, y, x + peca, y + peca), int(peca * 0.30), fill=255)
+    camada = camada.rotate(45, resample=Image.BICUBIC).resize((N, N), Image.LANCZOS)
+    tile = cor_de_fundo((255, 255, 255))
+    turquesa = Image.new('RGBA', (N, N), (50, 188, 173, 255))
+    turquesa.putalpha(camada)
+    tile.alpha_composite(turquesa)
+    finalizar(tile, nome)
+
+def ted(nome='ted', fonte='/System/Library/Fonts/Supplemental/Arial Rounded Bold.ttf'):
+    """TED não tem logo: a sigla em branco sobre um azul de transferência, com as duas setas
+    (uma vai, outra vem) em cima."""
+    tile = cor_de_fundo((31, 78, 140))
+    d = ImageDraw.Draw(tile)
+    f = ImageFont.truetype(fonte, int(N * 0.27))
+    caixa = d.textbbox((0, 0), 'TED', font=f)
+    w, h = caixa[2] - caixa[0], caixa[3] - caixa[1]
+    d.text(((N - w) / 2 - caixa[0], N * 0.53 - caixa[1]), 'TED', font=f, fill=(255, 255, 255))
+    t = int(N * 0.035)
+    y1, y2 = int(N * 0.30), int(N * 0.42)
+    xa, xb = int(N * 0.30), int(N * 0.70)
+    d.line((xa, y1, xb, y1), fill=(255, 255, 255), width=t)
+    d.polygon([(xb + t, y1), (xb - int(N * .07), y1 - int(N * .06)), (xb - int(N * .07), y1 + int(N * .06))], fill=(255, 255, 255))
+    d.line((xa, y2, xb, y2), fill=(159, 232, 112), width=t)
+    d.polygon([(xa - t, y2), (xa + int(N * .07), y2 - int(N * .06)), (xa + int(N * .07), y2 + int(N * .06))], fill=(159, 232, 112))
+    finalizar(tile, nome)
+
+pix()
+ted()
 
 # Versão do app: 256 px (aparece a no máximo 72 px na tela, 2x em tela retina).
 import os

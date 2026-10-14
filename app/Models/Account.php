@@ -560,6 +560,21 @@ class Account extends Model
         return $partes ? implode(' · ', $partes) : $this->typeLabel();
     }
 
+    /**
+     * O ícone do card em Contas e cartões: o do Pix ou do TED para esses métodos (o banco deles
+     * vai no canto, pela conta de onde o dinheiro sai — `contaDoCanto`), o do banco nos demais.
+     */
+    public function iconeDoCard(): ?string
+    {
+        return $this->usaUmaContaSo() ? asset("assets/banks/icones/{$this->type}.png") : $this->bankIconUrl();
+    }
+
+    /** A conta cujo banco aparece no canto do ícone do Pix/TED: a de onde o dinheiro sai. */
+    public function contaDoCanto(): ?self
+    {
+        return $this->usaUmaContaSo() ? $this->contaDoPix() : null;
+    }
+
     /** URL pública da imagem do cartão do banco, ou null se sem banco. */
     public function bankImageUrl(): ?string
     {

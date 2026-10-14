@@ -85,7 +85,7 @@ class ShellReorganizadoTest extends TestCase
 
         $html = $this->actingAs($user)->get(route('accounts.index'))->assertOk()->getContent();
 
-        $this->assertMatchesRegularExpression('#>Contas <span class="acct-grupo-n">2</span>.*>Cartões de crédito <span class="acct-grupo-n">2</span>.*>Cartões de débito <span class="acct-grupo-n">1</span>#s', $html);
+        $this->assertMatchesRegularExpression('#>Contas <span class="acct-grupo-n">2</span>.*>Cartões de débito <span class="acct-grupo-n">1</span>.*>Cartões de crédito <span class="acct-grupo-n">2</span>#s', $html);
         $this->assertStringNotContainsString('>Pix e TED <span', $html, 'Grupo vazio não aparece.');
         $this->assertLessThan(strpos($html, 'Zeta Corrente'), strpos($html, 'alfa Poupança'), 'Ordem alfabética sem diferenciar maiúscula.');
         $this->assertLessThan(strpos($html, 'Roxinho'), strpos($html, 'Azul'));

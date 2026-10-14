@@ -246,15 +246,20 @@ a.tx { text-decoration: none; color: inherit; }
    canto) no lugar da imagem do cartão, que tinha proporção diferente em cada banco. A borda fina
    deixa o ícone claro (Mercado Pago) visível no card claro. */
 .acct-grade { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
-@media (max-width: 1360px) { .acct-grade { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-@media (max-width: 1100px) { .acct-grade { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 760px) { .acct-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
-@media (max-width: 340px) { .acct-grade { grid-template-columns: minmax(0, 1fr); } }
+/* Cartões: quatro por linha (o card do débito tem mais linhas). */
+.acct-grade.acct-grade-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1360px) { .acct-grade, .acct-grade.acct-grade-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .acct-grade, .acct-grade.acct-grade-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .acct-grade, .acct-grade.acct-grade-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
+@media (max-width: 340px) { .acct-grade, .acct-grade.acct-grade-4 { grid-template-columns: minmax(0, 1fr); } }
 
 /* Card inteiro em coluna: Editar/Excluir presos ao pé, alinhados entre os vizinhos. */
 .acct-card { display: flex; flex-direction: column; }
 .acct-grade > .acct-card { padding: 16px; min-width: 0; }
 .acct-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+/* Pix e TED: o banco da conta de onde o dinheiro sai, no canto do ícone (como nas movimentações). */
+.acct-ico-caixa { position: relative; display: inline-block; flex: none; }
+.acct-ico-canto { position: absolute; right: -6px; bottom: -6px; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.2); object-fit: cover; }
 .acct-ico { width: 48px; height: 48px; border-radius: 12px; flex: none; display: block; object-fit: cover; box-shadow: 0 0 0 1px var(--line); }
 .acct-ico-sem { display: grid; place-items: center; background: var(--brand-700); color: #fff; font-family: var(--font-head); font-weight: 800; font-size: 16px; letter-spacing: -.02em; }
 

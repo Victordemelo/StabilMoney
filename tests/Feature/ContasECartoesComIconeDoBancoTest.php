@@ -18,7 +18,8 @@ class ContasECartoesComIconeDoBancoTest extends TestCase
 
     public function test_todo_banco_tem_um_icone_quadrado_do_mesmo_tamanho_com_os_cantos_transparentes(): void
     {
-        foreach (array_keys(Account::BANKS) as $banco) {
+        // Os bancos e, desenhados no mesmo padrão, o Pix e o TED (13/10/2026).
+        foreach ([...array_keys(Account::BANKS), 'pix', 'ted'] as $banco) {
             $arquivo = public_path("assets/banks/icones/{$banco}.png");
             $this->assertFileExists($arquivo, "Falta o ícone do banco {$banco}.");
 
@@ -71,5 +72,33 @@ class ContasECartoesComIconeDoBancoTest extends TestCase
 
         $editar = $this->actingAs($user)->get(route('accounts.edit', $conta))->assertOk()->getContent();
         $this->assertMatchesRegularExpression('#data-bank-preview\s+src="[^"]*assets/banks/icones/santander\.png"#', $editar);
+    }
+
+    /**
+     * Ordem e grade (13/10/2026 — pedido do Victor): Contas, logo embaixo Pix e TED (com o ícone
+     * deles e o banco da conta de onde sai no canto), depois débito e crédito, quatro por linha.
+     */
+    public function test_pix_e_ted_logo_embaixo_das_contas_e_os_cartoes_depois_quatro_por_linha(): void
+    {
+        $user = User::factory()->create();
+        $corrente = Account::factory()->for($user)->create(['type' => 'checking', 'name' => 'Conta', 'bank' => 'itau', 'initial_balance' => 100]);
+        Account::factory()->for($user)->creditCard()->create(['name' => 'Crédito', 'bank' => 'nubank']);
+        Account::factory()->for($user)->debitCard($corrente->id)->create(['name' => 'Débito', 'bank' => 'itau']);
+        Account::factory()->for($user)->create(['type' => 'pix', 'name' => 'Meu Pix', 'bank' => 'itau', 'checking_account_id' => $corrente->id, 'initial_balance' => null]);
+        Account::factory()->for($user)->create(['type' => 'ted', 'name' => 'Minha TED', 'bank' => 'itau', 'checking_account_id' => $corrente->id, 'initial_balance' => null]);
+
+        $html = $this->actingAs($user)->get(route('accounts.index'))->assertOk()->getContent();
+
+        $ordem = array_map(fn ($t) => strpos($html, '>'.$t.' <span class="acct-grupo-n">'), ['Contas', 'Pix e TED', 'Cartões de débito', 'Cartões de crédito']);
+        $this->assertNotContains(false, $ordem);
+        $ordenada = $ordem;
+        sort($ordenada);
+        $this->assertSame($ordenada, $ordem);
+
+        $this->assertSame(2, substr_count($html, 'class="acct-grade acct-grade-4"'), 'Débito e crédito: quatro por linha.');
+        $this->assertMatchesRegularExpression('#<img class="acct-ico" src="[^"]*icones/pix\.png" alt="Pix"#', $html);
+        $this->assertMatchesRegularExpression('#<img class="acct-ico" src="[^"]*icones/ted\.png" alt="TED"#', $html);
+        $this->assertSame(2, substr_count($html, 'class="acct-ico-canto"'), 'Só Pix e TED levam o banco no canto.');
+        $this->assertStringContainsString('title="Sai de Conta"', $html);
     }
 }

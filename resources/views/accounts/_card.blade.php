@@ -4,12 +4,19 @@
      cartão, cinco por linha, nome e saldo menores, todos do mesmo tamanho. --}}
 <div class="card acct-card">
     <div class="acct-topo">
-        @if ($conta->bankIconUrl())
-            <img class="acct-ico" src="{{ $conta->bankIconUrl() }}" alt="{{ $conta->bankLabel() }}" width="48" height="48" loading="lazy">
-        @else
-            {{-- Conta antiga sem banco: as iniciais do apelido num quadrado do mesmo tamanho. --}}
-            <span class="acct-ico acct-ico-sem" aria-hidden="true">{{ mb_strtoupper(mb_substr(trim($conta->name), 0, 2)) }}</span>
-        @endif
+        @php $canto = $conta->contaDoCanto(); @endphp
+        <span class="acct-ico-caixa">
+            @if ($conta->iconeDoCard())
+                <img class="acct-ico" src="{{ $conta->iconeDoCard() }}" alt="{{ $conta->usaUmaContaSo() ? $conta->typeLabel() : $conta->bankLabel() }}" width="48" height="48" loading="lazy">
+            @else
+                {{-- Conta antiga sem banco: as iniciais do apelido num quadrado do mesmo tamanho. --}}
+                <span class="acct-ico acct-ico-sem" aria-hidden="true">{{ mb_strtoupper(mb_substr(trim($conta->name), 0, 2)) }}</span>
+            @endif
+            {{-- Pix e TED: o banco da conta de onde o dinheiro sai, no canto do ícone. --}}
+            @if ($canto?->bankIconUrl())
+                <img class="acct-ico-canto" src="{{ $canto->bankIconUrl() }}" alt="" title="Sai de {{ $canto->name }}" width="22" height="22" loading="lazy">
+            @endif
+        </span>
     </div>
 
     <div class="acct-info">
