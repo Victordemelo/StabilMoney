@@ -114,6 +114,43 @@ class CompraParceladaNaEdicaoTest extends TestCase
         $this->assertSame(1, Transaction::where('account_id', $this->cartao->id)->count());
     }
 
+    public function test_parcela_paga_numa_fatura_nao_diz_que_nao_pode_ser_editada(): void
+    {
+        // 14/10/2026: na parcela 1/N já paga, o aviso "já foi paga e não pode ser editada" (a
+        // guarda das compras avulsas) contradizia o formulário, que edita a compra inteira.
+        $this->parcelar('2026-09-20');
+        $this->actingAs($this->user)->post(route('faturas.fatura.pagar', $this->cartao), [
+            'pay_account_id' => $this->corrente->id, 'ciclo' => 'fechado', 'paid_on' => '2026-10-13',
+        ])->assertSessionHasNoErrors();
+        $paga = Transaction::where('installment_no', 1)->firstOrFail();
+        $this->assertNotNull($paga->paid_at);
+
+        $html = $this->actingAs($this->user)->get(route('transactions.edit', $paga))->assertOk()->getContent();
+        $this->assertStringNotContainsString('não pode ser editada', $html);
+        $this->assertStringNotContainsString('<p class="tx-d-aviso" role="note">', $html);
+
+        // E a edição do que não mexe em dinheiro passa, para as N parcelas.
+        $this->editar($paga, ['description' => 'Geladeira nova'])->assertSessionHasNoErrors();
+        $this->assertSame(4, Transaction::where('description', 'Geladeira nova')->count());
+    }
+
+    public function test_a_edicao_com_parcelas_tem_tres_colunas_em_tela_larga(): void
+    {
+        $parcela = $this->parcelar();
+        $html = $this->actingAs($this->user)->get(route('transactions.edit', $parcela))->assertOk()->getContent();
+
+        // Formulário | parcelas e detalhes | editar e excluir (14/10/2026 — pedido do Victor).
+        $this->assertStringContainsString('<div class="tx-edit tx-edit-3">', $html);
+        $lados = substr($html, strpos($html, '<div class="tx-lados">'));
+        $this->assertLessThan(strpos($lados, 'aria-label="Editar ou excluir"'), strpos($lados, 'tx-d-parcelas'));
+        $acoes = substr($lados, strpos($lados, 'aria-label="Editar ou excluir"'));
+        $this->assertStringContainsString('data-tx-editar', $acoes);
+        $this->assertStringContainsString('Excluir a compra inteira', $acoes);
+
+        $css = file_get_contents(resource_path('css/design-system.css'));
+        $this->assertMatchesRegularExpression('/\.tx-edit-3 \.tx-lados \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 280px;/', $css);
+    }
+
     public function test_compra_toda_paga_numa_fatura_do_app_nao_sai(): void
     {
         $this->parcelar('2026-09-20', 2);

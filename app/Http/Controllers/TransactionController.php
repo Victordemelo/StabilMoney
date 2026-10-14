@@ -507,7 +507,10 @@ class TransactionController extends Controller
             // Painel "Detalhes" ao lado do formulário: o que trava a edição desta linha (a
             // MESMA regra que o `update` aplica — dita antes, e não só depois do Salvar) e,
             // na compra parcelada, todas as parcelas dela.
-            'travaDeEdicao' => $this->travaDeEdicao($transaction, null),
+            // A compra parcelada não passa por essas guardas (o `update` a edita inteira, só no que
+            // não mexe em dinheiro): mostrar "já foi paga e não pode ser editada" na parcela 1/8
+            // paga contradizia o formulário logo acima, que edita descrição, categoria e autor.
+            'travaDeEdicao' => $transaction->isParcelaDeCompra() ? null : $this->travaDeEdicao($transaction, null),
             // Já paga ou recebida: o formulário trava valor e tipo (a mesma regra do `update`).
             'valorTravado' => self::valorTravado($transaction),
             'parcelas' => $transaction->group_id && (int) $transaction->installments > 1

@@ -2142,7 +2142,14 @@ body.pjax-loading #content { opacity: .5; }
 .tx-ed-fatos dt { font-size: 12px; color: var(--ink-3); }
 .tx-ed-fatos dd { margin: 2px 0 0; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
 .tx-ed-fatos-dica { margin: 0 0 12px; }
-.tx-lado { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 16px; }
+.tx-lados { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 16px; min-width: 0; }
+.tx-lado { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* Compra parcelada em tela larga: três colunas — formulário | parcelas e detalhes | editar e
+   excluir (14/10/2026). Abaixo de 1360px volta às duas, com tudo empilhado ao lado. */
+@media (min-width: 1360px) {
+  .tx-edit.tx-edit-3 { grid-template-columns: minmax(0, 1fr) minmax(0, 680px); max-width: 1500px; }
+  .tx-edit-3 .tx-lados { display: grid; grid-template-columns: minmax(0, 1fr) 280px; align-items: start; }
+}
 .tx-lado-card { padding: 18px 20px; }
 .tx-lado-card h4 { font-size: 14px; font-weight: 700; margin: 0 0 10px; }
 .tx-lado-card h4 span { font-weight: 500; color: var(--ink-3); font-size: 12.5px; }
@@ -2178,7 +2185,7 @@ body.pjax-loading #content { opacity: .5; }
 @media (max-width: 1000px) {
   /* `minmax(0, 1fr)`: com `1fr` a coluna não encolhia abaixo do conteúdo (200px vazava). */
   .tx-edit { grid-template-columns: minmax(0, 1fr); }
-  .tx-lado { position: static; }
+  .tx-lados { position: static; }
 }
 @media (max-width: 600px) {
   .tx-ed-topo { grid-template-columns: auto minmax(0, 1fr); padding: 18px 16px 14px; gap: 12px; }

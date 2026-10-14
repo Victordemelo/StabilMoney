@@ -81,7 +81,9 @@
         </div>
     </div>
 
-    <div class="tx-edit">
+    {{-- Com parcelas, três colunas em tela larga (14/10/2026 — pedido do Victor): o formulário, as
+         parcelas e os detalhes no meio, e o editar/excluir na ponta direita. --}}
+    <div class="tx-edit {{ $compraParcelada ? 'tx-edit-3' : '' }}">
         <section class="card tx-ed" aria-labelledby="tx-ed-nome">
             {{-- O comprovante: o que foi, por onde, quanto e em que pé está. --}}
             <header class="tx-ed-topo">
@@ -276,6 +278,7 @@
             </form>
         </section>
 
+        <div class="tx-lados">
         <aside class="tx-lado" aria-label="Detalhes da transação">
             @if ($compraParcelada)
                 <section class="card tx-lado-card tx-d-parcelas">
@@ -318,6 +321,9 @@
                 </dl>
             </section>
 
+        </aside>
+
+        <aside class="tx-lado tx-lado-acoes" aria-label="Editar ou excluir">
             {{-- Editar: os campos nascem travados (nada muda sem querer) — com JS; o botão os libera.
                  Escondido sem JS, quando o formulário já vem liberado. --}}
             <section class="card tx-lado-card tx-editar" data-tx-editar hidden>
@@ -367,5 +373,6 @@
                 @endif
             </section>
         </aside>
+        </div>{{-- /.tx-lados --}}
     </div>
 @endsection
