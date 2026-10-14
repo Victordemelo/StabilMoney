@@ -845,7 +845,10 @@ a.fi-txt:focus-visible { outline: 2px solid var(--brand-300); outline-offset: 3p
 .fatura-item > .tx-ico svg { width: 19px; height: 19px; stroke-width: 1.9; }
 
 /* Duas colunas em tela grande (out/2026): contas fixas | despesas em conta, e os cartões dois a dois. */
-.faturas-colunas { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; margin-top: 18px; }
+/* `stretch`: os dois cards da linha com a MESMA altura (out/2026 — "senão fica desalinhado"); e eles
+   abrem e fecham juntos (`sm/details-suave.js`). O cabeçalho tem altura mínima igual em todos. */
+.faturas-colunas { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: stretch; margin-top: 18px; }
+.faturas-colunas > .fatura-card > .fatura-head { min-height: 56px; }
 .faturas-colunas > .fatura-card { margin-top: 0; grid-column: auto; } /* o `span12` dos cards criaria colunas a mais */
 @media (min-width: 1280px) { .faturas-colunas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 

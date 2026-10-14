@@ -27,7 +27,7 @@ import { initRolagemSuave } from './sm/rolagem-suave';
 import { initSaldoGiro } from './sm/saldo-giro';
 import { initOcultarValores } from './sm/ocultar-valores';
 import { initFaturasVencidas, atualizarFaturasVencidas } from './sm/faturas-vencidas';
-import { initDetailsSuave } from './sm/details-suave';
+import { initDetailsSuave, sincronizarPares } from './sm/details-suave';
 import { initEdicaoTravada } from './sm/edicao-travada';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
@@ -65,6 +65,7 @@ function initContent() {
     aplicarEstadoDeInstalacao();
     atualizarFaturasVencidas(); // "já paguei fora do app" nos formulários desta tela
     initEdicaoTravada();        // editar movimentação: campos travados até o "Editar"
+    sincronizarPares();         // Contas a pagar: os dois cards da linha no mesmo estado
 }
 
 // Inicialização do shell (sidebar/topbar/modal/PWA) — roda UMA vez; esses

@@ -178,8 +178,10 @@
          Os cartões vêm depois, recolhidos. --}}
     @if ($accountExpenses->isNotEmpty())
         @php $totalAvulso = $accountExpenses->sum('amount'); @endphp
-        <div class="card fatura-card span12">
-            <div class="fatura-head">
+        {{-- Recolhível, como as contas fixas ao lado (aberto por padrão): com duas colunas os dois
+             abrem e fecham juntos e têm a mesma altura (`sm/details-suave.js`). --}}
+        <details class="card fatura-card span12 fatura-recolhe despesas-recolhe" data-suave open>
+            <summary class="fatura-head">
                 <div class="fh-card" style="background:linear-gradient(135deg,#1B4D89,#0E2A4D)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" width="22" height="22"><path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/></svg>
                 </div>
@@ -191,7 +193,9 @@
                     <span>Total no período</span>
                     <b>{{ $brl($totalAvulso) }}</b>
                 </div>
-            </div>
+                <svg class="fh-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </summary>
+            <div class="fatura-corpo">
             <div class="fatura-items">
                 @foreach ($accountExpenses as $exp)
                     <div class="fatura-item">
@@ -220,7 +224,8 @@
                     </div>
                 @endforeach
             </div>
-        </div>
+            </div>{{-- /.fatura-corpo --}}
+        </details>
     @endif
 
     </div>{{-- /.faturas-colunas --}}
@@ -278,7 +283,7 @@
                     @php $fechadaAberta = $card->closedInvoice; @endphp
                     <div class="fh-total">
                         @if ($fechadaAberta)
-                            <span>Fatura {{ $vencida ? '' : 'fechada' }} @if ($vencida)<em class="fh-vencida">vencida</em>@endif</span>
+                            <span>Fatura @if ($vencida)<em class="fh-vencida">vencida</em>@else fechada @endif</span>
                             <b>{{ $brl($fechadaAberta['valor']) }}</b>
                         @else
                             <span>Fatura atual</span>
