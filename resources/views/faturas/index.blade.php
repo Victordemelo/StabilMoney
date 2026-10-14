@@ -27,7 +27,7 @@
 <section class="view">
     <div class="section-head">
         <h2>Contas a pagar</h2>
-        <span class="sub">Marque a fatura do cartão como paga; débito, Pix e conta já descontam na hora</span>
+        <span class="sub">Pague a fatura do cartão; débito, Pix e conta já descontam na hora</span>
         <div class="head-actions">
             <button class="btn-primary" type="button" id="lancarBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
@@ -320,6 +320,12 @@
                         <span class="fatura-paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg> Fatura paga</span>
                     @elseif ($card->estado === 'quitada_pelo_credito')
                         <span class="fatura-paid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></svg> Quitada pelo crédito do estorno</span>
+                    @elseif ($card->canPay && $fechada)
+                        {{-- UM botão de pagar por cartão (out/2026 — pedido do Victor): com uma fatura
+                             fechada em aberto, ela é a que se paga primeiro (botão acima); a do ciclo
+                             atual aparece só como informação até a de antes ser paga. --}}
+                        <span class="fatura-due fatura-depois">Depois dela, a fatura atual: <b>{{ $brl($card->invoiceDue) }}</b>
+                            @if ($acc->due_date) — vence em {{ $acc->due_date->translatedFormat('d/m/Y') }}@endif</span>
                     @elseif ($card->canPay)
                         <span class="fatura-due">A pagar: <b>{{ $brl($card->invoiceDue) }}</b></span>
                         @if ($cashAccounts->isEmpty())
@@ -332,7 +338,7 @@
                                     data-amount-valor="{{ number_format((float) $card->invoiceDue, 2, '.', '') }}"
                                     data-ciclo="aberto"
                                     data-min="{{ $card->payFloor }}">
-                                Marcar como paga
+                                Pagar fatura
                             </button>
                         @endif
                     @elseif ($card->estado === 'coberta')

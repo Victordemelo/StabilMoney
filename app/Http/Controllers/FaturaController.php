@@ -567,7 +567,7 @@ class FaturaController extends Controller
             'sobra_credito' => $voltar->with('status', 'Nada a pagar: o crédito do estorno cobre esta fatura e ainda sobram '
                 .Brl::format(-$liquido).', que abatem a próxima fatura do '.$cartao->name.'. Nenhum dinheiro saiu da conta.'),
             'a_pagar' => $voltar->withErrors(['transaction' => 'Esta fatura não está coberta pelo estorno: ainda faltam '
-                .Brl::format($liquido).'. Use "Marcar como paga" para pagar com uma conta.']),
+                .Brl::format($liquido).'. Use "Pagar fatura" para pagar com uma conta.']),
             default => $voltar->with('status', 'Esta fatura já estava quitada.'),
         };
     }

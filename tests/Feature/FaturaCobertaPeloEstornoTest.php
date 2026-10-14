@@ -449,7 +449,7 @@ class FaturaCobertaPeloEstornoTest extends TestCase
 
         $mensagem = $this->erro($this->quitarPeloCredito());
 
-        $this->assertStringContainsString('Marcar como paga', $mensagem);
+        $this->assertStringContainsString('Pagar fatura', $mensagem);
         $this->assertStringContainsString('R$ 300,00', $mensagem);
         $this->assertSame($antes, $this->dinheiro());
         $this->assertSame(0, CreditSettlement::count());

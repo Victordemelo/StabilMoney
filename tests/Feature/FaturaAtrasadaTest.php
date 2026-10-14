@@ -233,7 +233,7 @@ class FaturaAtrasadaTest extends TestCase
             ->assertOk()
             ->assertDontSee('Pagar fatura vencida')
             ->assertDontSee('Pagar fatura fechada')
-            ->assertSee('Marcar como paga');
+            ->assertSee('Pagar fatura');
     }
 
     // ===================== C) Data do pagamento =====================
