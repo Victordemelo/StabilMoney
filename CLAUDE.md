@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.373 testes PHP** (1 deles só roda no MySQL) (~56 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **448 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.391 testes PHP** (1 deles só roda no MySQL) (~56 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **468 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -239,7 +239,7 @@ tests/js/                   # Vitest + jsdom (`npm run test:js`, roda no HOST): 
                             # autenticado no logout), offline-queue, camadas (z-index), categories
                             # (recusa do arraste mostra o porquê do servidor), dialogo (foco preso, Esc,
                             # inert), confirmar (`data-confirmar`), theme (tema do sistema), pwa (versão
-                            # nova do app), faturas (os 5 modais de Pagar despesas) e popover-perfil. Importam os módulos REAIS de
+                            # nova do app), faturas (os modais de Contas a pagar) e popover-perfil. Importam os módulos REAIS de
                             # resources/js/sm/ — validado por mutação em 16/09: desligar a guarda da
                             # CSP derruba 6+ testes, trocar a vírgula decimal derruba 34.
                             # Rodam no CI (job `javascript`: `npm ci` + `npm run test:js`, Node 24),
@@ -249,7 +249,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.373 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.391 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -528,7 +528,7 @@ receita a linha some. ⚠️ `paymentOptions()` passou a ler saldo por conta —
 RECEITA e TRANSFERÊNCIA só em conta de banco (corrente/poupança); DESPESA só por um MÉTODO —
 cartão de crédito, de débito, Pix ou TED. `Account::gruposDeLancamento()` agrupa as opções do
 `paymentOptions()` com `data-para` (os tipos que enxergam o grupo) e alimenta o modal Lançar, a
-página cheia e o "Lançar despesa" de Contas a pagar (só os grupos de despesa). É regra de TELA: o
+página cheia (o "Lançar despesa" de Contas a pagar é o próprio modal, desde 14/10/2026). É regra de TELA: o
 servidor segue aceitando despesa na conta, e na EDIÇÃO da página cheia a conta de banco vale também
 para despesa (o filtro trocaria a conta sozinho, e trocar a conta reconcilia o dinheiro). ⚠️ Pix e
 débito submetem o id da conta espelhada — o mesmo `value` aparece em mais de uma opção: troque a
@@ -1337,13 +1337,14 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
 
 ### Ajustes de tela de out/2026 — não regredir
 
-- **Movimentação já paga ou recebida não muda de VALOR nem de TIPO** (`MovimentacaoPagaNaoMudaDeValorTest`):
-  `Transaction::jaFoiPagaOuRecebida()` = compra de cartão com `paid_at`, ou qualquer outra com `date <= hoje`.
-  `TransactionController::travaDoValor` recusa no topo do `update` (erro em `amount`, depois das guardas de
-  transferência); descrição, categoria, data, autor e conta seguem editáveis. Na edição o valor vem
-  `readonly`, o tipo vai num hidden e o painel "Detalhes" explica (agendada aparece como "Agendada — sai da
-  conta em …"). A reconciliação de valor/tipo continua existindo para lançamento AGENDADO e compra de cartão
-  em aberto — os testes dela usam data futura. Para corrigir um valor: excluir e lançar de novo.
+- **Movimentação já paga ou recebida: o VALOR muda, o TIPO não** (`ValorEditavelNaEdicaoTest` — 14/10/2026 o
+  Victor reverteu a trava de out/2026, que prendia o valor também: "no edit deve dar para alterar o valor, aí ele
+  altera o saldo"). `Transaction::jaFoiPagaOuRecebida()` = compra de cartão com `paid_at`, ou qualquer outra com
+  `date <= hoje`. `TransactionController::travaDoValor` (topo do `update`, erro em `amount`) recusa a troca de
+  TIPO e o valor só da compra de cartão paga numa fatura (`valorTravado` — a fatura paga ficaria diferente do que
+  saiu da conta; aliás a guarda "compra de cartão já paga" do `travaDeEdicao` já a recusa inteira). O valor novo
+  passa pela reconciliação de sempre (piso, fonte, resgate ligado), e o campo avisa "Ao salvar, o saldo da conta
+  acompanha o valor novo". Pagamento de conta fixa também muda de valor (a competência fica).
 - **Avisos de sucesso são BALÕES flutuantes no canto superior direito** (`sm/balao.js`, `tests/js/balao.test.js`):
   o `partials/flash` continua renderizando `.flash[data-flash]`, que o JS leva para a pilha `#sm-baloes` (no
   body, `role=status`, z-index 95 — acima dos modais); sem JS o próprio `.flash` é fixo no canto. Some sozinho
@@ -1405,7 +1406,7 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
 ## 🧾 Resumo de saldo nos pagamentos e rodapé de autoria (out/2026)
 
 - **Resumo "saldo atual − valor = saldo depois"** (`partials/resumo-de-saldo` + `sm/resumo-saldo.js`,
-  `desenharResumo`) nos modais Lançar (os três tipos; receita soma), Lançar despesa, Pagar fatura e
+  `desenharResumo`) nos modais Lançar (os três tipos; receita soma — é também o Lançar despesa), Pagar fatura e
   Pagar conta fixa — `ResumoDeSaldoNosPagamentosTest`, `tests/js/resumo-saldo.test.js`. O saldo viaja
   CRU na `<option>` (`data-saldo-valor`, o `available`; no cartão o limite livre, e os rótulos viram
   "Limite livre"); o valor da fatura vai no botão (`data-amount-valor`). É informação, não trava: quem
@@ -1511,7 +1512,7 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   página cheia de nova transação (`transactions/_form`, só ao criar) tem o mesmo seletor, ligado pelo
   script inline dela (`data-tx-parcelas`; as opções de conta levam `data-card`).
 - **Selects de conta agrupados por TIPO** (`Account::gruposDeLancamento`): Contas correntes · Contas
-  poupança · Cartões de crédito · Cartões de débito · Pix e TED; a opção mostra o `rotuloCurto` (apelido +
+  poupança · Pix e TED · Cartões de débito · Cartões de crédito (a ordem da despesa mudou em 14/10/2026); a opção mostra o `rotuloCurto` (apelido +
   banco quando falta, sem o tipo, que está no título do grupo) — "Mercado Pago (Conta corrente)" quebrava
   em duas linhas na lista do celular. O "Para" da transferência também é agrupado.
 - **"Gastos por categoria" com centavos** (`tests/js/donut.test.js`): centro e legenda em `R$ 476,20`
@@ -1623,7 +1624,11 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   diz); sem banco, as iniciais no mesmo quadrado. O mesmo ícone vai no canto do `transactions/_icone`
   e na prévia do formulário. Banco novo em `BANKS` precisa do cartão E do ícone (o teste cobra o ícone).
 - **Só contas e Pix/TED com o ícone** (14/10/2026 — pedido do Victor): cartões de débito e de crédito
-  voltaram para a IMAGEM do cartão (`.bankcard`, `bankImageUrl`). Conta corrente/poupança SEM cheque
+  voltaram para a IMAGEM do cartão (`.bankcard`, `bankImageUrl`). As imagens dos cartões são o MESMO desenho
+  para todos os bancos (`resources/bancos/gerar-cartoes.py`: a cor lisa da marca, o ícone com contorno branco,
+  chip, aproximação e o nome; 640×404 — antes 164×100, pixeladas e cada uma de um jeito). `bankImageUrl()` leva
+  `?v=` + `Account::VERSAO_DOS_CARTOES`: o SW serve /assets/ do cache primeiro — trocou as imagens, suba a versão.
+  A barra vazia do "Sem cheque especial" é cinza neutro (o verde-claro parecia limite disponível). Conta corrente/poupança SEM cheque
   especial mostra a mesma linha vazia ("Sem cheque especial · R$ 0,00 de R$ 0,00", `.acct-sem-cheque`) e o
   `.dp-meta` do card é rótulo em cima, valor embaixo — os cards da fileira ficam alinhados.
 - **Pix e TED com ícone próprio e a ordem da tela** (13/10/2026 — `ContasECartoesComIconeDoBancoTest`):
@@ -1643,6 +1648,37 @@ front-end), cada achado com teste que falha sem a correção. Além dos itens de
   Com duas colunas os cards da MESMA LINHA têm a mesma altura (`align-items: stretch`) e abrem e fecham
   JUNTOS (`parDe`/`sincronizarPares`: se um nasce aberto, os dois abrem) — "Despesas em conta" virou
   recolhível (aberto) para fazer par com as contas fixas. Numa coluna só, cada um é independente.
+  **Listas longas rolam por dentro** (14/10/2026 — `ListasDeContasAPagarRolamTest`, `tests/js/lista-rolavel.test.js`):
+  `data-rolagem="8"` nas contas fixas e despesas em conta, `"10"` na lista do cartão; o `sm/lista-rolavel.js`
+  MEDE a altura dos N primeiros itens e põe `.rolando` (overflow por dentro, sem vazar para a página). Lista em
+  `<details>` fechado é medida ao abrir — o `details-suave` chama `limitarListasEm` antes de medir a animação.
+  **O "Lançar despesa" daqui é o modal Lançar do topo**, já em Despesa (`data-launch-open data-launch-tipo=
+  "expense"`; sem JS, `transactions.create?type=expense`) — o modal próprio da tela saiu (14/10/2026). A compra
+  recorrente no cartão veio junto: o seletor de parcelas do Lançar tem "Repete todo mês" (`installments=
+  recorrente` → `recorrente`, `StoreTransactionRequest`; a mesma linha `group_id` + `recurring` do
+  `faturas.lancar`, que segue como rota) — `LancarRecorrentePeloModalTest`.
+- **Avisos do sino levam ao que cobram** (14/10/2026 — `AvisosDoSinoLevamAoQueCobramTest`, `tests/js/ancora.test.js`):
+  cada item do `upcomingDue` tem `url` — fatura → `/faturas#cartao-{id}` (o `<details>` do cartão tem esse id),
+  conta fixa → `/faturas#conta-fixa-{id}-{Y-m}` (`FaturaService::ancoraDaContaFixa`, na linha), recorrência
+  legada → a edição dela. `a.notif-item[data-ir-para]`: clique DELEGADO no document (`sm/ancora.js` — o pjax
+  troca os itens do sino, e um ouvinte por link se perdia) que navega pelo `smPjaxIr`; o `nav.js`, depois da
+  troca, chama `irParaAncora` (abre todo `<details>` no caminho, o par da linha, rola SÓ o contêiner que rola —
+  `scrollIntoView` rolava a página por baixo do `.content` — foca e acende `.alvo-destacado`). Carregamento
+  completo com âncora: o `init()` do `app.js` faz o mesmo.
+- **"Pagar com": Pix e TED, débito, crédito** (14/10/2026): é a ordem dos grupos de despesa no
+  `gruposDeLancamento` (a primeira opção é a que vem marcada ao escolher Despesa). O "Pagar com" das contas
+  fixas usa `Account::gruposDePagamento` (os métodos primeiro, as contas de banco no fim).
+- **Ícone ao lado dos selects de conta** (14/10/2026 — `IconeAoLadoDoSelectDeContaTest`, `tests/js/select-icone.test.js`):
+  `<div class="sel-ico">` em volta do select e `data-icone` + `data-icone-forma` em cada opção
+  (`Account::iconeDoSelect()` — "cartao" nos cartões de crédito/débito, "quadrado" no resto; também no Fluent
+  do `paymentOptions`: `icone`/`iconeForma`). O `sm/select-icone.js` desenha no `change` (delegado) e no reset;
+  quem troca a escolha por código chama `atualizarIcone` (o Lançar no `mostrarSaldo`, o editar conta fixa).
+  Usa `options[selectedIndex]`, não `selectedOptions` (o jsdom erra depois do `reset`). Select de conta novo:
+  embrulhe e ponha os dois `data-*`. O filtro "Conta" de Movimentações agrupa correntes · poupanças · cartões
+  de crédito com o ícone; débito, Pix e TED saíram dele (não guardam lançamento — o filtro dava sempre vazio).
+- **Edição de compra parcelada em três colunas** (≥ 1360px, `.tx-edit-3`): formulário | parcelas e detalhes |
+  editar e excluir (`.tx-lados` com dois `<aside>`). A parcela paga numa fatura não mostra mais o aviso
+  "não pode ser editada" (o `edit` não chama o `travaDeEdicao` em parcela — o `update` a edita inteira).
 - **Editar movimentação TRAVADA** (13/10/2026 — `tests/js/edicao-travada.test.js`, `CompraParceladaNaEdicaoTest`):
   com JS os campos nascem desabilitados e o Salvar escondido; o cartão "Editar movimentação" (acima do
   Excluir, `[data-tx-editar]`) libera; o "Cancelar" desfaz e trava de novo (`sm/edicao-travada.js`). Sem JS
@@ -2842,7 +2878,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.373 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.391 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
