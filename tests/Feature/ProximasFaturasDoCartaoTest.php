@@ -85,7 +85,7 @@ class ProximasFaturasDoCartaoTest extends TestCase
 
         $html = $this->actingAs($this->user)->get(route('faturas.index'))->assertOk()->getContent();
         $this->assertStringContainsString('<small class="fh-proximas">+ 3 próximas faturas</small>', $html);
-        $this->assertStringContainsString('<details class="fatura-proximas">', $html);
+        $this->assertStringContainsString('<details class="fatura-proximas" data-suave>', $html);
         $this->assertStringContainsString('Vence em 09 de dez de 2026', $html);
         $this->assertStringContainsString('<em class="fi-badge parcelado">4/4</em>', $html);
     }

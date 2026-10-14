@@ -268,6 +268,9 @@ class FaturaService
                 // desde a auditoria, mas NENHUMA tela o acionava: a fatura que
                 // fechava ficava sem botão nenhum, impagável pela interface.
                 'closedInvoice' => $card->closedInvoice,
+                // As compras dessa fatura fechada (out/2026 — pedido do Victor): enquanto ela não
+                // é paga, o cartão mostra SÓ ela — a do ciclo aberto e as próximas esperam.
+                'itensFechados' => $card->closedInvoice ? $this->itensFechados($card, $cycle) : collect(),
                 // Piso do campo "data do pagamento" (mesma regra do
                 // PayInvoiceRequest: não se paga antes de a compra existir).
                 'payFloor' => $pisosDePagamento[$card->id] ?? null,
@@ -411,6 +414,28 @@ class FaturaService
      *
      * @param  array{0: CarbonImmutable, 1: CarbonImmutable}|null  $cycle
      */
+    /**
+     * As linhas EM ABERTO da fatura já fechada (tudo até o início do ciclo aberto e sem `paid_at`
+     * — a mesma janela de `Account::closedCycle`), a mais recente primeiro.
+     *
+     * @param  array{0: CarbonImmutable, 1: CarbonImmutable}|null  $cycle
+     */
+    private function itensFechados(Account $card, ?array $cycle): Collection
+    {
+        if (! $cycle) {
+            return collect();
+        }
+
+        return Transaction::with(['category', 'madeBy'])
+            ->where('account_id', $card->id)
+            ->whereIn('type', ['expense', 'income'])
+            ->whereNull('paid_at')
+            ->where('date', '<=', $cycle[0]->toDateString())
+            ->orderByDesc('date')
+            ->orderByDesc('id')
+            ->get();
+    }
+
     private function cycleItems(Account $card, ?array $cycle): Collection
     {
         if (! $cycle) {

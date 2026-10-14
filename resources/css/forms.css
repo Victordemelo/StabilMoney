@@ -836,6 +836,18 @@ a.tx { text-decoration: none; color: inherit; }
 .fi-txt { min-width: 0; flex: 1; }
 .fi-txt strong { font-size: 14px; font-weight: 600; display: block; }
 .fi-txt span { font-size: 12px; color: var(--ink-3); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* A compra abre a movimentação dela (out/2026): o texto é o link, sem cara de link até o mouse. */
+a.fi-txt { color: inherit; text-decoration: none; border-radius: 8px; }
+a.fi-txt:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+a.fi-txt:focus-visible { outline: 2px solid var(--brand-300); outline-offset: 3px; }
+/* Despesas em conta: o ícone das movimentações (categoria + banco no canto), no tamanho do .fi-ico. */
+.fatura-item > .tx-ico { width: 40px; height: 40px; border-radius: 12px; flex: none; display: grid; place-items: center; font-size: 19px; background: var(--surface-3); }
+.fatura-item > .tx-ico svg { width: 19px; height: 19px; stroke-width: 1.9; }
+
+/* Duas colunas em tela grande (out/2026): contas fixas | despesas em conta, e os cartões dois a dois. */
+.faturas-colunas { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; margin-top: 18px; }
+.faturas-colunas > .fatura-card { margin-top: 0; grid-column: auto; } /* o `span12` dos cards criaria colunas a mais */
+@media (min-width: 1280px) { .faturas-colunas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* Badge de modo (à vista / parcelado / recorrente) */
 .fi-badge { font-style: normal; font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--surface-3); color: var(--ink-2); }
@@ -886,7 +898,7 @@ a.tx { text-decoration: none; color: inherit; }
    nenhuma (a 2ª linha existe, mas vazia e com 0px de altura). */
 @media (max-width: 640px) {
   .fatura-item { flex-wrap: wrap; justify-content: flex-end; column-gap: 12px; row-gap: 0; }
-  .fatura-item > .fi-ico, .fatura-item > .fi-txt, .fatura-item > .fi-val { order: 1; }
+  .fatura-item > .fi-ico, .fatura-item > .tx-ico, .fatura-item > .fi-txt, .fatura-item > .fi-val { order: 1; }
   .fatura-item::after { content: ""; flex: 0 0 100%; height: 0; order: 2; }
   /* Tudo que AGE desce para a 2ª linha — inclusive os <form> de pagar/excluir. */
   .fatura-item > .btn, .fatura-item > .fi-rm, .fatura-item > form { order: 3; margin-top: 10px; }

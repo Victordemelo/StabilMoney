@@ -53,7 +53,7 @@ class ContasAPagarReorganizadaTest extends TestCase
         $this->assertLessThan(strpos($html, '<details class="card fatura-card span12 fatura-recolhe"'), strpos($html, 'Despesas em conta'),
             '"Despesas em conta" tem de vir antes dos cartões.');
         // Sem fatura vencida, o cartão nasce FECHADO.
-        $this->assertMatchesRegularExpression('#<details class="card fatura-card span12 fatura-recolhe"\s*>#', $html);
+        $this->assertMatchesRegularExpression('#<details class="card fatura-card span12 fatura-recolhe" data-suave\s*>#', $html);
         $this->assertStringContainsString('<summary class="fatura-head">', $html);
     }
 
@@ -66,7 +66,7 @@ class ContasAPagarReorganizadaTest extends TestCase
 
         $html = $this->actingAs($this->user)->get(route('faturas.index'))->assertOk()->getContent();
 
-        $this->assertMatchesRegularExpression('#<details class="card fatura-card span12 fatura-recolhe"\s+open\s*>#', $html);
+        $this->assertMatchesRegularExpression('#<details class="card fatura-card span12 fatura-recolhe" data-suave\s+open\s*>#', $html);
         $this->assertStringContainsString('class="fh-vencida">vencida</em>', $html);
     }
 

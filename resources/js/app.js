@@ -27,6 +27,7 @@ import { initRolagemSuave } from './sm/rolagem-suave';
 import { initSaldoGiro } from './sm/saldo-giro';
 import { initOcultarValores } from './sm/ocultar-valores';
 import { initFaturasVencidas, atualizarFaturasVencidas } from './sm/faturas-vencidas';
+import { initDetailsSuave } from './sm/details-suave';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -82,6 +83,8 @@ function init() {
     initConfirmar();
     // Compra no cartão com data numa fatura vencida: a caixa "já paguei fora do app".
     initFaturasVencidas();
+    // Blocos recolhíveis (`details[data-suave]`) abrem e fecham deslizando.
+    initDetailsSuave();
     // O "olho" dos campos de senha (`.pw-toggle`): também um ouvinte só, no documento.
     initMostrarSenha();
     // O modal de escolha de fonte vive no shell (serve os 3 formulários), então

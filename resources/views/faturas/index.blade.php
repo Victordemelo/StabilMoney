@@ -102,7 +102,10 @@
         $fixasUrgentes = $contasFixas->filter(fn ($oc) => ! $oc['paga'] && ($oc['vencida'] || $oc['diasRestantes'] <= 7))->values();
         $fixasOutras = $contasFixas->reject(fn ($oc) => ! $oc['paga'] && ($oc['vencida'] || $oc['diasRestantes'] <= 7))->values();
     @endphp
-    <details class="card fatura-card span12 fatura-recolhe fixas-recolhe" style="margin-top:18px" @if ($fixasUrgentes->isNotEmpty()) open @endif>
+    {{-- Duas colunas em tela grande (out/2026 — pedido do Victor): contas fixas ao lado das
+         despesas em conta, e os cartões dois a dois logo abaixo. Uma coluna até 1280px. --}}
+    <div class="faturas-colunas">
+    <details class="card fatura-card span12 fatura-recolhe fixas-recolhe" data-suave @if ($fixasUrgentes->isNotEmpty()) open @endif>
         <summary class="fatura-head">
             <div class="fh-card" style="background:linear-gradient(135deg,#6B4E9E,#3A2A5C)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" width="22" height="22"><path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/></svg>
@@ -143,7 +146,7 @@
             @endif
             @if ($fixasOutras->isNotEmpty())
                 {{-- Sem nada urgente, as outras já aparecem abertas (é tudo o que há para ver). --}}
-                <details class="fixas-outras" data-fixas-outras @if ($fixasUrgentes->isEmpty()) open @endif>
+                <details class="fixas-outras" data-fixas-outras data-suave @if ($fixasUrgentes->isEmpty()) open @endif>
                     <summary>
                         {{ $fixasUrgentes->isEmpty() ? 'Todas as contas fixas' : 'Ver as outras' }} <em class="fp-n">{{ $fixasOutras->count() }}</em>
                         <svg class="fp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
@@ -170,6 +173,58 @@
         </div>{{-- /.fatura-corpo --}}
     </details>
 
+        {{-- ---------- Despesas pagas em conta (não-cartão) ----------
+         Logo abaixo das contas fixas e sempre aberto: é o que sai da conta no dia a dia.
+         Os cartões vêm depois, recolhidos. --}}
+    @if ($accountExpenses->isNotEmpty())
+        @php $totalAvulso = $accountExpenses->sum('amount'); @endphp
+        <div class="card fatura-card span12">
+            <div class="fatura-head">
+                <div class="fh-card" style="background:linear-gradient(135deg,#1B4D89,#0E2A4D)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" width="22" height="22"><path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/></svg>
+                </div>
+                <div class="fh-info">
+                    <strong>Despesas em conta</strong>
+                    <span>Pagas via débito, Pix ou conta corrente</span>
+                </div>
+                <div class="fh-total">
+                    <span>Total no período</span>
+                    <b>{{ $brl($totalAvulso) }}</b>
+                </div>
+            </div>
+            <div class="fatura-items">
+                @foreach ($accountExpenses as $exp)
+                    <div class="fatura-item">
+                        {{-- O ícone da categoria com o banco de onde saiu no canto (o mesmo das
+                             Movimentações); a linha abre a movimentação. --}}
+                        @include('transactions._icone', ['t' => $exp])
+                        <a class="fi-txt" href="{{ route('transactions.edit', $exp->id) }}">
+                            <strong>{{ $exp->description ?: ($exp->category?->name ?? 'Despesa') }}</strong>
+                            <span>
+                                {{ $exp->category?->name ?? 'Sem categoria' }} · {{ $exp->account->name }}
+                                @if ($exp->madeBy?->name) · <em class="fi-who"><span class="fw-av" style="background:#1B4D89">{{ $iniciais($exp->madeBy->name) }}</span>{{ \Illuminate\Support\Str::before(trim($exp->madeBy->name), ' ') }}</em>@endif
+                            </span>
+                        </a>
+                        <div class="fi-val">
+                            <b>{{ $brl($exp->amount) }}</b>
+                            <small>{{ $exp->date?->translatedFormat('d M') }}</small>
+                        </div>
+                        <form method="POST" action="{{ route('faturas.compra.destroy', $exp->id) }}"
+                              data-remover-despesa data-pergunta="Remover esta despesa?">
+                            @csrf
+                            @method('DELETE')
+                            <button class="fi-rm" type="submit" aria-label="Remover" title="Remover">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                            </button>
+                        </form>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
+    </div>{{-- /.faturas-colunas --}}
+
     @if ($cards->isEmpty() && $accountExpenses->isEmpty())
         {{-- Estado vazio amigável (nenhum cartão e nenhuma despesa avulsa) --}}
         <div class="grid" style="margin-top:18px">
@@ -183,55 +238,8 @@
             </div>
         </div>
     @else
-        {{-- ---------- Despesas pagas em conta (não-cartão) ----------
-             Logo abaixo das contas fixas e sempre aberto: é o que sai da conta no dia a dia.
-             Os cartões vêm depois, recolhidos. --}}
-        @if ($accountExpenses->isNotEmpty())
-            @php $totalAvulso = $accountExpenses->sum('amount'); @endphp
-            <div class="card fatura-card span12">
-                <div class="fatura-head">
-                    <div class="fh-card" style="background:linear-gradient(135deg,#1B4D89,#0E2A4D)">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" width="22" height="22"><path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/></svg>
-                    </div>
-                    <div class="fh-info">
-                        <strong>Despesas em conta</strong>
-                        <span>Pagas via débito, Pix ou conta corrente</span>
-                    </div>
-                    <div class="fh-total">
-                        <span>Total no período</span>
-                        <b>{{ $brl($totalAvulso) }}</b>
-                    </div>
-                </div>
-                <div class="fatura-items">
-                    @foreach ($accountExpenses as $exp)
-                        <div class="fatura-item">
-                            <span class="fi-ico">{{ $exp->category?->icon ?: '📦' }}</span>
-                            <div class="fi-txt">
-                                <strong>{{ $exp->description ?: ($exp->category?->name ?? 'Despesa') }}</strong>
-                                <span>
-                                    {{ $exp->category?->name ?? 'Sem categoria' }} · {{ $exp->account->name }}
-                                    @if ($exp->madeBy?->name) · <em class="fi-who"><span class="fw-av" style="background:#1B4D89">{{ $iniciais($exp->madeBy->name) }}</span>{{ \Illuminate\Support\Str::before(trim($exp->madeBy->name), ' ') }}</em>@endif
-                                </span>
-                            </div>
-                            <div class="fi-val">
-                                <b>{{ $brl($exp->amount) }}</b>
-                                <small>{{ $exp->date?->translatedFormat('d M') }}</small>
-                            </div>
-                            <form method="POST" action="{{ route('faturas.compra.destroy', $exp->id) }}"
-                                  data-remover-despesa data-pergunta="Remover esta despesa?">
-                                @csrf
-                                @method('DELETE')
-                                <button class="fi-rm" type="submit" aria-label="Remover" title="Remover">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                                </button>
-                            </form>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        @endif
-
-        {{-- ---------- Uma fatura-card por cartão ---------- --}}
+        {{-- ---------- Uma fatura-card por cartão (dois a dois em tela grande) ---------- --}}
+        <div class="faturas-colunas">
         @foreach ($cards as $card)
             @php
                 $acc        = $card->account;
@@ -244,7 +252,7 @@
             {{-- Cada cartão é RECOLHÍVEL (fechado mostra só o cabeçalho, com a fatura atual):
                  com vários cartões a tela virava uma parede de compras. Abre sozinho quando
                  há fatura vencida — é o caso que pede ação. --}}
-            <details class="card fatura-card span12 fatura-recolhe" @if ($vencida) open @endif>
+            <details class="card fatura-card span12 fatura-recolhe" data-suave @if ($vencida) open @endif>
                 <summary class="fatura-head">
                     <div class="fh-card {{ $acc->bankImageUrl() ? 'has-bank-art' : '' }}" style="background:linear-gradient(135deg,{{ $cor }},color-mix(in srgb,{{ $cor }} 55%,#000))">
                         @if ($acc->bankImageUrl())
@@ -265,10 +273,18 @@
                             @if ($acc->melhorDiaDeCompra()) · melhor dia de compra: {{ $acc->melhorDiaDeCompra() }}@endif
                         </span>
                     </div>
+                    {{-- Com fatura fechada em aberto, o cartão fala SÓ dela (valor e compras): a do
+                         ciclo atual e as próximas aparecem depois que ela for paga (out/2026). --}}
+                    @php $fechadaAberta = $card->closedInvoice; @endphp
                     <div class="fh-total">
-                        <span>Fatura atual @if ($vencida)<em class="fh-vencida">vencida</em>@endif</span>
-                        <b>{{ $brl($card->currentInvoice) }}</b>
-                        @if ($card->proximas->isNotEmpty())
+                        @if ($fechadaAberta)
+                            <span>Fatura {{ $vencida ? '' : 'fechada' }} @if ($vencida)<em class="fh-vencida">vencida</em>@endif</span>
+                            <b>{{ $brl($fechadaAberta['valor']) }}</b>
+                        @else
+                            <span>Fatura atual</span>
+                            <b>{{ $brl($card->currentInvoice) }}</b>
+                        @endif
+                        @if ($card->proximas->isNotEmpty() && ! $fechadaAberta)
                             <small class="fh-proximas">+ {{ $card->proximas->count() }} {{ $card->proximas->count() === 1 ? 'próxima fatura' : 'próximas faturas' }}</small>
                         @endif
                     </div>
@@ -323,9 +339,8 @@
                     @elseif ($card->canPay && $fechada)
                         {{-- UM botão de pagar por cartão (out/2026 — pedido do Victor): com uma fatura
                              fechada em aberto, ela é a que se paga primeiro (botão acima); a do ciclo
-                             atual aparece só como informação até a de antes ser paga. --}}
-                        <span class="fatura-due fatura-depois">Depois dela, a fatura atual: <b>{{ $brl($card->invoiceDue) }}</b>
-                            @if ($acc->due_date) — vence em {{ $acc->due_date->translatedFormat('d/m/Y') }}@endif</span>
+                             atual só aparece depois que ela for paga. --}}
+                        <span class="fatura-due fatura-depois">A fatura atual aparece aqui depois que esta for paga.</span>
                     @elseif ($card->canPay)
                         <span class="fatura-due">A pagar: <b>{{ $brl($card->invoiceDue) }}</b></span>
                         @if ($cashAccounts->isEmpty())
@@ -396,8 +411,8 @@
                 {{-- Próximas faturas (out/2026): as parcelas futuras e o que foi lançado com data
                      depois do fechamento, uma fatura por vencimento — como o app do banco mostra.
                      Recolhido: abre no toque. Quem calcula é o FaturaService (`proximasFaturas`). --}}
-                @if ($card->proximas->isNotEmpty())
-                    <details class="fatura-proximas">
+                @if ($card->proximas->isNotEmpty() && ! $fechadaAberta)
+                    <details class="fatura-proximas" data-suave>
                         <summary>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
                             <span>Próximas faturas</span>
@@ -474,7 +489,7 @@
                 @endif
 
                 <div class="fatura-items">
-                    @forelse ($card->items as $item)
+                    @forelse ($fechadaAberta ? $card->itensFechados : $card->items as $item)
                         @php
                             $catIcon  = $item->category?->icon;
                             $catName  = $item->category?->name ?? 'Sem categoria';
@@ -499,14 +514,15 @@
                         @endphp
                         <div class="fatura-item">
                             <span class="fi-ico">{{ $estorno ? '↩️' : ($catIcon ?: '📦') }}</span>
-                            <div class="fi-txt">
+                            {{-- A compra abre a movimentação dela (com as parcelas e as faturas de cada uma). --}}
+                            <a class="fi-txt" href="{{ route('transactions.edit', $item->id) }}">
                                 <strong>{{ $item->description ?: $catName }}</strong>
                                 <span>
                                     {{ $catName }}
                                     @if ($badge) · <em class="fi-badge {{ $badgeCls }}">{{ $badge }}</em>@endif
                                     @if ($item->madeBy?->name) · <em class="fi-who"><span class="fw-av" style="background:{{ $cor }}">{{ $iniciais($item->madeBy->name) }}</span>{{ \Illuminate\Support\Str::before(trim($item->madeBy->name), ' ') }}</em>@endif
                                 </span>
-                            </div>
+                            </a>
                             <div class="fi-val">
                                 <b @if ($estorno) class="estorno" @endif>{{ $estorno ? \App\Support\Brl::format(-$item->amount) : $brl($item->amount) }}</b>
                                 <small>{{ $item->date?->translatedFormat('d M') }}</small>
@@ -542,6 +558,7 @@
                 </div>{{-- /.fatura-corpo --}}
             </details>
         @endforeach
+        </div>{{-- /.faturas-colunas --}}
 
         {{-- Aviso quando ainda não há cartões, mas há despesas avulsas --}}
         @if ($cards->isEmpty())

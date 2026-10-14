@@ -47,10 +47,10 @@ class ContasFixasRecolhidasTest extends TestCase
         $this->fixa('Aluguel', 28);
 
         $html = $this->tela();
-        $this->assertMatchesRegularExpression('#<details class="card fatura-card span12 fatura-recolhe fixas-recolhe" style="margin-top:18px"\s*>#', $html);
+        $this->assertMatchesRegularExpression('#<details class="card fatura-card span12 fatura-recolhe fixas-recolhe" data-suave\s*>#', $html);
         $this->assertStringContainsString('Nada vencendo nos próximos 7 dias', $html);
         // Sem nada urgente, a lista inteira já vem aberta dentro do bloco.
-        $this->assertMatchesRegularExpression('#<details class="fixas-outras" data-fixas-outras\s+open\s*>#', $html);
+        $this->assertMatchesRegularExpression('#<details class="fixas-outras" data-fixas-outras data-suave\s+open\s*>#', $html);
     }
 
     public function test_com_conta_vencendo_em_7_dias_abre_e_ela_vem_primeiro(): void
@@ -59,12 +59,12 @@ class ContasFixasRecolhidasTest extends TestCase
         $this->fixa('Aluguel', 28);
 
         $html = $this->tela();
-        $this->assertMatchesRegularExpression('#fixas-recolhe" style="margin-top:18px"\s+open\s*>#', $html);
+        $this->assertMatchesRegularExpression('#fixas-recolhe" data-suave\s+open\s*>#', $html);
         $this->assertStringContainsString('1 vence nos próximos 7 dias', $html);
         $urgentes = substr($html, strpos($html, 'data-fixas-urgentes'), strpos($html, 'data-fixas-outras') - strpos($html, 'data-fixas-urgentes'));
         $this->assertStringContainsString('<strong>Internet</strong>', $urgentes);
         $this->assertStringNotContainsString('<strong>Aluguel</strong>', $urgentes);
-        $this->assertMatchesRegularExpression('#<details class="fixas-outras" data-fixas-outras\s*>#', $html);
+        $this->assertMatchesRegularExpression('#<details class="fixas-outras" data-fixas-outras data-suave\s*>#', $html);
         $this->assertStringContainsString('Ver as outras', $html);
     }
 
@@ -73,7 +73,7 @@ class ContasFixasRecolhidasTest extends TestCase
         $this->fixa('Condomínio', 5);
 
         $html = $this->tela();
-        $this->assertMatchesRegularExpression('#fixas-recolhe" style="margin-top:18px"\s+open\s*>#', $html);
+        $this->assertMatchesRegularExpression('#fixas-recolhe" data-suave\s+open\s*>#', $html);
         $this->assertStringContainsString('1 vencida', $html);
     }
 
