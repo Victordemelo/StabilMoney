@@ -576,9 +576,19 @@ class Account extends Model
     }
 
     /** URL pública da imagem do cartão do banco, ou null se sem banco. */
+    /**
+     * A imagem do cartão (out/2026: o mesmo desenho para todos, gerado por
+     * resources/bancos/gerar-cartoes.py). O `?v=` muda quando as imagens mudam: o service worker
+     * serve /assets/ do cache e só revalida depois — com o mesmo endereço, o cartão antigo
+     * apareceria mais uma vez.
+     */
+    public const VERSAO_DOS_CARTOES = '2';
+
     public function bankImageUrl(): ?string
     {
-        return isset(self::BANKS[$this->bank]) ? asset("assets/banks/{$this->bank}.png") : null;
+        return isset(self::BANKS[$this->bank])
+            ? asset("assets/banks/{$this->bank}.png").'?v='.self::VERSAO_DOS_CARTOES
+            : null;
     }
 
     public function user(): BelongsTo

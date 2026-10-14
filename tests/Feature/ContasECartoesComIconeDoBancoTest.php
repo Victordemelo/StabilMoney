@@ -34,6 +34,23 @@ class ContasECartoesComIconeDoBancoTest extends TestCase
         }
     }
 
+    public function test_todo_banco_tem_o_cartao_no_mesmo_desenho_e_nitido(): void
+    {
+        // 14/10/2026: as imagens de 164×100 (uma de cada jeito, pixeladas no card) deram lugar ao
+        // mesmo desenho para todos, gerado por resources/bancos/gerar-cartoes.py.
+        foreach (array_keys(Account::BANKS) as $banco) {
+            $arquivo = public_path("assets/banks/{$banco}.png");
+            $this->assertFileExists($arquivo, "Falta o cartão do banco {$banco}.");
+            [$largura, $altura, $tipo] = getimagesize($arquivo);
+            $this->assertSame([640, 404, IMAGETYPE_PNG], [$largura, $altura, $tipo], "Cartão de {$banco} fora do padrão.");
+            $this->assertLessThan(60 * 1024, filesize($arquivo), "Cartão de {$banco} pesado demais.");
+        }
+
+        // O endereço muda junto com as imagens: o service worker serve /assets/ do cache primeiro.
+        $conta = new Account(['bank' => 'itau']);
+        $this->assertStringEndsWith('assets/banks/itau.png?v='.Account::VERSAO_DOS_CARTOES, $conta->bankImageUrl());
+    }
+
     public function test_a_tela_mostra_o_icone_em_grade_e_nao_mais_o_cartao(): void
     {
         $user = User::factory()->create();
@@ -46,7 +63,7 @@ class ContasECartoesComIconeDoBancoTest extends TestCase
         $this->assertStringContainsString('<div class="acct-grade">', $html);
         $this->assertMatchesRegularExpression('#<img class="acct-ico" src="[^"]*assets/banks/icones/itau\.png" alt="Itaú"#', $html);
         // O cartão de crédito segue com a IMAGEM do cartão (só contas e Pix/TED viraram ícone).
-        $this->assertMatchesRegularExpression('#<div class="bankcard"><img src="[^"]*assets/banks/nubank\.png" alt="Nubank"#', $html);
+        $this->assertMatchesRegularExpression('#<div class="bankcard"><img src="[^"]*assets/banks/nubank\.png\?v=\d+" alt="Nubank"#', $html);
         $this->assertDoesNotMatchRegularExpression('#class="acct-ico" src="[^"]*icones/nubank\.png"#', $html);
         // Conta sem cheque especial: a mesma linha, vazia, para alinhar com as que têm.
         $this->assertStringContainsString('<div class="fh-limit acct-sem-cheque">', $html);
