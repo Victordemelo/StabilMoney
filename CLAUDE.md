@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.391 testes PHP** (1 deles só roda no MySQL) (~56 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **468 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.394 testes PHP** (1 deles só roda no MySQL) (~56 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **468 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -249,7 +249,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.391 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.394 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -716,6 +716,15 @@ Spec completa: `docs/superpowers/specs/2026-07-27-cheque-especial-segregacao-e-c
 
 **Regra de ouro da UI:** onde antes se mostrava `balance`, hoje se mostra **`available`**.
 O `balance` é detalhe interno. Se você for exibir saldo numa tela nova, use `available`.
+
+**Os TOTAIS não descontam o cheque especial em uso** (14/10/2026 — pedido do Victor,
+`ChequeEspecialNaoDescontaDoSaldoTest`): Itaú R$ 1.000 + Nubank −R$ 200 mostram R$ 1.000. O saldo
+do painel, o total por tipo, o patrimônio e o "Disponível para gastar" da sidebar somam o vermelho
+de volta (`chequeEmUso` no `DashboardService`, `chequeUsado` no `SidebarService` = Σ max(0,
+−available) das contas de banco) e o mostram à parte, em vermelho: "Você está usando R$ 200,00 do
+cheque especial" (sem limite contratado: "no vermelho"). A CONTA segue negativa e vermelha (giro
+do painel, Contas e cartões com o selo "Usando o cheque especial"). Só a TELA: o guard, o piso e o
+`totalBalance` do painel continuam no número real.
 
 ### Quem decide se um gasto pode acontecer
 
@@ -2878,7 +2887,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.391 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.394 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
