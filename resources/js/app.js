@@ -29,6 +29,7 @@ import { initOcultarValores } from './sm/ocultar-valores';
 import { initFaturasVencidas, atualizarFaturasVencidas } from './sm/faturas-vencidas';
 import { initDetailsSuave, sincronizarPares } from './sm/details-suave';
 import { initEdicaoTravada } from './sm/edicao-travada';
+import { initListasRolaveis } from './sm/lista-rolavel';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -66,6 +67,7 @@ function initContent() {
     atualizarFaturasVencidas(); // "já paguei fora do app" nos formulários desta tela
     initEdicaoTravada();        // editar movimentação: campos travados até o "Editar"
     sincronizarPares();         // Contas a pagar: os dois cards da linha no mesmo estado
+    initListasRolaveis();       // Contas a pagar: lista longa rola por dentro (depois de abrir os pares)
 }
 
 // Inicialização do shell (sidebar/topbar/modal/PWA) — roda UMA vez; esses

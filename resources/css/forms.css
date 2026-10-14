@@ -844,6 +844,12 @@ a.tx { text-decoration: none; color: inherit; }
 .fatura-items { margin-top: 8px; }
 .fatura-item { display: flex; align-items: center; gap: 13px; padding: 12px 4px; border-top: 1px solid var(--line-2); }
 .fatura-item:first-child { border-top: none; }
+/* Lista longa (`data-rolagem`, `sm/lista-rolavel.js`): da altura dos N primeiros itens, rolando por
+   dentro — 8 nas contas fixas e despesas em conta, 10 nos cartões. A rolagem não "vaza" para a página. */
+.fatura-items.rolando {
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  padding-right: 6px; border-bottom: 1px solid var(--line-2);
+}
 .fi-ico { width: 40px; height: 40px; border-radius: 12px; flex: none; display: grid; place-items: center; font-size: 19px; background: var(--surface-3); }
 .fi-txt { min-width: 0; flex: 1; }
 .fi-txt strong { font-size: 14px; font-weight: 600; display: block; }

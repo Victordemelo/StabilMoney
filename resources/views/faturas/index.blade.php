@@ -138,7 +138,7 @@
             </div>
         @else
             @if ($fixasUrgentes->isNotEmpty())
-                <div class="fatura-items" data-fixas-urgentes>
+                <div class="fatura-items" data-fixas-urgentes data-rolagem="8">
                     @foreach ($fixasUrgentes as $oc)
                         @include('faturas._conta-fixa-linha')
                     @endforeach
@@ -151,7 +151,7 @@
                         {{ $fixasUrgentes->isEmpty() ? 'Todas as contas fixas' : 'Ver as outras' }} <em class="fp-n">{{ $fixasOutras->count() }}</em>
                         <svg class="fp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                     </summary>
-                    <div class="fatura-items">
+                    <div class="fatura-items" data-rolagem="8">
                         @foreach ($fixasOutras as $oc)
                             @include('faturas._conta-fixa-linha')
                         @endforeach
@@ -196,7 +196,7 @@
                 <svg class="fh-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </summary>
             <div class="fatura-corpo">
-            <div class="fatura-items">
+            <div class="fatura-items" data-rolagem="8">
                 @foreach ($accountExpenses as $exp)
                     <div class="fatura-item">
                         {{-- O ícone da categoria com o banco de onde saiu no canto (o mesmo das
@@ -493,7 +493,7 @@
                     </div>
                 @endif
 
-                <div class="fatura-items">
+                <div class="fatura-items" data-rolagem="10">
                     @forelse ($fechadaAberta ? $card->itensFechados : $card->items as $item)
                         @php
                             $catIcon  = $item->category?->icon;

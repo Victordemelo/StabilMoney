@@ -8,6 +8,8 @@
 // altura e abrem e fecham JUNTOS (out/2026 — "tem que ter o card do mesmo tamanho, senão fica
 // desalinhado"): um aberto ao lado de um fechado deixava a linha torta.
 
+import { limitarListasEm } from './lista-rolavel';
+
 const DURACAO = 300;
 const CURVA = 'cubic-bezier(.22, .8, .24, 1)';
 const DUAS_COLUNAS = '(min-width: 1280px)';
@@ -31,15 +33,21 @@ function alternarJuntos(lista) {
     const janela = lista[0].ownerDocument.defaultView;
     if (lista.some((d) => d.dataset.animando)) return [];
     const abrindo = !lista[0].open;
+    // Abrindo, as listas longas de dentro ganham a altura de rolagem ANTES da medida — senão a
+    // animação terminaria na altura da lista inteira e daria um pulo.
+    const abrir = (d) => {
+        d.open = abrindo;
+        if (abrindo) limitarListasEm(d);
+    };
     if (typeof lista[0].animate !== 'function' || semMovimento(janela)) {
-        lista.forEach((d) => { d.open = abrindo; });
+        lista.forEach(abrir);
         return [];
     }
 
     // Mede o outro estado de TODOS antes de animar (no mesmo quadro, sem pintar): com a altura
     // da linha igualada, medir um só daria a altura do vizinho.
     const antes = lista.map((d) => d.offsetHeight);
-    lista.forEach((d) => { d.open = abrindo; });
+    lista.forEach(abrir);
     const depois = lista.map((d) => d.offsetHeight);
     if (!abrindo) lista.forEach((d) => { d.open = true; }); // fecha no fim, o conteúdo some deslizando
 
