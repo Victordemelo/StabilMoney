@@ -575,6 +575,12 @@ class FundingService
     /** Cartão de crédito: a compra não pode passar do limite disponível. */
     private function assertLimiteCartao(Account $card, float $amount, float $ignore = 0.0): void
     {
+        // Nada pesa no limite (compra com data no passado, toda em faturas já pagas fora do
+        // app): não há o que conferir — nem um cartão já estourado recusa o registro.
+        if (round($amount, 2) <= 0) {
+            return;
+        }
+
         $disponivel = round($card->availableLimit + $ignore, 2);
 
         if (round($amount, 2) > $disponivel + SpendingGuard::EPSILON) {

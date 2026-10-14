@@ -113,6 +113,9 @@ class StoreFaturaLaunchRequest extends FormRequest
             ],
             'mode' => ['required', 'in:avista,parcelado,recorrente'],
             'installments' => ['required_if:mode,parcelado', 'integer', 'between:2,24'],
+            // Data no passado: as parcelas das faturas que já venceram entram como pagas
+            // fora do app (`Parcelamento::pagaForaDoApp`). Recorrente não usa.
+            'faturas_vencidas_pagas' => ['nullable', 'boolean'],
         ];
     }
 

@@ -92,16 +92,20 @@ class FaturaController extends Controller
         // Teto do resgate aprovado no modal — instrução para o guard, nunca coluna.
         $maxFonte = isset($data['funding_max_amount']) ? (float) $data['funding_max_amount'] : null;
 
+        // Data no passado no cartão: o que caiu em fatura já vencida entra pago fora do app,
+        // e o limite é conferido só pelo que ainda está em aberto. Recorrente não usa.
+        $vencidasPagas = (bool) ($data['faturas_vencidas_pagas'] ?? false) && $conta->isCard() && $mode !== 'recorrente';
+
         try {
             $funding->spend(
                 account: $conta,
-                amount: $total,
+                amount: Parcelamento::valorEmAberto($total, $base, $mode === 'parcelado' ? (int) $data['installments'] : 1, $conta, $vencidasPagas),
                 source: $fonte,
                 investmentId: $investimentoId,
                 maxFonte: $maxFonte,
-                write: function (array $auditoria) use ($mode, $common, $total, $base, $data, $conta) {
+                write: function (array $auditoria) use ($mode, $common, $total, $base, $data, $conta, $vencidasPagas) {
                     if ($mode === 'parcelado') {
-                        return Parcelamento::criar($common + $auditoria, $total, $base, (int) $data['installments'], $conta);
+                        return Parcelamento::criar($common + $auditoria, $total, $base, (int) $data['installments'], $conta, $vencidasPagas);
                     }
 
                     if ($mode === 'recorrente') {
@@ -111,7 +115,7 @@ class FaturaController extends Controller
                     return Transaction::create($common + $auditoria + [
                         'amount' => $total,
                         'date' => $base->toDateString(),
-                    ]);
+                    ] + ($vencidasPagas ? Parcelamento::pagaForaDoApp($conta, $base) : []));
                 },
                 madeByUserId: $madeBy,
                 date: $base->toDateString(),
@@ -223,9 +227,11 @@ class FaturaController extends Controller
                 // Parcelas JÁ PAGAS não são apagadas: o pagamento delas existe no extrato
                 // (saiu dinheiro de verdade), e apagar a dívida deixaria a saída de caixa
                 // órfã — histórico financeiro não se reescreve. Some só o que ainda é dívida.
+                // As pagas FORA do app (compra com data no passado) saem junto: não há
+                // pagamento no extrato do lado delas.
                 $emAberto = Transaction::where('user_id', $transaction->user_id)
                     ->where('group_id', $transaction->group_id)
-                    ->whereNull('paid_at')
+                    ->apagavelDaCompra()
                     ->pluck('id');
 
                 // Estorna a fonte ANTES de apagar: o delete em massa abaixo não
@@ -306,8 +312,12 @@ class FaturaController extends Controller
         if ($transaction->group_id) {
             return ! Transaction::where('user_id', $transaction->user_id)
                 ->where('group_id', $transaction->group_id)
-                ->whereNull('paid_at')
+                ->apagavelDaCompra()
                 ->exists();
+        }
+
+        if ($transaction->pago_fora_do_app) {
+            return false; // paga fora do app: nenhum pagamento no extrato a deixar sem origem
         }
 
         return $transaction->paid_at !== null || $transaction->settled_by_id !== null;
@@ -672,6 +682,8 @@ class FaturaController extends Controller
             $compras = Transaction::where('account_id', $transaction->settles_account_id)
                 ->whereNull('settled_by_id')
                 ->whereNull('credit_settlement_id')
+                // Paga fora do app (compra com data no passado) não é deste pagamento.
+                ->where('pago_fora_do_app', false)
                 ->where('paid_at', $transaction->paid_at)
                 ->pluck('id');
         }

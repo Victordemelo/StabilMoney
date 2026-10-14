@@ -329,6 +329,9 @@ class Account extends Model
                             ? $conta->availableLimitDisplay
                             : $conta->available,
                         'saldoRotulo' => $conta->isCard() ? 'limite livre' : 'disponível',
+                        // Cartão: data até a qual uma compra cai em fatura JÁ VENCIDA (a tela
+                        // oferece "já paguei fora do app" — `Parcelamento::pagaForaDoApp`).
+                        'corteVencidas' => $conta->isCard() ? $conta->corteDasFaturasVencidas()?->toDateString() : null,
                     ]);
                 }
 
@@ -1072,6 +1075,33 @@ class Account extends Model
     public function melhorDiaDeCompra(): ?int
     {
         return $this->closing_day ? ((int) $this->closing_day % 31) + 1 : null;
+    }
+
+    /**
+     * O fechamento da fatura mais recente que JÁ VENCEU (vencimento antes de hoje), ou null
+     * (sem fechamento ou vencimento). Compra lançada com data até ele caiu numa fatura vencida —
+     * é a régua do "as faturas que já venceram foram pagas fora do app" (out/2026).
+     */
+    public function corteDasFaturasVencidas(?CarbonImmutable $hoje = null): ?CarbonImmutable
+    {
+        $hoje ??= CarbonImmutable::today();
+        $ciclo = $this->billingCycle($hoje);
+        if (! $ciclo || ! $this->due_day) {
+            return null;
+        }
+
+        // O início do ciclo aberto é o fechamento da fatura anterior; volta de fatura em fatura
+        // até achar uma cujo vencimento já passou (no máximo duas: o vencimento cai até o mês
+        // seguinte ao fechamento).
+        $fechamento = $ciclo[0];
+        for ($i = 0; $i < 3; $i++) {
+            if ($this->dueDateForCycle($fechamento)->lessThan($hoje)) {
+                return $fechamento;
+            }
+            $fechamento = $this->billingCycle($fechamento)[0];
+        }
+
+        return $fechamento;
     }
 
     public function dueDateForCycle(CarbonImmutable $cycleEnd): ?CarbonImmutable

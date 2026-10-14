@@ -151,6 +151,7 @@
                                          do Fluent, que devolve $this (truthy) e marcaria TODA
                                          conta como cartão — em "Receita" o select ficava vazio. --}}
                                     <option value="{{ $conta->id }}" data-para="{{ $para }}" data-card="{{ $conta->isCard ? '1' : '0' }}"
+                                            @if (! $editando && $conta->corteVencidas) data-corte-vencidas="{{ $conta->corteVencidas }}" @endif
                                             @selected((int) old('account_id', $transaction->account_id ?? 0) === $conta->id)>
                                         {{ $conta->rotuloCurto ?? $conta->rotulo ?? $conta->name }}
                                     </option>
@@ -159,6 +160,9 @@
                         @endforeach
                     </select>
                     @error('account_id')<div class="field-error">{{ $message }}</div>@enderror
+                    @unless ($editando)
+                        @include('partials.faturas-vencidas-pagas', ['conta' => 'account_id', 'data' => 'date'])
+                    @endunless
                 </div>
 
                 @if ($podeTransferir)

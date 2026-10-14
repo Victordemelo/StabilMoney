@@ -27,6 +27,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -270,7 +271,9 @@ class TransactionController extends Controller
         $maxFonte = $data['funding_max_amount'] ?? null;
         // Parcelas é instrução também: 1 (ou nada) = à vista, numa linha só sem `installments`.
         $parcelas = (int) ($data['installments'] ?? 1);
-        unset($data['funding_source'], $data['funding_investment_id'], $data['funding_max_amount'], $data['installments']);
+        // Data no passado no cartão: o que caiu em fatura já vencida entra pago fora do app.
+        $vencidasPagas = (bool) ($data['faturas_vencidas_pagas'] ?? false);
+        unset($data['funding_source'], $data['funding_investment_id'], $data['funding_max_amount'], $data['installments'], $data['faturas_vencidas_pagas']);
 
         try {
             // Receita não gasta nada: grava direto. Despesa passa pelo guard.
@@ -279,17 +282,22 @@ class TransactionController extends Controller
             }
 
             $conta = Account::whereKey($data['account_id'])->firstOrFail();
+            $vencidasPagas = $vencidasPagas && $conta->isCard();
+            $parcelado = $parcelas > 1 && $conta->isCard();
+            $base = CarbonImmutable::parse($data['date']);
 
             $transaction = $funding->spend(
                 account: $conta,
-                amount: (float) $data['amount'],
+                // O limite é conferido pelo que AINDA pesa no cartão: sem as parcelas que entram
+                // pagas fora do app (no parcelado, o total da compra).
+                amount: Parcelamento::valorEmAberto((float) $data['amount'], $base, $parcelado ? $parcelas : 1, $conta, $vencidasPagas),
                 source: $fonte,
                 investmentId: $investimentoId ? (int) $investimentoId : null,
                 // Parcelado no cartão: N linhas, uma por ciclo de fatura, as mesmas regras do
-                // "Lançar despesa" de Contas a pagar. O limite é conferido pelo TOTAL da compra.
-                write: fn (array $auditoria) => $parcelas > 1 && $conta->isCard()
-                    ? Parcelamento::criar(Arr::except($data, ['amount', 'date']) + $auditoria, (float) $data['amount'], CarbonImmutable::parse($data['date']), $parcelas, $conta)
-                    : Transaction::create($data + $auditoria),
+                // "Lançar despesa" de Contas a pagar.
+                write: fn (array $auditoria) => $parcelado
+                    ? Parcelamento::criar(Arr::except($data, ['amount', 'date']) + $auditoria, (float) $data['amount'], $base, $parcelas, $conta, $vencidasPagas)
+                    : Transaction::create($data + $auditoria + ($vencidasPagas ? Parcelamento::pagaForaDoApp($conta, $base) : [])),
                 madeByUserId: $data['made_by_user_id'],
                 date: $data['date'],
                 maxFonte: $maxFonte !== null ? (float) $maxFonte : null,
@@ -476,11 +484,16 @@ class TransactionController extends Controller
         $this->authorize('update', $transaction);
 
         $userId = $request->user()->ownerId();
+        $opcoes = Account::paymentOptions($userId);
 
         return view('transactions.edit', [
             'transaction' => $transaction,
-            'accounts' => Account::paymentOptions($userId),
+            'accounts' => $opcoes,
+            // "Onde" só com o que vale para o TIPO desta movimentação (out/2026 — pedido do
+            // Victor: numa despesa, a conta de receita não tem por que aparecer).
+            'gruposDeOnde' => $this->gruposDaEdicao($transaction, $opcoes),
             'categories' => Category::where('user_id', $userId)->naOrdemDaTela()->get(),
+            'travaDeExclusao' => $this->travaDeExclusao($transaction),
             'familyMembers' => $this->familyMembers($userId),
             'ofereceEncerrarRecorrencia' => $this->ofereceEncerrarRecorrencia($transaction),
             // Painel "Detalhes" ao lado do formulário: o que trava a edição desta linha (a
@@ -493,9 +506,66 @@ class TransactionController extends Controller
                 ? Transaction::where('user_id', $userId)
                     ->where('group_id', $transaction->group_id)
                     ->orderBy('installment_no')
-                    ->get(['id', 'installment_no', 'installments', 'amount', 'date', 'paid_at'])
+                    ->get(['id', 'installment_no', 'installments', 'amount', 'date', 'paid_at', 'pago_fora_do_app'])
                 : collect(),
         ]);
+    }
+
+    /**
+     * Os grupos do "Onde" na EDIÇÃO: só os que valem para o tipo da movimentação (receita em
+     * conta de banco; despesa por um método). Se a conta gravada não está entre eles (despesa
+     * antiga lançada direto na corrente, sem método que a espelhe), ela entra no grupo dela —
+     * senão o select trocaria a conta sozinho, e trocar a conta reconcilia o dinheiro.
+     *
+     * @return list<array{rotulo: string, para: string, opcoes: Collection}>
+     */
+    private function gruposDaEdicao(Transaction $transaction, Collection $opcoes): array
+    {
+        $todos = Account::gruposDeLancamento($opcoes);
+        $doTipo = array_values(array_filter($todos, fn (array $g) => in_array($transaction->type, explode(' ', $g['para']), true)));
+
+        $temAAtual = collect($doTipo)->contains(fn (array $g) => $g['opcoes']->contains('id', $transaction->account_id));
+        if (! $temAAtual) {
+            foreach ($todos as $grupo) {
+                $atual = $grupo['opcoes']->where('id', $transaction->account_id)->take(1)->values();
+                if ($atual->isNotEmpty()) {
+                    $doTipo[] = ['rotulo' => $grupo['rotulo'], 'para' => $transaction->type, 'opcoes' => $atual];
+                    break;
+                }
+            }
+        }
+
+        return $doTipo;
+    }
+
+    /**
+     * Por que esta movimentação NÃO pode ser excluída pela tela de editar, ou null. As mesmas
+     * recusas do `destroy`, ditas antes do clique (o cartão "Excluir" mostra o motivo no lugar
+     * do botão).
+     */
+    private function travaDeExclusao(Transaction $transaction): ?string
+    {
+        if ($transaction->settles_account_id) {
+            return 'Esta linha é o pagamento de uma fatura de cartão. Para desfazer, use "Estornar pagamento" na tela Contas a pagar — as compras voltam a ficar em aberto.';
+        }
+
+        if ($transaction->isParcelaDeCompra()) {
+            $apagaveis = Transaction::where('user_id', $transaction->user_id)
+                ->where('group_id', $transaction->group_id)
+                ->apagavelDaCompra()
+                ->exists();
+
+            return $apagaveis ? null
+                : 'Todas as parcelas desta compra já foram pagas numa fatura. Para excluir, use "Estornar pagamento" na tela Contas a pagar primeiro.';
+        }
+
+        if ($transaction->paid_at && $transaction->account?->isCard() && ! $transaction->pago_fora_do_app) {
+            return $transaction->credit_settlement_id
+                ? CreditSettlement::recusaParaLinha($transaction, 'excluir')
+                : 'Esta compra já foi paga na fatura do cartão. Para excluir, use "Estornar pagamento" na tela Contas a pagar primeiro.';
+        }
+
+        return null;
     }
 
     /**
@@ -523,6 +593,13 @@ class TransactionController extends Controller
         // sem passar pelo FundingService. Se as guardas morassem lá dentro,
         // bastaria transformar a despesa em receita para escapar de todas elas.
         // Aqui, no topo, os dois caminhos ficam cobertos por construção.
+        //
+        // COMPRA PARCELADA é editada INTEIRA, e só no que não mexe em dinheiro (descrição,
+        // categoria, quem fez) — antes do resto, porque ela não passa por nenhum dos ramos.
+        if ($transaction->isParcelaDeCompra()) {
+            return $this->atualizarCompraParcelada($request, $transaction);
+        }
+
         if ($motivo = $this->travaDeEdicao($transaction, $request->input('type'), $request->input('account_id'))) {
             return back()->withErrors(['transaction' => $motivo])->withInput();
         }
@@ -580,6 +657,11 @@ class TransactionController extends Controller
         // qualquer ramo de gravação, como as outras guardas (a de receita grava cru).
         if ($motivo = $this->travaDoValor($transaction, $data)) {
             return back()->withErrors(['amount' => $motivo])->withInput();
+        }
+
+        if ($transaction->pago_fora_do_app
+            && ((int) $data['account_id'] !== (int) $transaction->account_id || $data['date'] !== $transaction->date->toDateString())) {
+            return back()->withErrors(['transaction' => self::MENSAGEM_PAGA_FORA_DO_APP])->withInput();
         }
 
         // Escolha da fonte é instrução, não coluna. `funding_max_amount` é o teto
@@ -737,14 +819,8 @@ class TransactionController extends Controller
                 .'ficar em aberto e você paga de novo com o valor certo.';
         }
 
-        // 2) PARCELA ISOLADA de uma compra parcelada. Editar a 2/6 deixaria as
-        //    outras cinco com o valor antigo, todas dizendo "de 6", e a soma da
-        //    compra deixaria de bater com o que foi comprado.
-        if ($transaction->group_id && $transaction->installments) {
-            return 'Esta despesa é a parcela '.$transaction->badge.' de uma compra parcelada e não pode '
-                .'ser editada sozinha — as outras parcelas continuariam com o valor antigo e a soma da '
-                .'compra ficaria errada. Para mexer na compra inteira, use a tela Contas a pagar.';
-        }
+        // 2) PARCELA de compra parcelada: não chega aqui — o `update` a edita inteira
+        //    (`atualizarCompraParcelada`), e só no que não mexe em dinheiro.
 
         // 3) COMPRA DE CARTÃO JÁ PAGA. `committed` (e o limite do cartão) ignoram
         //    linhas com `paid_at`, então editar o valor aqui muda uma dívida que já
@@ -752,7 +828,10 @@ class TransactionController extends Controller
         //    continua com o valor velho.
         //    Quitada PELO CRÉDITO de um estorno, a saída é outra ("Desfazer quitação"):
         //    não há pagamento a estornar (R2-4 da auditoria financeira, rodada 2).
-        if ($transaction->paid_at && $transaction->account?->isCard()) {
+        //    Paga FORA do app (compra com data no passado): não há pagamento a estornar.
+        //    Descrição, categoria e quem fez seguem editáveis; cartão e data não
+        //    (a linha iria para uma fatura em aberto já paga) — `travaDaPagaForaDoApp`.
+        if ($transaction->paid_at && $transaction->account?->isCard() && ! $transaction->pago_fora_do_app) {
             return $transaction->credit_settlement_id
                 ? CreditSettlement::recusaParaLinha($transaction, 'editar')
                 : 'Esta compra já foi paga na fatura do cartão '.$transaction->account->name
@@ -1103,23 +1182,21 @@ class TransactionController extends Controller
             ]);
         }
 
-        // PARCELA ISOLADA (§14 da spec, D-12): apagar a 2/3 deixa "1/3" e "3/3"
-        // no histórico e a soma da compra quebrada. Quem apaga a COMPRA inteira
-        // — todas as parcelas em aberto de uma vez, mantendo as já pagas — é a
-        // tela Contas a pagar (`faturas.compra.destroy`).
-        if ($transaction->group_id && $transaction->installments) {
-            return back()->withErrors([
-                'transaction' => 'Esta despesa é a parcela '.$transaction->badge.' de uma compra parcelada '
-                    .'e não pode ser excluída sozinha — as outras continuariam no histórico dizendo "de '
-                    .$transaction->installments.'". Para remover a compra inteira, use a tela Contas a pagar.',
-            ]);
+        // COMPRA PARCELADA: excluir leva a COMPRA inteira (out/2026 — pedido do Victor; antes
+        // recusava e mandava para Contas a pagar). Apagar só a 2/3 deixaria "1/3" e "3/3" no
+        // histórico e a soma da compra quebrada (§14 da spec, D-12), então as parcelas saem
+        // juntas — menos as já pagas numa fatura do app, cujo pagamento está no extrato.
+        if ($transaction->isParcelaDeCompra()) {
+            return $this->excluirCompraParcelada($transaction, $funding);
         }
 
         // COMPRA DE CARTÃO JÁ QUITADA. A tela Contas a pagar já recusa isto
         // ("histórico financeiro não se reescreve"), mas o Histórico apagava: a
         // compra sumia e a quitação que a pagou ficava com o valor velho, sem a
         // dívida do outro lado. Mesma família das guardas 1 e 3 da edição.
-        if ($transaction->paid_at && $transaction->account?->isCard()) {
+        // Paga FORA do app (compra com data no passado) fica de fora: não há pagamento no
+        // extrato a deixar sem a compra.
+        if ($transaction->paid_at && $transaction->account?->isCard() && ! $transaction->pago_fora_do_app) {
             return back()->withErrors([
                 // Quitada pelo crédito de um estorno: não há pagamento no extrato, e
                 // quem desfaz é o "Desfazer quitação" (R2-4).
@@ -1173,6 +1250,108 @@ class TransactionController extends Controller
                 ? $this->encerrarRecorrencia($transaction, $quemExclui)
                 : 'Transação removida.';
         });
+
+        return redirect()->route('transactions.index')->with('status', $status);
+    }
+
+    public const MENSAGEM_PAGA_FORA_DO_APP = 'Esta compra entrou como paga fora do app (a fatura dela já tinha vencido quando foi lançada), '
+        .'então o cartão, a data e o valor não mudam. Descrição, categoria e quem fez continuam editáveis; '
+        .'para corrigir o resto, exclua e lance de novo.';
+
+    /**
+     * Edição da COMPRA PARCELADA, a partir de qualquer parcela: descrição, categoria e quem fez
+     * valem para as N parcelas juntas (antes nada se editava — "a parcela não pode ser editada
+     * sozinha"). Valor, data, cartão e tipo não mudam: as parcelas são uma por ciclo de fatura e
+     * algumas podem já estar pagas — para isso, exclui-se a compra e lança-se de novo.
+     *
+     * Nada aqui mexe em dinheiro, então não passa pelo `FundingService`. A parcela aberta é
+     * gravada pelo Eloquent (é ela que entra na Atividade: uma ação, uma linha) e as irmãs por
+     * update em massa, na mesma transação.
+     */
+    private function atualizarCompraParcelada(UpdateTransactionRequest $request, Transaction $parcela)
+    {
+        $data = $request->validated();
+
+        $mudouDinheiro = (int) round((float) $data['amount'] * 100) !== (int) round((float) $parcela->amount * 100)
+            || $data['type'] !== $parcela->type
+            || (int) $data['account_id'] !== (int) $parcela->account_id
+            || $data['date'] !== $parcela->date->toDateString();
+
+        if ($mudouDinheiro) {
+            return back()->withErrors([
+                'transaction' => 'Esta é uma compra parcelada em '.$parcela->installments.'x: valor, data e cartão não mudam por aqui, '
+                    .'porque cada parcela já está na fatura dela. Para corrigir, exclua a compra (as parcelas saem juntas) e lance de novo.',
+            ])->withInput();
+        }
+
+        $campos = [
+            'description' => $data['description'] ?? null,
+            'category_id' => $data['category_id'] ?? null,
+            'made_by_user_id' => $data['made_by_user_id'] ?? $parcela->made_by_user_id,
+        ];
+
+        DB::transaction(function () use ($parcela, $campos) {
+            $parcela->update($campos);
+            Transaction::where('user_id', $parcela->user_id)
+                ->where('group_id', $parcela->group_id)
+                ->whereKeyNot($parcela->getKey())
+                ->update($campos);
+        });
+
+        return redirect()->route('transactions.index')
+            ->with('status', 'Compra atualizada nas '.$parcela->installments.' parcelas.');
+    }
+
+    /**
+     * Exclui a COMPRA PARCELADA inteira a partir de qualquer parcela dela: as em aberto e as
+     * pagas fora do app. As pagas por um pagamento de fatura do app ficam (o pagamento está no
+     * extrato) — a mesma regra do "Remover" de Contas a pagar (`FaturaController::destroy`).
+     * Delete em massa: o estorno da fonte e o registro de atividade são explícitos, na mesma
+     * transação. A conta (o cartão) é travada antes, como no lançamento.
+     */
+    private function excluirCompraParcelada(Transaction $parcela, FundingService $funding)
+    {
+        $status = DB::transaction(function () use ($parcela, $funding) {
+            Account::whereKey($parcela->account_id)->lockForUpdate()->first();
+
+            $ids = Transaction::where('user_id', $parcela->user_id)
+                ->where('group_id', $parcela->group_id)
+                ->apagavelDaCompra()
+                ->lockForUpdate()
+                ->pluck('id');
+
+            if ($ids->isEmpty()) {
+                return null;
+            }
+
+            $funding->estornarFonte($ids);
+            $apagadas = Transaction::whereIn('id', $ids)->delete();
+
+            Atividade::registrar(
+                'compra.excluida',
+                'excluiu a compra parcelada '.Descritor::q(Descritor::nomeDaTransacao($parcela))
+                    .' de '.Descritor::rotuloDaConta($parcela->account_id)
+                    .' ('.$apagadas.' '.($apagadas === 1 ? 'parcela' : 'parcelas').')',
+                (int) $parcela->user_id,
+                $parcela,
+            );
+
+            $restaram = Transaction::where('user_id', $parcela->user_id)
+                ->where('group_id', $parcela->group_id)
+                ->count();
+
+            return $restaram > 0
+                ? 'Compra excluída: '.$apagadas.' '.($apagadas === 1 ? 'parcela saiu' : 'parcelas saíram')
+                    .' da fatura. '.($restaram === 1 ? 'A parcela que já foi paga continua' : 'As '.$restaram.' parcelas que já foram pagas continuam').' no histórico.'
+                : 'Compra excluída: as '.$apagadas.' parcelas saíram da fatura.';
+        });
+
+        if ($status === null) {
+            return back()->withErrors([
+                'transaction' => 'Todas as parcelas desta compra já foram pagas numa fatura, então ela não pode ser excluída: '
+                    .'o pagamento continuaria no extrato sem a compra. Use "Estornar pagamento" na tela Contas a pagar primeiro.',
+            ]);
+        }
 
         return redirect()->route('transactions.index')->with('status', $status);
     }

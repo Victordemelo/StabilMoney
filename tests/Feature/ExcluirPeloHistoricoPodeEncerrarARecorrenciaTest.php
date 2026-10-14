@@ -379,7 +379,11 @@ class ExcluirPeloHistoricoPodeEncerrarARecorrenciaTest extends TestCase
     public function test_a_caixa_nao_aparece_se_a_exclusao_e_recusada_ou_a_serie_ja_acabou(): void
     {
         [$agostoPago] = $this->serieDoCartao();
-        $this->assertNull($this->caixaDeEncerrar($agostoPago));
+        // Exclusão recusada: a tela de editar diz o motivo no lugar do botão — sem formulário,
+        // sem caixa (13/10/2026).
+        $html = $this->actingAs($this->user)->get(route('transactions.edit', $agostoPago))->assertOk()->getContent();
+        $this->assertStringNotContainsString('name="encerrar_recorrencia"', $html);
+        $this->assertStringContainsString('Estornar pagamento', $html);
 
         // E o POST com a caixa marcada é recusado pela guarda, sem encerrar nada.
         $this->excluir($agostoPago, encerrar: true)->assertSessionHasErrors('transaction');
@@ -545,8 +549,9 @@ class ExcluirPeloHistoricoPodeEncerrarARecorrenciaTest extends TestCase
         ])->assertSessionHasNoErrors();
         $parcela = Transaction::where('installment_no', 2)->firstOrFail();
 
-        $this->excluir($parcela, encerrar: true)->assertSessionHasErrors('transaction');
-        $this->assertSame(3, Transaction::where('group_id', $parcela->group_id)->count());
+        // Compra parcelada: a caixa é ignorada e a compra inteira sai (out/2026).
+        $this->excluir($parcela, encerrar: true)->assertSessionHasNoErrors();
+        $this->assertSame(0, Transaction::where('group_id', $parcela->group_id)->count());
 
         $this->assertSame(0, EndedRecurrence::count());
     }

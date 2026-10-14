@@ -129,6 +129,10 @@ class StoreTransactionRequest extends FormRequest
             // lançava à vista). 1 = à vista; 2..24 = uma linha por ciclo de fatura, pelas
             // MESMAS regras do "Lançar despesa" de Contas a pagar (`Parcelamento`).
             'installments' => ['nullable', 'integer', 'between:1,24'],
+            // Compra no cartão com data no passado: as parcelas das faturas que já venceram
+            // entram como pagas fora do app (`Parcelamento::pagaForaDoApp`). A tela manda
+            // marcado; fora do cartão o servidor ignora.
+            'faturas_vencidas_pagas' => ['nullable', 'boolean'],
         ] : []);
     }
 

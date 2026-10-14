@@ -124,6 +124,7 @@
                                                  marcaria TODA conta como cartão. --}}
                                             <option value="{{ $conta->id }}" data-para="{{ $grupo['para'] }}"
                                                     data-card="{{ $conta->isCard ? '1' : '0' }}"
+                                                    @if ($conta->corteVencidas) data-corte-vencidas="{{ $conta->corteVencidas }}" @endif
                                                     data-cash="{{ in_array($conta->type, ['checking', 'savings'], true) ? '1' : '0' }}"
                                                     data-saldo="{{ \App\Support\Brl::format($conta->saldo ?? 0) }}"
                                                     data-saldo-valor="{{ number_format((float) ($conta->saldo ?? 0), 2, '.', '') }}"
@@ -138,6 +139,7 @@
                                  ela a pessoa digita o valor, salva, e só então o servidor
                                  responde 409 perguntando de onde sai o dinheiro. --}}
                             <span class="lm-saldo" data-lm-saldo hidden></span>
+                            @include('partials.faturas-vencidas-pagas', ['conta' => 'lm-account', 'data' => 'lm-date'])
                         </div>
                         @if ($lmPodeTransferir)
                             {{-- Destino da transferência. Escondido (e DESABILITADO, para não

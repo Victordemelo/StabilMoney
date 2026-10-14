@@ -26,6 +26,7 @@ import { melhorarCamposDeData } from './sm/data-br';
 import { initRolagemSuave } from './sm/rolagem-suave';
 import { initSaldoGiro } from './sm/saldo-giro';
 import { initOcultarValores } from './sm/ocultar-valores';
+import { initFaturasVencidas, atualizarFaturasVencidas } from './sm/faturas-vencidas';
 
 // Utilitário de diálogo (sm/dialogo.js): o teclado dos modais (Esc e Tab preso) e a
 // ponte `window.smDialogo` dos scripts inline das views. Liga já na AVALIAÇÃO do
@@ -60,6 +61,7 @@ function initContent() {
     initSecurity();
     initMoney();
     aplicarEstadoDeInstalacao();
+    atualizarFaturasVencidas(); // "já paguei fora do app" nos formulários desta tela
 }
 
 // Inicialização do shell (sidebar/topbar/modal/PWA) — roda UMA vez; esses
@@ -78,6 +80,8 @@ function init() {
     // só, no documento, que vale também para o conteúdo trocado pelo pjax. Substitui os
     // `onsubmit="return confirm(...)"`, que a CSP bloqueia.
     initConfirmar();
+    // Compra no cartão com data numa fatura vencida: a caixa "já paguei fora do app".
+    initFaturasVencidas();
     // O "olho" dos campos de senha (`.pw-toggle`): também um ouvinte só, no documento.
     initMostrarSenha();
     // O modal de escolha de fonte vive no shell (serve os 3 formulários), então

@@ -32,10 +32,12 @@ class EditarTransacaoMostraOsDetalhesTest extends TestCase
         $html = $this->actingAs($user)->get(route('transactions.edit', $segunda))->assertOk()->getContent();
 
         $this->assertStringContainsString('aria-label="Detalhes da transação"', $html);
-        $this->assertStringContainsString('2 de 3 · total R$ 600,00', $html);
+        $this->assertStringContainsString('0 de 3 pagas · total R$ 600,00', $html);
         $this->assertSame(3, substr_count($html, '<span>R$ 200,00</span>'), 'As três parcelas listadas.');
-        $this->assertStringContainsString('Em aberto na fatura do Roxinho', $html);
-        $this->assertStringContainsString('não pode ser editada sozinha', $html);
+        $this->assertStringContainsString('Nenhuma parcela paga ainda', $html);
+        // Compra parcelada (13/10/2026): o que vale para as 3 parcelas e o que não muda.
+        $this->assertStringContainsString('O que você editar abaixo vale para as 3 parcelas', $html);
+        $this->assertStringContainsString('Excluir a compra inteira', $html);
         $this->assertStringContainsString('Roxinho (Crédito · Nubank)', $html);
     }
 

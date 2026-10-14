@@ -86,10 +86,16 @@ class CategoriaNovaApareceNoLancarTest extends TestCase
 
         $this->assertSame($tela, $this->opcoes($this->selectDeCategoria($user, route('transactions.create'), 'category_id'), 'expense'));
 
+        // Na edição (refeita em 13/10/2026) o select só tem as categorias do TIPO da
+        // movimentação, sem grupos — e na mesma ordem.
         $lancamento = Transaction::factory()->for($user)->create([
-            'account_id' => $conta->id, 'type' => 'income', 'amount' => 10, 'date' => now()->addDay()->toDateString(),
+            'account_id' => $conta->id, 'type' => 'expense', 'amount' => 10, 'date' => now()->addDay()->toDateString(),
         ]);
-        $this->assertSame($tela, $this->opcoes(
-            $this->selectDeCategoria($user, route('transactions.edit', $lancamento), 'category_id'), 'expense'));
+        $select = $this->selectDeCategoria($user, route('transactions.edit', $lancamento), 'category_id');
+        $nomes = [];
+        foreach ($select->querySelectorAll('option:not([value=""])') as $opt) {
+            $nomes[] = trim(preg_replace('/^\S+\s/u', '', trim($opt->textContent)));
+        }
+        $this->assertSame($tela, $nomes);
     }
 }

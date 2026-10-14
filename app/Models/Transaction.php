@@ -51,6 +51,9 @@ class Transaction extends Model
         // (cheque especial / resgate) e quanto veio de lá. Só auditoria.
         'funding_source',
         'funding_amount',
+        // Parcela de uma fatura que já tinha vencido quando a compra foi lançada (data no
+        // passado): paga fora do app, sem saída de caixa. Ver a migration compra_paga_fora_do_app.
+        'pago_fora_do_app',
     ];
 
     protected function casts(): array
@@ -70,6 +73,7 @@ class Transaction extends Model
             'recurring' => 'boolean',
             'paid_at' => 'datetime',
             'funding_amount' => 'decimal:2',
+            'pago_fora_do_app' => 'boolean',
         ];
     }
 
@@ -150,6 +154,26 @@ class Transaction extends Model
      * É esta pergunta que decide se excluir pelo Histórico oferece "Encerrar também a
      * recorrência" (`EndedRecurrence`).
      */
+    /**
+     * É uma parcela de COMPRA PARCELADA (não de série recorrente)? A compra é uma coisa só: a
+     * edição muda as N parcelas juntas e a exclusão leva a compra inteira (out/2026).
+     */
+    public function isParcelaDeCompra(): bool
+    {
+        return $this->group_id !== null && (bool) $this->installments && ! $this->recurring;
+    }
+
+    /**
+     * Escopo: as parcelas de uma compra que a EXCLUSÃO leva — as em aberto e as pagas fora do
+     * app (data no passado). As pagas por um pagamento de fatura do app ficam: o pagamento delas
+     * está no extrato, e apagar a dívida deixaria a saída de caixa sem origem.
+     */
+    public function scopeApagavelDaCompra($query)
+    {
+        return $query->where(fn ($q) => $q->whereNull($q->qualifyColumn('paid_at'))
+            ->orWhere($q->qualifyColumn('pago_fora_do_app'), true));
+    }
+
     public function isOcorrenciaRecorrente(): bool
     {
         return $this->group_id !== null && (bool) $this->recurring && ! $this->installments;

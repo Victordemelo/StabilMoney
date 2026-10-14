@@ -364,18 +364,22 @@ class GuardsDeEdicaoNoHistoricoTest extends TestCase
         $this->assertSame(1200.0, $cartao->fresh()->committed);
     }
 
-    public function test_caso4_excluir_uma_parcela_isolada_e_recusado(): void
+    /**
+     * Excluir uma parcela leva a COMPRA inteira (out/2026 — pedido do Victor; antes era recusado
+     * e mandava para Contas a pagar). Nunca sobra "1/12" e "3/12" órfãs no histórico.
+     */
+    public function test_caso4_excluir_uma_parcela_leva_a_compra_inteira(): void
     {
         $cartao = $this->parcelado();
         $segunda = Transaction::where('installment_no', 2)->firstOrFail();
 
         $this->actingAs($this->user)->from(route('transactions.index'))
             ->delete(route('transactions.destroy', $segunda))
-            ->assertSessionHasErrors('transaction');
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'Compra excluída: as 12 parcelas saíram da fatura.');
 
-        // ANTES: sobravam 11 linhas com "1/12" e "3/12" órfãs no histórico.
-        $this->assertSame(12, Transaction::where('group_id', $segunda->group_id)->count());
-        $this->assertSame(1200.0, $cartao->fresh()->committed);
+        $this->assertSame(0, Transaction::where('group_id', $segunda->group_id)->count());
+        $this->assertSame(0.0, $cartao->fresh()->committed);
     }
 
     public function test_caso4_a_compra_inteira_continua_removivel_em_pagar_despesas(): void

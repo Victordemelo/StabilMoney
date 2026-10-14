@@ -665,6 +665,7 @@
                                     @foreach ($grupo['opcoes'] as $account)
                                         <option value="{{ $account->id }}"
                                                 data-card="{{ $account->isCard ? '1' : '0' }}"
+                                                @if ($account->corteVencidas) data-corte-vencidas="{{ $account->corteVencidas }}" @endif
                                                 data-saldo-valor="{{ number_format((float) ($account->saldo ?? 0), 2, '.', '') }}" data-saldo-rotulo="{{ $account->saldoRotulo ?? 'disponível' }}"
                                                 @selected($reabreLancar && (int) old('account_id') === $account->id)>
                                             {{ $account->rotuloCurto ?? $account->rotulo ?? $account->name }}
@@ -690,6 +691,7 @@
                         <label for="lanc-data">Data</label>
                         <input class="input" type="date" id="lanc-data" name="date"
                                value="{{ $reabreLancar ? old('date', now()->format('Y-m-d')) : now()->format('Y-m-d') }}" required>
+                        @include('partials.faturas-vencidas-pagas', ['conta' => 'lanc-method', 'data' => 'lanc-data', 'modo' => 'lanc-mode'])
                     </div>
                 </div>
                 <div class="form-row">

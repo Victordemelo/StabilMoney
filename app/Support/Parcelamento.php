@@ -32,7 +32,7 @@ final class Parcelamento
      * da 1ª. Fevereiro cobrava duas parcelas e março nenhuma (F-1, auditoria
      * de 02/09/2026). Ocorria com compra em 29, 30 e 31/01.
      */
-    public static function criar(array $common, float $total, CarbonImmutable $base, int $n, Account $card): Transaction
+    public static function criar(array $common, float $total, CarbonImmutable $base, int $n, Account $card, bool $faturasVencidasPagas = false): Transaction
     {
         $groupId = (string) Str::uuid();
         $primeira = null;
@@ -58,7 +58,7 @@ final class Parcelamento
 
         $datas = self::datas($base, $n, $card);
 
-        DB::transaction(function () use ($common, $semUuid, $datas, $n, $groupId, $porParcela, $sobra, &$primeira) {
+        DB::transaction(function () use ($common, $semUuid, $datas, $n, $groupId, $porParcela, $sobra, $card, $faturasVencidasPagas, &$primeira) {
             for ($i = 1; $i <= $n; $i++) {
                 // As `$sobra` primeiras parcelas levam 1 centavo a mais.
                 $amount = ($porParcela + ($i <= $sobra ? 1 : 0)) / 100;
@@ -69,7 +69,7 @@ final class Parcelamento
                     'group_id' => $groupId,
                     'installment_no' => $i,
                     'installments' => $n,
-                ]);
+                ] + ($faturasVencidasPagas ? self::pagaForaDoApp($card, $datas[$i - 1]) : []));
 
                 $primeira ??= $linha;
             }
@@ -125,5 +125,48 @@ final class Parcelamento
         }
 
         return $candidata;
+    }
+
+    /**
+     * Compra lançada com data no PASSADO (out/2026 — pedido do Victor): a linha que cai numa
+     * fatura que já venceu foi paga no mundo real, antes do app. Devolve os atributos que a
+     * gravam assim — paga no vencimento daquela fatura, sem saída de caixa — ou [] quando a
+     * fatura dela ainda não venceu (essa segue em aberto, para a pessoa pagar pelo app).
+     */
+    public static function pagaForaDoApp(Account $card, CarbonImmutable $data, ?CarbonImmutable $hoje = null): array
+    {
+        $corte = $card->isCard() ? $card->corteDasFaturasVencidas($hoje) : null;
+        if (! $corte || $data->greaterThan($corte)) {
+            return [];
+        }
+
+        $vencimento = $card->dueDateForCycle($card->billingCycle($data)[1]);
+
+        return ['paid_at' => $vencimento->startOfDay(), 'pago_fora_do_app' => true];
+    }
+
+    /**
+     * Quanto da compra ainda pesa no limite do cartão: o total menos as parcelas que entram
+     * pagas fora do app. É o valor que o `FundingService` confere — uma compra de um ano atrás
+     * já paga não pode ser recusada por falta de limite.
+     */
+    public static function valorEmAberto(float $total, CarbonImmutable $base, int $n, Account $card, bool $faturasVencidasPagas): float
+    {
+        if (! $faturasVencidasPagas) {
+            return $total;
+        }
+
+        $centavos = (int) round($total * 100);
+        $porParcela = intdiv($centavos, $n);
+        $sobra = $centavos - ($porParcela * $n);
+        $emAberto = 0;
+
+        foreach (self::datas($base, $n, $card) as $i => $data) {
+            if (self::pagaForaDoApp($card, $data) === []) {
+                $emAberto += $porParcela + ($i + 1 <= $sobra ? 1 : 0);
+            }
+        }
+
+        return $emAberto / 100;
     }
 }

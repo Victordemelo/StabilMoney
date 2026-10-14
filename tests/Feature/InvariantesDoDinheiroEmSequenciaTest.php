@@ -515,9 +515,13 @@ class InvariantesDoDinheiroEmSequenciaTest extends TestCase
             return 'nada';
         }
 
-        $alvo = $linha->isTransferencia()
-            ? Transaction::where('transfer_group_id', $linha->transfer_group_id)->get()
-            : collect([$linha]);
+        // Transferência: as duas pontas. Parcela de compra (out/2026): a compra inteira — as em
+        // aberto e as pagas fora do app; as pagas por uma fatura do app ficam.
+        $alvo = match (true) {
+            $linha->isTransferencia() => Transaction::where('transfer_group_id', $linha->transfer_group_id)->get(),
+            $linha->isParcelaDeCompra() => Transaction::where('group_id', $linha->group_id)->apagavelDaCompra()->get(),
+            default => collect([$linha]),
+        };
         $resgates = $this->resgatesLigados($alvo->pluck('id')->all());
         $encerrar = $linha->isOcorrenciaRecorrente() && mt_rand(0, 1) === 1;
         $this->descricao = 'excluir pelo Histórico '.$this->rotulo($linha).($encerrar ? ' (encerrando a recorrência)' : '');

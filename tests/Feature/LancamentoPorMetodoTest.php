@@ -89,10 +89,13 @@ class LancamentoPorMetodoTest extends TestCase
         $criar = $this->select($this->actingAs($this->user)->get(route('transactions.create'))->assertOk()->getContent(), 'account_id');
         $this->assertStringContainsString('<optgroup label="Contas correntes" data-para="income transfer">', $criar);
 
-        // Na edição a conta de banco vale também para despesa: senão o filtro trocaria a conta
-        // sozinho, e trocar a conta reconcilia o dinheiro.
+        // Na edição (13/10/2026) o "Onde" só tem o que vale para o tipo: numa despesa, os métodos.
+        // A conta gravada aparece pelo método que a espelha (o débito, o primeiro), marcado — o
+        // select nunca troca a conta sozinho, e trocar a conta reconcilia o dinheiro.
         $editar = $this->select($this->actingAs($this->user)->get(route('transactions.edit', $antiga))->assertOk()->getContent(), 'account_id');
-        $this->assertStringContainsString('<optgroup label="Contas correntes" data-para="income transfer expense">', $editar);
+        $this->assertStringNotContainsString('Contas correntes', $editar);
+        $this->assertSame(1, substr_count($editar, 'selected'), 'Uma opção marcada só.');
+        $this->assertMatchesRegularExpression('#value="'.$this->corrente->id.'"[^>]*\s+selected>#', $editar);
     }
 
     public function test_sem_metodo_o_lancar_despesa_explica_o_que_falta(): void
