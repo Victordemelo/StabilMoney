@@ -98,8 +98,11 @@ class SaldoPorTipoDeContaNoPainelTest extends TestCase
         $this->assertSame('R$ 350,00', trim($doc->querySelector('[data-saldo-tipo="checking"] dd')->textContent));
     }
 
-    public function test_conta_no_vermelho_sai_com_o_sinal_do_app(): void
+    public function test_conta_no_vermelho_nao_desconta_do_seu_tipo(): void
     {
+        // 14/10/2026: o cheque especial em uso não desconta do saldo (pedido do Victor), nem do
+        // total por tipo — senão os tipos não fechavam com o card. O vermelho aparece no giro da
+        // conta e no aviso "Você está usando … do cheque especial" (ChequeEspecialNaoDescontaDoSaldoTest).
         $corrente = $this->conta('checking', 0);
         $corrente->update(['overdraft_limit' => 500]);
         $this->conta('savings', 1000);
@@ -107,9 +110,11 @@ class SaldoPorTipoDeContaNoPainelTest extends TestCase
             'account_id' => $corrente->id, 'type' => 'expense', 'amount' => 120, 'date' => CarbonImmutable::today()->toDateString(),
         ]);
 
-        $dd = $this->painel()->querySelector('[data-saldo-tipo="checking"] dd');
-        $this->assertSame('−R$ 120,00', trim($dd->textContent));
-        $this->assertStringContainsString('neg', $dd->getAttribute('class'));
+        $doc = $this->painel();
+        $dd = $doc->querySelector('[data-saldo-tipo="checking"] dd');
+        $this->assertSame('R$ 0,00', trim($dd->textContent));
+        $this->assertStringNotContainsString('neg', (string) $dd->getAttribute('class'));
+        $this->assertStringContainsString('Você está usando R$ 120,00 do cheque especial', $doc->querySelector('.saldo-cheque')->textContent);
     }
 
     public function test_no_celular_as_contas_ficam_abaixo_do_total(): void

@@ -83,7 +83,7 @@ class DashboardTest extends TestCase
         $response->assertDontSee('Nenhuma conta ainda');
     }
 
-    public function test_negative_balance_is_shown_in_red(): void
+    public function test_negative_balance_is_shown_in_red_apart_from_the_total(): void
     {
         $user = User::factory()->create();
         $account = Account::factory()->for($user)->create([
@@ -99,10 +99,12 @@ class DashboardTest extends TestCase
         $response = $this->actingAs($user)->get('/');
 
         $response->assertOk();
-        // Stat card "Saldo total" marcado como negativo (CSS pinta de vermelho)
-        $response->assertSee('class="value neg"', false);
-        // O card "Patrimônio total" da sidebar também
-        $response->assertSee('class="sb-value neg"', false);
+        // Desde 14/10/2026 o total NÃO desconta o vermelho de uma conta (pedido do Victor): ele
+        // soma o que existe (R$ 0,00 aqui) e o vermelho aparece à parte, em aviso.
+        $response->assertSee('<div class="value "><span class="sign"></span><span class="cur">R$</span><span class="num" data-count="0" data-dec="2">0,00</span></div>', false);
+        $response->assertSee('<p class="saldo-cheque" role="note">', false);
+        $response->assertSee('Uma conta está no vermelho em R$ 900,00');
+        $response->assertSee('<div class="sb-subline neg sb-cheque">Conta no vermelho: R$ 900,00</div>', false);
     }
 
     public function test_positive_balance_is_not_marked_negative(): void

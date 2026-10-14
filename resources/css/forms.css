@@ -303,6 +303,8 @@ a.tx { text-decoration: none; color: inherit; }
 [data-theme="dark"] .acct-sub .acct-debitada em { background: rgba(28,154,112,.14); color: var(--brand-300); }
 /* O saldo numa linha, o rótulo embaixo: no card estreito eles dividiam a linha e quebravam. */
 .acct-balance { margin-top: 10px; font-family: var(--font-head); font-size: 18px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; overflow-wrap: anywhere; }
+/* Conta no vermelho (14/10/2026): o aviso logo abaixo do saldo. */
+.acct-cheque { margin: 6px 0 0; display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--neg); background: color-mix(in srgb, var(--neg) 12%, transparent); }
 .acct-balance-lbl { display: block; font-family: var(--font-body); font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; margin-top: 2px; }
 .acct-card .fh-limit { margin-top: 10px; }
 /* Rótulo em cima e valor embaixo em TODA conta (com ou sem cheque especial): a mesma altura. */

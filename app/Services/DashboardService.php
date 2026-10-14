@@ -115,7 +115,12 @@ class DashboardService
         // o que já está comprometido em metas e investimentos (modelo cofrinho —
         // o dinheiro continua na conta, mas não é para gastar).
         $reservado = $this->reservedTotals($userId);
-        $saldoDisponivel = round($totalBalance - $reservado['total'], 2);
+        // O cheque especial em uso NÃO desconta do saldo (14/10/2026 — pedido do Victor: Itaú com
+        // R$ 1.000 e Nubank −R$ 200 no cheque especial mostram R$ 1.000). O total é a soma do que
+        // EXISTE nas contas; o vermelho aparece à parte, em "Você está usando R$ 200,00 do cheque
+        // especial" (`chequeEmUso`), e na própria conta, que segue negativa.
+        $chequeEmUso = round((float) $nonCardAccounts->sum(fn ($c) => max(0.0, -(float) $c->current_balance)), 2);
+        $saldoDisponivel = round($totalBalance - $reservado['total'] + $chequeEmUso, 2);
 
         // O mesmo disponível, separado por TIPO de conta (out/2026 — Victor): com corrente e
         // poupança, o card mostra o saldo de cada uma; com uma só, o rótulo diz qual é.
@@ -263,6 +268,10 @@ class DashboardService
             'accounts' => $accounts,
             'totalBalance' => $totalBalance,
             'saldoPorTipo' => $saldoPorTipo,
+            'chequeEmUso' => $chequeEmUso,
+            // Sem cheque especial contratado, o vermelho vem de uma obrigação paga (fatura, conta
+            // fixa vencida) — o aviso diz "no vermelho", não "cheque especial".
+            'temChequeEspecial' => $nonCardAccounts->contains(fn ($c) => (float) $c->overdraft_limit > 0),
             'contasDoSaldo' => $contasDoSaldo,
             // Exibe "quem fez a compra" nas recentes só quando a família tem dependentes.
             'showAuthor' => User::where('account_owner_id', $userId)->exists(),
@@ -296,7 +305,9 @@ class DashboardService
             $tipos[] = [
                 'tipo' => $tipo,
                 'rotulo' => $contas->count() > 1 ? $plural : $singular,
-                'valor' => round((float) $contas->sum(fn ($c) => (float) $c->current_balance), 2),
+                // Só o que existe, como o total (o cheque especial em uso não desconta — 14/10/2026):
+                // senão "Contas correntes" + "Contas poupança" não fechava com o card.
+                'valor' => round((float) $contas->sum(fn ($c) => max(0.0, (float) $c->current_balance)), 2),
                 'contas' => $contas->count(),
             ];
         }

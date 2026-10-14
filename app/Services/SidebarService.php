@@ -91,25 +91,28 @@ class SidebarService
             $variacao = $this->dashboard->pctChange($saldoTotal, $saldoAnterior);
         }
 
-        // Cheque especial da família: limite total das contas correntes e quanto
-        // dele já está sendo usado (uma conta por vez). As correntes vêm numa query só,
-        // que serve às duas contas.
-        $correntes = Account::where('user_id', $userId)->where('type', 'checking')->get();
-        $chequeLimite = round((float) $correntes->sum(fn (Account $conta) => (float) $conta->overdraft_limit), 2);
+        // Cheque especial da família: limite total das contas correntes e quanto dele está em
+        // uso — o vermelho de cada conta de banco (corrente ou poupança que uma obrigação deixou
+        // negativa). As contas vêm numa query só, e o dinheiro delas em 4 queries agregadas, não
+        // 6 POR conta (V-1 da auditoria de volume de 06/09/2026: a sidebar está em 100% das
+        // páginas). A fórmula continua a do accessor (`overdraftUsed`).
+        $contasDeBanco = Account::where('user_id', $userId)->whereIn('type', ['checking', 'savings'])->get();
+        $chequeLimite = round((float) $contasDeBanco->where('type', 'checking')->sum(fn (Account $conta) => (float) $conta->overdraft_limit), 2);
 
         $chequeUsado = 0.0;
-        if ($chequeLimite > 0) {
-            // O dinheiro das correntes em 4 queries agregadas, não 6 POR conta: sem isto,
-            // cada `overdraftUsed` disparava 2 SUMs sobre o histórico da conta e 4 sobre
-            // metas e investimentos — e esta sidebar está em 100% das páginas (V-1 da
-            // auditoria de volume de 06/09/2026). A fórmula continua a do accessor.
-            Account::preloadMoney($correntes);
-
-            foreach ($correntes as $conta) {
+        if ($contasDeBanco->isNotEmpty()) {
+            Account::preloadMoney($contasDeBanco);
+            foreach ($contasDeBanco as $conta) {
                 $chequeUsado += $conta->overdraftUsed;
             }
             $chequeUsado = round($chequeUsado, 2);
         }
+
+        // O cheque especial em uso NÃO desconta do saldo (14/10/2026 — pedido do Victor): o total
+        // soma o que EXISTE nas contas (Itaú R$ 1.000 + Nubank −R$ 200 = R$ 1.000), e o que está
+        // em uso aparece à parte, em vermelho. A mesma regra do card de saldo do painel.
+        $saldoTotal = round($saldoTotal + $chequeUsado, 2);
+        $disponivel = round($disponivel + $chequeUsado, 2);
 
         return [
             'saldoTotal' => $saldoTotal,

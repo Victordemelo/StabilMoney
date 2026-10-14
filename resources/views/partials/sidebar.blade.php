@@ -112,7 +112,8 @@
             <div class="sb-subline">Guardado em metas: @brl($patrimonio['guardado'])</div>
             <div class="sb-subline">Investido: @brl($patrimonio['investido'])</div>
             @if (($patrimonio['chequeUsado'] ?? 0) > 0)
-                <div class="sb-subline neg">Cheque especial: @brl($patrimonio['chequeUsado']) de @brl($patrimonio['chequeLimite'])</div>
+                {{-- O total acima NÃO desconta o que está em uso (14/10/2026): o aviso é este. --}}
+                <div class="sb-subline neg sb-cheque">{{ ($patrimonio['chequeLimite'] ?? 0) > 0 ? 'Você está usando '.\App\Support\Brl::format($patrimonio['chequeUsado']).' do cheque especial' : 'Conta no vermelho: '.\App\Support\Brl::format($patrimonio['chequeUsado']) }}</div>
             @elseif (($patrimonio['chequeLimite'] ?? 0) > 0)
                 <div class="sb-subline">Cheque especial livre: @brl($patrimonio['chequeLimite'])</div>
             @endif

@@ -1418,15 +1418,20 @@ class InvariantesDoDinheiroEmSequenciaTest extends TestCase
         $caixa = Account::whereIn('id', array_keys($this->saldo))->get();
         $somaSaldo = round($caixa->sum(fn (Account $c) => $c->balance), 2);
         $somaDisp = round($caixa->sum(fn (Account $c) => $c->available), 2);
+        // O cheque especial em uso não desconta do saldo mostrado (14/10/2026): as telas somam o
+        // vermelho de volta e o mostram à parte.
+        $emUso = round($caixa->sum(fn (Account $c) => max(0.0, -$c->available)), 2);
 
         $sidebar = app(SidebarService::class)->build($dono);
-        $this->assertEqualsWithDelta($somaSaldo, $sidebar['saldoTotal'], self::EPS, $this->contexto('sidebar: patrimônio'));
-        $this->assertEqualsWithDelta($somaDisp, $sidebar['disponivel'], self::EPS, $this->contexto('sidebar: disponível'));
+        $this->assertEqualsWithDelta($somaSaldo + $emUso, $sidebar['saldoTotal'], self::EPS, $this->contexto('sidebar: patrimônio'));
+        $this->assertEqualsWithDelta($somaDisp + $emUso, $sidebar['disponivel'], self::EPS, $this->contexto('sidebar: disponível'));
+        $this->assertEqualsWithDelta($emUso, $sidebar['chequeUsado'], self::EPS, $this->contexto('sidebar: cheque especial em uso'));
 
         $dash = app(DashboardService::class)->build($dono);
         $this->assertEqualsWithDelta($somaSaldo, $dash['totalBalance'], self::EPS, $this->contexto('dashboard: patrimônio'));
+        $this->assertEqualsWithDelta($emUso, $dash['chequeEmUso'], self::EPS, $this->contexto('dashboard: cheque especial em uso'));
         foreach (['semana', 'mes', 'ano'] as $periodo) {
-            $this->assertEqualsWithDelta($somaDisp, $dash['payload']['periods'][$periodo]['stats']['saldo'], self::EPS,
+            $this->assertEqualsWithDelta($somaDisp + $emUso, $dash['payload']['periods'][$periodo]['stats']['saldo'], self::EPS,
                 $this->contexto('dashboard: saldo ('.$periodo.')'));
         }
         foreach ($dash['accounts'] as $a) {

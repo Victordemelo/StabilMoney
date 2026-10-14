@@ -71,6 +71,10 @@
             {{-- "Saldo em conta" = disponível (já fora metas e investimentos):
                  é o número que o usuário pode de fato gastar. --}}
             <div class="acct-balance {{ $conta->available < 0 ? 'neg' : '' }}">@brl($conta->available) <span class="acct-balance-lbl">saldo em conta</span></div>
+            @if ($conta->overdraftUsed > 0)
+                {{-- No vermelho: a conta está usando o cheque especial (14/10/2026). --}}
+                <p class="acct-cheque" role="note">{{ $conta->overdraftLimitValue > 0 ? 'Usando o cheque especial' : 'Conta no vermelho' }}</p>
+            @endif
             @if ($conta->reserved > 0)
                 <div class="acct-sub">
                     <span>Guardado/investido <b>@brl($conta->reserved)</b></span>

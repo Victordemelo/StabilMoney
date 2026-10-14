@@ -160,6 +160,14 @@
                         @endforeach
                     </div>
                 @endif
+                @if ($ehSaldo && ($chequeEmUso ?? 0) > 0)
+                    {{-- O total NÃO desconta o cheque especial em uso (14/10/2026 — pedido do Victor):
+                         ele aparece aqui, em vermelho, e a conta segue negativa no giro e em Contas. --}}
+                    <p class="saldo-cheque" role="note">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                        {{ ($temChequeEspecial ?? true) ? 'Você está usando '.\App\Support\Brl::format($chequeEmUso).' do cheque especial' : 'Uma conta está no vermelho em '.\App\Support\Brl::format($chequeEmUso) }}
+                    </p>
+                @endif
                 @if (count($tiposDoSaldo) > 1)
                     {{-- Fora do `.num`/`data-count`: o dashboard.js casa os stat cards por índice
                          e não pode confundir estes valores com o do card. --}}
