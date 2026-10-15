@@ -80,7 +80,9 @@ services:
       - php
       - artisan
       - schedule:work
+    cpus: 0.25
     image: stabilmoney-app:producao
+    mem_limit: "268435456"
     user: www-data
     volumes:
       - type: bind
@@ -88,7 +90,9 @@ services:
         target: /var/www/html
         bind: {}
   app:
+    cpus: 1
     image: stabilmoney-app:producao
+    mem_limit: "536870912"
     networks:
       default: null
     ports:
@@ -104,6 +108,8 @@ services:
         - CMD
         - mysqladmin
     image: mysql:8.0
+    cpus: 0.75
+    mem_limit: "805306368"
 networks:
   default:
     name: stabilmoney_default
@@ -194,6 +200,18 @@ porta_e() {
   [ "$r" = "8081" ] || { DETALHE="porta: '$r'"; return 1; }
 }
 afirmar "porta publicada do app lida do compose (8081)" porta_e
+
+teto_e() { # <config> <esperado>
+  local r
+  r="$(printf '%s\n' "$1" | sm_servicos_sem_teto)"
+  [ "$r" = "$2" ] || { DETALHE="esperado '$2', veio '$r'"; return 1; }
+}
+afirmar "compose de produção: todo serviço com mem_limit e cpus" teto_e "$CONFIG_PROD" ""
+CONFIG_SEM_CPU="$(printf '%s\n' "$CONFIG_PROD" | sed '/^    cpus: 1$/d')"
+afirmar "serviço sem cpus é acusado" teto_e "$CONFIG_SEM_CPU" "app sem cpus"
+CONFIG_SEM_MEM="$(printf '%s\n' "$CONFIG_PROD" | sed '/mem_limit: "805306368"/d')"
+afirmar "serviço sem mem_limit é acusado (o último da lista também)" teto_e "$CONFIG_SEM_MEM" "db sem mem_limit"
+afirmar "compose de dev (sem teto nenhum) acusa cada serviço" teto_e "$(printf '%s\n' 'services:' '  app:' '    image: x' 'networks:' '  default: {}')" "$(printf '%s\n' 'app sem mem_limit' 'app sem cpus')"
 
 lista_ok() {
   sm_lista_contem "172.16.80.1" "172.16.80.1" || { DETALHE="valor puro"; return 1; }
@@ -452,9 +470,16 @@ if [ -n "$DOCKER_DE_VERDADE" ] && "$DOCKER_DE_VERDADE" compose version > /dev/nu
         | grep -q "mem_limit: \"$2\"" || { DETALHE="$1 sem mem_limit de $2 bytes"; return 1; }
     }
     teto app 536870912 && teto agendador 268435456 && teto db 805306368 || return 1
+    # E o de CPU (15/10/2026): app 1, agendador 0,25, banco 0,75 — e todo serviço com os dois.
+    cpu() { # <serviço> <cpus>
+      printf '%s\n' "$cfg" | awk -v s="  $1:" '$0 == s { dentro = 1; next } /^  [a-z]/ { dentro = 0 } dentro' \
+        | grep -q "^    cpus: $2\$" || { DETALHE="$1 sem cpus: $2"; return 1; }
+    }
+    cpu app 1 && cpu agendador 0.25 && cpu db 0.75 || return 1
+    [ -z "$(printf '%s\n' "$cfg" | sm_servicos_sem_teto)" ] || { DETALHE="$(printf '%s\n' "$cfg" | sm_servicos_sem_teto)"; return 1; }
     printf '%s\n' "$cfg" | grep -q 'image: mysql:8.4$' || { DETALHE="o banco não é o mysql:8.4"; return 1; }
   }
-  afirmar "docker compose config (de verdade): tetos de memória do app, do agendador e do banco, e MySQL 8.4" limites_prod
+  afirmar "docker compose config (de verdade): tetos de memória e de CPU do app, do agendador e do banco, e MySQL 8.4" limites_prod
   afirmar "docker compose config (de verdade) do compose de produção passa na conferência do deploy" render_prod
   render_dev() {
     local cfg
@@ -663,6 +688,12 @@ commit_novo "# falso: porta-aberta"
 rodar
 afirmar "porta aberta na versão que VAI chegar: recusa antes de tirar o app do ar" falhou_dizendo "da versão nova" "app 0.0.0.0:8081"
 afirmar "porta aberta na versão que vai chegar: nada muda (nem o código)" nada_mudou
+
+novo_cenario sem-teto
+commit_novo "# falso: sem-teto"
+rodar
+afirmar "serviço sem teto de CPU na versão que vai chegar: recusa" falhou_dizendo "sem teto de CPU ou de memória" "app sem cpus"
+afirmar "serviço sem teto: nada muda" nada_mudou
 
 novo_cenario gateway-diferente
 printf '%s\n' "$ENV_BOM" | sed 's/^TRUSTED_PROXIES=.*/TRUSTED_PROXIES=10.9.9.1/' > "$P/.env"

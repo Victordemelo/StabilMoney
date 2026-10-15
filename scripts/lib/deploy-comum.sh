@@ -298,6 +298,27 @@ sm_gateway_da_rede_padrao() {
   '
 }
 
+# Serviços sem os DOIS tetos, um por linha ("app sem cpus", "db sem mem_limit"), a partir do
+# `docker compose config`. A VPS hospeda apps de clientes (15/10/2026): sem teto, um pico de CPU
+# ou de memória aqui deixa os outros lentos — ou os derruba.
+sm_servicos_sem_teto() {
+  LC_ALL=C awk '
+    function fechar() {
+      if (servico != "") {
+        if (!mem) printf "%s sem mem_limit\n", servico
+        if (!cpu) printf "%s sem cpus\n", servico
+      }
+      servico = ""
+    }
+    /^[^ ]/ { fechar(); secao = $0; sub(/:.*/, "", secao); next }
+    secao != "services" { next }
+    /^  [^ ]/ { fechar(); servico = $0; sub(/^  /, "", servico); sub(/:.*/, "", servico); mem = 0; cpu = 0; next }
+    /^    mem_limit:/ { mem = 1 }
+    /^    cpus:/ { cpu = 1 }
+    END { fechar() }
+  '
+}
+
 # A porta do HOST publicada para <serviço> (a primeira) — a que o nginx usa no proxy_pass.
 sm_porta_publicada() { # <serviço>
   LC_ALL=C awk -v alvo_servico="$1" '

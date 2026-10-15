@@ -194,6 +194,13 @@ conferir_compose() {
   if [ -z "$(printf '%s\n' "$config" | sm_porta_publicada app)" ]; then
     erro "o $rotulo não publica porta nenhuma para o serviço app — o nginx não teria onde chegar."
   fi
+  local sem_teto
+  sem_teto="$(printf '%s\n' "$config" | sm_servicos_sem_teto)"
+  if [ -n "$sem_teto" ]; then
+    vermelho "O $rotulo tem serviço sem teto de CPU ou de memória:"
+    printf '%s\n' "$sem_teto" | while IFS= read -r l; do vermelho "    $l"; done
+    erro "recusado. A VPS hospeda outros apps: todo serviço precisa de \"mem_limit\" e \"cpus\"."
+  fi
 }
 
 if ! CONFIG="$("${DC[@]}" config 2>&1 < /dev/null)"; then

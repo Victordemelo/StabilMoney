@@ -25,6 +25,7 @@
 #   # falso: sem-gateway           a rede não fixa sub-rede nem gateway
 #   # falso: network-host          o agendador em network_mode: host
 #   # falso: config-quebrado       o `config` falha
+#   # falso: sem-teto              o app sem `cpus` (todo serviço tem os dois tetos)
 #
 # Botões:
 #   SM_FALSO_FALHAR=<o quê>   falha nesse ponto: up, composer, migrate (ou outro
@@ -83,12 +84,16 @@ emitir_config() {
   local host_ip="        host_ip: 127.0.0.1" gateway="172.16.80.1"
   if tem_marca porta-aberta; then host_ip=""; fi
   if tem_marca 'gateway='; then gateway="$(sed -n 's/^# falso: gateway=//p' "$arquivo" | head -n 1)"; fi
-  printf '%s\n' "name: stabilmoney" "services:" "  agendador:" "    command:" "      - php"
+  printf '%s\n' "name: stabilmoney" "services:" "  agendador:" "    command:" "      - php" "    cpus: 0.25"
+  printf '%s\n' "    mem_limit: \"268435456\""
   if tem_marca network-host; then printf '%s\n' "    network_mode: host"; fi
-  printf '%s\n' "    user: www-data" "  app:" "    image: stabilmoney-app:producao" "    ports:" "      - mode: ingress"
+  printf '%s\n' "    user: www-data" "  app:"
+  if ! tem_marca sem-teto; then printf '%s\n' "    cpus: 1"; fi
+  printf '%s\n' "    image: stabilmoney-app:producao" "    mem_limit: \"536870912\"" "    ports:" "      - mode: ingress"
   if [ -n "$host_ip" ]; then printf '%s\n' "$host_ip"; fi
   printf '%s\n' "        target: 80" "        published: \"8081\"" "        protocol: tcp" \
-    "    restart: unless-stopped" "  db:" "    image: mysql:8.0" "networks:" "  default:" "    name: stabilmoney_default"
+    "    restart: unless-stopped" "  db:" "    cpus: 0.75" "    image: mysql:8.0" "    mem_limit: \"805306368\"" \
+    "networks:" "  default:" "    name: stabilmoney_default"
   if ! tem_marca sem-gateway; then
     printf '%s\n' "    ipam:" "      config:" "        - subnet: 172.16.80.0/24" "          gateway: $gateway"
   fi

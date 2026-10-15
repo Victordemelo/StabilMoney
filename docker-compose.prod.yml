@@ -88,6 +88,10 @@ services:
     # argon2id de 64 MiB por tentativa, e 512 MB dá folga para várias ao mesmo tempo
     # sem deixar um pico derrubar o portfólio que divide a VPS.
     mem_limit: 512m
+    # Teto de CPU (15/10/2026, combinado com o servidor): a VPS passou a hospedar apps de
+    # clientes, e um pico aqui não pode deixar os outros lentos. Todo serviço tem os dois
+    # tetos — o deploy.sh recusa serviço sem eles (`sm_servicos_sem_teto`).
+    cpus: 1.0
     ports:
       # SÓ em 127.0.0.1: quem fala com o app é o nginx do host (proxy_pass).
       # A 8080 já é do portfólio; o padrão aqui é 8081, e o .env do servidor
@@ -110,6 +114,7 @@ services:
   agendador:
     <<: *app
     mem_limit: 256m
+    cpus: 0.25
     user: www-data
     command: ["php", "artisan", "schedule:work"]
 
@@ -119,6 +124,7 @@ services:
     image: mysql:8.4
     restart: unless-stopped
     mem_limit: 768m
+    cpus: 0.75
     environment:
       # Sem valores padrão, ao contrário do dev: faltando no .env, o Compose
       # PARA com a mensagem abaixo em vez de subir o banco com senha de exemplo.
@@ -159,6 +165,10 @@ services:
   assets:
     image: node:24-alpine
     profiles: ["ferramentas"]
+    # Só durante o deploy, mas com os mesmos tetos de todo serviço: o build do Vite é o
+    # pico de CPU mais alto da VPS, e roda com os apps dos clientes no ar.
+    mem_limit: 1g
+    cpus: 1.0
     working_dir: /app
     volumes:
       - .:/app
