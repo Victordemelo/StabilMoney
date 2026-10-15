@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.398 testes PHP** (1 deles só roda no MySQL) (~56 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **468 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.398 testes PHP** (1 deles só roda no MySQL) (~56 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **468 testes JS** (Vitest) + **243 checagens dos scripts** (backup 83, deploy 116, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -2984,8 +2984,10 @@ visitante → Cloudflare (proxy, SSL Full strict) → nginx do HOST (:443, Let's
   app em `127.0.0.1:${HTTP_PORT:-8081}`, banco sem porta e com healthcheck, serviço **`agendador`**
   (`schedule:work` como www-data — não há cron do Laravel), `assets` (Node 24 num container, perfil
   `ferramentas`), log com rotação, **`mysql:8.4`**, tetos de memória (`mem_limit`: app 512m, agendador
-  256m, banco 768m — a VPS é dividida com o portfólio; conferidos pelo `deploy.test.sh` no
-  `docker compose config` de verdade), e rede com **gateway fixo 172.16.80.1**. O `.env` do servidor tem
+  256m, banco 768m, assets 1g) e de CPU (`cpus`, 15/10/2026 — a VPS passou a hospedar apps de clientes:
+  app 1, agendador 0,25, banco 0,75, assets 1) — conferidos pelo `deploy.test.sh` no `docker compose
+  config` de verdade, e o `deploy.sh` RECUSA serviço sem os dois (`sm_servicos_sem_teto`); e rede com
+  **gateway fixo 172.16.80.1**. O `.env` do servidor tem
   **`COMPOSE_FILE=docker-compose.prod.yml`**: o `docker compose` da pasta nunca sobe o compose de dev
   (8001 aberta + Mailpit). A pasta é montada no container, como no dev.
 - **🚨 `TRUSTED_PROXIES=172.16.80.1`** (`config/trustedproxy.php`, lido pelo `TrustProxies` do
