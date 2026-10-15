@@ -47,7 +47,7 @@ reais → CRUD de transações/contas(=métodos de pagamento)/categorias.
 | Núcleo (CRUD + dashboard + design system) | ✅ Pronto e testado |
 | Login multiusuário (Breeze customizado) | ✅ Pronto (isolamento testado) |
 | Design v2 (shell, popover, patrimônio, auth com vídeo) | ✅ Pronto |
-| Suíte de testes | ✅ **2.394 testes PHP** (1 deles só roda no MySQL) (~56 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **468 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
+| Suíte de testes | ✅ **2.398 testes PHP** (1 deles só roda no MySQL) (~56 mil asserções — o número varia a cada rodada, porque o teste de invariantes por sequência sorteia as operações) — em sqlite **e em MySQL 8** (job `mysql` do CI) — + **468 testes JS** (Vitest) + **230 checagens dos scripts** (backup 83, deploy 103, nginx 20, permissões do deploy 9, IPs da Cloudflare 15) verdes |
 | Features financeiras v2 (metas, investimentos, faturas/despesas, cartão c/ ciclo/limite) | ✅ **Implementadas** (jun/2026) |
 | **Modelo de dinheiro v3** (cheque especial, saldo × investido, escolha de fonte, contas fixas) | ✅ **Implementado** (27/07/2026) |
 | **2FA (verificação em duas etapas por app autenticador)** | ✅ **Implementado** (05/08/2026) — **opcional**, ver seção própria |
@@ -203,7 +203,10 @@ resources/
     ├── profile/            # edit + partials (perfil, senha, excluir conta com modal)
     └── coming-soon.blade.php   # placeholder das seções futuras
 
-public/assets/              # stabilmoney-mark.png (logo), favicon.png, video_login.mp4 (login), icons/ (ícones do PWA),
+public/favicon.ico          # .ico de verdade (16/32/48) + apple-touch-icon.png na raiz — `partials/favicons` (15/10/2026:
+                            # o .ico era o arquivo VAZIO do esqueleto e o site aparecia sem ícone na Busca do Google;
+                            # gerados por resources/icones/gerar-favicons.py — `FaviconParaBuscadoresTest`)
+public/assets/              # stabilmoney-mark.png (logo), favicon.png, video_login.mp4 (login), icons/ (ícones do PWA, favicon-48/96),
                             # og-stabilmoney-2.jpg (prévia de link; fonte em resources/og/)
 deploy/nginx/               # o nginx do host da VPS (site, servidor padrão, faixas da Cloudflare) — ver "🚀 Publicação"
 docker-compose.prod.yml     # o compose de PRODUÇÃO (o de dev é o docker-compose.yml)
@@ -249,7 +252,7 @@ tests/scripts/              # backup-restore.test.sh: roda os scripts de backup/
                             # `scripts` do CI. `bash tests/scripts/backup-restore.test.sh`. Desde 23/09
                             # também deploy.test.sh, nginx.test.sh e atualizar-ips-cloudflare.test.sh
                             # (ver "🚀 Publicação")
-tests/Feature/              # 2.394 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
+tests/Feature/              # 2.398 testes (PHP): auth, dashboard, CRUD, validação, isolamento multiusuário,
                             # ModeloDeDinheiroTest (cheque especial/fonte/limite), FixedBillTest e DoisFatoresTest
 ```
 
@@ -2887,7 +2890,7 @@ com `single`. O `/up` responde 503 se a pasta do log não aceitar escrita.
 
 ### Comandos úteis
 ```powershell
-docker compose exec app php artisan test                       # suíte PHP completa (2.394 testes)
+docker compose exec app php artisan test                       # suíte PHP completa (2.398 testes)
 docker compose exec app php artisan migrate:fresh --seed       # recria o banco do zero
 docker compose exec app php artisan db:seed --class=DadosDeDemonstracaoSeeder  # telas cheias (ver abaixo)
 docker compose exec app php artisan tinker                     # console interativo
