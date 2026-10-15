@@ -50,7 +50,10 @@
     <meta name="color-scheme" content="light">
     <meta name="theme-color" content="#0C3D2B">
     <title>@yield('title') · StabilMoney</title>
-    <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}">
+    {{-- Os mesmos de `partials/favicons`, escritos aqui: a página de erro não usa partial nenhum. --}}
+    <link rel="icon" href="{{ asset('favicon.ico') }}?v=2" sizes="48x48">
+    <link rel="icon" type="image/png" sizes="96x96" href="{{ asset('assets/icons/favicon-96.png') }}?v=2">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('assets/icons/icon-192.png') }}">
     <style>
         :root {
             --brand-700: #0F4A43;

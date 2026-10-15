@@ -12,7 +12,7 @@
     <title>@yield('title', 'StabilMoney')</title>
     @include('partials.seo', ['seoTitulo' => trim($__env->yieldContent('title', 'StabilMoney'))])
 
-    <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
+    @include('partials.favicons')
     @include('partials.pwa-head')
 
     {{-- Anti-flash: aplica o tema (o salvo; sem escolha, o claro) antes de pintar +

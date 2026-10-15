@@ -35,7 +35,7 @@
     <title>{{ $tituloCompleto }}</title>
     @include('partials.seo', ['seoTitulo' => $tituloCompleto])
 
-    <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
+    @include('partials.favicons')
     @include('partials.pwa-head')
 
     {{-- Fontes do design system (Sora + Plus Jakarta Sans) --}}

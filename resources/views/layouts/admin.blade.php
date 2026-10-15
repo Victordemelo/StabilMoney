@@ -17,7 +17,7 @@
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="theme-color" content="#F3F5F1" data-sm-theme data-light="#F3F5F1" data-dark="#021C1E" />
     <title>@yield('title', 'Painel') · Stabil Money</title>
-    <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
+    @include('partials.favicons')
 
     {{-- Anti-flash do tema: a mesma regra do layouts/app (escolha salva; sem ela, o sistema). --}}
     <script nonce="{{ Vite::cspNonce() }}">

@@ -41,7 +41,7 @@
     <meta name="theme-color" content="#032628" />
     <title>{{ $titulo }}</title>
     @include('partials.seo', ['seoTitulo' => $titulo])
-    <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
+    @include('partials.favicons')
     @include('partials.pwa-head')
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

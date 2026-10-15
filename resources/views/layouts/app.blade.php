@@ -30,7 +30,7 @@
     @php($tituloPagina = trim($__env->yieldContent('title')))
     <title>{{ $tituloPagina ? $tituloPagina . ' · StabilMoney' : 'StabilMoney' }}</title>
 
-    <link rel="icon" type="image/png" href="{{ asset('assets/favicon.png') }}" />
+    @include('partials.favicons')
     @include('partials.pwa-head')
 
     {{-- Anti-flash: aplica o tema ANTES do CSS pintar a página — e, junto,
